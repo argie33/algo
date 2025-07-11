@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v10 - fix table creation after webapp separation
+# Trigger deploy-app-stocks workflow test - loadinfo update v11 - fix critical indentation error
 import sys
 import time
 import logging
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     try:
         logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
         logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
-        logging.info("🔄 This is loadinfo update v4 - deployment trigger test")
+        logging.info("🔄 This is loadinfo update v11 - critical indentation fix")
         logging.info(f"✅ Python version: {sys.version}")
         logging.info(f"✅ Current working directory: {os.getcwd()}")
         
@@ -409,247 +409,247 @@ if __name__ == "__main__":
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"]
         )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate tables
-    logging.info("Recreating company info tables...")
-    cur.execute("""
-        DROP TABLE IF EXISTS analyst_estimates CASCADE;
-        DROP TABLE IF EXISTS key_metrics CASCADE;
-        DROP TABLE IF EXISTS market_data CASCADE;
-        DROP TABLE IF EXISTS governance_scores CASCADE;
-        DROP TABLE IF EXISTS leadership_team CASCADE;
-        DROP TABLE IF EXISTS company_profile CASCADE;
-    """)
+        # Recreate tables
+        logging.info("Recreating company info tables...")
+        cur.execute("""
+            DROP TABLE IF EXISTS analyst_estimates CASCADE;
+            DROP TABLE IF EXISTS key_metrics CASCADE;
+            DROP TABLE IF EXISTS market_data CASCADE;
+            DROP TABLE IF EXISTS governance_scores CASCADE;
+            DROP TABLE IF EXISTS leadership_team CASCADE;
+            DROP TABLE IF EXISTS company_profile CASCADE;
+        """)
 
-    # Create tables in correct order (company_profile first as it's referenced by others)
-    cur.execute("""
-        CREATE TABLE company_profile (
-            ticker VARCHAR(10) PRIMARY KEY,
-            short_name VARCHAR(100),
-            long_name VARCHAR(200),
-            display_name VARCHAR(200),
-            quote_type VARCHAR(50),
-            symbol_type VARCHAR(50),
-            triggerable BOOLEAN,
-            has_pre_post_market_data BOOLEAN,
-            price_hint INT,
-            max_age_sec INT,
-            language VARCHAR(20),
-            region VARCHAR(20),
-            financial_currency VARCHAR(10),
-            currency VARCHAR(10),
-            market VARCHAR(50),
-            quote_source_name VARCHAR(100),
-            custom_price_alert_confidence VARCHAR(20),
-            address1 VARCHAR(200),
-            city VARCHAR(100),
-            state VARCHAR(50),
-            postal_code VARCHAR(20),
-            country VARCHAR(100),
-            phone_number VARCHAR(50),
-            website_url VARCHAR(200),
-            ir_website_url VARCHAR(200),
-            message_board_id VARCHAR(100),
-            corporate_actions JSONB,
-            sector VARCHAR(100),
-            sector_key VARCHAR(100),
-            sector_disp VARCHAR(100),
-            industry VARCHAR(100),
-            industry_key VARCHAR(100),
-            industry_disp VARCHAR(100),
-            business_summary TEXT,
-            employee_count INT,
-            first_trade_date_ms BIGINT,
-            gmt_offset_ms BIGINT,
-            exchange VARCHAR(20),
-            full_exchange_name VARCHAR(100),
-            exchange_timezone_name VARCHAR(100),
-            exchange_timezone_short_name VARCHAR(20),
-            exchange_data_delayed_by_sec INT,
-            post_market_time_ms BIGINT,
-            regular_market_time_ms BIGINT
-        );
-    """)
+        # Create tables in correct order (company_profile first as it's referenced by others)
+        cur.execute("""
+            CREATE TABLE company_profile (
+                ticker VARCHAR(10) PRIMARY KEY,
+                short_name VARCHAR(100),
+                long_name VARCHAR(200),
+                display_name VARCHAR(200),
+                quote_type VARCHAR(50),
+                symbol_type VARCHAR(50),
+                triggerable BOOLEAN,
+                has_pre_post_market_data BOOLEAN,
+                price_hint INT,
+                max_age_sec INT,
+                language VARCHAR(20),
+                region VARCHAR(20),
+                financial_currency VARCHAR(10),
+                currency VARCHAR(10),
+                market VARCHAR(50),
+                quote_source_name VARCHAR(100),
+                custom_price_alert_confidence VARCHAR(20),
+                address1 VARCHAR(200),
+                city VARCHAR(100),
+                state VARCHAR(50),
+                postal_code VARCHAR(20),
+                country VARCHAR(100),
+                phone_number VARCHAR(50),
+                website_url VARCHAR(200),
+                ir_website_url VARCHAR(200),
+                message_board_id VARCHAR(100),
+                corporate_actions JSONB,
+                sector VARCHAR(100),
+                sector_key VARCHAR(100),
+                sector_disp VARCHAR(100),
+                industry VARCHAR(100),
+                industry_key VARCHAR(100),
+                industry_disp VARCHAR(100),
+                business_summary TEXT,
+                employee_count INT,
+                first_trade_date_ms BIGINT,
+                gmt_offset_ms BIGINT,
+                exchange VARCHAR(20),
+                full_exchange_name VARCHAR(100),
+                exchange_timezone_name VARCHAR(100),
+                exchange_timezone_short_name VARCHAR(20),
+                exchange_data_delayed_by_sec INT,
+                post_market_time_ms BIGINT,
+                regular_market_time_ms BIGINT
+            );
+        """)
 
-    cur.execute("""
-        CREATE TABLE leadership_team (
-            ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
-            person_name VARCHAR(200) NOT NULL,
-            age INT,
-            title VARCHAR(200),
-            birth_year INT,
-            fiscal_year INT,
-            total_pay NUMERIC,
-            exercised_value NUMERIC,
-            unexercised_value NUMERIC,
-            role_source VARCHAR(50),
-            PRIMARY KEY(ticker, person_name, role_source)
-        );
-    """)
+        cur.execute("""
+            CREATE TABLE leadership_team (
+                ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
+                person_name VARCHAR(200) NOT NULL,
+                age INT,
+                title VARCHAR(200),
+                birth_year INT,
+                fiscal_year INT,
+                total_pay NUMERIC,
+                exercised_value NUMERIC,
+                unexercised_value NUMERIC,
+                role_source VARCHAR(50),
+                PRIMARY KEY(ticker, person_name, role_source)
+            );
+        """)
 
-    cur.execute("""
-        CREATE TABLE governance_scores (
-            ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-            audit_risk INT,
-            board_risk INT,
-            compensation_risk INT,
-            shareholder_rights_risk INT,
-            overall_risk INT,
-            governance_epoch_ms BIGINT,
-            comp_data_as_of_ms BIGINT
-        );
-    """)
+        cur.execute("""
+            CREATE TABLE governance_scores (
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+                audit_risk INT,
+                board_risk INT,
+                compensation_risk INT,
+                shareholder_rights_risk INT,
+                overall_risk INT,
+                governance_epoch_ms BIGINT,
+                comp_data_as_of_ms BIGINT
+            );
+        """)
 
-    cur.execute("""
-        CREATE TABLE market_data (
-            ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-            previous_close NUMERIC,
-            regular_market_previous_close NUMERIC,
-            open_price NUMERIC,
-            regular_market_open NUMERIC,
-            day_low NUMERIC,
-            regular_market_day_low NUMERIC,
-            day_high NUMERIC,
-            regular_market_day_high NUMERIC,
-            regular_market_price NUMERIC,
-            current_price NUMERIC,
-            post_market_price NUMERIC,
-            post_market_change NUMERIC,
-            post_market_change_pct NUMERIC,
-            volume BIGINT,
-            regular_market_volume BIGINT,
-            average_volume BIGINT,
-            avg_volume_10d BIGINT,
-            avg_daily_volume_10d BIGINT,
-            avg_daily_volume_3m BIGINT,
-            bid_price NUMERIC,
-            ask_price NUMERIC,
-            bid_size INT,
-            ask_size INT,
-            market_state VARCHAR(20),
-            fifty_two_week_low NUMERIC,
-            fifty_two_week_high NUMERIC,
-            fifty_two_week_range VARCHAR(50),
-            fifty_two_week_low_change NUMERIC,
-            fifty_two_week_low_change_pct NUMERIC,
-            fifty_two_week_high_change NUMERIC,
-            fifty_two_week_high_change_pct NUMERIC,
-            fifty_two_week_change_pct NUMERIC,
-            fifty_day_avg NUMERIC,
-            two_hundred_day_avg NUMERIC,
-            fifty_day_avg_change NUMERIC,
-            fifty_day_avg_change_pct NUMERIC,
-            two_hundred_day_avg_change NUMERIC,
-            two_hundred_day_avg_change_pct NUMERIC,
-            source_interval_sec INT,
-            market_cap BIGINT
-        );
-    """)
+        cur.execute("""
+            CREATE TABLE market_data (
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+                previous_close NUMERIC,
+                regular_market_previous_close NUMERIC,
+                open_price NUMERIC,
+                regular_market_open NUMERIC,
+                day_low NUMERIC,
+                regular_market_day_low NUMERIC,
+                day_high NUMERIC,
+                regular_market_day_high NUMERIC,
+                regular_market_price NUMERIC,
+                current_price NUMERIC,
+                post_market_price NUMERIC,
+                post_market_change NUMERIC,
+                post_market_change_pct NUMERIC,
+                volume BIGINT,
+                regular_market_volume BIGINT,
+                average_volume BIGINT,
+                avg_volume_10d BIGINT,
+                avg_daily_volume_10d BIGINT,
+                avg_daily_volume_3m BIGINT,
+                bid_price NUMERIC,
+                ask_price NUMERIC,
+                bid_size INT,
+                ask_size INT,
+                market_state VARCHAR(20),
+                fifty_two_week_low NUMERIC,
+                fifty_two_week_high NUMERIC,
+                fifty_two_week_range VARCHAR(50),
+                fifty_two_week_low_change NUMERIC,
+                fifty_two_week_low_change_pct NUMERIC,
+                fifty_two_week_high_change NUMERIC,
+                fifty_two_week_high_change_pct NUMERIC,
+                fifty_two_week_change_pct NUMERIC,
+                fifty_day_avg NUMERIC,
+                two_hundred_day_avg NUMERIC,
+                fifty_day_avg_change NUMERIC,
+                fifty_day_avg_change_pct NUMERIC,
+                two_hundred_day_avg_change NUMERIC,
+                two_hundred_day_avg_change_pct NUMERIC,
+                source_interval_sec INT,
+                market_cap BIGINT
+            );
+        """)
 
-    cur.execute("""
-        CREATE TABLE key_metrics (
-            ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-            trailing_pe NUMERIC,
-            forward_pe NUMERIC,
-            price_to_sales_ttm NUMERIC,
-            price_to_book NUMERIC,
-            book_value NUMERIC,
-            peg_ratio NUMERIC,
-            enterprise_value BIGINT,
-            ev_to_revenue NUMERIC,
-            ev_to_ebitda NUMERIC,
-            total_revenue BIGINT,
-            net_income BIGINT,
-            ebitda BIGINT,
-            gross_profit BIGINT,
-            eps_trailing NUMERIC,
-            eps_forward NUMERIC,
-            eps_current_year NUMERIC,
-            price_eps_current_year NUMERIC,
-            earnings_q_growth_pct NUMERIC,
-            earnings_ts_ms BIGINT,
-            earnings_ts_start_ms BIGINT,
-            earnings_ts_end_ms BIGINT,
-            earnings_call_ts_start_ms BIGINT,
-            earnings_call_ts_end_ms BIGINT,
-            is_earnings_date_estimate BOOLEAN,
-            total_cash BIGINT,
-            cash_per_share NUMERIC,
-            operating_cashflow BIGINT,
-            free_cashflow BIGINT,
-            total_debt BIGINT,
-            debt_to_equity NUMERIC,
-            quick_ratio NUMERIC,
-            current_ratio NUMERIC,
-            profit_margin_pct NUMERIC,
-            gross_margin_pct NUMERIC,
-            ebitda_margin_pct NUMERIC,
-            operating_margin_pct NUMERIC,
-            return_on_assets_pct NUMERIC,
-            return_on_equity_pct NUMERIC,
-            revenue_growth_pct NUMERIC,
-            earnings_growth_pct NUMERIC,
-            last_split_factor VARCHAR(20),
-            last_split_date_ms BIGINT,
-            dividend_rate NUMERIC,
-            dividend_yield NUMERIC,
-            five_year_avg_dividend_yield NUMERIC,
-            ex_dividend_date_ms BIGINT,
-            last_annual_dividend_amt NUMERIC,
-            last_annual_dividend_yield NUMERIC,
-            last_dividend_amt NUMERIC,
-            last_dividend_date_ms BIGINT,
-            dividend_date_ms BIGINT,
-            payout_ratio NUMERIC
-        );
-    """)
+        cur.execute("""
+            CREATE TABLE key_metrics (
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+                trailing_pe NUMERIC,
+                forward_pe NUMERIC,
+                price_to_sales_ttm NUMERIC,
+                price_to_book NUMERIC,
+                book_value NUMERIC,
+                peg_ratio NUMERIC,
+                enterprise_value BIGINT,
+                ev_to_revenue NUMERIC,
+                ev_to_ebitda NUMERIC,
+                total_revenue BIGINT,
+                net_income BIGINT,
+                ebitda BIGINT,
+                gross_profit BIGINT,
+                eps_trailing NUMERIC,
+                eps_forward NUMERIC,
+                eps_current_year NUMERIC,
+                price_eps_current_year NUMERIC,
+                earnings_q_growth_pct NUMERIC,
+                earnings_ts_ms BIGINT,
+                earnings_ts_start_ms BIGINT,
+                earnings_ts_end_ms BIGINT,
+                earnings_call_ts_start_ms BIGINT,
+                earnings_call_ts_end_ms BIGINT,
+                is_earnings_date_estimate BOOLEAN,
+                total_cash BIGINT,
+                cash_per_share NUMERIC,
+                operating_cashflow BIGINT,
+                free_cashflow BIGINT,
+                total_debt BIGINT,
+                debt_to_equity NUMERIC,
+                quick_ratio NUMERIC,
+                current_ratio NUMERIC,
+                profit_margin_pct NUMERIC,
+                gross_margin_pct NUMERIC,
+                ebitda_margin_pct NUMERIC,
+                operating_margin_pct NUMERIC,
+                return_on_assets_pct NUMERIC,
+                return_on_equity_pct NUMERIC,
+                revenue_growth_pct NUMERIC,
+                earnings_growth_pct NUMERIC,
+                last_split_factor VARCHAR(20),
+                last_split_date_ms BIGINT,
+                dividend_rate NUMERIC,
+                dividend_yield NUMERIC,
+                five_year_avg_dividend_yield NUMERIC,
+                ex_dividend_date_ms BIGINT,
+                last_annual_dividend_amt NUMERIC,
+                last_annual_dividend_yield NUMERIC,
+                last_dividend_amt NUMERIC,
+                last_dividend_date_ms BIGINT,
+                dividend_date_ms BIGINT,
+                payout_ratio NUMERIC
+            );
+        """)
 
-    cur.execute("""
-        CREATE TABLE analyst_estimates (
-            ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-            target_high_price NUMERIC,
-            target_low_price NUMERIC,
-            target_mean_price NUMERIC,
-            target_median_price NUMERIC,
-            recommendation_key VARCHAR(50),
-            recommendation_mean NUMERIC,
-            analyst_opinion_count INT,
-            average_analyst_rating NUMERIC
-        );
-    """)
+        cur.execute("""
+            CREATE TABLE analyst_estimates (
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+                target_high_price NUMERIC,
+                target_low_price NUMERIC,
+                target_mean_price NUMERIC,
+                target_median_price NUMERIC,
+                recommendation_key VARCHAR(50),
+                recommendation_mean NUMERIC,
+                analyst_opinion_count INT,
+                average_analyst_rating NUMERIC
+            );
+        """)
 
-    conn.commit()
+        conn.commit()
 
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, p_s, f_s = load_company_info(stock_syms, cur, conn)
+        # Load stock symbols
+        cur.execute("SELECT symbol FROM stock_symbols;")
+        stock_syms = [r["symbol"] for r in cur.fetchall()]
+        t_s, p_s, f_s = load_company_info(stock_syms, cur, conn)
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_company_info(etf_syms, cur, conn)
+        # Load ETF symbols
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        t_e, p_e, f_e = load_company_info(etf_syms, cur, conn)
 
-    # Record last run
-    cur.execute("""
-        INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
-        ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Record last run
+        cur.execute("""
+            INSERT INTO last_updated (script_name, last_run)
+            VALUES (%s, NOW())
+            ON CONFLICT (script_name) DO UPDATE
+                SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
 
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
+        logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
-    cur.close()
-    conn.close()
+        cur.close()
+        conn.close()
         logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
-        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v4")
+        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v11")
         logging.info("📊 Company information processing completed successfully.")
         
     except Exception as e:
