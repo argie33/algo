@@ -12,6 +12,7 @@ on:
       - 'Dockerfile.*'
       - 'requirements*.txt'
       - '.github/workflows/deploy-app-stocks.yml'
+      - '!webapp/**'
   pull_request:
     branches:
       - '*'
@@ -22,6 +23,7 @@ on:
       - 'Dockerfile.*'
       - 'requirements*.txt'
       - '.github/workflows/deploy-app-stocks.yml'
+      - '!webapp/**'
 
 permissions:
   id-token: write
