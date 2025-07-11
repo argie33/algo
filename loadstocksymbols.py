@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v24 - Testing ECS task deployment
-# Trigger deploy-app-stocks workflow - fix template and dockerfile paths v24
+# FORCE WORKFLOW RUN - Updated v25 - Testing workflow path filters
+# Trigger deploy-app-stocks workflow - removed symbols alt job v25
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
