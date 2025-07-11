@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v42 - Fix ARM64 Docker cross-platform build with proper QEMU setup
-# Trigger deploy-app-stocks workflow - test portfolio_id database fix
-
 import os
 import re
 import csv
 import json
 import sys
 import logging
-
-print("🚀 STOCK SYMBOLS LOADER STARTING - v39...")
-print("🔍 Python version:", sys.version)
-print("📍 Current working directory:", os.getcwd())
-print("🔧 Testing database foreign key fixes...")
-print("🌍 Environment variables:")
-for key, value in os.environ.items():
-    if 'SECRET' in key or 'DB' in key:
-        print(f"   {key}={value[:50]}..." if len(value) > 50 else f"   {key}={value}")
-# Trigger symbols with S3 bucket debug info v11 - auto-create bucket
 import requests
 import boto3
 import psycopg2
@@ -30,7 +17,6 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s'
 )
 logger = logging.getLogger("loadstocksymbols")
-logger.info("🎯 Logger initialized successfully")
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
@@ -127,8 +113,7 @@ PATTERNS = [
     r"\btick pilot test\b", 
     r"\bexchange test\b",     
     r"\bbats bzx\b",    
-    r"\bdividend trust\b",
-    r"\bspecial purpose\b",  
+    r"\bdividend trust\b",  
     r"\bbond trust\b",  
     r"\bmunicipal trust\b",  
     r"\bmortgage trust\b", 
@@ -399,7 +384,6 @@ def main():
 
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
-    logger.info("Stock symbols loading process initiated successfully")
 
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT,
@@ -411,7 +395,7 @@ def main():
         insert_all(conn, all_records)
         insert_etfs(conn, all_etf_records)
         update_timestamp(conn)
-        logger.info("Load complete - symbols updated successfully")
+        logger.info("Load complete")
     finally:
         conn.close()
 
