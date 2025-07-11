@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v15 - use proven working Dockerfile
+# Trigger deploy-app-stocks workflow test - loadinfo update v16 - add missing environment variables
 print("🔍 LOADINFO DEBUG: Script starting...")
 print(f"🔍 LOADINFO DEBUG: Python version: {sys.version}")
 
@@ -418,7 +418,7 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Inside try block...")
         logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
         logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
-        logging.info("🔄 This is loadinfo update v15 - use proven working Dockerfile")
+        logging.info("🔄 This is loadinfo update v16 - add missing environment variables")
         logging.info(f"✅ Python version: {sys.version}")
         logging.info(f"✅ Current working directory: {os.getcwd()}")
         
@@ -726,7 +726,7 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Database connections closed successfully")
         
         logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
-        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v15")
+        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v16")
         logging.info("📊 Company information processing completed successfully.")
         
         print("🔍 LOADINFO DEBUG: Script completed successfully - exiting normally")
