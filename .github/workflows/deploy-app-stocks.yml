@@ -385,11 +385,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Debug git state
+        run: |
+          echo "Current branch: $(git branch --show-current)"
+          echo "GitHub event before: ${{ github.event.before }}"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "Recent commits:"
+          git log --oneline -3
+
       - id: paths
         name: Which files changed?
         uses: dorny/paths-filter@v2
         with:
-          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || 'origin/main' }}
+          base: 'HEAD~1'
           filters: |
             app:
               - 'template-app-stocks.yml'
@@ -601,6 +609,16 @@ jobs:
               - 'pattern_recognition.py'
               - 'Dockerfile.pattern-recognition'
               - 'requirements-pattern-recognition.txt'
+
+      - name: Debug path filter outputs
+        run: |
+          echo "=== PATH FILTER RESULTS ==="
+          echo "symbols: ${{ steps.paths.outputs.symbols }}"
+          echo "econ: ${{ steps.paths.outputs.econ }}"
+          echo "app: ${{ steps.paths.outputs.app }}"
+          echo "==========================="
+          echo "Files changed in this commit:"
+          git diff --name-only HEAD~1
 
       - id: any
         name: Any changes?

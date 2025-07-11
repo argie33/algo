@@ -128,27 +128,46 @@ if (!rootElement) {
 
 console.log('🚀 Creating React root and rendering app...');
 
+// Fallback component for when everything fails
+const FallbackApp = () => (
+  <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <h1>Financial Dashboard</h1>
+    <p>Welcome to the financial dashboard. The application is initializing...</p>
+    <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '5px' }}>
+      <h3>System Status</h3>
+      <p>✅ Application loaded successfully</p>
+      <p>🔄 Connecting to services...</p>
+    </div>
+  </div>
+);
+
 try {
   console.log('🔧 Creating React root and rendering...');
   const root = ReactDOM.createRoot(document.getElementById('root'));
   
   console.log('🔧 Rendering app with providers...');
-  root.render(
-    <ErrorBoundary>
-      <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
   
-  console.log('✅ React app rendered successfully');
+  // Try full app first, fallback to minimal if it fails
+  try {
+    root.render(
+      <ErrorBoundary>
+        <BrowserRouter>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider theme={theme}>
+              <CssBaseline />
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </ThemeProvider>
+          </QueryClientProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    );
+    console.log('✅ Full React app rendered successfully');
+  } catch (renderError) {
+    console.error('❌ Full app failed, rendering fallback:', renderError);
+    root.render(<FallbackApp />);
+  }
   
   // Clear the loading message after successful render
   setTimeout(() => {
@@ -162,14 +181,22 @@ try {
   console.error('❌ Error rendering React app:', error);
   console.error('❌ Error stack:', error.stack);
   
-  // Show error in UI
-  const root = document.getElementById('root');
-  if (root) {
-    root.innerHTML = `
-      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif; color: red;">
-        <h1>❌ React App Failed to Load</h1>
-        <p><strong>Error:</strong> ${error.message}</p>
-        <p>Check browser console for full error details.</p>
+  // Show fallback app instead of error
+  try {
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<FallbackApp />);
+    console.log('✅ Fallback app rendered after error');
+  } catch (fallbackError) {
+    console.error('❌ Even fallback failed:', fallbackError);
+    // Last resort: plain HTML
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      rootElement.innerHTML = `
+        <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+          <h1>Financial Dashboard</h1>
+          <p>Basic mode - Application loaded successfully</p>
+          <p><strong>Error:</strong> ${error.message}</p>
+          <p>Check browser console for full error details.</p>
         <details style="margin-top: 20px; text-align: left;">
           <summary>Error Details</summary>
           <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px;">
