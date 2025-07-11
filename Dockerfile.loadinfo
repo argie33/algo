@@ -1,13 +1,16 @@
 FROM python:3.10-slim
 
-# Match working stocksymbols Dockerfile pattern exactly
-WORKDIR /app
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc \
+      libpq-dev \
+      libssl-dev \
+      libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies (minimal approach)
-COPY requirements-loadinfo.txt ./
+COPY requirements-loadinfo.txt .
 RUN pip install --no-cache-dir -r requirements-loadinfo.txt
 
-# Copy application code
-COPY loadinfo.py ./
-
-CMD ["python", "-u", "loadinfo.py"]
+COPY loadinfo.py .
+CMD ["python", "loadinfo.py"]
