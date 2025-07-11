@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 import logging
-# Trigger complete symbols pipeline v4
+# Trigger symbols with correct workflow v5
 import requests
 import boto3
 import psycopg2
