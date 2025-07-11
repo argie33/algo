@@ -447,6 +447,29 @@ jobs:
               echo "✅ Image $SYMBOLS_TAG already exists"
             fi
           fi
+          
+          # Check if loadinfo image exists, build if missing
+          LOADINFO_TAG=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$LOADINFO_TAG" ]; then
+            echo "🔍 Checking if image exists: $URI:$LOADINFO_TAG"
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$LOADINFO_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $LOADINFO_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              LATEST_TAG="loadinfo-latest"
+              echo "🔨 Building loadinfo image with tags: $LOADINFO_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadinfo \
+                -t "$URI:$LOADINFO_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed loadinfo image"
+            else
+              echo "✅ Image $LOADINFO_TAG already exists"
+            fi
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
