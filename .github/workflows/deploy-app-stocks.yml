@@ -516,6 +516,52 @@ jobs:
               echo "✅ Image $ECON_TAG already exists"
             fi
           fi
+          
+          # Check if earningsestimate image exists, build if missing
+          EARNINGS_EST_TAG=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$EARNINGS_EST_TAG" ]; then
+            echo "🔍 Checking if image exists: $URI:$EARNINGS_EST_TAG"
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$EARNINGS_EST_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $EARNINGS_EST_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              LATEST_TAG="earningsestimate-latest"
+              echo "🔨 Building earningsestimate image with tags: $EARNINGS_EST_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadearningsestimate \
+                -t "$URI:$EARNINGS_EST_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed earningsestimate image"
+            else
+              echo "✅ Image $EARNINGS_EST_TAG already exists"
+            fi
+          fi
+          
+          # Check if revenueestimate image exists, build if missing
+          REVENUE_EST_TAG=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$REVENUE_EST_TAG" ]; then
+            echo "🔍 Checking if image exists: $URI:$REVENUE_EST_TAG"
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$REVENUE_EST_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $REVENUE_EST_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              LATEST_TAG="revenueestimate-latest"
+              echo "🔨 Building revenueestimate image with tags: $REVENUE_EST_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadrevenueestimate \
+                -t "$URI:$REVENUE_EST_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed revenueestimate image"
+            else
+              echo "✅ Image $REVENUE_EST_TAG already exists"
+            fi
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
@@ -533,12 +579,12 @@ jobs:
               LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2- || echo "latestpricemonthly-latest") \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "technicalsdaily-latest") \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2- || echo "loadinfo-latest") \
-              LoadCryptoImageTag=$(grep '^LoadCryptoImageTag=' tags.env | cut -d= -f2-) \
-              LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
-              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
-              EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
-              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \
-              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2-) \
+              LoadCryptoImageTag=$(grep '^LoadCryptoImageTag=' tags.env | cut -d= -f2- || echo "loadcrypto-latest") \
+              LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2- || echo "loadnews-latest") \
+              EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2- || echo "earningsestimate-latest") \
+              EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2- || echo "earningsmetrics-latest") \
+              EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2- || echo "earningshistory-latest") \
+              RevenueEstimateImageTag=$(grep '^RevenueEstimateImageTag=' tags.env | cut -d= -f2- || echo "revenueestimate-latest") \
               TechnicalsWeeklyImageTag=$(grep '^TechnicalsWeeklyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
