@@ -56,7 +56,7 @@ class WebSocketService extends EventEmitter {
     
     // Configuration
     this.config = {
-      url: import.meta.env.VITE_WS_URL || 'ws://localhost:8765',
+      url: import.meta.env.VITE_WS_URL || 'wss://your-api-id.execute-api.us-east-1.amazonaws.com/dev',
       pingInterval: 30000, // 30 seconds
       connectionTimeout: 10000, // 10 seconds
       maxMessageSize: 1024 * 1024, // 1MB
@@ -178,21 +178,30 @@ class WebSocketService extends EventEmitter {
       }
 
       switch (data.type) {
-        case 'market_data':
+        case 'market_data_update':
           this.handleMarketData(data.data);
           break;
           
-        case 'options_data':
-          this.handleOptionsData(data.symbol, data.data);
+        case 'market_data':
+          // Handle batch market data
+          if (Array.isArray(data.data)) {
+            data.data.forEach(symbolData => {
+              if (symbolData.symbol && symbolData.data) {
+                symbolData.data.forEach(dataPoint => {
+                  this.handleMarketData({ ...dataPoint, symbol: symbolData.symbol });
+                });
+              }
+            });
+          }
           break;
           
-        case 'subscribed':
-          console.log(`Subscribed to ${data.channel}:`, data.symbols);
+        case 'subscription_confirmed':
+          console.log(`Subscribed to symbols:`, data.symbols);
           this.emit('subscribed', data);
           break;
           
-        case 'unsubscribed':
-          console.log(`Unsubscribed from ${data.channel}`);
+        case 'unsubscribe_confirmed':
+          console.log(`Unsubscribed from symbols:`, data.symbols);
           this.emit('unsubscribed', data);
           break;
           
@@ -201,8 +210,8 @@ class WebSocketService extends EventEmitter {
           break;
           
         case 'error':
-          console.error('Server error:', data.message);
-          this.emit('error', new Error(data.message));
+          console.error('Server error:', data.message || data.error);
+          this.emit('error', new Error(data.message || data.error));
           break;
           
         default:
@@ -339,11 +348,11 @@ class WebSocketService extends EventEmitter {
   /**
    * Subscribe to market data for symbols
    */
-  subscribeMarketData(symbols) {
+  subscribeMarketData(symbols, channels = ['trades', 'quotes', 'bars']) {
     const subscription = {
-      type: 'subscribe',
-      channel: 'market_data',
-      symbols: Array.isArray(symbols) ? symbols : [symbols]
+      action: 'subscribe',
+      symbols: Array.isArray(symbols) ? symbols : [symbols],
+      channels: channels
     };
     
     this.subscriptions.add(JSON.stringify(subscription));
@@ -351,34 +360,32 @@ class WebSocketService extends EventEmitter {
   }
 
   /**
-   * Subscribe to options data for a symbol
+   * Get market data for symbols
    */
-  subscribeOptionsData(symbol) {
-    const subscription = {
-      type: 'subscribe',
-      channel: 'options_data',
-      symbol: symbol
+  getMarketDataRequest(symbols) {
+    const request = {
+      action: 'getMarketData',
+      symbols: Array.isArray(symbols) ? symbols : [symbols],
+      limit: 10
     };
     
-    this.subscriptions.add(JSON.stringify(subscription));
-    return this.sendMessage(subscription);
+    return this.sendMessage(request);
   }
 
   /**
-   * Unsubscribe from a channel
+   * Unsubscribe from symbols
    */
-  unsubscribe(channel, symbol = null) {
+  unsubscribe(symbols, subscriptionId = null) {
     const unsubscription = {
-      type: 'unsubscribe',
-      channel: channel,
-      ...(symbol && { symbol })
+      action: 'unsubscribe',
+      ...(subscriptionId && { subscriptionId }),
+      ...(symbols && { symbols: Array.isArray(symbols) ? symbols : [symbols] })
     };
     
     // Remove from subscriptions
     const subKey = JSON.stringify({
-      type: 'subscribe',
-      channel: channel,
-      ...(symbol && { symbol })
+      action: 'subscribe',
+      symbols: Array.isArray(symbols) ? symbols : [symbols]
     });
     this.subscriptions.delete(subKey);
     
@@ -407,7 +414,7 @@ class WebSocketService extends EventEmitter {
     
     this.heartbeatInterval = setInterval(() => {
       if (this.isConnected) {
-        this.sendMessage({ type: 'ping', timestamp: Date.now() });
+        this.sendMessage({ action: 'ping', timestamp: Date.now() });
       }
     }, this.config.pingInterval);
   }

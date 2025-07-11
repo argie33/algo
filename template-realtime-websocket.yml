@@ -52,8 +52,10 @@ Resources:
                   - dynamodb:Scan
                 Resource: 
                   - !GetAtt ConnectionsTable.Arn
+                  - !GetAtt SubscriptionsTable.Arn
                   - !GetAtt MarketDataTable.Arn
                   - !Sub '${ConnectionsTable.Arn}/index/*'
+                  - !Sub '${SubscriptionsTable.Arn}/index/*'
               - Effect: Allow
                 Action:
                   - elasticache:*
@@ -142,6 +144,34 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName}-connections'
 
+  # Subscriptions table for managing WebSocket subscriptions
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-subscriptions'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subscriptionId
+          AttributeType: S
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subscriptionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ConnectionIndex
+          KeySchema:
+            - AttributeName: connectionId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-subscriptions'
+
   # Market data table for latest quotes
   MarketDataTable:
     Type: AWS::DynamoDB::Table
@@ -223,6 +253,7 @@ Resources:
       Environment:
         Variables:
           CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
       VpcConfig:
@@ -301,6 +332,7 @@ Resources:
       Environment:
         Variables:
           CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
       VpcConfig:
@@ -367,6 +399,7 @@ Resources:
       Environment:
         Variables:
           CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
           MARKET_DATA_TABLE: !Ref MarketDataTable
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
@@ -483,6 +516,7 @@ Resources:
       Environment:
         Variables:
           CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
           MARKET_DATA_TABLE: !Ref MarketDataTable
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
