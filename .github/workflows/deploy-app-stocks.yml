@@ -39,40 +39,11 @@ jobs:
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
-          echo "🔍 Debugging CloudFormation exports..."
-          echo "Available exports:"
-          aws cloudformation list-exports --output table || echo "Failed to list exports"
-          
-          echo "🔍 Looking for StocksCore-CfTemplatesBucketName..."
-          
-          # Try multiple methods to get the bucket name
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text 2>/dev/null | head -1)
-          
-          echo "Method 1 result: '$BUCKET'"
-          
-          # If first method failed, try getting it from the stack directly
-          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ] || [ "$BUCKET" = "null" ]; then
-            echo "🔍 Trying direct stack output lookup..."
-            BUCKET=$(aws cloudformation describe-stacks \
-              --stack-name stocks-core-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='CfTemplatesBucketName'].OutputValue" \
-              --output text 2>/dev/null | head -1)
-            echo "Method 2 result: '$BUCKET'"
-          fi
-          
-          # Final fallback if still no bucket
-          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ] || [ "$BUCKET" = "null" ]; then
-            echo "❌ No bucket found! Checking if core stack exists..."
-            aws cloudformation describe-stacks --stack-name stocks-core-stack || echo "Core stack stocks-core-stack does not exist"
-            echo "❌ Using hardcoded bucket name as last resort"
-            BUCKET="stocks-cf-templates-626216981288"
-            echo "Using known bucket: $BUCKET"
-          fi
-          
+            --output text)
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "✅ Using S3 bucket: $BUCKET"
+          echo "Using S3 bucket: $BUCKET"
 
       - name: Deploy application stack
         run: |
