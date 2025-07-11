@@ -2,9 +2,10 @@
 # FORCE WORKFLOW RUN - Updated v27 - Testing database foreign key fix
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
-print("🚀 STOCK SYMBOLS LOADER STARTING...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v27...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
+print("🔧 Testing database foreign key fixes...")
 print("🌍 Environment variables:")
 for key, value in os.environ.items():
     if 'SECRET' in key or 'DB' in key:
