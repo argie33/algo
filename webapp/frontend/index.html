@@ -64,13 +64,13 @@
         }
       }, 1000);
       
-      // Remove loading message after 5 seconds if React hasn't loaded
+      // Remove loading message after 10 seconds if React hasn't loaded
       setTimeout(() => {
         const root = document.getElementById('root');
         if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
           root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
         }
-      }, 5000);
+      }, 10000);
     </script>
     <script type="module" src="/src/main.jsx" onerror="console.error('Failed to load main.jsx')"></script>
   </body>
