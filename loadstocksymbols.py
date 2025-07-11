@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v22 - Clean up workflow, use standard path detection
-# Trigger deploy-app-stocks workflow - standard detection only v22
+# FORCE WORKFLOW RUN - Updated v23 - Emergency fix broken workflow
+# Trigger deploy-app-stocks workflow - fix template and dockerfile paths v23
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
