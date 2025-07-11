@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v38 - Fix ECR image build process with latest tag fallback
+# FORCE WORKFLOW RUN - Updated v39 - Add on-demand image building for missing ECR images
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
@@ -9,7 +9,7 @@ import json
 import sys
 import logging
 
-print("🚀 STOCK SYMBOLS LOADER STARTING - v38...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v39...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
 print("🔧 Testing database foreign key fixes...")

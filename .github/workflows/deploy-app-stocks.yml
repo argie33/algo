@@ -405,6 +405,35 @@ jobs:
             echo "Stack status is $STATUS, not deleting."
           fi
 
+      - name: Check and build missing Docker images
+        run: |
+          # Get ECR repository URI
+          REPO_NAME="stocks-app-registry-$(aws sts get-caller-identity --query Account --output text)"
+          URI=$(aws ecr describe-repositories --repository-names "$REPO_NAME" --query 'repositories[0].repositoryUri' --output text)
+          
+          # Check if symbols image exists, build if missing
+          SYMBOLS_TAG=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$SYMBOLS_TAG" ]; then
+            echo "🔍 Checking if image exists: $URI:$SYMBOLS_TAG"
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$SYMBOLS_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $SYMBOLS_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              LATEST_TAG="symbols-latest"
+              echo "🔨 Building symbols image with tags: $SYMBOLS_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.stocksymbols \
+                -t "$URI:$SYMBOLS_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed symbols image"
+            else
+              echo "✅ Image $SYMBOLS_TAG already exists"
+            fi
+          fi
+
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
