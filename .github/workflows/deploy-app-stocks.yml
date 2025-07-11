@@ -39,11 +39,25 @@ jobs:
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
+          echo "Checking for exported S3 bucket..."
+          aws cloudformation list-exports --query "Exports[?Name=='StocksCore-CfTemplatesBucketName']" --output table || echo "No exports found"
+          
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
             --output text)
+          
+          echo "Raw bucket value: '$BUCKET'"
+          
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            echo "❌ S3 bucket not found in exports. Checking if core stack exists..."
+            aws cloudformation describe-stacks --stack-name stocks-core-stack --query "Stacks[0].StackStatus" --output text || echo "Core stack not found"
+            echo "Available exports:"
+            aws cloudformation list-exports --query "Exports[?starts_with(Name, 'StocksCore-')].Name" --output table || echo "No StocksCore exports found"
+            exit 1
+          fi
+          
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
-          echo "Using S3 bucket: $BUCKET"
+          echo "✅ Using S3 bucket: $BUCKET"
 
       - name: Deploy application stack
         run: |
