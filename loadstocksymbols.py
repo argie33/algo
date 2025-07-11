@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v17 - Fixed path detection + webapp
-# Trigger deploy-app-stocks workflow - test path detection and React fixes v17
+# FORCE WORKFLOW RUN - Updated v18 - Fixed duplicate matrix builds
+# Trigger deploy-app-stocks workflow - test deduplication fix v18
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)

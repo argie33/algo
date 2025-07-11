@@ -667,14 +667,19 @@ jobs:
         name: Build matrix
         run: |
           arr=""
+          symbols_added=false
           
           # FORCE symbols build if loadstocksymbols.py changed (debugging Docker issue)
           if git diff --name-only HEAD~1 | grep -q "loadstocksymbols.py"; then
             echo "🚨 FORCE: loadstocksymbols.py changed - adding symbols to matrix"
             arr="$arr,\"symbols\""
+            symbols_added=true
           fi
           
-          [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
+          # Only add symbols if not already added by force logic
+          if [ "${{ steps.paths.outputs.symbols }}" = "true" ] && [ "$symbols_added" = "false" ]; then
+            arr="$arr,\"symbols\""
+          fi
           [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
           [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""
           [ "${{ steps.paths.outputs.priceweekly }}" = "true" ]     && arr="$arr,\"priceweekly\""
