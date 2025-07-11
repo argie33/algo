@@ -342,6 +342,7 @@ jobs:
       ttmincomestatement: ${{ steps.paths.outputs.ttmincomestatement }}
       ttmcashflow: ${{ steps.paths.outputs.ttmcashflow }}
       loadnews: ${{ steps.paths.outputs.loadnews }}
+      findata: ${{ steps.paths.outputs.findata }}
       fundamentalmetrics: ${{ steps.paths.outputs.fundamentalmetrics }}
       analystupgradedowngrade: ${{ steps.paths.outputs.analystupgradedowngrade }}
       financials: ${{ steps.paths.outputs.financials }}
@@ -355,6 +356,8 @@ jobs:
       valuemetrics: ${{ steps.paths.outputs.valuemetrics }}
       valuescores: ${{ steps.paths.outputs.valuescores }}
       growthmetrics: ${{ steps.paths.outputs.growthmetrics }}
+      scores: ${{ steps.paths.outputs.scores }}
+      patternrecognition: ${{ steps.paths.outputs.patternrecognition }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 
@@ -428,6 +431,10 @@ jobs:
               - 'loadnews.py'
               - 'Dockerfile.loadnews'
               - 'requirements-loadnews.txt'
+            findata:
+              - 'loadfindata.py'
+              - 'Dockerfile.findata'
+              - 'requirements-loadfindata.txt'
             earningsestimate:
               - 'loadearningsestimate.py'
               - 'Dockerfile.loadearningsestimate'
@@ -568,6 +575,14 @@ jobs:
               - 'calculate_growth_metrics.py'
               - 'Dockerfile.growth-metrics'
               - 'requirements.txt'
+            scores:
+              - 'calculate_scores.py'
+              - 'Dockerfile.scores'
+              - 'requirements-scores.txt'
+            patternrecognition:
+              - 'pattern_recognition.py'
+              - 'Dockerfile.pattern-recognition'
+              - 'requirements-pattern-recognition.txt'
 
       - id: any
         name: Any changes?
@@ -580,6 +595,7 @@ jobs:
              [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.loadinfo }}" = "true" ] || \
              [ "${{ steps.paths.outputs.loadnews }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.findata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] || \
@@ -621,6 +637,8 @@ jobs:
              [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] || \
              [ "${{ steps.paths.outputs.valuescores }}" = "true" ] || \
              [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.scores }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.patternrecognition }}" = "true" ] || \
              [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
@@ -639,6 +657,7 @@ jobs:
           [ "${{ steps.paths.outputs.technicalsdaily }}" = "true" ] && arr="$arr,\"technicalsdaily\""
           [ "${{ steps.paths.outputs.loadinfo }}" = "true" ]        && arr="$arr,\"loadinfo\""
           [ "${{ steps.paths.outputs.loadnews }}" = "true" ]        && arr="$arr,\"loadnews\""
+          [ "${{ steps.paths.outputs.findata }}" = "true" ]         && arr="$arr,\"findata\""
           [ "${{ steps.paths.outputs.earningsestimate }}" = "true" ] && arr="$arr,\"earningsestimate\""
           [ "${{ steps.paths.outputs.earningsmetrics }}" = "true" ] && arr="$arr,\"earningsmetrics\""
           [ "${{ steps.paths.outputs.earningshistory }}" = "true" ] && arr="$arr,\"earningshistory\""
@@ -680,6 +699,12 @@ jobs:
           [ "${{ steps.paths.outputs.valuemetrics }}" = "true" ] && arr="$arr,\"valuemetrics\""
           [ "${{ steps.paths.outputs.valuescores }}" = "true" ] && arr="$arr,\"valuescores\""
           [ "${{ steps.paths.outputs.growthmetrics }}" = "true" ] && arr="$arr,\"growthmetrics\""
+          [ "${{ steps.paths.outputs.scores }}" = "true" ] && arr="$arr,\"scores\""
+          [ "${{ steps.paths.outputs.patternrecognition }}" = "true" ] && arr="$arr,\"patternrecognition\""
+          [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] && arr="$arr,\"latesttechnicalsdaily\""
+          [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
+          [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
+          [ "${{ steps.paths.outputs.technicalsweekly }}" = "true" ] && arr="$arr,\"technicalsweekly\""
           
           echo "matrix=[${arr#,}]" >> $GITHUB_OUTPUT
 
@@ -730,6 +755,7 @@ jobs:
             latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
             loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
             loadnews)         DOCKERFILE=Dockerfile.loadnews;       PARAM=LoadNewsImageTag;;\
+            findata)          DOCKERFILE=Dockerfile.findata;        PARAM=FindataImageTag;;\
             earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
             earningsmetrics)  DOCKERFILE=Dockerfile.earningsmetrics;        PARAM=EarningsMetricsImageTag;;\
             earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
@@ -769,6 +795,9 @@ jobs:
             valuemetrics) DOCKERFILE=Dockerfile.value-metrics; PARAM=ValueMetricsImageTag;;\
             valuescores) DOCKERFILE=Dockerfile.calculate_value_scores; PARAM=ValueScoresImageTag;;\
             growthmetrics) DOCKERFILE=Dockerfile.growth-metrics; PARAM=GrowthMetricsImageTag;;\
+            scores) DOCKERFILE=Dockerfile.scores; PARAM=ScoresImageTag;;\
+            patternrecognition) DOCKERFILE=Dockerfile.pattern-recognition; PARAM=PatternRecognitionImageTag;;\
+            technicalsweekly) DOCKERFILE=Dockerfile.technicalsweekly; PARAM=TechnicalsWeeklyImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           docker buildx build \
@@ -873,6 +902,7 @@ jobs:
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
               LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
+              FindataImageTag=$(grep '^FindataImageTag=' tags.env | cut -d= -f2-) \
               EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
               EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
               EarningsHistoryImageTag=$(grep '^EarningsHistoryImageTag=' tags.env | cut -d= -f2-) \
@@ -898,6 +928,8 @@ jobs:
               AnnualCashFlowImageTag=$(grep '^AnnualCashFlowImageTag=' tags.env | cut -d= -f2-) \
               TTMIncomeStatementImageTag=$(grep '^TTMIncomeStatementImageTag=' tags.env | cut -d= -f2-) \
               TTMCashFlowImageTag=$(grep '^TTMCashFlowImageTag=' tags.env | cut -d= -f2-) \
+              ScoresImageTag=$(grep '^ScoresImageTag=' tags.env | cut -d= -f2-) \
+              PatternRecognitionImageTag=$(grep '^PatternRecognitionImageTag=' tags.env | cut -d= -f2-) \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
               IBKRUsername=${{ secrets.IBKR_USERNAME }} \
               IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
@@ -2008,8 +2040,8 @@ jobs:
 
   run_swingtrader:
     name: Run swing-trader loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.swingtrader == 'true' }}
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.swingtrader == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -2083,7 +2115,7 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          EXIT=$(aws ecs.describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
@@ -3647,8 +3679,8 @@ jobs:
 # 6) Run loadnews loader
   run_loadnews:
     name: Run load-news loader
-    needs: [deploy-tasks, detect-changes]
-    if: ${{ needs.detect-changes.outputs.loadnews == 'true' }}
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.loadnews == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -3681,18 +3713,27 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
-          echo "SUBNETS=$SUB1,$SUB2" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run load-news Fargate task
         id: run
         run: |
-          aws ecs run-task \
-            --cluster ${{ steps.infra.outputs.CLUSTER }} \
-            --task-definition ${{ steps.td.outputs.TASK_DEF_ARN }} \
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUBNETS }}],assignPublicIp=ENABLED}" \
-            --count 1
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started load-news task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -3730,6 +3771,826 @@ jobs:
 ################################################################################
 # Missing loader jobs                                                          #
 ################################################################################
+
+  run_calendar:
+    name: Run calendar loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.calendar == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CalendarTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run calendar Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started calendar task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Calendar task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Calendar failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_findata:
+    name: Run findata loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.findata == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FindataTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run findata Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started findata task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Findata task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Findata failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_latesttechnicalsdaily:
+    name: Run latest-technicals-daily loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.latesttechnicalsdaily == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LatestTechnicalsDailyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run latest-technicals-daily Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started latest-technicals-daily task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Latest-technicals-daily task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Latest-technicals-daily failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_latesttechnicalsweekly:
+    name: Run latest-technicals-weekly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.latesttechnicalsweekly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LatestTechnicalsWeeklyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run latest-technicals-weekly Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started latest-technicals-weekly task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Latest-technicals-weekly task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Latest-technicals-weekly failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_latesttechnicalsmonthly:
+    name: Run latest-technicals-monthly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.latesttechnicalsmonthly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LatestTechnicalsMonthlyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run latest-technicals-monthly Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started latest-technicals-monthly task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Latest-technicals-monthly task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Latest-technicals-monthly failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_technicalsweekly:
+    name: Run technicals-weekly loader
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.technicalsweekly == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalsWeeklyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run technicals-weekly Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started technicals-weekly task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Technicals-weekly task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Technicals-weekly failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_growthmetrics:
+    name: Run growth-metrics calculator
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.growthmetrics == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='GrowthMetricsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run growth-metrics Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started growth-metrics task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Growth-metrics task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Growth-metrics failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_scores:
+    name: Run scores calculator
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.scores == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ScoresTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run scores Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started scores task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Scores task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Scores failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+  run_patternrecognition:
+    name: Run pattern-recognition analyzer
+    needs: deploy-tasks
+    if: ${{ needs.filter.outputs.patternrecognition == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='PatternRecognitionTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run pattern-recognition Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started pattern-recognition task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ Pattern-recognition task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
+            echo "❌ Task failed to start or exit code unavailable (EXIT=$EXIT)"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
+            echo "❌ Pattern-recognition failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
   run_fundamentalmetrics:
     name: Run fundamental-metrics loader
     needs: [deploy-tasks, detect-changes]

@@ -32,6 +32,9 @@ Parameters:
   LoadInfoImageTag:
     Type: String
     Description: "Tag for loadinfo loader image"
+  LoadNewsImageTag:
+    Type: String
+    Description: "Tag for loadnews loader image"
   EarningsEstimateImageTag:
     Type: String
     Description: "Tag for earnings estimate loader image"
@@ -243,6 +246,24 @@ Resources:
       LogGroupName: /ecs/loadinfo-loader
       RetentionInDays: 14
 
+  LoadNewsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadnews-loader
+      RetentionInDays: 14
+
+  CalendarLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calendar-loader
+      RetentionInDays: 14
+
+  FindataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/findata-loader
+      RetentionInDays: 14
+
   EarningsEstimateLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -253,6 +274,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/earningsmetrics-loader
+      RetentionInDays: 14
+
+  EarningsHistoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/earningshistory-loader
       RetentionInDays: 14
 
   TechnicalsWeeklyLogGroup:
@@ -791,6 +818,177 @@ Resources:
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref LoadInfoTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # LoadNews loader                      #
+  ########################################
+  LoadNewsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: loadnews-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadnews-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadNewsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadnews-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  LoadNewsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: loadnews-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref LoadNewsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Calendar loader                      #
+  ########################################
+  CalendarTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: calendar-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: calendar-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref CalendarImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/calendar-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  CalendarLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: calendar-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref CalendarTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Findata loader                       #
+  ########################################
+  FindataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: findata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: findata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FindataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/findata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FindataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: findata-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FindataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -2748,6 +2946,24 @@ Outputs:
     Value: !Ref LoadInfoTaskDefinition
     Export:
       Name: LoadInfoTaskDefArn
+
+  LoadNewsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for loadnews loader
+    Value: !Ref LoadNewsTaskDefinition
+    Export:
+      Name: LoadNewsTaskDefArn
+
+  CalendarTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for calendar loader
+    Value: !Ref CalendarTaskDefinition
+    Export:
+      Name: CalendarTaskDefArn
+
+  FindataTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for findata loader
+    Value: !Ref FindataTaskDefinition
+    Export:
+      Name: FindataTaskDefArn
 
   EarningsEstimateTaskDefArn:
     Description: ARN of the ECS TaskDefinition for earnings estimate loader
