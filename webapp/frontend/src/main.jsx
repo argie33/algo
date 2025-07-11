@@ -9,6 +9,9 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 
 console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
+console.log('Window location:', window.location.href);
+console.log('Document ready state:', document.readyState);
+console.log('Root element exists:', !!document.getElementById('root'));
 
 // Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'
