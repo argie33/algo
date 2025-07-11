@@ -215,8 +215,10 @@ def create_all_tables(cursor, conn):
                     ALTER TABLE portfolio_metadata 
                     ADD CONSTRAINT unique_user_api_key UNIQUE (user_id, api_key_id)
                 """)
+                conn.commit()  # Commit this transaction
                 logger.info("Added unique constraint for user_id, api_key_id")
             except Exception as e:
+                conn.rollback()  # Rollback failed transaction
                 logger.info(f"Unique constraint may already exist: {e}")
                 
         except Exception as e:
@@ -238,8 +240,10 @@ def create_all_tables(cursor, conn):
                     ALTER TABLE portfolio_holdings 
                     ADD COLUMN IF NOT EXISTS {col_name} {col_type}
                 """)
+                conn.commit()  # Commit each column addition
                 logger.info(f"Added {col_name} column to portfolio_holdings (if missing)")
             except Exception as e:
+                conn.rollback()  # Rollback failed transaction
                 logger.warning(f"Could not add {col_name} to portfolio_holdings: {e}")
         
         # Verify portfolio_holdings table structure before creating indexes
