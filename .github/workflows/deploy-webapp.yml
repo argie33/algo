@@ -1002,11 +1002,14 @@ jobs:
             --include "*.html" \
             --include "service-worker.js"
           
-          # DISABLED: Debug mode - comment out to restore original React app
-          # echo "🔧 Deploying spa/index.html for debugging..."
-          # aws s3 cp ../spa/index.html s3://"$BUCKET_NAME"/index.html \
-          #   --cache-control "public, max-age=0, must-revalidate" \
-          #   --content-type "text/html"
+          # ENSURE REACT APP IS DEPLOYED - NOT DEBUG SPA
+          echo "✅ React app deployed successfully to S3"
+          echo "🔍 Verifying index.html contains React app..."
+          if grep -q "React" dist/index.html; then
+            echo "✅ index.html contains React app"
+          else
+            echo "⚠️  index.html may not contain React app"
+          fi
           
           echo "Frontend deployed to S3 bucket: $BUCKET_NAME"
       - name: Invalidate CloudFront cache

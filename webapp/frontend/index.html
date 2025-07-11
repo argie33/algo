@@ -22,7 +22,35 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+        <h1>Loading Financial Dashboard...</h1>
+        <p>If this message persists, check the browser console for errors.</p>
+        <div id="loading-info" style="margin-top: 20px; font-size: 12px; color: #666;">
+          <p>React app is loading...</p>
+          <p id="config-status">Config loading...</p>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Show loading progress
+      setTimeout(() => {
+        const configStatus = document.getElementById('config-status');
+        if (configStatus) {
+          configStatus.innerHTML = window.__CONFIG__ ? 
+            'Config loaded ✅' : 
+            'Config failed to load ❌';
+        }
+      }, 1000);
+      
+      // Remove loading message after 5 seconds if React hasn't loaded
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
+          root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
+        }
+      }, 5000);
+    </script>
     <script type="module" src="/src/main.jsx" onerror="console.error('Failed to load main.jsx')"></script>
   </body>
 </html>

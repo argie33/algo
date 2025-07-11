@@ -8,7 +8,17 @@ import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
 import { configureAmplify } from './config/amplify'
 
-console.log('🚀 main.jsx loaded - starting React app - v1.0.2 - FORCE WEBAPP DEPLOY');
+console.log('🚀 main.jsx loaded - starting React app - v1.0.3 - HARDCODED CONFIG FIX');
+
+// Add global error handler to catch white page issues
+window.addEventListener('error', (e) => {
+  console.error('❌ Global error:', e.error);
+  console.error('❌ Error details:', e.filename, e.lineno, e.colno);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Unhandled promise rejection:', e.reason);
+});
 
 // Configure Amplify
 configureAmplify();
@@ -117,7 +127,11 @@ if (!rootElement) {
 console.log('🚀 Creating React root and rendering app...');
 
 try {
-  ReactDOM.createRoot(document.getElementById('root')).render(
+  console.log('🔧 Creating React root and rendering...');
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  
+  console.log('🔧 Rendering app with providers...');
+  root.render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
@@ -127,10 +141,38 @@ try {
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
-    </BrowserRouter>,
-  )
+    </BrowserRouter>
+  );
+  
   console.log('✅ React app rendered successfully');
+  
+  // Clear the loading message after successful render
+  setTimeout(() => {
+    const loadingInfo = document.getElementById('loading-info');
+    if (loadingInfo) {
+      loadingInfo.remove();
+    }
+  }, 1000);
+  
 } catch (error) {
   console.error('❌ Error rendering React app:', error);
-  alert('Error rendering React app: ' + error.message);
+  console.error('❌ Error stack:', error.stack);
+  
+  // Show error in UI
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = `
+      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif; color: red;">
+        <h1>❌ React App Failed to Load</h1>
+        <p><strong>Error:</strong> ${error.message}</p>
+        <p>Check browser console for full error details.</p>
+        <details style="margin-top: 20px; text-align: left;">
+          <summary>Error Details</summary>
+          <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px;">
+${error.stack || error.message}
+          </pre>
+        </details>
+      </div>
+    `;
+  }
 }

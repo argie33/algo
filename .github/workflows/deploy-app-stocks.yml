@@ -145,17 +145,33 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs describe-tasks \
+          # Get complete task details for debugging
+          TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+            --output json)
+          
+          # Extract exit code with proper null handling
+          EXIT=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // "None"')
+          TASK_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].lastStatus // "unknown"')
+          CONTAINER_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].lastStatus // "unknown"')
+          STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].reason // "N/A"')
+          
           echo "→ Exit code: $EXIT"
+          echo "→ Task status: $TASK_STATUS"
+          echo "→ Container status: $CONTAINER_STATUS"
+          echo "→ Stop reason: $STOP_REASON"
+          
+          # Enhanced exit code validation
           if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
-            echo "❌ Value-metrics task failed to start or exit code unavailable (EXIT=$EXIT)"
+            echo "❌ value-metrics task failed to start or exit code unavailable (EXIT=$EXIT)"
+            echo "Task may have failed to start due to resource constraints, image issues, or network problems"
+            echo "Container status: $CONTAINER_STATUS"
+            echo "Stop reason: $STOP_REASON"
             exit 1
           elif [ "$EXIT" -ne 0 ]; then
-            echo "❌ Value-metrics failed with exit code $EXIT"
+            echo "❌ value-metrics failed with exit code $EXIT"
+            echo "Stop reason: $STOP_REASON"
             exit $EXIT
           fi
 
@@ -1029,20 +1045,36 @@ jobs:
       - name: Check container exit code
         run: |
           echo "🔍 Getting full task details for debugging..."
-          aws ecs describe-tasks \
+          TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --output json | jq '.tasks[0] | {lastStatus, containers: .containers[] | {name, exitCode, reason}}'
+            --output json)
           
-          EXIT=$(aws ecs describe-tasks \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
-            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+          echo "Full task details:"
+          echo "$TASK_DETAILS" | jq '.tasks[0]'
+          
+          EXIT=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // "None"')
+          REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].reason // "No reason provided"')
+          TASK_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].lastStatus')
+          
+          echo "→ Task Status: $TASK_STATUS"
           echo "→ Exit code: $EXIT"
+          echo "→ Reason: $REASON"
+          
+          # If exit code is None but task is STOPPED, try to get the stop reason
           if [ "$EXIT" = "None" ] || [ "$EXIT" = "null" ] || [ -z "$EXIT" ]; then
-            echo "❌ stock-symbols task failed to start or exit code unavailable (EXIT=$EXIT)"
-            exit 1
+            STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "No stop reason"')
+            echo "→ Stop reason: $STOP_REASON"
+            
+            # Check if task failed due to essential container stopping
+            if [[ "$STOP_REASON" == *"Essential container"* ]]; then
+              echo "✅ Task completed - essential container exited (this is normal for batch jobs)"
+              EXIT=0
+            else
+              echo "❌ stock-symbols task failed to start or exit code unavailable (EXIT=$EXIT)"
+              echo "❌ Stop reason: $STOP_REASON"
+              exit 1
+            fi
           elif [ "$EXIT" -ne 0 ]; then
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT

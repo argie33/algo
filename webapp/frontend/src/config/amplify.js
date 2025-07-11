@@ -42,15 +42,18 @@ export function configureAmplify() {
   try {
     if (!isCognitoConfigured()) {
       console.warn('⚠️  Cognito not configured - using dummy values for development');
-      console.log('Environment variables needed:');
-      console.log('- VITE_COGNITO_USER_POOL_ID');
-      console.log('- VITE_COGNITO_CLIENT_ID');
-      console.log('- VITE_COGNITO_DOMAIN');
+      console.warn('App will work but authentication will be disabled');
+    } else {
+      console.log('✅ Cognito configured with real values');
     }
+    
     Amplify.configure(amplifyConfig);
-    console.log('Amplify configured successfully');
+    console.log('✅ Amplify configured successfully');
+    return true;
   } catch (error) {
-    console.error('Failed to configure Amplify:', error);
+    console.error('❌ Failed to configure Amplify:', error);
+    console.warn('⚠️  Continuing without Amplify - authentication will be disabled');
+    return false;
   }
 }
 

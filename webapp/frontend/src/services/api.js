@@ -2,13 +2,17 @@ import axios from 'axios'
 
 // Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
-  // Dynamic API URL resolution: runtime > build-time > fallback
+  // HARDCODED API URL TO FIX WHITE PAGE
+  const hardcodedApiUrl = 'https://o64hxfwqll.execute-api.us-east-1.amazonaws.com/dev';
+  
+  // Dynamic API URL resolution: runtime > build-time > hardcoded fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
-  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || 'PLACEHOLDER_API_URL';
+  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL || hardcodedApiUrl;
   
   console.log('🔧 [API CONFIG] URL Resolution:', {
     runtimeApiUrl,
     envApiUrl: import.meta.env.VITE_API_URL,
+    hardcodedApiUrl,
     finalApiUrl: apiUrl,
     windowConfig: typeof window !== 'undefined' ? window.__CONFIG__ : 'undefined',
     allEnvVars: import.meta.env
@@ -18,7 +22,7 @@ export const getApiConfig = () => {
     baseURL: apiUrl,
     isServerless: !!apiUrl && !apiUrl.includes('localhost'),
     apiUrl: apiUrl,
-    isConfigured: !!apiUrl && !apiUrl.includes('localhost'),
+    isConfigured: !!apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('PLACEHOLDER'),
     environment: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
@@ -30,9 +34,11 @@ export const getApiConfig = () => {
 // Create API instance that can be updated
 let currentConfig = getApiConfig()
 
-// Warn if API URL is fallback (localhost)
-if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost')) {
+// Warn if API URL is fallback (localhost or placeholder)
+if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost') || currentConfig.apiUrl.includes('PLACEHOLDER')) {
   console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
+} else {
+  console.log('[API CONFIG] ✅ Using configured API URL:', currentConfig.baseURL)
 }
 
 const api = axios.create({
