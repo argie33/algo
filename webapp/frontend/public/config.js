@@ -1,18 +1,16 @@
-// This file is dynamically generated during deployment
-// See .github/workflows/deploy-webapp.yml lines 782-800
-// Local development: use VITE_API_URL environment variable instead
-window.__CONFIG__ = window.__CONFIG__ || {
-  API_URL: 'http://localhost:3001', // Default for local development
-  ENVIRONMENT: 'development',
-  VERSION: 'dev',
-  BUILD_TIME: new Date().toISOString(),
+// Runtime configuration - dynamically set during deployment
+window.__CONFIG__ = {
+  API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+  ENVIRONMENT: 'dev',
+  VERSION: '20250711-011431',
+  BUILD_TIME: '2025-07-11T01:14:31Z',
   COGNITO: {
-    USER_POOL_ID: '',
-    CLIENT_ID: '',
+    USER_POOL_ID: 'us-east-1_ZqooNeQtV',
+    CLIENT_ID: '243r98prucoickch12djkahrhk',
     REGION: 'us-east-1',
     DOMAIN: '',
-    REDIRECT_SIGN_IN: window.location.origin,
-    REDIRECT_SIGN_OUT: window.location.origin
+    REDIRECT_SIGN_IN: 'https://d1zb7knau41vl9.cloudfront.net',
+    REDIRECT_SIGN_OUT: 'https://d1zb7knau41vl9.cloudfront.net'
   }
 };
-console.log('Development config loaded:', window.__CONFIG__);
+console.log('Runtime config loaded:', window.__CONFIG__);
