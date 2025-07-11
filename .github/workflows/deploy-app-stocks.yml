@@ -315,12 +315,17 @@ jobs:
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
+          LATEST_TAG=${{ matrix.loader }}-latest
+          echo "🔨 Building ${{ matrix.loader }} with tags: $TAG, $LATEST_TAG"
+          echo "📁 Using Dockerfile: $DOCKERFILE"
           docker buildx build \
             --platform linux/arm64 \
             --push \
             -f "$DOCKERFILE" \
             -t "$URI:$TAG" \
+            -t "$URI:$LATEST_TAG" \
             .
+          echo "✅ Successfully built and pushed ${{ matrix.loader }} image"
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - uses: actions/upload-artifact@v4
@@ -406,7 +411,7 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --template-file template-app-ecs-tasks.yml \
             --parameter-overrides \
-              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2-) \
+              StockSymbolsImageTag=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2- || echo "symbols-latest") \
               EconDataImageTag=$(grep '^EconDataImageTag=' tags.env | cut -d= -f2-) \
               PriceImageTag=$(grep '^PriceImageTag=' tags.env | cut -d= -f2-) \
               PriceWeeklyImageTag=$(grep '^PriceWeeklyImageTag=' tags.env | cut -d= -f2-) \
