@@ -225,7 +225,7 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ Quality-metrics failed with exit code $EXIT"
+            echo "ERROR: Quality-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
 ################################################################################
@@ -4198,10 +4198,9 @@ jobs:
             --output text)
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" -ne 0 ]; then
-            echo "❌ Quality-metrics failed with exit code $EXIT"
+            echo "ERROR: Quality-metrics failed with exit code $EXIT"
             exit $EXIT
           fi
-
 
   run_valuemetrics:
     name: Run value-metrics calculator
