@@ -48,27 +48,38 @@ jobs:
       - name: Check and handle stack state
         id: check-stack
         run: |
-          # Check if stack exists and its state
-          STACK_STATUS=$(aws cloudformation describe-stacks \
+          # Delete both old and new stack versions to ensure clean state
+          echo "Cleaning up any existing WebSocket stacks..."
+          
+          # Delete old stack if exists
+          OLD_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-websocket-stack \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          
+          if [ "$OLD_STATUS" != "DOES_NOT_EXIST" ]; then
+            echo "Deleting old stack: stocks-websocket-stack (Status: $OLD_STATUS)"
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack
+            echo "Waiting for old stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            echo "Old stack deleted"
+          fi
+          
+          # Delete new stack if exists  
+          NEW_STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-websocket-stack-v2 \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "DOES_NOT_EXIST")
           
-          echo "Current stack status: $STACK_STATUS"
-          echo "STACK_STATUS=$STACK_STATUS" >> $GITHUB_OUTPUT
-          
-          if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
-            echo "Stack is in failed state ($STACK_STATUS), deleting it first..."
+          if [ "$NEW_STATUS" != "DOES_NOT_EXIST" ]; then
+            echo "Deleting new stack: stocks-websocket-stack-v2 (Status: $NEW_STATUS)"
             aws cloudformation delete-stack --stack-name stocks-websocket-stack-v2
-            
-            echo "Waiting for stack deletion to complete..."
+            echo "Waiting for new stack deletion..."
             aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack-v2
-            echo "Stack deleted successfully"
-          elif [ "$STACK_STATUS" = "DELETE_IN_PROGRESS" ]; then
-            echo "Stack is being deleted, waiting for completion..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack-v2
-            echo "Stack deletion completed"
+            echo "New stack deleted"
           fi
+          
+          echo "All WebSocket stacks cleaned up, ready for fresh deployment"
 
       - name: Deploy WebSocket stack
         run: |

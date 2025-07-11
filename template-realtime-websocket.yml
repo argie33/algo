@@ -3,7 +3,7 @@ Description: >
   Real-time WebSocket Infrastructure for Live Market Data Streaming
   Foundation for future HFT capabilities. Cost-optimized for current needs
   with ElastiCache Redis, DynamoDB, and API Gateway WebSocket.
-  Updated for stack redeploy after rollback fix. Force fresh deploy v2.
+  Updated for stack redeploy after rollback fix. Force fresh deploy v3 - Clean slate.
 
 Parameters:
   Environment:
