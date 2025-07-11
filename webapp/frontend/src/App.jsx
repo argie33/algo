@@ -1,4 +1,4 @@
-// Updated for database initialization testing - v1.5 - webapp-only tables in init_database.py
+// Updated for database initialization testing - v1.6 - with shared dependency tables and foreign key fixes
 import React, { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
