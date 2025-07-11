@@ -383,11 +383,21 @@ jobs:
       - name: Generate tags.env
         shell: bash
         run: |
-          cat build_tag_*.txt > tags.env
-          if [ ! -f tags.env ]; then
-            echo "No build tag files found or tags.env not created" >&2
-            exit 1
+          # Create empty tags.env file
+          touch tags.env
+          
+          # Concatenate any build tag files if they exist
+          if ls build_tag_*.txt 1> /dev/null 2>&1; then
+            echo "📝 Found build tag files, concatenating..."
+            cat build_tag_*.txt > tags.env
+            echo "✅ Generated tags.env with built image tags"
+          else
+            echo "⚠️ No build tag files found - no images were built"
+            echo "✅ Created empty tags.env file"
           fi
+          
+          echo "📄 Contents of tags.env:"
+          cat tags.env || echo "(empty file)"
 
       - name: Wait for app stack to finish exporting
         run: |
