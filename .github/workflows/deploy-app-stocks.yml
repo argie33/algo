@@ -391,6 +391,14 @@ jobs:
             echo "Stack status is $STATUS, not deleting."
           fi
 
+      - name: Debug S3 bucket value
+        run: |
+          echo "CF_BUCKET from infra job: '${{ needs.infra.outputs.CF_BUCKET }}'"
+          if [ -z "${{ needs.infra.outputs.CF_BUCKET }}" ]; then
+            echo "ERROR: CF_BUCKET is empty!"
+            exit 1
+          fi
+
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
           aws cloudformation deploy \
