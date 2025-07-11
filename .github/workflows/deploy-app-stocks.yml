@@ -17,7 +17,48 @@ env:
 
 jobs:
 ################################################################################
-# 1) Detect changed components                                                 #
+# 1) Deploy core infrastructure (RDS, Secrets, ECS cluster)                    #
+################################################################################
+  infra:
+    name: Deploy application stack
+    runs-on: ubuntu-latest
+    outputs:
+      CF_BUCKET: ${{ steps.bucket.outputs.CF_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+
+      - name: Deploy application stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+################################################################################
+# 2) Detect changed components                                                 #
 ################################################################################
   filter:
     name: Detect changed components
@@ -314,7 +355,7 @@ jobs:
 ################################################################################
   build:
     name: Build changed images
-    needs: filter
+    needs: [filter, infra]
     if: ${{ needs.filter.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     strategy:
@@ -537,7 +578,7 @@ jobs:
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
           echo "SG=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run buy-sell Fargate task
+      - name: Run stock-symbols Fargate task
         id: run
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -549,7 +590,7 @@ jobs:
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "🟢 Started buy-sell task $TASK_ARN"
+          echo "🟢 Started stock-symbols task $TASK_ARN"
 
       - name: Wait up to 60m for task to stop
         run: |
@@ -584,7 +625,6 @@ jobs:
   run_econ:
     name: Run econ-data loader
     needs: deploy-tasks
-    if: ${{ needs.filter.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
