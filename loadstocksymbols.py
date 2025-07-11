@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 import logging
-# Trigger symbols with fixed CloudFormation deployment v6
+# Trigger symbols with fixed S3 bucket parameter v7
 import requests
 import boto3
 import psycopg2
