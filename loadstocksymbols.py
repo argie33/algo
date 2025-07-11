@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v28 - Fix import order and retrigger workflow
+# FORCE WORKFLOW RUN - Updated v29 - Retrigger workflow to test S3 bucket debug
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
@@ -9,7 +9,7 @@ import json
 import sys
 import logging
 
-print("🚀 STOCK SYMBOLS LOADER STARTING - v28...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v29...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
 print("🔧 Testing database foreign key fixes...")
