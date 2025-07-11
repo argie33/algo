@@ -101,7 +101,8 @@ def create_all_tables(cursor, conn):
         """,
         
         """
-        CREATE TABLE IF NOT EXISTS portfolio_holdings (
+        DROP TABLE IF EXISTS portfolio_holdings CASCADE;
+        CREATE TABLE portfolio_holdings (
             id SERIAL PRIMARY KEY,
             portfolio_id INTEGER NOT NULL,
             symbol VARCHAR(10) NOT NULL,
