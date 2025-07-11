@@ -2,15 +2,12 @@ import axios from 'axios'
 
 // Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
-  // Remove hardcodedApiUrl and use only dynamic config
-  let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;
-  const apiUrl = runtimeApiUrl || import.meta.env.VITE_API_URL;
+  // Hardcoded API URL for now
+  const apiUrl = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
   
   console.log('🔧 [API CONFIG] URL Resolution:', {
-    runtimeApiUrl,
-    envApiUrl: import.meta.env.VITE_API_URL,
+    apiUrl,
     finalApiUrl: apiUrl,
-    windowConfig: typeof window !== 'undefined' ? window.__CONFIG__ : 'undefined',
     allEnvVars: import.meta.env
   });
   
@@ -1265,7 +1262,7 @@ export const getStockRecommendations = async (ticker) => {
 
 export const getSectors = async () => {
   try {
-    const response = await api.get('/api/stocks/filters/sectors')
+    const response = await api.get('/api/sectors')
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2214,7 +2211,7 @@ export const testApiConnection = async (customUrl = null) => {
     console.log('Current API URL:', currentConfig.baseURL)
     console.log('Custom URL:', customUrl)
     console.log('Environment:', import.meta.env.MODE)
-    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL)
+    console.log('API_URL:', 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev')
     const testUrl = customUrl || currentConfig.baseURL
     const response = await api.get('/api/health?quick=true', {
       baseURL: testUrl,
@@ -2252,7 +2249,7 @@ export const getDiagnosticInfo = () => {
   return {
     currentApiUrl: currentConfig.baseURL,
     axiosDefaultBaseUrl: api.defaults.baseURL,
-    viteApiUrl: import.meta.env.VITE_API_URL,
+    viteApiUrl: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
     isConfigured: currentConfig.isConfigured,
     environment: import.meta.env.MODE,
     urlsMatch: currentConfig.baseURL === api.defaults.baseURL,
@@ -3480,6 +3477,46 @@ export const getStockOptions = async () => {
     console.error('❌ [API] Stock options error:', error);
     const errorMessage = handleApiError(error, 'get stock options');
     return { stocks: [], error: errorMessage };
+  }
+};
+
+// Sector analysis functions
+export const getSectorAnalysis = async (timeframe = 'daily') => {
+  try {
+    const response = await api.get(`/api/sectors/analysis?timeframe=${timeframe}`)
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching sector analysis:', error);
+    const errorMessage = handleApiError(error, 'get sector analysis');
+    return { success: false, error: errorMessage };
+  }
+};
+
+export const getSectorDetails = async (sector) => {
+  try {
+    const response = await api.get(`/api/sectors/${encodeURIComponent(sector)}/details`)
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error fetching ${sector} details:`, error);
+    const errorMessage = handleApiError(error, `get ${sector} details`);
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Earnings Calendar functions
+export const getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) => {
+  try {
+    const params = new URLSearchParams({
+      type: timeFilter,
+      page: page + 1,
+      limit: limit
+    });
+    const response = await api.get(`/calendar/events?${params}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching calendar events:', error);
+    const errorMessage = handleApiError(error, 'get calendar events');
+    return { success: false, error: errorMessage };
   }
 };
 

@@ -197,13 +197,14 @@ try {
           <p>Basic mode - Application loaded successfully</p>
           <p><strong>Error:</strong> ${error.message}</p>
           <p>Check browser console for full error details.</p>
-        <details style="margin-top: 20px; text-align: left;">
-          <summary>Error Details</summary>
-          <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px;">
+          <details style="margin-top: 20px; text-align: left;">
+            <summary>Error Details</summary>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px;">
 ${error.stack || error.message}
-          </pre>
-        </details>
-      </div>
-    `;
+            </pre>
+          </details>
+        </div>
+      `;
+    }
   }
 }

@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { createComponentLogger } from '../utils/errorLogger';
+import React, { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { createComponentLogger } from '../utils/errorLogger'
+import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
+import { getCalendarEvents, getEarningsEstimates, getEarningsHistory, getEpsRevisions, getEpsTrend, getEarningsMetrics } from '../services/api'
 import {
   Box,
   Container,
@@ -8,72 +11,76 @@ import {
   Grid,
   Card,
   CardContent,
-  Alert,
-  CircularProgress,
+  TextField,
+  MenuItem,
+  Button,
+  Chip,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Paper,
-  Chip,
-  Tabs,
-  Tab,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   FormControl,
   InputLabel,
   Select,
-  MenuItem,
-  TablePagination,
-  Avatar,
-  LinearProgress,
-  TextField,
-  Button
-} from '@mui/material';
+  Slider,
+  Switch,
+  FormControlLabel,
+  IconButton,
+  Tooltip,
+  Alert,
+  CircularProgress,
+  Divider,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tabs,
+  Tab,
+  Modal,
+  Backdrop,
+  Fade
+} from '@mui/material'
 import {
-  EventNote,
+  ExpandMore,
+  FilterList,
+  Clear,
+  Search,
   TrendingUp,
   TrendingDown,
-  HorizontalRule,
-  Analytics,
-  Event,
-  Schedule,
+  ShowChart,
+  Tune,
+  Event as EventIcon,
   AttachMoney,
-  ShowChart
-} from '@mui/icons-material';
-import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+  Analytics,
+  EventNote
+} from '@mui/icons-material'
 
 // Create component-specific logger
 const logger = createComponentLogger('EarningsCalendar');
 
 function EarningsCalendar() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [timeFilter, setTimeFilter] = useState('upcoming');
-
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(0)
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(25)
+  const [timeFilter, setTimeFilter] = useState('upcoming')
+  
   // EPS Revisions state
   const [epsSymbol, setEpsSymbol] = useState('AAPL');
   const [epsInput, setEpsInput] = useState('AAPL');
-
-  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Fetch calendar events
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
     queryKey: ['calendarEvents', timeFilter, page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        type: timeFilter,
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const response = await fetch(`${API_BASE}/calendar/events?${params}`);
-      if (!response.ok) {
-        const text = await response.text();
-        logger.error('Calendar events fetch failed', { status: response.status, text });
-        throw new Error(`Failed to fetch calendar data: ${response.status} ${text}`);
-      }
-      return response.json();
+      return await getCalendarEvents(timeFilter, page, rowsPerPage);
     },
     enabled: activeTab === 0,
     refetchInterval: 300000 // Refresh every 5 minutes
@@ -83,13 +90,7 @@ function EarningsCalendar() {
   const { data: estimatesData, isLoading: estimatesLoading } = useQuery({
     queryKey: ['earningsEstimates', page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const response = await fetch(`${API_BASE}/calendar/earnings-estimates?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch estimates data');
-      return response.json();
+      return await getEarningsEstimates({ page: page + 1, limit: rowsPerPage });
     },
     enabled: activeTab === 1,
     refetchInterval: 300000
@@ -99,13 +100,7 @@ function EarningsCalendar() {
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['earningsHistory', page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const response = await fetch(`${API_BASE}/calendar/earnings-history?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch history data');
-      return response.json();
+      return await getEarningsHistory({ page: page + 1, limit: rowsPerPage });
     },
     enabled: activeTab === 2,
     refetchInterval: 600000 // Refresh every 10 minutes
@@ -115,10 +110,7 @@ function EarningsCalendar() {
   const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useQuery({
     queryKey: ['epsRevisions', epsSymbol],
     queryFn: async () => {
-      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch EPS revisions');
-      return response.json();
+      return await getEpsRevisions(epsSymbol);
     },
     enabled: activeTab === 3 && !!epsSymbol,
     staleTime: 60000
@@ -128,10 +120,7 @@ function EarningsCalendar() {
   const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useQuery({
     queryKey: ['epsTrend', epsSymbol],
     queryFn: async () => {
-      const url = `${API_BASE}/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch EPS trend');
-      return response.json();
+      return await getEpsTrend(epsSymbol);
     },
     enabled: activeTab === 4 && !!epsSymbol,
     staleTime: 60000
@@ -141,14 +130,7 @@ function EarningsCalendar() {
   const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useQuery({
     queryKey: ['earningsMetrics', epsSymbol, page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage
-      });
-      const url = `${API_BASE}/calendar/earnings-metrics?${params}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch earnings metrics');
-      return response.json();
+      return await getEarningsMetrics(epsSymbol, page, rowsPerPage);
     },
     enabled: activeTab === 5 && !!epsSymbol,
     staleTime: 60000

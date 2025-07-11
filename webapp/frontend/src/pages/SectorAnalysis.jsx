@@ -59,6 +59,7 @@ import {
   Area,
   AreaChart
 } from 'recharts';
+import { getSectorAnalysis, getSectorDetails } from '../services/api';
 
 function SectorAnalysis() {
   const [sectorData, setSectorData] = useState([]);
@@ -72,29 +73,20 @@ function SectorAnalysis() {
   const [sortBy, setSortBy] = useState('monthly_change');
   const [showMomentum, setShowMomentum] = useState(true);
 
-  // Base API URL from config
-  const API_BASE_URL = window.__CONFIG__?.API_URL || import.meta.env.VITE_API_URL;
-
   const fetchSectorData = async () => {
     try {
       setLoading(true);
       setError(null);
       
       console.log('📊 Fetching sector analysis data...');
-      const response = await fetch(`${API_BASE_URL}/api/sectors/analysis?timeframe=${timeframe}`);
+      const result = await getSectorAnalysis(timeframe);
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setSectorData(data.data.sectors || []);
+      if (result.success) {
+        setSectorData(result.data.sectors || []);
         setLastUpdated(new Date());
-        console.log(`✅ Loaded ${data.data.sectors?.length || 0} sectors`);
+        console.log(`✅ Loaded ${result.data.sectors?.length || 0} sectors`);
       } else {
-        throw new Error(data.error || 'Failed to fetch sector data');
+        throw new Error(result.error || 'Failed to fetch sector data');
       }
     } catch (err) {
       console.error('❌ Error fetching sector data:', err);
@@ -114,19 +106,13 @@ function SectorAnalysis() {
       setDetailsLoading(true);
       
       console.log(`📊 Fetching details for sector: ${sector}`);
-      const response = await fetch(`${API_BASE_URL}/api/sectors/${encodeURIComponent(sector)}/details`);
+      const result = await getSectorDetails(sector);
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setSectorDetails(data.data);
-        console.log(`✅ Loaded details for ${sector}: ${data.data.stocks?.length || 0} stocks`);
+      if (result.success) {
+        setSectorDetails(result.data);
+        console.log(`✅ Loaded details for ${sector}: ${result.data.stocks?.length || 0} stocks`);
       } else {
-        throw new Error(data.error || 'Failed to fetch sector details');
+        throw new Error(result.error || 'Failed to fetch sector details');
       }
     } catch (err) {
       console.error(`❌ Error fetching ${sector} details:`, err);

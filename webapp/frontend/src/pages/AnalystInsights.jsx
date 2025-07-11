@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createComponentLogger } from '../utils/errorLogger';
+import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters';
+import { getAnalystRecommendations, getRecentAnalystActions } from '../services/api';
 import {
   Box,
   Container,
@@ -8,37 +11,63 @@ import {
   Grid,
   Card,
   CardContent,
-  Alert,
-  CircularProgress,
+  TextField,
+  Button,
+  Chip,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Chip,
   TablePagination,
-  Tabs,
-  Tab,
-  TextField,
-  Button
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  CircularProgress,
+  Divider,
+  Slider,
+  FormControlLabel,
+  Switch,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
+  ExpandMore,
   TrendingUp,
   TrendingDown,
-  HorizontalRule,
-  Analytics
+  ShowChart,
+  Timeline,
+  Assessment,
+  Speed,
+  Psychology,
+  Analytics,
+  Person,
+  Business,
+  Star,
+  StarBorder,
+  FilterList,
+  Clear,
+  Search,
+  Refresh
 } from '@mui/icons-material';
-import { formatCurrency, formatPercentage } from '../utils/formatters';
 
 // Create component-specific logger
 const logger = createComponentLogger('AnalystInsights');
 
 function AnalystInsights() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedSymbol, setSelectedSymbol] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const API_BASE = import.meta.env.VITE_API_URL || '';
+
   // Fetch analyst upgrades/downgrades
   const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useQuery({
     queryKey: ['analystUpgrades', page, rowsPerPage],

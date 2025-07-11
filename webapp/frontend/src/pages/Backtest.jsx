@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { createComponentLogger } from '../utils/errorLogger';
+import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters';
+import { getStocks, getStockPrices } from '../services/api';
 import {
   Box,
   Container,
@@ -135,7 +140,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+
 
 // Advanced backtesting calculation functions
 const calculateAdvancedMetrics = (equityCurve, trades, benchmarkData = null) => {

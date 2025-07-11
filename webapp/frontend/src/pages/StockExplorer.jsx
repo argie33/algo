@@ -684,7 +684,7 @@ function StockExplorer() {
                       Loading stocks data...
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      API: {import.meta.env.VITE_API_URL || 'http://localhost:3001'}
+                      API: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
                     </Typography>
                   </Box>
                 </Box>
@@ -702,7 +702,7 @@ function StockExplorer() {
                       <li>Database connection issues</li>
                       <li>Incorrect API endpoint configuration</li>
                     </ul>
-                    Current API URL: {import.meta.env.VITE_API_URL || 'http://localhost:3001'}
+                    Current API URL: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
                   </small>
                 </Alert>
               )}
