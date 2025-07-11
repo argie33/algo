@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated database schema to match webapp portfolio table requirements v43
+# Updated database schema to match webapp portfolio table requirements v44 - test ECR race
 import os
 import re
 import csv

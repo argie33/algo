@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v20 - force ECR rebuild
+# Trigger deploy-app-stocks workflow test - loadinfo update v22 - test ECR race with symbols
 import sys
 print("🔍 LOADINFO DEBUG: Script starting...")
 print(f"🔍 LOADINFO DEBUG: Python version: {sys.version}")
