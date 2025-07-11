@@ -8,11 +8,18 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 
-console.log('🚀 main.jsx loaded - FULL DASHBOARD RESTORED - v1.2.1');
+console.log('🚀 main.jsx loaded - FULL DASHBOARD WITH AUTH - v1.3.0');
 
-// Temporarily disable auth configuration to prevent loading issues
-window.__DISABLE_AUTH__ = true;
-console.log('⚠️ Authentication disabled - using demo user');
+// Configure Amplify for authentication
+import { configureAmplify } from './config/amplify'
+
+// Try to configure Amplify, but don't crash if it fails
+try {
+  configureAmplify();
+  console.log('✅ Amplify configured successfully');
+} catch (error) {
+  console.warn('⚠️ Amplify configuration failed, will use fallback auth:', error);
+}
 
 // Create a client
 const queryClient = new QueryClient({

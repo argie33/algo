@@ -101,26 +101,14 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
-      // Skip authentication if disabled
-      if (window.__DISABLE_AUTH__) {
-        console.log('🔧 Authentication disabled - using demo user');
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: { username: 'demo-user', isPremium: true },
-            tokens: { accessToken: 'demo-token' }
-          }
-        });
-        return;
-      }
-      
-      // Check if we're in a real production environment
-      const isProductionBuild = import.meta.env.PROD;
+      // Check if Cognito is configured, if not use dev auth
       const cognitoConfigured = isCognitoConfigured();
+      const isProductionBuild = import.meta.env.PROD;
+      console.log('🔍 Cognito configured:', cognitoConfigured, 'Production:', isProductionBuild);
       
-      // Use Cognito in production or when properly configured
-      if (isProductionBuild && cognitoConfigured) {
-        console.log('🚀 PRODUCTION MODE - Using AWS Cognito authentication');
+      // Use Cognito when properly configured (production or development)
+      if (cognitoConfigured) {
+        console.log('🚀 Using AWS Cognito authentication');
         
         try {
           // Get current authenticated user
@@ -205,9 +193,9 @@ export function AuthProvider({ children }) {
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
 
-      // Use Cognito in production or when properly configured
-      if (isProductionBuild && cognitoConfigured) {
-        console.log('🚀 PRODUCTION LOGIN - Using AWS Cognito');
+      // Use Cognito when properly configured (production or development)
+      if (cognitoConfigured) {
+        console.log('🚀 COGNITO LOGIN - Using AWS Cognito');
         
         const { isSignedIn, nextStep } = await signIn({
           username,
