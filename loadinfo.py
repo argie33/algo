@@ -475,7 +475,7 @@ if __name__ == "__main__":
         # Create tables in correct order (company_profile first as it's referenced by others)
         print("🔍 LOADINFO DEBUG: Creating company_profile table...")
         cur.execute("""
-            CREATE TABLE company_profile (
+            CREATE TABLE IF NOT EXISTS company_profile (
                 ticker VARCHAR(10) PRIMARY KEY,
                 short_name VARCHAR(100),
                 long_name VARCHAR(200),
@@ -526,7 +526,7 @@ if __name__ == "__main__":
 
         print("🔍 LOADINFO DEBUG: Creating leadership_team table...")
         cur.execute("""
-            CREATE TABLE leadership_team (
+            CREATE TABLE IF NOT EXISTS leadership_team (
                 ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
                 person_name VARCHAR(200) NOT NULL,
                 age INT,
@@ -544,7 +544,7 @@ if __name__ == "__main__":
 
         print("🔍 LOADINFO DEBUG: Creating governance_scores table...")
         cur.execute("""
-            CREATE TABLE governance_scores (
+            CREATE TABLE IF NOT EXISTS governance_scores (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
                 audit_risk INT,
                 board_risk INT,
@@ -559,7 +559,7 @@ if __name__ == "__main__":
 
         print("🔍 LOADINFO DEBUG: Creating market_data table...")
         cur.execute("""
-            CREATE TABLE market_data (
+            CREATE TABLE IF NOT EXISTS market_data (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
                 previous_close NUMERIC,
                 regular_market_previous_close NUMERIC,
@@ -607,7 +607,7 @@ if __name__ == "__main__":
 
         print("🔍 LOADINFO DEBUG: Creating key_metrics table...")
         cur.execute("""
-            CREATE TABLE key_metrics (
+            CREATE TABLE IF NOT EXISTS key_metrics (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
                 trailing_pe NUMERIC,
                 forward_pe NUMERIC,
@@ -667,7 +667,7 @@ if __name__ == "__main__":
 
         print("🔍 LOADINFO DEBUG: Creating analyst_estimates table...")
         cur.execute("""
-            CREATE TABLE analyst_estimates (
+            CREATE TABLE IF NOT EXISTS analyst_estimates (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
                 target_high_price NUMERIC,
                 target_low_price NUMERIC,
