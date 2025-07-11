@@ -1,4 +1,4 @@
-// Updated for database initialization testing - v1.1
+// Updated for database initialization testing - v1.2 - test webapp portfolio table schema
 import React, { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
