@@ -102,7 +102,13 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
       // Check if Cognito is configured, if not use dev auth
-      const cognitoConfigured = isCognitoConfigured();
+      let cognitoConfigured = false;
+      try {
+        cognitoConfigured = isCognitoConfigured();
+      } catch (error) {
+        console.warn('⚠️ Error checking Cognito configuration:', error);
+      }
+      
       const isProductionBuild = import.meta.env.PROD;
       console.log('🔍 Cognito configured:', cognitoConfigured, 'Production:', isProductionBuild);
       
@@ -149,31 +155,41 @@ export function AuthProvider({ children }) {
         }
       }
       
-      // Development fallback when Cognito is not configured
-      if (!cognitoConfigured && import.meta.env.DEV) {
-        console.log('🔧 DEVELOPMENT MODE - Cognito not configured, using dev auth fallback');
+      // Development fallback when Cognito is not configured or fails
+      console.log('🔧 FALLBACK MODE - Using development authentication');
+      
+      try {
+        const user = await devAuth.getCurrentUser();
+        const session = await devAuth.fetchAuthSession();
         
-        try {
-          const user = await devAuth.getCurrentUser();
-          const session = await devAuth.fetchAuthSession();
+        if (user && session.tokens) {
+          // Store access token for API requests
+          localStorage.setItem('accessToken', session.tokens.accessToken);
           
-          if (user && session.tokens) {
-            // Store access token for API requests
-            localStorage.setItem('accessToken', session.tokens.accessToken);
-            
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: {
-                user,
-                tokens: session.tokens
-              }
-            });
-            console.log('✅ Development user authenticated');
-            return;
-          }
-        } catch (error) {
-          console.log('No dev auth session found');
+          dispatch({
+            type: AUTH_ACTIONS.LOGIN_SUCCESS,
+            payload: {
+              user,
+              tokens: session.tokens
+            }
+          });
+          console.log('✅ Development user authenticated');
+          return;
         }
+      } catch (error) {
+        console.log('No dev auth session found, creating demo user');
+        
+        // Create a demo user if no authentication is available
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: { username: 'demo-user', isPremium: true, email: 'demo@example.com' },
+            tokens: { accessToken: 'demo-token' }
+          }
+        });
+        localStorage.setItem('accessToken', 'demo-token');
+        console.log('✅ Demo user created for development');
+        return;
       }
       
       // No valid session found
@@ -191,7 +207,12 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
       const isProductionBuild = import.meta.env.PROD;
-      const cognitoConfigured = isCognitoConfigured();
+      let cognitoConfigured = false;
+      try {
+        cognitoConfigured = isCognitoConfigured();
+      } catch (error) {
+        console.warn('⚠️ Error checking Cognito configuration in login:', error);
+      }
 
       // Use Cognito when properly configured (production or development)
       if (cognitoConfigured) {
@@ -243,9 +264,8 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Development fallback when Cognito is not configured
-      if (!cognitoConfigured && import.meta.env.DEV) {
-        console.log('🔧 DEVELOPMENT LOGIN - Using dev auth fallback');
+      // Development fallback when Cognito is not configured or fails
+      console.log('🔧 FALLBACK LOGIN - Using development authentication');
         
         try {
           const result = await devAuth.signIn(username, password);

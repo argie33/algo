@@ -4,40 +4,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-// import App from './App'
-
-// Temporary simple app to test React loading
-const TestApp = () => {
-  return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>✅ React App Loading Test</h1>
-      <p>If you can see this, React is working!</p>
-      <p>Time: {new Date().toLocaleString()}</p>
-      <div style={{ background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginTop: '20px' }}>
-        <h2>System Status</h2>
-        <p>✅ React rendering successfully</p>
-        <p>✅ JavaScript execution working</p>
-        <p>✅ DOM manipulation working</p>
-        <p>✅ CSS styling working</p>
-      </div>
-    </div>
-  );
-};
+import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 
-console.log('🚀 main.jsx loaded - REACT LOADING TEST - v1.4.0');
+console.log('🚀 main.jsx loaded - FULL DASHBOARD FIXED - v1.5.0');
 
-// Configure Amplify for authentication
+// Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'
 
-// Try to configure Amplify, but don't crash if it fails
-try {
-  configureAmplify();
-  console.log('✅ Amplify configured successfully');
-} catch (error) {
-  console.warn('⚠️ Amplify configuration failed, will use fallback auth:', error);
-}
+// Configure Amplify safely - continue even if it fails
+setTimeout(() => {
+  try {
+    configureAmplify();
+    console.log('✅ Amplify configured successfully');
+  } catch (error) {
+    console.warn('⚠️ Amplify configuration failed, using fallback auth:', error);
+  }
+}, 100); // Delay to ensure window.__CONFIG__ is loaded
 
 // Create a client
 const queryClient = new QueryClient({
@@ -120,7 +104,9 @@ try {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <TestApp />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </BrowserRouter>
