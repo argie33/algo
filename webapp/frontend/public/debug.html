@@ -80,7 +80,7 @@
         }
         
         // Test 3: Check network connectivity to API
-        const apiUrl = window.__CONFIG__?.API_URL || 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+        const apiUrl = window.__CONFIG__?.API_URL || 'PLACEHOLDER_API_URL';
         fetch(apiUrl + '/health?quick=true')
             .then(response => {
                 if (response.ok) {

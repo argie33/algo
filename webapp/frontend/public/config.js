@@ -1,6 +1,8 @@
-// This file is dynamically generated during deployment
-// See .github/workflows/deploy-webapp.yml lines 782-800
-// Local development: use VITE_API_URL environment variable instead
-window.__CONFIG__ = window.__CONFIG__ || {
-  API_URL: null // Will be populated by deployment pipeline
+// This file should be dynamically generated during deployment
+// Template will be replaced with actual API URL from CloudFormation outputs
+window.__CONFIG__ = {
+  "API_URL": "PLACEHOLDER_API_URL",
+  "BUILD_TIME": "PLACEHOLDER_BUILD_TIME", 
+  "VERSION": "PLACEHOLDER_VERSION",
+  "ENVIRONMENT": "PLACEHOLDER_ENVIRONMENT"
 };

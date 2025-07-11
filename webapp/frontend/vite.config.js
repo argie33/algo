@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
   
   // API URL configuration
-  const apiUrl = process.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://q570hqc8i9.execute-api.us-east-1.amazonaws.com/dev')
+  const apiUrl = process.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'PLACEHOLDER_API_URL')
   
   console.log('Vite Config:', {
     mode,
