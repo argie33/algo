@@ -70,7 +70,7 @@ jobs:
 # 6) Run value-metrics loader
   run_valuemetrics:
     name: Run value-metrics calculator
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.valuemetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -178,7 +178,7 @@ jobs:
 # 6) Run quality-metrics loader
   run_qualitymetrics:
     name: Run quality-metrics calculator
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.qualitymetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -999,7 +999,7 @@ jobs:
 ################################################################################
   run_symbols:
     name: Run stock-symbols loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.symbols == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1118,7 +1118,7 @@ jobs:
 
   run_econ:
     name: Run econ-data loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.econ == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1205,7 +1205,7 @@ jobs:
 
   run_pricedaily:
     name: Run pricedaily loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.pricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1296,7 +1296,7 @@ jobs:
 
   run_priceweekly:
     name: Run priceweekly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.priceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1387,7 +1387,7 @@ jobs:
 
   run_pricemonthly:
     name: Run pricemonthly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.pricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1478,7 +1478,7 @@ jobs:
 
   run_technicalsdaily:
     name: Run technicals-daily loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.technicalsdaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1569,7 +1569,7 @@ jobs:
 
   run_loadinfo:
     name: Run load-info loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.loadinfo == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1660,7 +1660,7 @@ jobs:
 
   run_earningshistory:
     name: Run earnings history loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.earningshistory == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1751,7 +1751,7 @@ jobs:
 
   run_earningsestimate:
     name: Run earnings estimate loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.earningsestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1842,7 +1842,7 @@ jobs:
 
   run_earningsmetrics:
     name: Run earnings metrics loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.earningsmetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1933,7 +1933,7 @@ jobs:
 
   run_revenueestimate:
     name: Run revenue estimate loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.revenueestimate == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2024,7 +2024,7 @@ jobs:
 
   run_technicalsmonthly:
     name: Run technicals-monthly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.technicalsmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2206,7 +2206,7 @@ jobs:
 
   run_buyselldaily:
     name: Run buysell daily loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.buyselldaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2297,7 +2297,7 @@ jobs:
 
   run_buysellweekly:
     name: Run buysell weekly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.buysellweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2388,7 +2388,7 @@ jobs:
 
   run_buysellmonthly:
     name: Run buysell monthly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.buysellmonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2479,7 +2479,7 @@ jobs:
 
   run_latestpricedaily:
     name: Run load-latest-price-daily loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latestpricedaily == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2570,7 +2570,7 @@ jobs:
 
   run_latestpriceweekly:
     name: Run load-latest-price-weekly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latestpriceweekly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2661,7 +2661,7 @@ jobs:
 
   run_latestpricemonthly:
     name: Run load-latest-price-monthly loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.latestpricemonthly == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2752,7 +2752,7 @@ jobs:
 
   run_naaim:
     name: Run NAAIM loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.naaim == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2843,7 +2843,7 @@ jobs:
 
   run_aaii:
     name: Run AAII loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.aaii == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -2934,7 +2934,7 @@ jobs:
 
   run_feargreed:
     name: Run Fear & Greed loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.feargreed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3025,7 +3025,7 @@ jobs:
 
   run_quarterlybalancesheet:
     name: Run Quarterly Balance Sheet loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.quarterlybalancesheet == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3116,7 +3116,7 @@ jobs:
 
   run_annualbalancesheet:
     name: Run Annual Balance Sheet loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.annualbalancesheet == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3207,7 +3207,7 @@ jobs:
 
   run_quarterlyincomestatement:
     name: Run Quarterly Income Statement loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.quarterlyincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3298,7 +3298,7 @@ jobs:
 
   run_annualincomestatement:
     name: Run Annual Income Statement loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.annualincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3389,7 +3389,7 @@ jobs:
 
   run_quarterlycashflow:
     name: Run Quarterly Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.quarterlycashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3480,7 +3480,7 @@ jobs:
 
   run_annualcashflow:
     name: Run Annual Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.annualcashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3571,7 +3571,7 @@ jobs:
 
   run_ttmincomestatement:
     name: Run TTM Income Statement loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.ttmincomestatement == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -3662,7 +3662,7 @@ jobs:
 
   run_ttmcashflow:
     name: Run TTM Cash Flow loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.ttmcashflow == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -4668,7 +4668,7 @@ jobs:
 
   run_fundamentalmetrics:
     name: Run fundamental-metrics loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.fundamentalmetrics == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -4759,7 +4759,7 @@ jobs:
 
   run_analystupgradedowngrade:
     name: Run analyst-upgrade-downgrade loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.analystupgradedowngrade == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -4850,7 +4850,7 @@ jobs:
 
   run_financials:
     name: Run financials loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.financials == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -4941,7 +4941,7 @@ jobs:
 
   run_sentiment:
     name: Run sentiment loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.sentiment == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -5032,7 +5032,7 @@ jobs:
 
   run_technicals:
     name: Run technicals loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.technicals == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -5123,7 +5123,7 @@ jobs:
 
   run_market:
     name: Run market loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.market == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -5214,7 +5214,7 @@ jobs:
 
   run_momentum:
     name: Run momentum loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.momentum == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -5305,7 +5305,7 @@ jobs:
 
   run_sentiment_realtime:
     name: Run sentiment-realtime loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.sentiment_realtime == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -5396,7 +5396,7 @@ jobs:
 
   run_positioning:
     name: Run positioning loader
-    needs: [deploy-tasks, detect-changes]
+    needs: [build, deploy-tasks, detect-changes]
     if: ${{ needs.detect-changes.outputs.positioning == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
