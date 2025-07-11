@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 import logging
-# Trigger symbols with correct workflow v5
+# Trigger symbols with fixed CloudFormation deployment v6
 import requests
 import boto3
 import psycopg2
