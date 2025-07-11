@@ -123,14 +123,51 @@ def create_all_tables(cursor, conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+        """,
+        
+        # Shared dependency tables that other scripts need
+        """
+        CREATE TABLE IF NOT EXISTS stock_symbols (
+            symbol VARCHAR(50),
+            exchange VARCHAR(100),
+            security_name TEXT,
+            cqs_symbol VARCHAR(50),
+            market_category VARCHAR(50),
+            test_issue CHAR(1),
+            financial_status VARCHAR(50),
+            round_lot_size INT,
+            etf CHAR(1),
+            secondary_symbol VARCHAR(50)
+        )
+        """,
+        
+        """
+        CREATE TABLE IF NOT EXISTS etf_symbols (
+            symbol VARCHAR(50),
+            exchange VARCHAR(100),
+            security_name TEXT,
+            cqs_symbol VARCHAR(50),
+            market_category VARCHAR(50),
+            test_issue CHAR(1),
+            financial_status VARCHAR(50),
+            round_lot_size INT,
+            etf CHAR(1),
+            secondary_symbol VARCHAR(50)
+        )
+        """,
+        
+        """
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name VARCHAR(255) PRIMARY KEY,
+            last_run TIMESTAMP WITH TIME ZONE
+        )
         """
         
-        # NOTE: Data loading tables (stock_symbols, etf_symbols, market_data, etc.)
+        # NOTE: Other data loading tables (market_data, key_metrics, etc.)
         # are managed by their respective loader scripts:
-        # - loadstocksymbols.py manages stock_symbols and etf_symbols
         # - loadinfo.py manages company_profile and key_metrics  
         # - Other loaders manage their own tables
-        # This script only creates webapp-specific tables
+        # This script creates webapp tables + shared dependency tables
     ]
     
     indexes = [
@@ -143,8 +180,11 @@ def create_all_tables(cursor, conn):
         "CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_api_key ON portfolio_metadata(user_id, api_key_id)",
         "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_api_key ON portfolio_holdings(user_id, api_key_id)",
-        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol)"
-        # NOTE: Data loading table indexes are managed by their respective loader scripts
+        "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol)",
+        # Shared dependency table indexes
+        "CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_etf_symbols_symbol ON etf_symbols(symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_last_updated_script ON last_updated(script_name)"
     ]
     
     try:
