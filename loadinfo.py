@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v12 - with dependency tables and foreign key fixes
+# Trigger deploy-app-stocks workflow test - loadinfo update v13 - add early debug logging
+print("🔍 LOADINFO DEBUG: Script starting...")
+print(f"🔍 LOADINFO DEBUG: Python version: {sys.version}")
+
 import sys
 import time
 import logging
@@ -11,22 +14,30 @@ import gc
 import resource
 import math
 
+print("🔍 LOADINFO DEBUG: Basic imports successful")
+
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
+print("🔍 LOADINFO DEBUG: Database imports successful")
+
 import boto3
 import yfinance as yf
+
+print("🔍 LOADINFO DEBUG: All imports successful")
 
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadinfo.py"
+print("🔍 LOADINFO DEBUG: Setting up logging...")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+print("🔍 LOADINFO DEBUG: Logging configured successfully")
 
 # -------------------------------
 # Memory-logging helper (RSS in MB)
@@ -50,16 +61,34 @@ RETRY_DELAY = 0.2  # seconds between download retries
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    sec = json.loads(secret_str)
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
-    }
+    print("🔍 LOADINFO DEBUG: get_db_config() called")
+    try:
+        print("🔍 LOADINFO DEBUG: Getting DB_SECRET_ARN from environment")
+        secret_arn = os.environ["DB_SECRET_ARN"]
+        print(f"🔍 LOADINFO DEBUG: DB_SECRET_ARN = {secret_arn[:50]}...")
+        
+        print("🔍 LOADINFO DEBUG: Creating boto3 secretsmanager client")
+        client = boto3.client("secretsmanager")
+        print("🔍 LOADINFO DEBUG: Fetching secret value")
+        secret_str = client.get_secret_value(SecretId=secret_arn)["SecretString"]
+        print("🔍 LOADINFO DEBUG: Secret fetched successfully")
+        
+        print("🔍 LOADINFO DEBUG: Parsing JSON secret")
+        sec = json.loads(secret_str)
+        print("🔍 LOADINFO DEBUG: JSON parsed successfully")
+        
+        config = {
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
+            "dbname": sec["dbname"]
+        }
+        print(f"🔍 LOADINFO DEBUG: Config created - host: {config['host']}, port: {config['port']}, dbname: {config['dbname']}")
+        return config
+    except Exception as e:
+        print(f"🔍 LOADINFO DEBUG: ERROR in get_db_config(): {e}")
+        raise
 
 def load_company_info(symbols, cur, conn):
     total = len(symbols)
@@ -384,36 +413,56 @@ def load_company_info(symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
+    print("🔍 LOADINFO DEBUG: Entering main execution block...")
     try:
+        print("🔍 LOADINFO DEBUG: Inside try block...")
         logging.info("🎯 LOADINFO DEPLOYMENT TEST - Starting script execution")
         logging.info(f"📅 Deployment timestamp: {datetime.now().isoformat()}")
-        logging.info("🔄 This is loadinfo update v12 - with dependency tables and foreign key fixes")
+        logging.info("🔄 This is loadinfo update v13 - add early debug logging")
         logging.info(f"✅ Python version: {sys.version}")
         logging.info(f"✅ Current working directory: {os.getcwd()}")
         
         # Check environment variables
+        print("🔍 LOADINFO DEBUG: Checking environment variables...")
         db_secret_arn = os.environ.get("DB_SECRET_ARN")
         if not db_secret_arn:
+            print("🔍 LOADINFO DEBUG: DB_SECRET_ARN not found!")
             logging.error("❌ CRITICAL: DB_SECRET_ARN environment variable is not set!")
             sys.exit(1)
         else:
+            print(f"🔍 LOADINFO DEBUG: DB_SECRET_ARN found: {db_secret_arn[:50]}...")
             logging.info(f"✅ DB_SECRET_ARN is set: {db_secret_arn[:50]}...")
             
+        print("🔍 LOADINFO DEBUG: Logging memory usage...")
         log_mem("startup")
 
         # Connect to DB
+        print("🔍 LOADINFO DEBUG: Starting database connection...")
         logging.info("🔗 Connecting to database...")
+        
+        print("🔍 LOADINFO DEBUG: Calling get_db_config()...")
         cfg = get_db_config()
+        print("🔍 LOADINFO DEBUG: Database config retrieved successfully")
+        
+        print("🔍 LOADINFO DEBUG: Creating psycopg2 connection...")
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"]
         )
+        print("🔍 LOADINFO DEBUG: Database connection established")
+        
+        print("🔍 LOADINFO DEBUG: Setting autocommit=False...")
         conn.autocommit = False
+        print("🔍 LOADINFO DEBUG: Creating cursor...")
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        print("🔍 LOADINFO DEBUG: Cursor created successfully")
 
         # Recreate tables
+        print("🔍 LOADINFO DEBUG: Starting table recreation...")
         logging.info("Recreating company info tables...")
+        
+        print("🔍 LOADINFO DEBUG: Dropping existing tables...")
         cur.execute("""
             DROP TABLE IF EXISTS analyst_estimates CASCADE;
             DROP TABLE IF EXISTS key_metrics CASCADE;
@@ -422,8 +471,10 @@ if __name__ == "__main__":
             DROP TABLE IF EXISTS leadership_team CASCADE;
             DROP TABLE IF EXISTS company_profile CASCADE;
         """)
+        print("🔍 LOADINFO DEBUG: Tables dropped successfully")
 
         # Create tables in correct order (company_profile first as it's referenced by others)
+        print("🔍 LOADINFO DEBUG: Creating company_profile table...")
         cur.execute("""
             CREATE TABLE company_profile (
                 ticker VARCHAR(10) PRIMARY KEY,
@@ -472,7 +523,9 @@ if __name__ == "__main__":
                 regular_market_time_ms BIGINT
             );
         """)
+        print("🔍 LOADINFO DEBUG: company_profile table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Creating leadership_team table...")
         cur.execute("""
             CREATE TABLE leadership_team (
                 ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
@@ -488,7 +541,9 @@ if __name__ == "__main__":
                 PRIMARY KEY(ticker, person_name, role_source)
             );
         """)
+        print("🔍 LOADINFO DEBUG: leadership_team table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Creating governance_scores table...")
         cur.execute("""
             CREATE TABLE governance_scores (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
@@ -501,7 +556,9 @@ if __name__ == "__main__":
                 comp_data_as_of_ms BIGINT
             );
         """)
+        print("🔍 LOADINFO DEBUG: governance_scores table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Creating market_data table...")
         cur.execute("""
             CREATE TABLE market_data (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
@@ -547,7 +604,9 @@ if __name__ == "__main__":
                 market_cap BIGINT
             );
         """)
+        print("🔍 LOADINFO DEBUG: market_data table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Creating key_metrics table...")
         cur.execute("""
             CREATE TABLE key_metrics (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
@@ -605,7 +664,9 @@ if __name__ == "__main__":
                 payout_ratio NUMERIC
             );
         """)
+        print("🔍 LOADINFO DEBUG: key_metrics table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Creating analyst_estimates table...")
         cur.execute("""
             CREATE TABLE analyst_estimates (
                 ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
@@ -619,18 +680,31 @@ if __name__ == "__main__":
                 average_analyst_rating NUMERIC
             );
         """)
+        print("🔍 LOADINFO DEBUG: analyst_estimates table created successfully")
 
+        print("🔍 LOADINFO DEBUG: Committing table creation...")
         conn.commit()
+        print("🔍 LOADINFO DEBUG: Table creation committed successfully")
 
         # Load stock symbols
+        print("🔍 LOADINFO DEBUG: Querying stock_symbols table...")
         cur.execute("SELECT symbol FROM stock_symbols;")
         stock_syms = [r["symbol"] for r in cur.fetchall()]
+        print(f"🔍 LOADINFO DEBUG: Found {len(stock_syms)} stock symbols")
+        
+        print("🔍 LOADINFO DEBUG: Loading company info for stocks...")
         t_s, p_s, f_s = load_company_info(stock_syms, cur, conn)
+        print(f"🔍 LOADINFO DEBUG: Stock loading complete - processed: {p_s}, failed: {len(f_s)}")
 
         # Load ETF symbols
+        print("🔍 LOADINFO DEBUG: Querying etf_symbols table...")
         cur.execute("SELECT symbol FROM etf_symbols;")
         etf_syms = [r["symbol"] for r in cur.fetchall()]
+        print(f"🔍 LOADINFO DEBUG: Found {len(etf_syms)} ETF symbols")
+        
+        print("🔍 LOADINFO DEBUG: Loading company info for ETFs...")
         t_e, p_e, f_e = load_company_info(etf_syms, cur, conn)
+        print(f"🔍 LOADINFO DEBUG: ETF loading complete - processed: {p_e}, failed: {len(f_e)}")
 
         # Record last run
         cur.execute("""
@@ -646,16 +720,26 @@ if __name__ == "__main__":
         logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
         logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
+        print("🔍 LOADINFO DEBUG: Closing database connections...")
         cur.close()
         conn.close()
+        print("🔍 LOADINFO DEBUG: Database connections closed successfully")
+        
         logging.info("✅ LOADINFO DEPLOYMENT TEST - All done! This confirms the deployment system is working.")
-        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v12")
+        logging.info(f"🚀 Deployment successful - Script version: loadinfo update v13")
         logging.info("📊 Company information processing completed successfully.")
         
+        print("🔍 LOADINFO DEBUG: Script completed successfully - exiting normally")
+        
     except Exception as e:
+        print(f"🔍 LOADINFO DEBUG: Exception caught: {e}")
+        print(f"🔍 LOADINFO DEBUG: Exception type: {type(e).__name__}")
         logging.error(f"❌ CRITICAL ERROR in loadinfo script: {e}")
         logging.error(f"❌ Error type: {type(e).__name__}")
         logging.error(f"❌ Error details: {str(e)}")
         import traceback
         logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        print(f"🔍 LOADINFO DEBUG: About to exit with code 1")
         sys.exit(1)
+
+print("🔍 LOADINFO DEBUG: Script reached end of file")
