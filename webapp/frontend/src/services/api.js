@@ -2,8 +2,8 @@ import axios from 'axios'
 
 // Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
-  // HARDCODED API URL TO FIX WHITE PAGE
-  const hardcodedApiUrl = 'https://o64hxfwqll.execute-api.us-east-1.amazonaws.com/dev';
+  // HARDCODED API URL TO FIX WHITE PAGE  
+  const hardcodedApiUrl = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
   
   // Dynamic API URL resolution: runtime > build-time > hardcoded fallback
   let runtimeApiUrl = (typeof window !== 'undefined' && window.__CONFIG__ && window.__CONFIG__.API_URL) ? window.__CONFIG__.API_URL : null;

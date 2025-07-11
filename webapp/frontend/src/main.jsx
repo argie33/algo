@@ -7,6 +7,7 @@ import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
 import { configureAmplify } from './config/amplify'
+import ErrorBoundary from './components/ErrorBoundary'
 
 console.log('🚀 main.jsx loaded - starting React app - v1.0.3 - HARDCODED CONFIG FIX');
 
@@ -23,13 +24,14 @@ window.addEventListener('unhandledrejection', (e) => {
 // Configure Amplify
 configureAmplify();
 
-// Create a client
+// Create a client with better error handling
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: false, // Don't retry on errors during startup
+      staleTime: 30000,
       cacheTime: 10 * 60 * 1000, // 10 minutes
+      refetchOnWindowFocus: false,
     },
   },
 })
@@ -132,16 +134,18 @@ try {
   
   console.log('🔧 Rendering app with providers...');
   root.render(
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
   
   console.log('✅ React app rendered successfully');
