@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v9 - test with safe exit code handling
+# Trigger deploy-app-stocks workflow test - loadinfo update v10 - fix table creation after webapp separation
 import sys
 import time
 import logging
