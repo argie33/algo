@@ -389,7 +389,7 @@ jobs:
         name: Which files changed?
         uses: dorny/paths-filter@v2
         with:
-          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || 'origin/main' }}
           filters: |
             app:
               - 'template-app-stocks.yml'
@@ -667,6 +667,13 @@ jobs:
         name: Build matrix
         run: |
           arr=""
+          
+          # FORCE symbols build if loadstocksymbols.py changed (debugging Docker issue)
+          if git diff --name-only HEAD~1 | grep -q "loadstocksymbols.py"; then
+            echo "🚨 FORCE: loadstocksymbols.py changed - adding symbols to matrix"
+            arr="$arr,\"symbols\""
+          fi
+          
           [ "${{ steps.paths.outputs.symbols }}" = "true" ]         && arr="$arr,\"symbols\""
           [ "${{ steps.paths.outputs.econ }}"    = "true" ]         && arr="$arr,\"econ\""
           [ "${{ steps.paths.outputs.pricedaily }}" = "true" ]      && arr="$arr,\"pricedaily\""

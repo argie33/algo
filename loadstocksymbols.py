@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v16 - Force Docker build  
-# Trigger deploy-app-stocks workflow - force symbols Docker image build v16
+# FORCE WORKFLOW RUN - Updated v17 - Fixed path detection + webapp
+# Trigger deploy-app-stocks workflow - test path detection and React fixes v17
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
