@@ -422,6 +422,9 @@ const fetchResearchIndicators = async () => {
   }
 }
 
+// Add this near the top, after imports
+const API_URL = window.__CONFIG__?.API_URL || import.meta.env.VITE_API_URL;
+
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0)
   const [timeframe, setTimeframe] = useState('1D')
@@ -492,7 +495,7 @@ function MarketOverview() {
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load market data. Please check your data sources and try again.
           <br /><small>Technical details: {marketError?.message || 'Unknown error'}</small>
-          <br /><small>Debug endpoint: <code>PLACEHOLDER_API_URL/market/debug</code></small>
+          <br /><small>Debug endpoint: <code>{API_URL + '/market/debug'}</code></small>
         </Alert>
       </Box>
     )

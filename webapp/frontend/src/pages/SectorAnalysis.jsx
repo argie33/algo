@@ -73,7 +73,7 @@ function SectorAnalysis() {
   const [showMomentum, setShowMomentum] = useState(true);
 
   // Base API URL from config
-  const API_BASE_URL = window.APP_CONFIG?.API_URL || 'PLACEHOLDER_API_URL';
+  const API_BASE_URL = window.__CONFIG__?.API_URL || import.meta.env.VITE_API_URL;
 
   const fetchSectorData = async () => {
     try {
