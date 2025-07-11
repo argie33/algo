@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 import logging
-# Trigger symbols with S3 bucket debug info v10
+# Trigger symbols with S3 bucket debug info v11 - auto-create bucket
 import requests
 import boto3
 import psycopg2

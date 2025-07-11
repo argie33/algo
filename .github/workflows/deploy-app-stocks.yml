@@ -36,40 +36,55 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get CloudFormation templates bucket from core stack
+      - name: Get CloudFormation templates bucket
         id: bucket
         run: |
-          echo "Checking for exported S3 bucket..."
-          aws cloudformation list-exports --query "Exports[?Name=='StocksCore-CfTemplatesBucketName']" --output table || echo "No exports found"
+          echo "🔍 Checking for exported S3 bucket..."
+          aws cloudformation list-exports --query "Exports[?Name=='StocksCore-CfTemplatesBucketName']" --output table 2>/dev/null || echo "No exports found"
           
           BUCKET=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-            --output text)
+            --output text 2>/dev/null || echo "")
           
           echo "Raw bucket value: '$BUCKET'"
           
-          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "❌ S3 bucket not found in exports. Deploying core stack first..."
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ] || [ "$BUCKET" = "" ]; then
+            echo "⚠️  S3 bucket not found in exports. Creating temporary bucket..."
             
-            # Deploy core stack first
-            aws cloudformation deploy \
-              --stack-name stocks-core-stack \
-              --template-file template-core.yml \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset
-              
-            # Wait for core stack to complete
-            aws cloudformation wait stack-deploy-complete --stack-name stocks-core-stack
+            # Generate unique bucket name
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            REGION=$(aws configure get region || echo "us-east-1")
+            BUCKET_NAME="stocks-cf-templates-${ACCOUNT_ID}-${REGION}"
             
-            # Get bucket again
-            BUCKET=$(aws cloudformation list-exports \
-              --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
-              --output text)
+            echo "🪣 Creating S3 bucket: $BUCKET_NAME"
             
-            if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-              echo "❌ Still unable to get S3 bucket after core stack deployment"
-              exit 1
+            # Create S3 bucket (handle different regions)
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket \
+                --bucket "$BUCKET_NAME" \
+                --region "$REGION" 2>/dev/null || echo "Bucket may already exist"
+            else
+              aws s3api create-bucket \
+                --bucket "$BUCKET_NAME" \
+                --region "$REGION" \
+                --create-bucket-configuration LocationConstraint="$REGION" 2>/dev/null || echo "Bucket may already exist"
             fi
+            
+            # Enable versioning
+            aws s3api put-bucket-versioning \
+              --bucket "$BUCKET_NAME" \
+              --versioning-configuration Status=Enabled 2>/dev/null || true
+            
+            BUCKET="$BUCKET_NAME"
+            echo "✅ Created/verified S3 bucket: $BUCKET"
+          fi
+          
+          # Verify bucket exists and is accessible
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "✅ Confirmed S3 bucket exists and is accessible: $BUCKET"
+          else
+            echo "❌ S3 bucket $BUCKET is not accessible"
+            exit 1
           fi
           
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
