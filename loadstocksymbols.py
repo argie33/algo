@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 import logging
-# Trigger deployment pipeline v2
+# Trigger symbols deployment only v3
 import requests
 import boto3
 import psycopg2
