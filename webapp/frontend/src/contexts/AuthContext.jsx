@@ -289,7 +289,7 @@ export function AuthProvider({ children }) {
         dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
         return { success: false, error: errorMessage };
       }
-
+      
     } catch (error) {
       console.error('Login error:', error);
       const errorMessage = getErrorMessage(error);
