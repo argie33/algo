@@ -103,6 +103,7 @@ import RiskManagement from './pages/RiskManagement'
 import LiveDataMonitor from './components/LiveDataMonitor'
 import SimpleAlpacaData from './components/SimpleAlpacaData'
 import SmartWatchlist from './components/SmartWatchlist'
+import CryptoMarketOverview from './pages/CryptoMarketOverview'
 
 const drawerWidth = 240
 
@@ -115,6 +116,9 @@ const menuItems = [
   { text: 'Sector Analysis', icon: <BusinessIcon />, path: '/sectors', category: 'markets' },
   { text: 'Commodities', icon: <GrainIcon />, path: '/commodities', category: 'markets' },
   { text: 'Economic Indicators', icon: <PublicIcon />, path: '/economic', category: 'markets' },
+  
+  // Cryptocurrency Section
+  { text: 'Crypto Market', icon: <TrendingUpIcon />, path: '/crypto', category: 'crypto' },
   
   // Stocks Section
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
@@ -169,6 +173,7 @@ function App() {
   const [userMenuAnchor, setUserMenuAnchor] = useState(null)
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
+    crypto: true,
     stocks: true,
     options: true,
     sentiment: false,
@@ -228,6 +233,7 @@ function App() {
   const sectionTitles = {
     main: 'Dashboard',
     markets: 'Markets',
+    crypto: 'Cryptocurrency',
     stocks: 'Stocks',
     options: 'Options Trading',
     sentiment: 'Sentiment Analysis',
@@ -519,6 +525,9 @@ function App() {
             <Route path="/risk" element={<RiskManagement />} />
             <Route path="/data/live" element={<LiveDataMonitor />} />
             <Route path="/data/alpaca" element={<SimpleAlpacaData />} />
+            
+            {/* Cryptocurrency Routes */}
+            <Route path="/crypto" element={<CryptoMarketOverview />} />
           </Routes>
         </Container>
       </Box>

@@ -51,6 +51,9 @@ export const formatNumber = (value, decimals = 2) => {
   }
 }
 
+// Alias for formatNumber
+export const formatLargeNumber = formatNumber
+
 // Format ratio values
 export const formatRatio = (value, decimals = 2) => {
   if (value === null || value === undefined) return 'N/A'
