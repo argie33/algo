@@ -2,7 +2,7 @@
 """
 Database Initialization Script
 Creates all database tables needed for the financial dashboard
-Updated with enhanced debugging for portfolio_id column issue
+Updated with transaction rollback fix for database constraints - v2.1
 """
 import os
 import sys
