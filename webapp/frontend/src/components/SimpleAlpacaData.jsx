@@ -18,7 +18,9 @@ import {
   Alert,
   IconButton,
   Tabs,
-  Tab
+  Tab,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import {
   TrendingUp,
@@ -39,6 +41,13 @@ const SimpleAlpacaData = () => {
   const [error, setError] = useState('');
   const [metrics, setMetrics] = useState({});
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedFeeds, setSelectedFeeds] = useState({
+    quotes: true,
+    trades: true,
+    bars: false,
+    news: false,
+    crypto: false
+  });
 
   useEffect(() => {
     // Event handlers
@@ -126,15 +135,59 @@ const SimpleAlpacaData = () => {
 
   const quickSubscribe = (symbols, type) => {
     symbols.forEach(symbol => {
-      if (type === 'quotes') {
+      if (type === 'quotes' && selectedFeeds.quotes) {
         simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
-      } else if (type === 'trades') {
-        simpleAlpacaWebSocket.subscribeToTrades([symbol]);
-      } else if (type === 'bars') {
-        simpleAlpacaWebSocket.subscribeToBars([symbol]);
+        setSubscriptions(prev => [...prev, { symbol, type }]);
       }
-      setSubscriptions(prev => [...prev, { symbol, type }]);
+      if (type === 'trades' && selectedFeeds.trades) {
+        simpleAlpacaWebSocket.subscribeToTrades([symbol]);
+        setSubscriptions(prev => [...prev, { symbol, type }]);
+      }
+      if (type === 'bars' && selectedFeeds.bars) {
+        simpleAlpacaWebSocket.subscribeToBars([symbol]);
+        setSubscriptions(prev => [...prev, { symbol, type }]);
+      }
+      if (type === 'crypto' && selectedFeeds.crypto) {
+        simpleAlpacaWebSocket.subscribeToCrypto([symbol]);
+        setSubscriptions(prev => [...prev, { symbol, type }]);
+      }
     });
+  };
+
+  const handleSubscribeWithSelectedFeeds = () => {
+    if (!newSymbol.trim()) return;
+    
+    const symbol = newSymbol.trim().toUpperCase();
+    
+    // Subscribe to all selected feed types
+    Object.entries(selectedFeeds).forEach(([feedType, isSelected]) => {
+      if (isSelected) {
+        switch (feedType) {
+          case 'quotes':
+            simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
+            setSubscriptions(prev => [...prev, { symbol, type: 'quotes' }]);
+            break;
+          case 'trades':
+            simpleAlpacaWebSocket.subscribeToTrades([symbol]);
+            setSubscriptions(prev => [...prev, { symbol, type: 'trades' }]);
+            break;
+          case 'bars':
+            simpleAlpacaWebSocket.subscribeToBars([symbol]);
+            setSubscriptions(prev => [...prev, { symbol, type: 'bars' }]);
+            break;
+          case 'news':
+            simpleAlpacaWebSocket.subscribeToNews([symbol]);
+            setSubscriptions(prev => [...prev, { symbol, type: 'news' }]);
+            break;
+          case 'crypto':
+            simpleAlpacaWebSocket.subscribeToCrypto([symbol]);
+            setSubscriptions(prev => [...prev, { symbol, type: 'crypto' }]);
+            break;
+        }
+      }
+    });
+    
+    setNewSymbol('');
   };
 
   const formatPrice = (price) => {
@@ -242,6 +295,30 @@ const SimpleAlpacaData = () => {
           <CardContent>
             <Typography variant="h6" gutterBottom>Subscribe to Symbols</Typography>
             
+            {/* Feed Selection */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Select Data Feeds:</Typography>
+              <Grid container spacing={1}>
+                {Object.entries(selectedFeeds).map(([feed, isSelected]) => (
+                  <Grid item key={feed}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isSelected}
+                          onChange={(e) => setSelectedFeeds(prev => ({
+                            ...prev,
+                            [feed]: e.target.checked
+                          }))}
+                          size="small"
+                        />
+                      }
+                      label={feed.charAt(0).toUpperCase() + feed.slice(1)}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+            
             {/* Quick Subscribe Buttons */}
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle2" gutterBottom>Quick Subscribe:</Typography>
@@ -250,60 +327,60 @@ const SimpleAlpacaData = () => {
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['AAPL', 'MSFT', 'GOOGL', 'AMZN'], 'quotes')}
-                  disabled={!connected}
+                  disabled={!connected || !selectedFeeds.quotes}
                 >
-                  Big Tech Quotes
+                  Big Tech (Quotes)
                 </Button>
                 <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['TSLA', 'NVDA', 'META'], 'trades')}
-                  disabled={!connected}
+                  disabled={!connected || !selectedFeeds.trades}
                 >
-                  Growth Stocks Trades
+                  Growth Stocks (Trades)
                 </Button>
                 <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['SPY', 'QQQ', 'IWM'], 'bars')}
-                  disabled={!connected}
+                  disabled={!connected || !selectedFeeds.bars}
                 >
-                  ETF Bars
+                  ETFs (Bars)
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => quickSubscribe(['BTCUSD', 'ETHUSD'], 'crypto')}
+                  disabled={!connected || !selectedFeeds.crypto}
+                >
+                  Crypto
                 </Button>
               </Box>
             </Box>
 
             {/* Manual Subscribe */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-              <TextField
-                size="small"
-                label="Symbol (e.g., AAPL)"
-                value={newSymbol}
-                onChange={(e) => setNewSymbol(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSubscribeQuotes()}
-                disabled={!connected}
-              />
-              <Button 
-                variant="contained" 
-                onClick={handleSubscribeQuotes}
-                disabled={!connected || !newSymbol.trim()}
-              >
-                Quotes
-              </Button>
-              <Button 
-                variant="contained" 
-                onClick={handleSubscribeTrades}
-                disabled={!connected || !newSymbol.trim()}
-              >
-                Trades
-              </Button>
-              <Button 
-                variant="contained" 
-                onClick={handleSubscribeBars}
-                disabled={!connected || !newSymbol.trim()}
-              >
-                Bars
-              </Button>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Manual Subscribe:</Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField
+                  size="small"
+                  label="Symbol (e.g., AAPL)"
+                  value={newSymbol}
+                  onChange={(e) => setNewSymbol(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSubscribeWithSelectedFeeds()}
+                  disabled={!connected}
+                />
+                <Button 
+                  variant="contained" 
+                  onClick={handleSubscribeWithSelectedFeeds}
+                  disabled={!connected || !newSymbol.trim() || Object.values(selectedFeeds).every(v => !v)}
+                >
+                  Subscribe to Selected Feeds
+                </Button>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Will subscribe to all selected feed types for this symbol
+              </Typography>
             </Box>
 
             {/* Active Subscriptions */}
