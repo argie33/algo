@@ -65,6 +65,11 @@ Resources:
                 Action:
                   - execute-api:ManageConnections
                 Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource: 'arn:aws:execute-api:*:*:*'
+                Description: Allow calling existing stocks API
 
   #############################################################################
   # ELASTICACHE REDIS - LOW LATENCY CACHING
@@ -231,15 +236,23 @@ Resources:
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for Lambda functions
+      GroupDescription: Security group for WebSocket Lambda functions with API access
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-          Description: All outbound traffic
+          Description: All outbound traffic (including API Gateway access)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS inbound for API communication
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-lambda-sg'
+        - Key: Purpose
+          Value: WebSocket-API-Communication
 
   # WebSocket connection handler
   ConnectFunction:

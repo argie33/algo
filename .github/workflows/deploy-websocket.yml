@@ -50,7 +50,7 @@ jobs:
         run: |
           # Check if stack exists and its state
           STACK_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-websocket-stack \
+            --stack-name stocks-websocket-stack-v2 \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "DOES_NOT_EXIST")
           
@@ -59,14 +59,14 @@ jobs:
           
           if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ]; then
             echo "Stack is in failed state ($STACK_STATUS), deleting it first..."
-            aws cloudformation delete-stack --stack-name stocks-websocket-stack
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack-v2
             
             echo "Waiting for stack deletion to complete..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack-v2
             echo "Stack deleted successfully"
           elif [ "$STACK_STATUS" = "DELETE_IN_PROGRESS" ]; then
             echo "Stack is being deleted, waiting for completion..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack-v2
             echo "Stack deletion completed"
           fi
 
@@ -79,7 +79,7 @@ jobs:
           if [ $TEMPLATE_SIZE -lt 51200 ]; then
             echo "Template is small enough, deploying directly without S3..."
             aws cloudformation deploy \
-              --stack-name stocks-websocket-stack \
+              --stack-name stocks-websocket-stack-v2 \
               --template-file template-realtime-websocket.yml \
               --parameter-overrides \
                 Environment=dev \
@@ -88,7 +88,7 @@ jobs:
           else
             echo "Template is large, using S3 bucket..."
             aws cloudformation deploy \
-              --stack-name stocks-websocket-stack \
+              --stack-name stocks-websocket-stack-v2 \
               --template-file template-realtime-websocket.yml \
               --parameter-overrides \
                 Environment=dev \
