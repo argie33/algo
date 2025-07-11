@@ -2,11 +2,14 @@ import axios from 'axios'
 
 // Get API configuration - exported for ServiceHealth 
 export const getApiConfig = () => {
-  // Hardcoded API URL for now
-  const apiUrl = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+  // Dynamic API URL resolution with fallback
+  const apiUrl = window.__CONFIG__?.API_URL || 
+                 import.meta.env.VITE_API_URL || 
+                 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
   
   console.log('🔧 [API CONFIG] URL Resolution:', {
-    apiUrl,
+    windowConfig: window.__CONFIG__?.API_URL,
+    envApiUrl: import.meta.env.VITE_API_URL,
     finalApiUrl: apiUrl,
     allEnvVars: import.meta.env
   });
