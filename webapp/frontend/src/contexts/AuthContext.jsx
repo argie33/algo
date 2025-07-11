@@ -267,33 +267,28 @@ export function AuthProvider({ children }) {
       // Development fallback when Cognito is not configured or fails
       console.log('🔧 FALLBACK LOGIN - Using development authentication');
         
-        try {
-          const result = await devAuth.signIn(username, password);
-          
-          // Store access token for API requests
-          localStorage.setItem('accessToken', result.tokens.accessToken);
-          
-          dispatch({
-            type: AUTH_ACTIONS.LOGIN_SUCCESS,
-            payload: {
-              user: result.user,
-              tokens: result.tokens
-            }
-          });
-          
-          console.log('✅ Development login successful');
-          return { success: true };
-        } catch (error) {
-          console.error('Dev auth login error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+      try {
+        const result = await devAuth.signIn(username, password);
+        
+        // Store access token for API requests
+        localStorage.setItem('accessToken', result.tokens.accessToken);
+        
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: result.user,
+            tokens: result.tokens
+          }
+        });
+        
+        console.log('✅ Development login successful');
+        return { success: true };
+      } catch (error) {
+        console.error('Dev auth login error:', error);
+        const errorMessage = getErrorMessage(error);
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
-
-      // If we get here, neither production nor development auth is available
-      console.warn('⚠️ No authentication service available, using fallback');
-      return { success: false, error: 'Authentication service not available' };
 
     } catch (error) {
       console.error('Login error:', error);
