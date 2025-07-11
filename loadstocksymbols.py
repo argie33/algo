@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v36 - Fix econ job condition to prevent unwanted runs
+# FORCE WORKFLOW RUN - Updated v37 - Add debugging for ECS task failure
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
@@ -9,7 +9,7 @@ import json
 import sys
 import logging
 
-print("🚀 STOCK SYMBOLS LOADER STARTING - v36...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v37...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
 print("🔧 Testing database foreign key fixes...")

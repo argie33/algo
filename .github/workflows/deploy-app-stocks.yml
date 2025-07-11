@@ -536,17 +536,42 @@ jobs:
             exit 1
           fi
 
-      - name: Check container exit code
+      - name: Check container exit code and get failure details
         run: |
+          # Get detailed task information
+          echo "🔍 Getting task details..."
+          aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0]' \
+            --output yaml
+          
+          # Get exit code
           EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
+          
+          # Get stop reason if available
+          STOP_REASON=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].stoppedReason' \
+            --output text)
+          
           echo "→ Exit code: $EXIT"
-          if [ "$EXIT" -ne 0 ]; then
+          echo "→ Stop reason: $STOP_REASON"
+          
+          if [ "$EXIT" = "None" ] || [ -z "$EXIT" ]; then
+            echo "❌ stock-symbols task failed - no exit code available"
+            echo "→ This usually means the container failed to start or crashed immediately"
+            exit 1
+          elif [ "$EXIT" -ne 0 ]; then
             echo "❌ stock-symbols failed with exit code $EXIT"
             exit $EXIT
+          else
+            echo "✅ stock-symbols completed successfully"
           fi
 
   run_econ:
