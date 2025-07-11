@@ -100,6 +100,7 @@ import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
 import RiskManagement from './pages/RiskManagement'
 import LiveDataMonitor from './components/LiveDataMonitor'
+import SimpleAlpacaData from './components/SimpleAlpacaData'
 
 const drawerWidth = 240
 
@@ -152,6 +153,7 @@ const menuItems = [
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'Risk Management', icon: <HealthAndSafetyIcon />, path: '/risk', category: 'tools', premium: true },
   { text: 'Live Data Monitor', icon: <TimelineIcon />, path: '/data/live', category: 'tools', premium: true },
+  { text: 'Alpaca Live Data', icon: <TrendingUpIcon />, path: '/data/alpaca', category: 'tools' },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
@@ -512,6 +514,7 @@ function App() {
             {/* Risk & Data Routes */}
             <Route path="/risk" element={<RiskManagement />} />
             <Route path="/data/live" element={<LiveDataMonitor />} />
+            <Route path="/data/alpaca" element={<SimpleAlpacaData />} />
           </Routes>
         </Container>
       </Box>

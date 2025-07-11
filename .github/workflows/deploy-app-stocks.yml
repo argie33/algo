@@ -49,11 +49,27 @@ jobs:
           echo "Raw bucket value: '$BUCKET'"
           
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "❌ S3 bucket not found in exports. Checking if core stack exists..."
-            aws cloudformation describe-stacks --stack-name stocks-core-stack --query "Stacks[0].StackStatus" --output text || echo "Core stack not found"
-            echo "Available exports:"
-            aws cloudformation list-exports --query "Exports[?starts_with(Name, 'StocksCore-')].Name" --output table || echo "No StocksCore exports found"
-            exit 1
+            echo "❌ S3 bucket not found in exports. Deploying core stack first..."
+            
+            # Deploy core stack first
+            aws cloudformation deploy \
+              --stack-name stocks-core-stack \
+              --template-file template-core.yml \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset
+              
+            # Wait for core stack to complete
+            aws cloudformation wait stack-deploy-complete --stack-name stocks-core-stack
+            
+            # Get bucket again
+            BUCKET=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+              --output text)
+            
+            if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+              echo "❌ Still unable to get S3 bucket after core stack deployment"
+              exit 1
+            fi
           fi
           
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
@@ -61,6 +77,14 @@ jobs:
 
       - name: Deploy application stack
         run: |
+          BUCKET="${{ steps.bucket.outputs.CF_BUCKET }}"
+          echo "🔍 Bucket value for deployment: '$BUCKET'"
+          
+          if [ -z "$BUCKET" ]; then
+            echo "❌ CF_BUCKET is empty - cannot proceed with deployment"
+            exit 1
+          fi
+          
           aws cloudformation deploy \
             --stack-name stocks-app-stack \
             --template-file template-app-stocks.yml \
@@ -69,7 +93,7 @@ jobs:
               RDSPassword=${{ secrets.RDS_PASSWORD }} \
               FREDApiKey=${{ secrets.FRED_API_KEY }} \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+            --s3-bucket "$BUCKET"
 
 ################################################################################
 # 2) Detect changed components                                                 #

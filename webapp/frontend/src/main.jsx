@@ -9,7 +9,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { configureAmplify } from './config/amplify'
 import ErrorBoundary from './components/ErrorBoundary'
 
-console.log('🚀 main.jsx loaded - starting React app - v1.0.6 - FIXING API CONFIG AND DEPLOYMENT');
+console.log('🚀 main.jsx loaded - starting React app - v1.0.7 - FORCE WEBAPP DEPLOYMENT');
 
 // Add global error handler to catch white page issues
 window.addEventListener('error', (e) => {

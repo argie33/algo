@@ -5,34 +5,82 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Dashboard</title>
-    <!-- Workflow test trigger - 2025-07-10 22:30 - Dynamic URL deployment -->
+    <!-- Workflow test trigger - 2025-07-11 12:00 - Fix React loading issue -->
     <meta name="description" content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Load config.js with error handling
+      // Ensure config is always available with safe defaults
+      window.__CONFIG__ = window.__CONFIG__ || {
+        API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+        ENVIRONMENT: 'dev',
+        VERSION: 'fallback',
+        BUILD_TIME: new Date().toISOString(),
+        COGNITO: {
+          USER_POOL_ID: 'us-east-1_ZqooNeQtV',
+          CLIENT_ID: '243r98prucoickch12djkahrhk',
+          REGION: 'us-east-1',
+          DOMAIN: '',
+          REDIRECT_SIGN_IN: window.location.origin,
+          REDIRECT_SIGN_OUT: window.location.origin
+        }
+      };
+      
+      // Load config.js to override defaults if available
       var script = document.createElement('script');
       script.src = '/config.js';
       script.onerror = function() {
-        console.warn('⚠️ Failed to load config.js - using defaults');
-        window.__CONFIG__ = { API_URL: 'PLACEHOLDER_API_URL' };
+        console.warn('⚠️ Failed to load config.js - using fallback config');
       };
       document.head.appendChild(script);
     </script>
-    <script type="module" crossorigin src="/assets/index-BrZvS5GJ.js"></script>
+    <script type="module" crossorigin src="/assets/index-DRx9s8UL.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-Bku8mHOg.js">
-    <link rel="modulepreload" crossorigin href="/assets/codemirror-B52E3hio.js">
-    <link rel="modulepreload" crossorigin href="/assets/emotion-Dmwo6VTo.js">
-    <link rel="modulepreload" crossorigin href="/assets/mui-H6QmnQL-.js">
-    <link rel="modulepreload" crossorigin href="/assets/charts-D9UV7N5V.js">
-    <link rel="modulepreload" crossorigin href="/assets/aws-BcY9VFCc.js">
-    <link rel="modulepreload" crossorigin href="/assets/utils-DRddFhMO.js">
-    <link rel="modulepreload" crossorigin href="/assets/react-query-nDpXWPmH.js">
-    <link rel="modulepreload" crossorigin href="/assets/dnd-3QyV03Qh.js">
-    <link rel="modulepreload" crossorigin href="/assets/animations-C_lypBMk.js">
+    <link rel="modulepreload" crossorigin href="/assets/codemirror-CA6WKVGz.js">
+    <link rel="modulepreload" crossorigin href="/assets/emotion-BwR2SSRm.js">
+    <link rel="modulepreload" crossorigin href="/assets/mui-ik8XTafL.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-CAfL5T5e.js">
+    <link rel="modulepreload" crossorigin href="/assets/aws-C3xGA0GA.js">
+    <link rel="modulepreload" crossorigin href="/assets/utils-X2TwqFo-.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-query-BqDVa5jM.js">
+    <link rel="modulepreload" crossorigin href="/assets/dnd-kUfQ5j6j.js">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+        <h2>Loading Financial Dashboard v1.0.6...</h2>
+        <p>Initializing React application - API is working!</p>
+        <div style="margin: 20px 0;">
+          <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+        <p><small>If this message persists, check browser console for errors.</small></p>
+      </div>
+    </div>
+    <script>
+      // Show loading progress
+      setTimeout(() => {
+        const configStatus = document.getElementById('config-status');
+        if (configStatus) {
+          configStatus.innerHTML = window.__CONFIG__ ? 
+            'Config loaded ✅' : 
+            'Config failed to load ❌';
+        }
+      }, 1000);
+      
+      // Remove loading message after 10 seconds if React hasn't loaded
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
+          root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
+        }
+      }, 10000);
+    </script>
   </body>
 </html>
