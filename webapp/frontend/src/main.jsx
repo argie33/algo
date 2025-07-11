@@ -1,61 +1,55 @@
-console.log('🚀 Step 2a: Testing MUI step by step - v1.8.2');
+console.log('🚀 ULTRA BASIC TEST - No JSX - v1.9.0');
 
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-
-console.log('✅ React imports successful');
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-
-// Test 1: Basic render first
-root.render(
-  <div style={{ padding: '20px' }}>
-    <h1 style={{ color: 'blue' }}>Step 1: Basic React ✅</h1>
-    <p>About to test MUI imports...</p>
-  </div>
-);
-
-// Test 2: Try MUI imports after a delay
-setTimeout(async () => {
-  try {
-    console.log('Testing MUI styles import...');
-    const stylesModule = await import('@mui/material/styles');
-    console.log('✅ MUI styles loaded:', Object.keys(stylesModule));
-    
-    const { ThemeProvider, createTheme } = stylesModule;
-    
-    console.log('Testing CssBaseline import...');
-    const CssBaselineModule = await import('@mui/material/CssBaseline');
-    console.log('✅ CssBaseline loaded');
-    
-    const CssBaseline = CssBaselineModule.default;
-    
-    // Create simple theme
-    const theme = createTheme({
-      palette: { mode: 'light' }
-    });
-    
-    console.log('✅ Theme created, rendering with MUI...');
-    
-    root.render(
-      React.createElement(ThemeProvider, { theme }, [
-        React.createElement(CssBaseline, { key: 'baseline' }),
-        React.createElement('div', { key: 'content', style: { padding: '20px' } }, [
-          React.createElement('h1', { key: 'title', style: { color: 'green' } }, 'Step 2: MUI Working! ✅'),
-          React.createElement('p', { key: 'msg' }, 'Material-UI loaded successfully'),
-          React.createElement('p', { key: 'time' }, `Time: ${new Date().toLocaleString()}`)
-        ])
-      ])
-    );
-    
-  } catch (error) {
-    console.error('❌ MUI Error:', error);
-    root.render(
-      React.createElement('div', { style: { padding: '20px' } }, [
-        React.createElement('h1', { key: 'title', style: { color: 'red' } }, 'MUI Import Failed'),
-        React.createElement('p', { key: 'error' }, `Error: ${error.message}`),
-        React.createElement('pre', { key: 'stack' }, error.stack || 'No stack trace')
-      ])
-    );
+// Test if the issue is JSX compilation
+try {
+  console.log('Step 1: Testing imports...');
+  
+  const React = window.React || (await import('react'));
+  console.log('✅ React imported');
+  
+  const ReactDOM = window.ReactDOM || (await import('react-dom/client'));
+  console.log('✅ ReactDOM imported');
+  
+  console.log('Step 2: Testing DOM access...');
+  const rootElement = document.getElementById('root');
+  console.log('✅ Root element found:', rootElement);
+  
+  console.log('Step 3: Testing React root creation...');
+  const root = ReactDOM.createRoot(rootElement);
+  console.log('✅ React root created');
+  
+  console.log('Step 4: Testing basic render with createElement...');
+  
+  // Use React.createElement instead of JSX
+  const element = React.createElement('div', 
+    { style: { padding: '20px', fontFamily: 'Arial', border: '2px solid green' } },
+    [
+      React.createElement('h1', { key: 'h1' }, '🎉 ULTRA BASIC REACT WORKS!'),
+      React.createElement('p', { key: 'p1' }, 'No JSX, pure createElement'),
+      React.createElement('p', { key: 'p2' }, 'If you see this, React core is working'),
+      React.createElement('p', { key: 'p3' }, `Timestamp: ${Date.now()}`)
+    ]
+  );
+  
+  root.render(element);
+  console.log('✅ RENDER SUCCESSFUL!');
+  
+} catch (error) {
+  console.error('❌ CRITICAL ERROR:', error);
+  
+  // Fallback to vanilla JS
+  const rootEl = document.getElementById('root');
+  if (rootEl) {
+    rootEl.innerHTML = `
+      <div style="padding: 20px; border: 2px solid red; font-family: Arial;">
+        <h1 style="color: red;">CRITICAL ERROR DETECTED</h1>
+        <p><strong>Error:</strong> ${error.message}</p>
+        <p><strong>Type:</strong> ${error.name}</p>
+        <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">
+${error.stack || 'No stack trace available'}
+        </pre>
+        <p><em>This error prevents React from loading at all.</em></p>
+      </div>
+    `;
   }
-}, 1000);
+}
