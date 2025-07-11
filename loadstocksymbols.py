@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v20 - CRITICAL: Fixed run job dependencies  
-# Trigger deploy-app-stocks workflow - all run jobs now depend on build job v20
+# FORCE WORKFLOW RUN - Updated v21 - Fixed paths-filter git reference issue
+# Trigger deploy-app-stocks workflow - added manual fallback detection v21
 
 print("🚀 STOCK SYMBOLS LOADER STARTING...")
 print("🔍 Python version:", sys.version)
