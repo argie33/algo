@@ -79,6 +79,7 @@ jobs:
       latesttechnicalsmonthly: ${{ steps.paths.outputs.latesttechnicalsmonthly }}
       technicalsdaily:   ${{ steps.paths.outputs.technicalsdaily }}
       loadinfo:          ${{ steps.paths.outputs.loadinfo }}
+      loadcrypto:        ${{ steps.paths.outputs.loadcrypto }}
       earningsestimate:  ${{ steps.paths.outputs.earningsestimate }}
       earningshistory:   ${{ steps.paths.outputs.earningshistory }}
       revenueestimate:   ${{ steps.paths.outputs.revenueestimate }}
@@ -162,6 +163,10 @@ jobs:
               - loadinfo.py
               - requirements-loadinfo.txt
               - Dockerfile.loadinfo            
+            loadcrypto:
+              - loadcrypto.py
+              - requirements-loadcrypto.txt
+              - Dockerfile.loadcrypto            
             earningsestimate:
               - loadearningsestimate.py
               - requirements-loadearningsestimate.txt
@@ -301,6 +306,7 @@ jobs:
             latestpriceweekly)  DOCKERFILE=Dockerfile.latestpriceweekly;  PARAM=LatestPriceWeeklyImageTag;;\
             latestpricemonthly) DOCKERFILE=Dockerfile.latestpricemonthly; PARAM=LatestPriceMonthlyImageTag;;\
             loadinfo)         DOCKERFILE=Dockerfile.loadinfo;       PARAM=LoadInfoImageTag;;\
+            loadcrypto)       DOCKERFILE=Dockerfile.loadcrypto;     PARAM=LoadCryptoImageTag;;\
             earningsestimate) DOCKERFILE=Dockerfile.loadearningsestimate;   PARAM=EarningsEstimateImageTag;;\
             earningshistory)  DOCKERFILE=Dockerfile.loadearningshistory;   PARAM=EarningsHistoryImageTag;;\
             revenueestimate)  DOCKERFILE=Dockerfile.loadrevenueestimate;   PARAM=RevenueEstimateImageTag;;\
@@ -458,6 +464,7 @@ jobs:
               LatestPriceMonthlyImageTag=$(grep '^LatestPriceMonthlyImageTag=' tags.env | cut -d= -f2-) \
               TechnicalsDailyImageTag=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2-) \
               LoadInfoImageTag=$(grep '^LoadInfoImageTag=' tags.env | cut -d= -f2-) \
+              LoadCryptoImageTag=$(grep '^LoadCryptoImageTag=' tags.env | cut -d= -f2-) \
               LoadNewsImageTag=$(grep '^LoadNewsImageTag=' tags.env | cut -d= -f2-) \
               EarningsEstimateImageTag=$(grep '^EarningsEstimateImageTag=' tags.env | cut -d= -f2-) \
               EarningsMetricsImageTag=$(grep '^EarningsMetricsImageTag=' tags.env | cut -d= -f2-) \
@@ -1236,6 +1243,54 @@ jobs:
             echo "❌ load-info task did not stop within 60m"
             exit 1
           fi
+
+      - name: Get detailed task failure information
+        run: |
+          echo "🔍 Getting detailed ECS task failure information..."
+          
+          # Get full task details with all failure info
+          echo "📋 Full task description:"
+          aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --output json | jq '.tasks[0] | {
+              taskArn: .taskArn,
+              lastStatus: .lastStatus,
+              desiredStatus: .desiredStatus,
+              healthStatus: .healthStatus,
+              stoppedAt: .stoppedAt,
+              stoppedReason: .stoppedReason,
+              stopCode: .stopCode,
+              containers: .containers[] | {
+                name: .name,
+                lastStatus: .lastStatus,
+                exitCode: .exitCode,
+                reason: .reason,
+                runtimeId: .runtimeId
+              },
+              pullStartedAt: .pullStartedAt,
+              pullStoppedAt: .pullStoppedAt,
+              executionStoppedAt: .executionStoppedAt
+            }'
+          
+          # Check if image exists and can be pulled
+          echo "🐳 Checking Docker image info..."
+          IMAGE_URI=$(aws ecs describe-task-definition \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --query 'taskDefinition.containerDefinitions[0].image' \
+            --output text)
+          echo "Image URI: $IMAGE_URI"
+          
+          # Check ECR repository
+          echo "📦 Checking ECR repository..."
+          REPO_NAME=$(echo $IMAGE_URI | cut -d'/' -f2 | cut -d':' -f1)
+          TAG=$(echo $IMAGE_URI | cut -d':' -f2)
+          echo "Repository: $REPO_NAME, Tag: $TAG"
+          
+          aws ecr describe-images \
+            --repository-name "$REPO_NAME" \
+            --image-ids imageTag="$TAG" \
+            --output json 2>/dev/null || echo "❌ Image not found in ECR"
 
       - name: Check container exit code
         run: |
