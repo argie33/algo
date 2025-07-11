@@ -292,7 +292,8 @@ export function AuthProvider({ children }) {
       }
 
       // If we get here, neither production nor development auth is available
-      throw new Error('Authentication service is not properly configured');
+      console.warn('⚠️ No authentication service available, using fallback');
+      return { success: false, error: 'Authentication service not available' };
 
     } catch (error) {
       console.error('Login error:', error);
