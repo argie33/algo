@@ -329,4 +329,46 @@ router.get('/assets', async (req, res) => {
   }
 });
 
+// Get websocket configuration for real-time data
+router.get('/websocket-config', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    // Get user's API key
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active API key found',
+        message: 'Please add your API credentials in Settings > API Keys'
+      });
+    }
+
+    // Initialize Alpaca service
+    const alpaca = new AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      false // Always use live for data feed
+    );
+
+    // Get websocket config
+    const wsConfig = alpaca.getWebSocketConfig();
+
+    res.json({
+      success: true,
+      data: wsConfig,
+      provider: 'alpaca',
+      environment: 'live' // Data feed always uses live
+    });
+  } catch (error) {
+    console.error('Websocket config error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get websocket configuration',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

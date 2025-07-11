@@ -26,6 +26,7 @@ class AlpacaService {
       ? 'https://paper-api.alpaca.markets'
       : 'https://api.alpaca.markets';
     this.dataURL = 'https://data.alpaca.markets';
+    this.wsURL = 'wss://stream.data.alpaca.markets';
     
     // Set up axios instance with auth headers
     this.api = axios.create({
@@ -179,6 +180,81 @@ class AlpacaService {
       console.error('Alpaca portfolio history fetch error:', error.message);
       throw new Error(`Failed to fetch portfolio history: ${error.message}`);
     }
+  }
+
+  /**
+   * Get real-time quotes for multiple symbols
+   */
+  async getMultiQuotes(symbols) {
+    try {
+      this.checkRateLimit();
+      
+      const symbolsStr = symbols.join(',');
+      const response = await this.dataApi.get(`/v2/stocks/quotes/latest?symbols=${symbolsStr}`);
+      const quotes = response.data.quotes;
+      
+      return Object.keys(quotes).map(symbol => ({
+        symbol: symbol,
+        price: quotes[symbol].ap || quotes[symbol].bp || 0,
+        bid: quotes[symbol].bp || 0,
+        ask: quotes[symbol].ap || 0,
+        bidSize: quotes[symbol].bs || 0,
+        askSize: quotes[symbol].as || 0,
+        timestamp: quotes[symbol].t,
+        timeframe: 'realtime',
+        exchange: quotes[symbol].ax || 'UNKNOWN'
+      }));
+    } catch (error) {
+      console.error('Alpaca multi quotes fetch error:', error.response?.data || error.message);
+      throw new Error(`Failed to fetch quotes: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get historical bars for a symbol
+   */
+  async getBars(symbol, params = {}) {
+    try {
+      this.checkRateLimit();
+      
+      const { timeframe = '1Day', start, end, limit = 100 } = params;
+      const queryParams = new URLSearchParams({
+        symbols: symbol,
+        timeframe: timeframe,
+        limit: limit.toString()
+      });
+      
+      if (start) queryParams.append('start', start);
+      if (end) queryParams.append('end', end);
+      
+      const response = await this.dataApi.get(`/v2/stocks/bars?${queryParams}`);
+      const bars = response.data.bars[symbol] || [];
+      
+      return bars.map(bar => ({
+        timestamp: bar.t,
+        open: bar.o,
+        high: bar.h,
+        low: bar.l,
+        close: bar.c,
+        volume: bar.v,
+        vwap: bar.vw || null
+      }));
+    } catch (error) {
+      console.error('Alpaca bars fetch error:', error.response?.data || error.message);
+      throw new Error(`Failed to fetch bars: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get websocket connection info for real-time data
+   */
+  getWebSocketConfig() {
+    return {
+      url: this.wsURL,
+      apiKey: this.apiKey,
+      apiSecret: this.apiSecret,
+      feed: 'iex' // IEX feed for basic data, 'sip' for premium
+    };
   }
 
   /**

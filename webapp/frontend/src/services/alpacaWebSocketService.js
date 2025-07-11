@@ -55,11 +55,14 @@ class AlpacaWebSocketService extends EventEmitter {
     
     // Configuration
     this.config = {
-      wsUrl: process.env.REACT_APP_ALPACA_WS_URL || 'wss://your-alpaca-websocket-api.execute-api.us-east-1.amazonaws.com/dev',
+      wsUrl: 'wss://stream.data.alpaca.markets/v2/iex', // Alpaca IEX data feed
       heartbeatInterval: 30000,
       connectionTimeout: 10000,
       maxReconnectDelay: 30000
     };
+    
+    // Alpaca credentials (will be fetched from backend)
+    this.credentials = null;
     
     // Data management
     this.subscriptions = new Map(); // subscriptionId -> subscription details
