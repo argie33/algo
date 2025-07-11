@@ -57,6 +57,9 @@ import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import HistoricalPriceChart from '../components/HistoricalPriceChart';
+import DashboardStockChart from '../components/DashboardStockChart';
+import NewsWidget from '../components/NewsWidget';
+import EconomicIndicatorsWidget from '../components/EconomicIndicatorsWidget';
 import dataCache from '../services/dataCache';
 import MarketStatusBar from '../components/MarketStatusBar';
 import RealTimePriceWidget from '../components/RealTimePriceWidget';
@@ -1058,7 +1061,12 @@ const Dashboard = () => {
           <TechnicalSignalsWidget />
         </Grid>
         <Grid item xs={12} md={6}>
-          <HistoricalPriceChart symbol={selectedSymbol} defaultPeriod={30} />
+          <DashboardStockChart 
+            symbol={selectedSymbol} 
+            height={400}
+            showRealTime={true}
+            autoRefresh={true}
+          />
         </Grid>
       </Grid>
 
@@ -1341,6 +1349,24 @@ const Dashboard = () => {
               </Grid>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* News & Market Intelligence */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={8}>
+          <NewsWidget 
+            symbols={[selectedSymbol]}
+            height={500}
+            showSentiment={true}
+            autoRefresh={true}
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <EconomicIndicatorsWidget 
+            height={500}
+            autoRefresh={true}
+          />
         </Grid>
       </Grid>
 

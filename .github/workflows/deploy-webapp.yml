@@ -1026,11 +1026,54 @@ jobs:
           echo "CloudFront invalidation created: $INVALIDATION_ID"
           echo "Distribution ID: $DISTRIBUTION_ID"
 ################################################################################
-# 5) Post-deployment verification                                              #
+# 5) Database initialization                                                   #
+################################################################################
+  initialize_database:
+    name: Initialize database tables
+    needs: [setup, deploy_infrastructure]
+    if: ${{ needs.deploy_infrastructure.result == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: |
+          pip install boto3 psycopg2-binary
+
+      - name: Get database secret ARN
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_ENV
+          echo "Database secret ARN: $DB_SECRET_ARN"
+
+      - name: Initialize database tables
+        run: |
+          echo "🔧 Initializing database tables..."
+          python3 init_database.py
+          echo "✅ Database initialization completed"
+
+################################################################################
+# 6) Post-deployment verification                                              #
 ################################################################################
   verify_deployment:
     name: Verify deployment
-    needs: [setup, deploy_infrastructure, deploy_frontend]
+    needs: [setup, deploy_infrastructure, deploy_frontend, initialize_database]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
 
