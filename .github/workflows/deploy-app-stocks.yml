@@ -1028,6 +1028,12 @@ jobs:
 
       - name: Check container exit code
         run: |
+          echo "🔍 Getting full task details for debugging..."
+          aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --output json | jq '.tasks[0] | {lastStatus, containers: .containers[] | {name, exitCode, reason}}'
+          
           EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
