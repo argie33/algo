@@ -1,34 +1,131 @@
-console.log('🚀 React Debug: Testing imports - v2.1.0');
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider, createTheme } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
+import { AuthProvider } from './contexts/AuthContext'
+
+console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
+
+// Configure Amplify for authentication - but don't let it crash the app
+import { configureAmplify } from './config/amplify'
+
+// Configure Amplify safely - continue even if it fails
+setTimeout(() => {
+  try {
+    configureAmplify();
+    console.log('✅ Amplify configured successfully');
+  } catch (error) {
+    console.warn('⚠️ Amplify configuration failed, using fallback auth:', error);
+  }
+}, 100);
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      staleTime: 30000,
+      cacheTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+// Create theme
+const theme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+      light: '#42a5f5',
+      dark: '#1565c0',
+    },
+    secondary: {
+      main: '#dc004e',
+      light: '#ff5983',
+      dark: '#9a0036',
+    },
+    background: {
+      default: '#f5f5f5',
+      paper: '#ffffff',
+    },
+    success: {
+      main: '#2e7d32',
+      light: '#4caf50',
+      dark: '#1b5e20',
+    },
+    error: {
+      main: '#d32f2f',
+      light: '#ef5350',
+      dark: '#c62828',
+    },
+  },
+  typography: {
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+    h1: { fontWeight: 600 },
+    h2: { fontWeight: 600 },
+    h3: { fontWeight: 600 },
+    h4: { fontWeight: 600 },
+    h5: { fontWeight: 600 },
+    h6: { fontWeight: 600 },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 500,
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          borderRadius: 12,
+        },
+      },
+    },
+  },
+})
 
 try {
-  console.log('Testing React import...');
-  const React = require('react');
-  console.log('✅ React imported via require');
-  
-  console.log('Testing ReactDOM import...');  
-  const ReactDOM = require('react-dom/client');
-  console.log('✅ ReactDOM imported via require');
-
+  console.log('🔧 Creating React root...');
   const root = ReactDOM.createRoot(document.getElementById('root'));
-  console.log('✅ React root created');
-
-  root.render(React.createElement('div', { style: { padding: '20px', border: '3px solid green' } }, [
-    React.createElement('h1', { key: 'h1' }, '🎯 FOUND THE ISSUE!'),
-    React.createElement('p', { key: 'p1' }, 'This means ES6 imports are the problem.'),
-    React.createElement('p', { key: 'p2' }, 'Using CommonJS require() instead.'),
-    React.createElement('p', { key: 'p3' }, `Time: ${new Date().toLocaleString()}`)
-  ]));
-  console.log('✅ Basic render with require() successful');
   
-} catch (requireError) {
-  console.error('❌ Even require() failed:', requireError);
+  console.log('🔧 Rendering full dashboard...');
+  root.render(
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
   
-  // Fallback to plain HTML
+  console.log('✅ Dashboard rendered successfully!');
+} catch (error) {
+  console.error('❌ Error rendering dashboard:', error);
+  
+  // Fallback to basic dashboard
   document.getElementById('root').innerHTML = `
-    <div style="padding: 20px; border: 3px solid red;">
-      <h1>REQUIRE() FAILED</h1>
-      <p>Error: ${requireError.message}</p>
-      <p>This means the build is completely broken.</p>
+    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+      <h1 style="color: #d32f2f;">Dashboard Loading Failed</h1>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <p>Check browser console for details.</p>
+      <button onclick="window.location.reload()" style="padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Reload Page
+      </button>
     </div>
   `;
 }
