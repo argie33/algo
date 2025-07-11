@@ -100,15 +100,19 @@ try {
   const root = ReactDOM.createRoot(document.getElementById('root'));
   
   console.log('🔧 Rendering full dashboard with all your pages...');
+  // Test without AuthProvider first
   root.render(
     <ErrorBoundary>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <AuthProvider>
-              <App />
-            </AuthProvider>
+            <div style={{ padding: '20px' }}>
+              <h1 style={{ color: 'green' }}>✅ React Stack Working!</h1>
+              <p>React + Router + Query + MUI + ErrorBoundary all working</p>
+              <p>Time: {new Date().toLocaleString()}</p>
+              <p><strong>Next:</strong> Will add AuthProvider and App</p>
+            </div>
           </ThemeProvider>
         </QueryClientProvider>
       </BrowserRouter>
