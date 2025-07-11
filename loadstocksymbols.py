@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v39 - Add on-demand image building for missing ECR images
+# FORCE WORKFLOW RUN - Updated v40 - Fix ARM64 Docker platform compatibility
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
