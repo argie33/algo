@@ -1,32 +1,13 @@
 FROM python:3.10-slim
 
-# Deployment trigger test - loadinfo update v13 - add comprehensive debug logging
-# ARM64-compatible build with cross-platform support
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
-      gcc \
-      libpq-dev \
-      libssl-dev \
-      libffi-dev \
-      pkg-config && \
-    rm -rf /var/lib/apt/lists/*
+# Match working stocksymbols Dockerfile pattern exactly
+WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements-loadinfo.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-loadinfo.txt
+# Copy requirements and install dependencies (minimal approach)
+COPY requirements-loadinfo.txt ./
+RUN pip install --no-cache-dir -r requirements-loadinfo.txt
 
 # Copy application code
-COPY loadinfo.py .
-
-# Add debug information
-RUN echo "Container build complete - loadinfo v13" && \
-    python --version && \
-    pip list
-
-# Set environment for better debugging
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+COPY loadinfo.py ./
 
 CMD ["python", "-u", "loadinfo.py"]
