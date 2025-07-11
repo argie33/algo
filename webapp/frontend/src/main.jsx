@@ -153,7 +153,78 @@ try {
   
   console.log('🔧 Rendering app with providers...');
   
-  // Try full app first, fallback to minimal if it fails
+  // Try each piece step by step to isolate the failure
+  console.log('🔧 Step 1: Testing basic render...');
+  try {
+    root.render(<div>Step 1: Basic render works</div>);
+    console.log('✅ Step 1: Basic render successful');
+  } catch (error) {
+    console.error('❌ Step 1 failed:', error);
+    throw error;
+  }
+
+  console.log('🔧 Step 2: Testing with ErrorBoundary...');
+  try {
+    root.render(<ErrorBoundary><div>Step 2: ErrorBoundary works</div></ErrorBoundary>);
+    console.log('✅ Step 2: ErrorBoundary successful');
+  } catch (error) {
+    console.error('❌ Step 2 failed:', error);
+    throw error;
+  }
+
+  console.log('🔧 Step 3: Testing with BrowserRouter...');
+  try {
+    root.render(
+      <ErrorBoundary>
+        <BrowserRouter>
+          <div>Step 3: BrowserRouter works</div>
+        </BrowserRouter>
+      </ErrorBoundary>
+    );
+    console.log('✅ Step 3: BrowserRouter successful');
+  } catch (error) {
+    console.error('❌ Step 3 failed:', error);
+    throw error;
+  }
+
+  console.log('🔧 Step 4: Testing with QueryClient...');
+  try {
+    root.render(
+      <ErrorBoundary>
+        <BrowserRouter>
+          <QueryClientProvider client={queryClient}>
+            <div>Step 4: QueryClient works</div>
+          </QueryClientProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    );
+    console.log('✅ Step 4: QueryClient successful');
+  } catch (error) {
+    console.error('❌ Step 4 failed:', error);
+    throw error;
+  }
+
+  console.log('🔧 Step 5: Testing with ThemeProvider...');
+  try {
+    root.render(
+      <ErrorBoundary>
+        <BrowserRouter>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider theme={theme}>
+              <CssBaseline />
+              <div>Step 5: ThemeProvider works</div>
+            </ThemeProvider>
+          </QueryClientProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    );
+    console.log('✅ Step 5: ThemeProvider successful');
+  } catch (error) {
+    console.error('❌ Step 5 failed:', error);
+    throw error;
+  }
+
+  console.log('🔧 Step 6: Testing with App component...');
   try {
     root.render(
       <ErrorBoundary>
@@ -167,10 +238,22 @@ try {
         </BrowserRouter>
       </ErrorBoundary>
     );
-    console.log('✅ Full React app rendered successfully');
+    console.log('✅ Step 6: Full app rendered successfully!');
   } catch (renderError) {
-    console.error('❌ Full app failed, rendering fallback:', renderError);
-    root.render(<FallbackApp />);
+    console.error('❌ Step 6 (App component) failed:', renderError);
+    console.error('❌ Error stack:', renderError.stack);
+    root.render(
+      <div style={{padding: '20px', color: 'red'}}>
+        <h1>App Component Failed</h1>
+        <p><strong>Error:</strong> {renderError.message}</p>
+        <details>
+          <summary>Error Details</summary>
+          <pre style={{fontSize: '12px', background: '#f5f5f5', padding: '10px'}}>
+            {renderError.stack}
+          </pre>
+        </details>
+      </div>
+    );
   }
   
   // Clear the loading message after successful render
