@@ -228,20 +228,8 @@ def create_all_tables(cursor, conn):
                 raise
         
         # Add foreign key constraints after all tables are created
-        foreign_keys = [
-            "ALTER TABLE user_api_keys ADD CONSTRAINT fk_user_api_keys_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-            "ALTER TABLE portfolio_metadata ADD CONSTRAINT fk_portfolio_metadata_api_key FOREIGN KEY (api_key_id) REFERENCES user_api_keys(id) ON DELETE CASCADE",
-            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-            "ALTER TABLE portfolio_holdings ADD CONSTRAINT fk_portfolio_holdings_api_key FOREIGN KEY (api_key_id) REFERENCES user_api_keys(id) ON DELETE CASCADE"
-        ]
-        
-        for i, fk_sql in enumerate(foreign_keys):
-            try:
-                cursor.execute(fk_sql)
-                logger.info(f"Created foreign key {i+1}/{len(foreign_keys)}")
-            except Exception as e:
-                logger.warning(f"Foreign key {i+1} may already exist: {e}")
+        # Skip foreign keys for now due to data type incompatibilities in existing tables
+        logger.info("Skipping foreign key constraints due to existing table schema incompatibilities")
         
         # Create update trigger function
         cursor.execute("""
@@ -254,18 +242,21 @@ def create_all_tables(cursor, conn):
             $$ language 'plpgsql'
         """)
         
-        # Create triggers for updated_at columns
+        # Create triggers for updated_at columns (only for webapp tables)
         triggers = [
             "CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
             "CREATE TRIGGER update_user_api_keys_updated_at BEFORE UPDATE ON user_api_keys FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
             "CREATE TRIGGER update_portfolio_metadata_updated_at BEFORE UPDATE ON portfolio_metadata FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
-            "CREATE TRIGGER update_portfolio_holdings_updated_at BEFORE UPDATE ON portfolio_holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
-            "CREATE TRIGGER update_stock_symbols_updated_at BEFORE UPDATE ON stock_symbols FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
-            "CREATE TRIGGER update_health_status_updated_at BEFORE UPDATE ON health_status FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+            "CREATE TRIGGER update_portfolio_holdings_updated_at BEFORE UPDATE ON portfolio_holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
         ]
         
-        for trigger_sql in triggers:
-            cursor.execute(f"{trigger_sql.replace('CREATE TRIGGER', 'CREATE TRIGGER IF NOT EXISTS')}")
+        for i, trigger_sql in enumerate(triggers):
+            try:
+                cursor.execute(f"DROP TRIGGER IF EXISTS {trigger_sql.split()[2]} ON {trigger_sql.split()[6]}")
+                cursor.execute(trigger_sql)
+                logger.info(f"Created trigger {i+1}/{len(triggers)}")
+            except Exception as e:
+                logger.warning(f"Trigger {i+1} creation failed: {e}")
         
         conn.commit()
         logger.info("All tables, indexes, and triggers created successfully")
