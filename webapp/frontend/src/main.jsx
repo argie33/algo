@@ -6,11 +6,13 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import { AuthProvider } from './contexts/AuthContext'
 
-console.log('🚀 main.jsx loaded - FULL DASHBOARD RESTORED - v1.2.0');
+console.log('🚀 main.jsx loaded - FULL DASHBOARD RESTORED - v1.2.1');
 
-// Skip authentication completely for now - focus on getting the dashboard working
-console.log('⚠️ Authentication temporarily disabled - full dashboard access enabled');
+// Temporarily disable auth configuration to prevent loading issues
+window.__DISABLE_AUTH__ = true;
+console.log('⚠️ Authentication disabled - using demo user');
 
 // Create a client
 const queryClient = new QueryClient({
@@ -82,30 +84,6 @@ const theme = createTheme({
   },
 })
 
-// Mock auth context to prevent errors
-const MockAuthProvider = ({ children }) => {
-  const mockAuthValue = {
-    user: { username: 'demo-user', isPremium: true },
-    isAuthenticated: true,
-    isLoading: false,
-    error: null,
-    login: async () => ({ success: true }),
-    logout: async () => ({ success: true }),
-    register: async () => ({ success: true }),
-    confirmRegistration: async () => ({ success: true }),
-    forgotPassword: async () => ({ success: true }),
-    confirmForgotPassword: async () => ({ success: true }),
-    clearError: () => {},
-    checkAuthState: async () => {}
-  };
-
-  return React.createElement(
-    React.createContext().Provider,
-    { value: mockAuthValue },
-    children
-  );
-};
-
 try {
   console.log('🔧 Creating React root...');
   const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -117,9 +95,9 @@ try {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <MockAuthProvider>
+            <AuthProvider>
               <App />
-            </MockAuthProvider>
+            </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </BrowserRouter>

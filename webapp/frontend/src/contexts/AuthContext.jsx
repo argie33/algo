@@ -101,6 +101,19 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
+      // Skip authentication if disabled
+      if (window.__DISABLE_AUTH__) {
+        console.log('🔧 Authentication disabled - using demo user');
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: { username: 'demo-user', isPremium: true },
+            tokens: { accessToken: 'demo-token' }
+          }
+        });
+        return;
+      }
+      
       // Check if we're in a real production environment
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
