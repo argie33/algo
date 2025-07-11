@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v41 - Fix portfolio_holdings table schema with portfolio_id column
+# FORCE WORKFLOW RUN - Updated v42 - Fix ARM64 Docker cross-platform build with proper QEMU setup
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
