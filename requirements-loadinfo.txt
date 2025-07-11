@@ -2,4 +2,4 @@ boto3>=1.26
 psycopg2-binary>=2.9
 pandas>=1.5
 requests>=2.28
-# FORCE BUILD v20 - force ECR rebuild
+# FORCE BUILD v23 - explicit rebuild to fix ECR issue
