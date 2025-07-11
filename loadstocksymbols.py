@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v34 - Clean bucket lookup from exports
+# FORCE WORKFLOW RUN - Updated v35 - Add bucket lookup to deploy-tasks job
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
 
 import os
@@ -9,7 +9,7 @@ import json
 import sys
 import logging
 
-print("🚀 STOCK SYMBOLS LOADER STARTING - v34...")
+print("🚀 STOCK SYMBOLS LOADER STARTING - v35...")
 print("🔍 Python version:", sys.version)
 print("📍 Current working directory:", os.getcwd())
 print("🔧 Testing database foreign key fixes...")
