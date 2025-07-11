@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
-# FORCE WORKFLOW RUN - Updated v27 - Testing database foreign key fix
+# FORCE WORKFLOW RUN - Updated v28 - Fix import order and retrigger workflow
 # Trigger deploy-app-stocks workflow - test portfolio_id database fix
-
-print("🚀 STOCK SYMBOLS LOADER STARTING - v27...")
-print("🔍 Python version:", sys.version)
-print("📍 Current working directory:", os.getcwd())
-print("🔧 Testing database foreign key fixes...")
-print("🌍 Environment variables:")
-for key, value in os.environ.items():
-    if 'SECRET' in key or 'DB' in key:
-        print(f"   {key}={value[:50]}..." if len(value) > 50 else f"   {key}={value}")
 
 import os
 import re
@@ -17,6 +8,15 @@ import csv
 import json
 import sys
 import logging
+
+print("🚀 STOCK SYMBOLS LOADER STARTING - v28...")
+print("🔍 Python version:", sys.version)
+print("📍 Current working directory:", os.getcwd())
+print("🔧 Testing database foreign key fixes...")
+print("🌍 Environment variables:")
+for key, value in os.environ.items():
+    if 'SECRET' in key or 'DB' in key:
+        print(f"   {key}={value[:50]}..." if len(value) > 50 else f"   {key}={value}")
 # Trigger symbols with S3 bucket debug info v11 - auto-create bucket
 import requests
 import boto3
