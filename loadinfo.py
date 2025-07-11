@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
 # Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v17 - match stocksymbols exactly
+# Trigger deploy-app-stocks workflow test - loadinfo update v18 - fix import order
+import sys
 print("🔍 LOADINFO DEBUG: Script starting...")
 print(f"🔍 LOADINFO DEBUG: Python version: {sys.version}")
-
-import sys
 import time
 import logging
 import json
