@@ -3039,12 +3039,6 @@ Outputs:
     Export:
       Name: RevenueEstimateTaskDefArn
 
-  AnalystUpgradeDowngradeTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for analyst upgrade/downgrade loader
-    Value: !Ref AnalystUpgradeDowngradeTaskDefinition
-    Export:
-      Name: AnalystUpgradeDowngradeTaskDefArn
-
   CalendarTaskDefArn:
     Description: ARN of the ECS TaskDefinition for calendar loader
     Value: !Ref CalendarTaskDefinition
