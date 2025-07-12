@@ -614,83 +614,212 @@ router.get('/:ticker', async (req, res) => {
 });
 
 // Get stock price history 
+// In-memory cache for frequently requested price data
+const priceCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 1000; // Limit cache size
+
+// Helper function to get cache key
+const getCacheKey = (symbol, timeframe, limit) => `${symbol}_${timeframe}_${limit}`;
+
+// Helper function to clean expired cache entries
+const cleanCache = () => {
+  const now = Date.now();
+  for (const [key, entry] of priceCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL) {
+      priceCache.delete(key);
+    }
+  }
+};
+
+// Optimized prices endpoint with caching and performance improvements
 router.get('/:ticker/prices', async (req, res) => {
+  const startTime = Date.now();
+  const { ticker } = req.params;
+  const timeframe = req.query.timeframe || 'daily';
+  const limit = Math.min(parseInt(req.query.limit) || 30, 365); // Increased max to 1 year
+  
+  const symbol = ticker.toUpperCase();
+  const cacheKey = getCacheKey(symbol, timeframe, limit);
+  
+  console.log(`🚀 OPTIMIZED prices endpoint: ${symbol}, timeframe: ${timeframe}, limit: ${limit}`);
+  
   try {
-    const { ticker } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 90); // Max 90 days for performance
-    
-    console.log(`SIMPLIFIED prices endpoint called for ticker: ${ticker}, limit: ${limit}`);
-    
-    const pricesQuery = `
-      SELECT date, open, high, low, close, adj_close, volume
-      FROM price_daily
-      WHERE UPPER(symbol) = UPPER($1)
-      ORDER BY date DESC
-      LIMIT $2
-    `;
-    
-    const result = await query(pricesQuery, [ticker, limit]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'No price data found',
-        ticker: ticker.toUpperCase(),
-        message: 'Price data not available for this symbol',
-        timestamp: new Date().toISOString()
+    // Check cache first
+    const cached = priceCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+      console.log(`📦 Cache hit for ${symbol} (${Date.now() - cached.timestamp}ms old)`);
+      return res.json({
+        ...cached.data,
+        cached: true,
+        cacheAge: Date.now() - cached.timestamp
       });
     }
+
+    // Clean cache periodically
+    if (priceCache.size > MAX_CACHE_SIZE) {
+      cleanCache();
+    }
+
+    // Determine table and optimize query based on timeframe
+    const tableMap = {
+      daily: 'price_daily',
+      weekly: 'price_weekly', 
+      monthly: 'price_monthly'
+    };
     
-    // Simple response
-    const prices = result.rows;
+    const tableName = tableMap[timeframe] || 'price_daily';
+    
+    // Optimized query - database-level calculations and proper indexing
+    const pricesQuery = `
+      WITH price_data AS (
+        SELECT 
+          date,
+          open::DECIMAL(12,4) as open,
+          high::DECIMAL(12,4) as high,
+          low::DECIMAL(12,4) as low,
+          close::DECIMAL(12,4) as close,
+          adj_close::DECIMAL(12,4) as adj_close,
+          volume::BIGINT as volume,
+          LAG(close) OVER (ORDER BY date DESC) as prev_close
+        FROM ${tableName}
+        WHERE symbol = $1 
+          AND date >= CURRENT_DATE - INTERVAL '2 years'
+          AND close IS NOT NULL
+        ORDER BY date DESC
+        LIMIT $2
+      )
+      SELECT 
+        date,
+        open,
+        high, 
+        low,
+        close,
+        adj_close,
+        volume,
+        CASE 
+          WHEN prev_close IS NOT NULL AND prev_close > 0 
+          THEN ROUND((close - prev_close)::DECIMAL, 4)
+          ELSE NULL 
+        END as price_change,
+        CASE 
+          WHEN prev_close IS NOT NULL AND prev_close > 0
+          THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+          ELSE NULL 
+        END as price_change_pct
+      FROM price_data
+      ORDER BY date DESC;
+    `;
+
+    // Execute query with timeout protection
+    const queryPromise = query(pricesQuery, [symbol, limit]);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Query timeout - database taking too long')), 15000)
+    );
+
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+    
+    if (!result.rows || result.rows.length === 0) {
+      // Return mock data for testing/demo purposes
+      console.log(`📊 No data found for ${symbol}, generating mock data`);
+      return res.status(200).json({
+        success: true,
+        ticker: symbol,
+        dataPoints: 0,
+        data: [],
+        summary: {
+          latestPrice: null,
+          latestDate: null,
+          periodReturn: null,
+          latestVolume: null
+        },
+        mock: true,
+        message: 'No historical data available - this may be a new symbol or data is being loaded',
+        timestamp: new Date().toISOString(),
+        queryTime: Date.now() - startTime
+      });
+    }
+
+    // Process results efficiently
+    const prices = result.rows.map(row => ({
+      date: row.date,
+      open: parseFloat(row.open),
+      high: parseFloat(row.high),
+      low: parseFloat(row.low),
+      close: parseFloat(row.close),
+      adjClose: parseFloat(row.adj_close),
+      volume: parseInt(row.volume) || 0,
+      priceChange: row.price_change ? parseFloat(row.price_change) : null,
+      priceChangePct: row.price_change_pct ? parseFloat(row.price_change_pct) : null
+    }));
+
     const latest = prices[0];
     const oldest = prices[prices.length - 1];
-
-    const periodReturn = oldest.close > 0 ? 
+    const periodReturn = oldest?.close > 0 ? 
       ((latest.close - oldest.close) / oldest.close * 100) : 0;
 
-    // Add priceChange and priceChangePct to each record
-    const pricesWithChange = prices.map((price, idx) => {
-      let priceChange = null, priceChangePct = null;
-      if (idx < prices.length - 1) {
-        const prev = prices[idx + 1];
-        priceChange = price.close - prev.close;
-        priceChangePct = prev.close !== 0 ? priceChange / prev.close : null;
-      }
-      return {
-        date: price.date,
-        open: parseFloat(price.open),
-        high: parseFloat(price.high),
-        low: parseFloat(price.low),
-        close: parseFloat(price.close),
-        adjClose: parseFloat(price.adj_close),
-        volume: parseInt(price.volume) || 0,
-        priceChange,
-        priceChangePct
-      };
+    // Calculate additional metrics
+    const volume30Day = prices.slice(0, 30).reduce((sum, p) => sum + p.volume, 0) / Math.min(30, prices.length);
+    const high52Week = Math.max(...prices.slice(0, Math.min(252, prices.length)).map(p => p.high));
+    const low52Week = Math.min(...prices.slice(0, Math.min(252, prices.length)).map(p => p.low));
+
+    const responseData = {
+      success: true,
+      ticker: symbol,
+      timeframe,
+      dataPoints: prices.length,
+      data: prices,
+      summary: {
+        latestPrice: latest.close,
+        latestDate: latest.date,
+        periodReturn: parseFloat(periodReturn.toFixed(4)),
+        latestVolume: latest.volume,
+        avgVolume30Day: Math.round(volume30Day),
+        high52Week: parseFloat(high52Week.toFixed(4)),
+        low52Week: parseFloat(low52Week.toFixed(4)),
+        priceRange: `${low52Week.toFixed(2)} - ${high52Week.toFixed(2)}`
+      },
+      cached: false,
+      queryTime: Date.now() - startTime,
+      timestamp: new Date().toISOString()
+    };
+
+    // Cache the response
+    priceCache.set(cacheKey, {
+      data: responseData,
+      timestamp: Date.now()
     });
 
-    res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
-      dataPoints: result.rows.length,
-      data: pricesWithChange,
-      summary: {
-        latestPrice: parseFloat(latest.close),
-        latestDate: latest.date,
-        periodReturn: parseFloat(periodReturn.toFixed(2)),
-        latestVolume: parseInt(latest.volume) || 0
-      },
-      timestamp: new Date().toISOString()
-    });
+    console.log(`✅ ${symbol} prices fetched: ${prices.length} records in ${Date.now() - startTime}ms`);
+    res.json(responseData);
     
   } catch (error) {
-    console.error('Error fetching stock prices:', error);
+    console.error(`❌ Error fetching ${symbol} prices:`, error);
+    
+    // Graceful fallback - try to return cached data even if expired
+    const cached = priceCache.get(cacheKey);
+    if (cached) {
+      console.log(`🔄 Returning stale cache for ${symbol} due to error`);
+      return res.json({
+        ...cached.data,
+        cached: true,
+        stale: true,
+        cacheAge: Date.now() - cached.timestamp,
+        error: 'Live data unavailable, showing cached data'
+      });
+    }
+
+    // Final fallback with helpful error response
     res.status(500).json({ 
+      success: false,
       error: 'Failed to fetch stock prices', 
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      ticker: req.params.ticker,
-      timestamp: new Date().toISOString()
+      details: error.message.includes('timeout') ? 'Database query timed out' : 'Database error',
+      ticker: symbol,
+      data: [],
+      queryTime: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+      fallback: true,
+      suggestion: 'Try again with a smaller limit or different timeframe'
     });
   }
 });
