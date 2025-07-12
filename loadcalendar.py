@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v1.9 - testing comprehensive workflow fixes and robustness
+# Load calendar data - trigger v2.0 - force rebuild after calendar task failed to run
 # Updated 2025-07-12: Fixed workflow issues, testing build and deploy pipeline for earnings calendar data
 import sys
 import time
