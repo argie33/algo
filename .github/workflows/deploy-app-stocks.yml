@@ -88,6 +88,9 @@ jobs:
       swingtrader:       ${{ steps.paths.outputs.swingtrader }}
       calendar:          ${{ steps.paths.outputs.calendar }}
       buysell:           ${{ steps.paths.outputs.buysell }}
+      feargreed:         ${{ steps.paths.outputs.feargreed }}
+      naaim:             ${{ steps.paths.outputs.naaim }}
+      aaiidata:          ${{ steps.paths.outputs.aaiidata }}
       any:               ${{ steps.any.outputs.any }}
       matrix:            ${{ steps.matrix.outputs.matrix }}
 

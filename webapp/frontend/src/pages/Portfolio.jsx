@@ -448,17 +448,17 @@ const Portfolio = () => {
   // Factor analysis calculations
   const factorAnalysis = useMemo(() => {
     if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
-      return {};
+      return [];
     }
-    // Mock factor analysis
-    return {
-      quality: 0.75,
-      growth: 0.65,
-      value: 0.45,
-      momentum: 0.55,
-      size: 0.30,
-      volatility: 0.40
-    };
+    // Mock factor analysis - return array of objects for mapping
+    return [
+      { factor: 'Quality', exposure: 0.75 },
+      { factor: 'Growth', exposure: 0.65 },
+      { factor: 'Value', exposure: 0.45 },
+      { factor: 'Momentum', exposure: 0.55 },
+      { factor: 'Size', exposure: 0.30 },
+      { factor: 'Volatility', exposure: 0.40 }
+    ];
   }, [portfolioData]);
 
   // Sector and geographic diversification
