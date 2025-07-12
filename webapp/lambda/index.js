@@ -46,6 +46,9 @@ const tradesRoutes = require('./routes/trades');
 const cryptoRoutes = require('./routes/crypto');
 const screenerRoutes = require('./routes/screener');
 const dashboardRoutes = require('./routes/dashboard');
+const alertsRoutes = require('./routes/alerts');
+const commoditiesRoutes = require('./routes/commodities');
+const economicRoutes = require('./routes/economic');
 
 const app = express();
 
@@ -330,6 +333,9 @@ app.use('/trades', tradesRoutes);
 app.use('/crypto', cryptoRoutes);
 app.use('/screener', screenerRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/alerts', alertsRoutes);
+app.use('/commodities', commoditiesRoutes);
+app.use('/economic', economicRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -360,6 +366,9 @@ app.use('/api/trades', tradesRoutes);
 app.use('/api/crypto', cryptoRoutes);
 app.use('/api/screener', screenerRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/alerts', alertsRoutes);
+app.use('/api/commodities', commoditiesRoutes);
+app.use('/api/economic', economicRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {
