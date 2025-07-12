@@ -262,7 +262,7 @@ function ServiceHealth() {
         { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 10 }), critical: true },
         { name: 'Technical Weekly', fn: () => getTechnicalData('weekly', { limit: 10 }), critical: false },
         { name: 'Technical Monthly', fn: () => getTechnicalData('monthly', { limit: 10 }), critical: false },
-        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL'), critical: false }
+        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL?timeframe=daily'), critical: false }
       ]
     },
     {
