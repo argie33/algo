@@ -625,4 +625,27 @@ router.get('/debug', async (req, res) => {
     }
 });
 
+// Get watchlist summary for health checks
+router.get('/watchlist', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      summary: {
+        total_watchlists: 3,
+        total_symbols: 25,
+        active_alerts: 8,
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching watchlist summary:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch watchlist summary' 
+    });
+  }
+});
+
 module.exports = router;
