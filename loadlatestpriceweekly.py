@@ -1,4 +1,6 @@
-#!/usr/bin/env python3    
+#!/usr/bin/env python3
+# Latest weekly price data loader - fetches current week OHLCV data
+# Trigger deploy-app-stocks workflow test - latest weekly loader v4 - enhanced error handling  
 import sys
 import time
 import logging
