@@ -54,7 +54,15 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  Sync as SyncIcon
+  Sync as SyncIcon,
+  TrendingFlat as TrendingFlatIcon,
+  Psychology as PsychologyIcon,
+  School as SchoolIcon,
+  LightbulbOutlined as LightbulbIcon,
+  CompareArrows as CompareArrowsIcon,
+  Speed as SpeedIcon,
+  Schedule as ScheduleIcon,
+  Build as BuildIcon
 } from '@mui/icons-material';
 import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -407,6 +415,394 @@ const TradeHistory = () => {
     </Card>
   );
 
+  // Advanced Analytics Component
+  const AdvancedAnalytics = () => {
+    // Calculate analytics from trade data
+    const calculateAdvancedMetrics = () => {
+      if (!trades || trades.length === 0) {
+        return {
+          patternAnalysis: {},
+          riskAttribution: {},
+          performanceBenchmark: {},
+          timingAnalysis: {},
+          learningInsights: []
+        };
+      }
+
+      const winningTrades = trades.filter(trade => trade.net_pnl > 0);
+      const losingTrades = trades.filter(trade => trade.net_pnl < 0);
+      
+      // Pattern Recognition Analysis
+      const patternFrequency = trades.reduce((acc, trade) => {
+        const pattern = trade.trade_pattern_type || 'Unknown';
+        acc[pattern] = (acc[pattern] || 0) + 1;
+        return acc;
+      }, {});
+
+      const patternPerformance = Object.keys(patternFrequency).map(pattern => {
+        const patternTrades = trades.filter(t => (t.trade_pattern_type || 'Unknown') === pattern);
+        const avgReturn = patternTrades.reduce((sum, t) => sum + (t.return_percentage || 0), 0) / patternTrades.length;
+        const winRate = patternTrades.filter(t => t.net_pnl > 0).length / patternTrades.length * 100;
+        
+        return {
+          pattern,
+          count: patternFrequency[pattern],
+          avgReturn: avgReturn || 0,
+          winRate: winRate || 0,
+          totalPnL: patternTrades.reduce((sum, t) => sum + (t.net_pnl || 0), 0)
+        };
+      });
+
+      // Sector Analysis
+      const sectorPerformance = trades.reduce((acc, trade) => {
+        const sector = trade.sector || 'Unknown';
+        if (!acc[sector]) {
+          acc[sector] = { trades: [], pnl: 0, returns: [] };
+        }
+        acc[sector].trades.push(trade);
+        acc[sector].pnl += trade.net_pnl || 0;
+        acc[sector].returns.push(trade.return_percentage || 0);
+        return acc;
+      }, {});
+
+      const sectorAnalysis = Object.keys(sectorPerformance).map(sector => {
+        const data = sectorPerformance[sector];
+        const avgReturn = data.returns.reduce((sum, r) => sum + r, 0) / data.returns.length;
+        const winRate = data.trades.filter(t => t.net_pnl > 0).length / data.trades.length * 100;
+        
+        return {
+          sector,
+          count: data.trades.length,
+          totalPnL: data.pnl,
+          avgReturn: avgReturn || 0,
+          winRate: winRate || 0
+        };
+      });
+
+      // Risk Attribution
+      const avgWinAmount = winningTrades.length > 0 ? 
+        winningTrades.reduce((sum, t) => sum + t.net_pnl, 0) / winningTrades.length : 0;
+      const avgLossAmount = losingTrades.length > 0 ? 
+        Math.abs(losingTrades.reduce((sum, t) => sum + t.net_pnl, 0) / losingTrades.length) : 0;
+      
+      const profitFactor = avgLossAmount > 0 ? avgWinAmount / avgLossAmount : 0;
+      const expectancy = trades.length > 0 ? 
+        trades.reduce((sum, t) => sum + (t.net_pnl || 0), 0) / trades.length : 0;
+
+      // Timing Analysis
+      const hourlyPnL = trades.reduce((acc, trade) => {
+        const hour = new Date(trade.execution_time).getHours();
+        acc[hour] = (acc[hour] || 0) + (trade.net_pnl || 0);
+        return acc;
+      }, {});
+
+      const dailyPnL = trades.reduce((acc, trade) => {
+        const day = new Date(trade.execution_time).getDay();
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = dayNames[day];
+        acc[dayName] = (acc[dayName] || 0) + (trade.net_pnl || 0);
+        return acc;
+      }, {});
+
+      // Learning Insights
+      const insights = [];
+      
+      // Best performing pattern
+      const bestPattern = patternPerformance.reduce((best, current) => 
+        current.avgReturn > (best?.avgReturn || -Infinity) ? current : best, null);
+      if (bestPattern && bestPattern.avgReturn > 0) {
+        insights.push({
+          type: 'success',
+          title: 'Best Performing Pattern',
+          message: `${bestPattern.pattern} shows ${bestPattern.avgReturn.toFixed(2)}% avg return with ${bestPattern.winRate.toFixed(0)}% win rate`,
+          action: `Focus on identifying more ${bestPattern.pattern} setups`
+        });
+      }
+
+      // Worst performing pattern
+      const worstPattern = patternPerformance.reduce((worst, current) => 
+        current.avgReturn < (worst?.avgReturn || Infinity) ? current : worst, null);
+      if (worstPattern && worstPattern.avgReturn < 0) {
+        insights.push({
+          type: 'warning',
+          title: 'Underperforming Pattern',
+          message: `${worstPattern.pattern} shows ${worstPattern.avgReturn.toFixed(2)}% avg return`,
+          action: `Review or avoid ${worstPattern.pattern} setups until improved`
+        });
+      }
+
+      // Risk management insights
+      if (profitFactor < 1.5) {
+        insights.push({
+          type: 'warning',
+          title: 'Risk Management Alert',
+          message: `Profit factor of ${profitFactor.toFixed(2)} suggests poor risk/reward ratio`,
+          action: 'Consider tighter stop losses or higher profit targets'
+        });
+      }
+
+      // Best trading times
+      const bestHour = Object.keys(hourlyPnL).reduce((best, hour) => 
+        hourlyPnL[hour] > (hourlyPnL[best] || -Infinity) ? hour : best, '0');
+      if (hourlyPnL[bestHour] > 0) {
+        insights.push({
+          type: 'info',
+          title: 'Optimal Trading Time',
+          message: `Best performance at ${bestHour}:00 with $${hourlyPnL[bestHour].toFixed(2)} total P&L`,
+          action: 'Consider focusing trading activity during this time'
+        });
+      }
+
+      return {
+        patternAnalysis: {
+          patterns: patternPerformance,
+          frequency: patternFrequency
+        },
+        riskAttribution: {
+          profitFactor,
+          expectancy,
+          avgWin: avgWinAmount,
+          avgLoss: avgLossAmount,
+          winRate: trades.length > 0 ? winningTrades.length / trades.length * 100 : 0
+        },
+        performanceBenchmark: {
+          sectors: sectorAnalysis,
+          totalTrades: trades.length,
+          totalPnL: trades.reduce((sum, t) => sum + (t.net_pnl || 0), 0)
+        },
+        timingAnalysis: {
+          hourly: hourlyPnL,
+          daily: dailyPnL
+        },
+        learningInsights: insights
+      };
+    };
+
+    const metrics = calculateAdvancedMetrics();
+    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff00ff', '#00ffff'];
+
+    return (
+      <Box>
+        {/* Pattern Recognition Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="Pattern Recognition Analysis"
+            avatar={<PsychologyIcon color="primary" />}
+            subheader="Identify which trading patterns work best for you"
+          />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Pattern Performance</Typography>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={metrics.patternAnalysis.patterns}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="pattern" />
+                    <YAxis />
+                    <ChartTooltip formatter={(value, name) => [
+                      name === 'avgReturn' ? `${value.toFixed(2)}%` : value.toFixed(2),
+                      name === 'avgReturn' ? 'Avg Return' : 'Win Rate %'
+                    ]} />
+                    <Bar dataKey="avgReturn" fill="#8884d8" name="avgReturn" />
+                    <Bar dataKey="winRate" fill="#82ca9d" name="winRate" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Pattern Frequency</Typography>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={Object.keys(metrics.patternAnalysis.frequency).map((key, index) => ({
+                        name: key,
+                        value: metrics.patternAnalysis.frequency[key],
+                        fill: colors[index % colors.length]
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    />
+                    <ChartTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Risk Attribution Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="Risk Attribution Analysis"
+            avatar={<WarningIcon color="warning" />}
+            subheader="Understand your risk/reward profile and improve risk management"
+          />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Profit Factor</Typography>
+                    <Typography variant="h4" color={metrics.riskAttribution.profitFactor >= 1.5 ? 'success.main' : 'error.main'}>
+                      {metrics.riskAttribution.profitFactor.toFixed(2)}
+                    </Typography>
+                    <Typography variant="body2">
+                      {metrics.riskAttribution.profitFactor >= 1.5 ? 'Good' : 'Needs Improvement'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Expectancy</Typography>
+                    <Typography variant="h4" color={metrics.riskAttribution.expectancy >= 0 ? 'success.main' : 'error.main'}>
+                      ${metrics.riskAttribution.expectancy.toFixed(2)}
+                    </Typography>
+                    <Typography variant="body2">Per Trade</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Avg Win</Typography>
+                    <Typography variant="h4" color="success.main">
+                      ${metrics.riskAttribution.avgWin.toFixed(2)}
+                    </Typography>
+                    <Typography variant="body2">Average</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Avg Loss</Typography>
+                    <Typography variant="h4" color="error.main">
+                      ${metrics.riskAttribution.avgLoss.toFixed(2)}
+                    </Typography>
+                    <Typography variant="body2">Average</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Performance Benchmarking Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="Performance Benchmarking"
+            avatar={<CompareArrowsIcon color="info" />}
+            subheader="Compare performance across sectors and identify strengths"
+          />
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Sector Performance</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={metrics.performanceBenchmark.sectors}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="sector" />
+                <YAxis />
+                <ChartTooltip formatter={(value, name) => [
+                  name === 'totalPnL' ? `$${value.toFixed(2)}` : `${value.toFixed(1)}%`,
+                  name === 'totalPnL' ? 'Total P&L' : name === 'avgReturn' ? 'Avg Return' : 'Win Rate'
+                ]} />
+                <Bar dataKey="totalPnL" fill="#8884d8" name="totalPnL" />
+                <Bar dataKey="avgReturn" fill="#82ca9d" name="avgReturn" />
+                <Bar dataKey="winRate" fill="#ffc658" name="winRate" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Timing Analysis Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="Trade Timing Analysis"
+            avatar={<ScheduleIcon color="primary" />}
+            subheader="Discover optimal trading times and patterns"
+          />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Daily Performance</Typography>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={Object.keys(metrics.timingAnalysis.daily).map(day => ({
+                    day,
+                    pnl: metrics.timingAnalysis.daily[day]
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <ChartTooltip formatter={(value) => [`$${value.toFixed(2)}`, 'P&L']} />
+                    <Bar dataKey="pnl" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Hourly Performance</Typography>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={Object.keys(metrics.timingAnalysis.hourly).map(hour => ({
+                    hour: `${hour}:00`,
+                    pnl: metrics.timingAnalysis.hourly[hour]
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" />
+                    <YAxis />
+                    <ChartTooltip formatter={(value) => [`$${value.toFixed(2)}`, 'P&L']} />
+                    <Line type="monotone" dataKey="pnl" stroke="#8884d8" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Learning Insights Section */}
+        <Card>
+          <CardHeader
+            title="Learning Insights & Recommendations"
+            avatar={<LightbulbIcon color="warning" />}
+            subheader="Actionable insights to improve your trading performance"
+          />
+          <CardContent>
+            {metrics.learningInsights.length > 0 ? (
+              <Stack spacing={2}>
+                {metrics.learningInsights.map((insight, index) => (
+                  <Alert
+                    key={index}
+                    severity={insight.type}
+                    action={
+                      <Button color="inherit" size="small">
+                        Apply
+                      </Button>
+                    }
+                  >
+                    <Typography variant="subtitle2" gutterBottom>
+                      {insight.title}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      {insight.message}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                      💡 {insight.action}
+                    </Typography>
+                  </Alert>
+                ))}
+              </Stack>
+            ) : (
+              <Alert severity="info">
+                Import more trade data to generate personalized insights and recommendations.
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  };
+
   const ImportDialog = () => (
     <Dialog open={importDialog} onClose={() => setImportDialog(false)}>
       <DialogTitle>Import Trades from Alpaca</DialogTitle>
@@ -513,12 +909,7 @@ const TradeHistory = () => {
 
       {activeTab === 0 && analytics && <AnalyticsOverview />}
       {activeTab === 1 && <TradeTable />}
-      {activeTab === 2 && (
-        <Alert severity="info">
-          Advanced analytics coming soon! This will include pattern recognition, 
-          risk attribution, and performance benchmarking.
-        </Alert>
-      )}
+      {activeTab === 2 && <AdvancedAnalytics />}
 
       <ImportDialog />
     </Container>
