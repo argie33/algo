@@ -113,6 +113,38 @@ class ApiKeyService {
       return [];
     }
   }
+
+  // Get decrypted API credentials for a provider
+  async getDecryptedCredentials(provider) {
+    try {
+      const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys/${provider}/credentials`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`No active ${provider} API key found`);
+          return null;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.success ? data.credentials : null;
+    } catch (error) {
+      console.error(`Error getting decrypted credentials for ${provider}:`, error);
+      return null;
+    }
+  }
+
+  // Get decrypted Alpaca credentials
+  async getAlpacaCredentials() {
+    return this.getDecryptedCredentials('alpaca');
+  }
 }
 
 export default new ApiKeyService();

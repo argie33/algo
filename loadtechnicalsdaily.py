@@ -1,6 +1,6 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v2 - trigger ECS task for testing build/deploy
-# Updated 2025-07-12: Added comprehensive error handling and memory optimization
+# Daily technicals loader - deployment test v3 - retrigger after fixing workflow Dockerfile mapping
+# Updated 2025-07-12: Fixed workflow issues, comprehensive error handling and memory optimization
 import sys
 import time
 import logging

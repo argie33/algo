@@ -640,6 +640,84 @@ router.post('/test-connection/:keyId', async (req, res) => {
   }
 });
 
+// Get decrypted API credentials for a provider (for real-time services)
+router.get('/api-keys/:provider/credentials', async (req, res) => {
+  const userId = req.user.sub;
+  const { provider } = req.params;
+
+  try {
+    // Get encrypted API key for the provider
+    const result = await query(`
+      SELECT 
+        id,
+        provider,
+        encrypted_api_key,
+        key_iv,
+        key_auth_tag,
+        encrypted_api_secret,
+        secret_iv,
+        secret_auth_tag,
+        user_salt,
+        is_sandbox,
+        description
+      FROM user_api_keys 
+      WHERE user_id = $1 AND provider = $2 AND is_active = true
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [userId, provider.toLowerCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No active ${provider} API key found`,
+        provider: provider
+      });
+    }
+
+    const keyData = result.rows[0];
+    
+    // Decrypt API credentials
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, keyData.user_salt);
+
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, keyData.user_salt) : null;
+
+    // Update last_used timestamp
+    await query(`
+      UPDATE user_api_keys 
+      SET last_used = NOW() 
+      WHERE id = $1
+    `, [keyData.id]);
+
+    console.log(`🔓 Decrypted ${provider} credentials for user ${userId}`);
+    
+    res.json({
+      success: true,
+      credentials: {
+        provider: keyData.provider,
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        isSandbox: keyData.is_sandbox,
+        description: keyData.description
+      }
+    });
+  } catch (error) {
+    console.error('Error getting API credentials:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get API credentials',
+      details: error.message
+    });
+  }
+});
+
 // User profile management
 router.get('/profile', async (req, res) => {
   const userId = req.user.sub;

@@ -113,7 +113,9 @@ const DashboardStockChart = ({
 
     // Connect if not already connected
     if (!simpleAlpacaWebSocket.isConnected) {
-      simpleAlpacaWebSocket.connect();
+      simpleAlpacaWebSocket.connect().catch(error => {
+        console.error('Failed to connect to Alpaca WebSocket:', error);
+      });
     }
 
     return () => {

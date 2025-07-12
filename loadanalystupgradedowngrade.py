@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Analyst upgrade/downgrade data loader for enhanced market intelligence
-# Updated for deployment verification test - trigger v1.7 - ECS deployment testing with optimized memory usage
-# Updated 2025-07-12: Enhanced build and deploy pipeline validation for analyst data
+# Updated for deployment verification test - trigger v1.8 - retrigger after fixing workflow Dockerfile mapping
+# Updated 2025-07-12: Fixed workflow issues, enhanced build and deploy pipeline validation for analyst data
 import sys
 import time
 import logging

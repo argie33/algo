@@ -1,5 +1,7 @@
 // Simple Alpaca WebSocket Service - Direct Connection
-// Just connect to Alpaca WebSocket API with your API key
+// Gets API credentials from user settings instead of environment variables
+
+import apiKeyService from './apiKeyService';
 
 class SimpleAlpacaWebSocket {
   constructor() {
@@ -10,10 +12,14 @@ class SimpleAlpacaWebSocket {
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     
-    // Your Alpaca credentials - set these via environment variables
-    this.apiKey = process.env.REACT_APP_ALPACA_API_KEY;
-    this.apiSecret = process.env.REACT_APP_ALPACA_API_SECRET;
-    this.dataFeed = process.env.REACT_APP_ALPACA_DATA_FEED || 'iex'; // 'iex' for free, 'sip' for premium
+    // Alpaca credentials - will be loaded from user settings
+    this.apiKey = null;
+    this.apiSecret = null;
+    this.isSandbox = false;
+    this.credentialsLoaded = false;
+    
+    // Data feed preference - use iex for free data
+    this.dataFeed = 'iex'; // 'iex' for free, 'sip' for premium
     
     // Alpaca WebSocket URLs
     this.wsUrls = {
@@ -29,22 +35,62 @@ class SimpleAlpacaWebSocket {
     };
   }
 
+  // Load API credentials from user settings
+  async loadCredentials() {
+    try {
+      console.log('🔐 Loading Alpaca credentials from user settings...');
+      const credentials = await apiKeyService.getAlpacaCredentials();
+      
+      if (!credentials) {
+        console.error('❌ No Alpaca API credentials found in user settings');
+        this.emit('error', new Error('No Alpaca API credentials found. Please add your Alpaca API key in Settings.'));
+        return false;
+      }
+
+      this.apiKey = credentials.apiKey;
+      this.apiSecret = credentials.apiSecret;
+      this.isSandbox = credentials.isSandbox;
+      this.credentialsLoaded = true;
+      
+      console.log('✅ Alpaca credentials loaded successfully', {
+        provider: credentials.provider,
+        isSandbox: this.isSandbox,
+        description: credentials.description
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error loading Alpaca credentials:', error);
+      this.emit('error', error);
+      return false;
+    }
+  }
+
   // Connect to Alpaca WebSocket
-  connect() {
+  async connect() {
     if (this.isConnected || this.ws) return;
 
+    // Load credentials if not already loaded
+    if (!this.credentialsLoaded) {
+      const success = await this.loadCredentials();
+      if (!success) {
+        return;
+      }
+    }
+
     if (!this.apiKey || !this.apiSecret) {
-      console.error('Alpaca API credentials not found. Set REACT_APP_ALPACA_API_KEY and REACT_APP_ALPACA_API_SECRET');
+      console.error('❌ Alpaca API credentials not available after loading from settings');
+      this.emit('error', new Error('Alpaca API credentials not found. Please check your settings.'));
       return;
     }
 
     const wsUrl = this.wsUrls[this.dataFeed];
-    console.log(`Connecting to Alpaca WebSocket: ${wsUrl}`);
+    console.log(`🔌 Connecting to Alpaca WebSocket: ${wsUrl} (${this.isSandbox ? 'sandbox' : 'live'})`);
 
     this.ws = new WebSocket(wsUrl);
     
     this.ws.onopen = () => {
-      console.log('Connected to Alpaca WebSocket');
+      console.log('✅ Connected to Alpaca WebSocket');
       this.authenticate();
     };
 
@@ -53,14 +99,14 @@ class SimpleAlpacaWebSocket {
     };
 
     this.ws.onclose = () => {
-      console.log('Disconnected from Alpaca WebSocket');
+      console.log('🔌 Disconnected from Alpaca WebSocket');
       this.isConnected = false;
       this.emit('disconnected');
       this.scheduleReconnect();
     };
 
     this.ws.onerror = (error) => {
-      console.error('Alpaca WebSocket error:', error);
+      console.error('❌ Alpaca WebSocket error:', error);
       this.emit('error', error);
     };
   }
@@ -264,6 +310,19 @@ class SimpleAlpacaWebSocket {
     }
   }
 
+  // Reload credentials (useful when user updates API keys)
+  async reloadCredentials() {
+    console.log('🔄 Reloading Alpaca credentials...');
+    this.credentialsLoaded = false;
+    const success = await this.loadCredentials();
+    if (success && this.isConnected) {
+      console.log('🔄 Reconnecting with new credentials...');
+      this.disconnect();
+      setTimeout(() => this.connect(), 1000);
+    }
+    return success;
+  }
+
   // Disconnect
   disconnect() {
     if (this.reconnectTimer) {
@@ -282,6 +341,7 @@ class SimpleAlpacaWebSocket {
     }
     
     this.isConnected = false;
+    this.credentialsLoaded = false;
   }
 
   // Schedule reconnect
