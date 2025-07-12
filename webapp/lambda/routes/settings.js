@@ -316,18 +316,21 @@ router.post('/api-keys', async (req, res) => {
         error: 'API key for this provider already exists'
       });
     } else if (error.code === '42P01') { // Table doesn't exist
-      // Return success but with note about database issue
-      res.json({
-        success: true,
-        message: 'API key configuration saved (database table pending creation)',
-        apiKey: {
-          id: `temp-${Date.now()}`,
+      // Return error indicating table creation is needed
+      res.status(500).json({
+        success: false,
+        error: 'Database table not found - user_api_keys table needs to be created',
+        message: 'The API keys table has not been created. Please run the database initialization script.',
+        details: error.message,
+        errorCode: error.code,
+        solution: 'Run init_database.py script to create required tables',
+        debugInfo: process.env.NODE_ENV === 'development' ? {
+          errorCode: error.code,
+          errorMessage: error.message,
+          userId: req.user?.sub,
           provider: provider,
-          description: description,
-          isSandbox: isSandbox,
-          createdAt: new Date().toISOString()
-        },
-        note: 'API key saved temporarily - database table creation required'
+          tableName: 'user_api_keys'
+        } : undefined
       });
     } else {
       // Log the actual error details for debugging
