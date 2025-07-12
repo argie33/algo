@@ -29,7 +29,7 @@
       
       // Load config.js to override defaults if available
       var script = document.createElement('script');
-      script.src = '/config.js';
+      script.src = '/config.js?' + Date.now();
       script.onerror = function() {
         console.warn('⚠️ Failed to load config.js - using fallback config');
       };
