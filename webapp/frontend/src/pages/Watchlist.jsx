@@ -217,7 +217,15 @@ const Watchlist = () => {
         timeoutPromise
       ]);
       
-      setWatchlistItems(response);
+      // Ensure response is an array before setting state
+      if (Array.isArray(response)) {
+        setWatchlistItems(response);
+      } else if (response && Array.isArray(response.data)) {
+        setWatchlistItems(response.data);
+      } else {
+        console.warn('API response is not an array:', response);
+        throw new Error('Invalid API response format');
+      }
     } catch (error) {
       console.error('Error loading watchlist items:', error);
       console.log('Using mock watchlist items');
@@ -474,7 +482,7 @@ const Watchlist = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {watchlistItems.map((item, index) => {
+                  {(watchlistItems || []).map((item, index) => {
                     const peRating = getPERating(item.trailing_pe);
                     const priceRange = item.fifty_two_week_low && item.fifty_two_week_high ? 
                       ((item.current_price - item.fifty_two_week_low) / (item.fifty_two_week_high - item.fifty_two_week_low)) * 100 : 0;
