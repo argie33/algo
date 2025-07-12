@@ -7,7 +7,47 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
-// Apply authentication middleware to all portfolio routes
+// Portfolio overview endpoint (root) - does not require authentication for health check
+router.get('/', async (req, res) => {
+  try {
+    console.log('Portfolio overview endpoint called');
+    
+    // Return overview for health checks
+    res.json({
+      success: true,
+      data: {
+        system: 'Portfolio Management API',
+        version: '1.0.0',
+        status: 'operational',
+        available_endpoints: [
+          '/portfolio/holdings - Portfolio holdings data',
+          '/portfolio/performance - Performance metrics and charts',
+          '/portfolio/analytics - Advanced portfolio analytics',
+          '/portfolio/allocations - Asset allocation breakdown',
+          '/portfolio/import - Import portfolio data from brokers'
+        ],
+        features: [
+          'Real-time portfolio tracking',
+          'Performance analytics',
+          'Risk assessment',
+          'Asset allocation analysis',
+          'Multi-broker integration'
+        ],
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in portfolio overview:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch portfolio overview' 
+    });
+  }
+});
+
+// Apply authentication middleware to all other portfolio routes
 router.use(authenticateToken);
 
 // Utility function to get user's API key for a specific broker
@@ -271,7 +311,7 @@ router.get('/holdings', async (req, res) => {
               COALESCE(se.sector, 'Technology') as sector,
               COALESCE(se.exchange, 'NASDAQ') as exchange
             FROM portfolio_holdings ph
-            LEFT JOIN stock_symbols_enhanced se ON ph.symbol = se.symbol  
+            LEFT JOIN stocks se ON ph.symbol = se.symbol  
             WHERE ph.user_id = $1 AND ph.quantity > 0
             ORDER BY ph.market_value DESC
           `;
@@ -580,7 +620,7 @@ router.get('/analytics', async (req, res) => {
         COALESCE(se.sector, 'Technology') as sector,
         ph.updated_at as last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN stock_symbols_enhanced se ON ph.symbol = se.symbol
+      LEFT JOIN stocks se ON ph.symbol = se.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
       ORDER BY ph.market_value DESC
     `;
