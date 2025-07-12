@@ -38,7 +38,6 @@ export default defineConfig(({ mode }) => {
             charts: ['recharts', 'chart.js', 'react-chartjs-2'],
             aws: ['aws-amplify', '@aws-amplify/auth', '@aws-amplify/core', '@aws-amplify/ui-react'],
             utils: ['axios', 'lodash', 'numeral', 'date-fns'],
-            codemirror: ['@codemirror/lang-javascript', '@codemirror/lang-python', '@uiw/react-codemirror'],
             'react-query': ['@tanstack/react-query'],
             emotion: ['@emotion/react', '@emotion/styled'],
             animations: ['framer-motion'],
@@ -71,6 +70,11 @@ export default defineConfig(({ mode }) => {
       __IS_PROD__: JSON.stringify(isProduction),
     },
     optimizeDeps: {
+      include: [
+        '@uiw/react-codemirror',
+        '@codemirror/lang-javascript',
+        '@codemirror/lang-python'
+      ],
       // Reduce the number of files opened during optimization
       esbuildOptions: {
         loader: {
