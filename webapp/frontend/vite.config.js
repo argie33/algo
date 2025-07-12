@@ -73,7 +73,10 @@ export default defineConfig(({ mode }) => {
       include: [
         '@uiw/react-codemirror',
         '@codemirror/lang-javascript',
-        '@codemirror/lang-python'
+        '@codemirror/lang-python',
+        '@emotion/react',
+        '@emotion/styled',
+        '@emotion/cache'
       ],
       // Reduce the number of files opened during optimization
       esbuildOptions: {
