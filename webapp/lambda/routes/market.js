@@ -1260,9 +1260,9 @@ router.get('/naaim', async (req, res) => {
     const naaimQuery = `
       SELECT 
         date,
-        exposure_index,
-        long_exposure,
-        short_exposure
+        naaim_number_mean as exposure_index,
+        bullish as long_exposure,
+        bearish as short_exposure
       FROM naaim
       ORDER BY date DESC
       LIMIT $1
