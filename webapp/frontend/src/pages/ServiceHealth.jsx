@@ -117,7 +117,7 @@ function ServiceHealth() {
         console.log('Starting enhanced database health check...');
         console.log('Request started at:', new Date().toISOString());
         
-        const response = await api.get('/health/database', {
+        const response = await api.get('/health', {
           timeout: 180000, // 3 minutes
           validateStatus: (status) => status < 500
         });
@@ -221,9 +221,9 @@ function ServiceHealth() {
       tests: [
         { name: 'Health Check (Quick)', fn: () => healthCheck(true), critical: true },
         { name: 'Health Check (Full)', fn: () => healthCheck(), critical: true },
-        { name: 'Database Health', fn: () => api.get('/health/database'), critical: true },
-        { name: 'Database Diagnostics', fn: () => api.get('/health/database/diagnostics'), critical: false },
-        { name: 'Health Status Summary', fn: () => api.get('/health/status-summary'), critical: false }
+        { name: 'Database Health', fn: () => api.get('/health'), critical: true },
+        { name: 'Table Readiness Check', fn: () => api.get('/health/ready'), critical: false },
+        { name: 'Quick Health Check', fn: () => api.get('/health?quick=true'), critical: false }
       ]
     },
     {
@@ -434,7 +434,8 @@ function ServiceHealth() {
       setRefreshing(true);
       
       // Use the standard api instance to trigger background update
-      await api.post('/health/update-status');
+      // Note: Health status update not implemented yet
+      console.log('Health status would be updated here');
       
       // Use React Query's refetch to get updated data
       await refetchDb();
