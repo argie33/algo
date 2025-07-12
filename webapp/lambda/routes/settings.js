@@ -342,21 +342,18 @@ router.post('/api-keys', async (req, res) => {
         column: error.column
       });
       
-      // Return success but with note about database issue  
-      res.json({
-        success: true,
-        message: 'API key configuration saved (pending database sync)',
-        apiKey: {
-          id: `temp-${Date.now()}`,
-          provider: provider,
-          description: description,
-          isSandbox: isSandbox,
-          createdAt: new Date().toISOString()
-        },
-        note: 'API key configuration saved locally - database connectivity issue',
+      // Return error with clear message about database issue
+      res.status(500).json({
+        success: false,
+        error: 'Database connectivity issue - API key not saved',
+        message: 'Failed to save API key to database. Please check database connectivity.',
+        details: error.message,
+        errorCode: error.code,
         debugInfo: process.env.NODE_ENV === 'development' ? {
           errorCode: error.code,
-          errorMessage: error.message
+          errorMessage: error.message,
+          userId: req.user?.sub,
+          provider: provider
         } : undefined
       });
     }

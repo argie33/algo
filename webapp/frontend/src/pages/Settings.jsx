@@ -296,13 +296,15 @@ const Settings = () => {
       });
 
       if (response.ok) {
-        showSnackbar('API key added successfully');
+        showSnackbar('API key added successfully! If you don\'t see it in the list, there may be a temporary database connectivity issue. Try refreshing the page.', 'success');
         setAddApiKeyDialog(false);
         setNewApiKey({ brokerName: '', apiKey: '', apiSecret: '', sandbox: true });
         await loadApiKeys();
       } else {
         const error = await response.json();
-        showSnackbar(error.error || 'Failed to add API key', 'error');
+        const errorMessage = error.error || error.message || 'Failed to add API key';
+        showSnackbar(`${errorMessage}${error.debugInfo ? ` (Error: ${error.errorCode})` : ''}`, 'error');
+        console.error('API Key Save Error:', error);
       }
     } catch (error) {
       console.error('Error adding API key:', error);
