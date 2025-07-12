@@ -241,9 +241,22 @@ function useWatchlistData() {
 }
 
 const mockPortfolio = {
+  value: 125000,
   totalValue: 125000,
   dayChange: 2500,
   dayChangePercent: 2.04,
+  pnl: {
+    daily: 2500,
+    mtd: 4200,
+    ytd: 18750
+  },
+  allocation: [
+    { name: 'Technology', value: 45.2, color: '#1976d2' },
+    { name: 'Healthcare', value: 18.7, color: '#43a047' },
+    { name: 'Finance', value: 15.3, color: '#ffb300' },
+    { name: 'Consumer', value: 12.4, color: '#8e24aa' },
+    { name: 'Other', value: 8.4, color: '#e53935' }
+  ],
   holdings: [
     { symbol: 'AAPL', shares: 100, value: 19500, change: 2.1 },
     { symbol: 'TSLA', shares: 25, value: 17755, change: -1.8 },
