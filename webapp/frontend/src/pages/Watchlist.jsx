@@ -222,6 +222,20 @@ const Watchlist = () => {
         setWatchlistItems(response);
       } else if (response && Array.isArray(response.data)) {
         setWatchlistItems(response.data);
+      } else if (response && response.data && Array.isArray(response.data.items)) {
+        setWatchlistItems(response.data.items);
+      } else if (response && response.success && response.data) {
+        // Handle case where data is an object with items or other structure
+        console.log('API response structure:', response);
+        if (Array.isArray(response.data.watchlistItems)) {
+          setWatchlistItems(response.data.watchlistItems);
+        } else if (Array.isArray(response.data.stocks)) {
+          setWatchlistItems(response.data.stocks);
+        } else {
+          // If data is an object but no recognizable array, use empty array
+          console.warn('No recognizable array in API response, using empty array');
+          setWatchlistItems([]);
+        }
       } else {
         console.warn('API response is not an array:', response);
         throw new Error('Invalid API response format');
