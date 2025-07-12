@@ -159,7 +159,8 @@ const SettingsApiKeys = () => {
         fetchApiKeys();
       }, 1000);
     } catch (err) {
-      setError('Failed to add API key');
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to add API key';
+      setError(`Failed to add API key: ${errorMessage}`);
       console.error('Add API key error:', err);
     }
   };

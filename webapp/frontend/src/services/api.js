@@ -389,20 +389,13 @@ export const addApiKey = async (apiKeyData) => {
     return response.data;
   } catch (error) {
     console.error('Error adding API key:', error);
-    // Return mock success for 500 errors until backend is fixed
-    if (error.response?.status === 500) {
-      console.warn('API key endpoint not available, simulating success');
-      return {
-        success: true,
-        message: 'API key saved locally (backend not available)',
-        apiKey: {
-          id: Date.now(),
-          name: apiKeyData.name,
-          provider: apiKeyData.provider,
-          status: 'pending'
-        }
-      };
-    }
+    // Log error details for debugging
+    console.error('API Key Error Details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     throw error;
   }
 };
