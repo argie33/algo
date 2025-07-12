@@ -279,11 +279,11 @@ function useMarketOverview() {
   return useQuery({
     queryKey: ['market-overview'],
     queryFn: async () => {
-      return dataCache.get('/market', {}, {
+      return dataCache.get('/market/overview', {}, {
         cacheType: 'marketData',
         fetchFunction: async () => {
           try {
-            const res = await fetch(`${API_BASE}/market`);
+            const res = await fetch(`${API_BASE}/market/overview`);
             if (!res.ok) throw new Error('Failed to fetch market overview');
             return res.json();
           } catch (err) {

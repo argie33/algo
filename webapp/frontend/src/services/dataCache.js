@@ -173,7 +173,7 @@ class DataCacheService {
       console.log('[Cache] Preloading common data during off-hours');
       
       const commonEndpoints = [
-        { endpoint: '/market', cacheType: 'marketData' },
+        { endpoint: '/market/overview', cacheType: 'marketData' },
         { endpoint: '/stocks?limit=10', cacheType: 'stockData' },
         { endpoint: '/metrics', cacheType: 'metricsData' }
       ];
