@@ -198,14 +198,37 @@ export const getPortfolioAnalytics = async (timeframe = '1Y') => {
           volatility: 18.7,
           sharpeRatio: 1.45,
           maxDrawdown: -8.2,
-          winRate: 68.5
+          winRate: 68.5,
+          sectorPerformance: [
+            { sector: 'Technology', return: 15.2 },
+            { sector: 'Healthcare', return: 8.7 },
+            { sector: 'Finance', return: 6.3 },
+            { sector: 'Consumer', return: 12.1 },
+            { sector: 'Energy', return: -2.4 }
+          ],
+          holdingsPerformance: [
+            { symbol: 'AAPL', return: 12.5, volatility: 22.1, rating: 'A+' },
+            { symbol: 'MSFT', return: 8.3, volatility: 18.7, rating: 'A' },
+            { symbol: 'GOOGL', return: -2.1, volatility: 25.4, rating: 'B+' },
+            { symbol: 'AMZN', return: 15.7, volatility: 28.9, rating: 'A-' },
+            { symbol: 'TSLA', return: -5.8, volatility: 45.2, rating: 'B' }
+          ]
         },
-        attribution: [
-          { name: 'Security Selection', value: 3.2 },
-          { name: 'Asset Allocation', value: 1.8 },
-          { name: 'Market Timing', value: -0.5 },
-          { name: 'Other', value: 0.8 }
-        ],
+        attribution: {
+          sectorAttribution: [
+            { name: 'Technology', contribution: 3.2 },
+            { name: 'Healthcare', contribution: 1.8 },
+            { name: 'Finance', contribution: -0.5 },
+            { name: 'Consumer', contribution: 0.8 }
+          ],
+          stockAttribution: [
+            { symbol: 'AAPL', weight: 15.2, return: 12.5, contribution: 1.9 },
+            { symbol: 'MSFT', weight: 12.8, return: 8.3, contribution: 1.1 },
+            { symbol: 'GOOGL', weight: 10.5, return: -2.1, contribution: -0.2 },
+            { symbol: 'AMZN', weight: 8.9, return: 15.7, contribution: 1.4 },
+            { symbol: 'TSLA', weight: 7.3, return: -5.8, contribution: -0.4 }
+          ]
+        },
         risk: {
           beta: 1.1,
           alpha: 2.3,
