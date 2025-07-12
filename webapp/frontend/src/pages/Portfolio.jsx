@@ -692,18 +692,35 @@ const Portfolio = () => {
 
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {
-    const { holdings } = portfolioData;
-    const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
-    const totalCost = holdings.reduce((sum, h) => sum + (h.avgCost * h.shares), 0);
-    const totalGainLoss = totalValue - totalCost;
-    const totalGainLossPercent = ((totalValue - totalCost) / totalCost) * 100;
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {
+        totalValue: 0,
+        totalCost: 0,
+        totalGainLoss: 0,
+        totalGainLossPercent: 0,
+        volatility: 0,
+        sharpeRatio: 0,
+        beta: 1,
+        var95: 0,
+        maxDrawdown: 0,
+        treynorRatio: 0,
+        informationRatio: 0,
+        calmarRatio: 0
+      };
+    }
 
-    // Calculate risk metrics
+    const { holdings } = portfolioData;
+    const totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+    const totalCost = holdings.reduce((sum, h) => sum + ((h.avgCost || 0) * (h.shares || 0)), 0);
+    const totalGainLoss = totalValue - totalCost;
+    const totalGainLossPercent = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
+
+    // Calculate risk metrics with safe defaults
     const volatility = calculatePortfolioVolatility(holdings);
     const sharpeRatio = calculateSharpeRatio(totalGainLossPercent, volatility);
     const beta = calculatePortfolioBeta(holdings);
     const var95 = calculateVaR(holdings, 0.95);
-    const maxDrawdown = calculateMaxDrawdown(portfolioData.performanceHistory);
+    const maxDrawdown = calculateMaxDrawdown(portfolioData.performanceHistory || []);
 
     return {
       totalValue,
@@ -715,21 +732,32 @@ const Portfolio = () => {
       beta,
       var95,
       maxDrawdown,
-      treynorRatio: totalGainLossPercent / beta,
-      informationRatio: calculateInformationRatio(portfolioData.performanceHistory),
-      calmarRatio: totalGainLossPercent / Math.abs(maxDrawdown)
+      treynorRatio: beta !== 0 ? totalGainLossPercent / beta : 0,
+      informationRatio: calculateInformationRatio(portfolioData.performanceHistory || []),
+      calmarRatio: maxDrawdown !== 0 ? totalGainLossPercent / Math.abs(maxDrawdown) : 0
     };
   }, [portfolioData]);
 
   // Factor analysis calculations
   const factorAnalysis = useMemo(() => {
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {};
+    }
     return calculateFactorExposure(portfolioData.holdings);
-  }, [portfolioData.holdings]);
+  }, [portfolioData]);
 
   // Sector and geographic diversification
   const diversificationMetrics = useMemo(() => {
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {
+        sectorConcentration: 0,
+        geographicDiversification: 0,
+        marketCapExposure: {},
+        concentrationRisk: 0
+      };
+    }
     return {
-      sectorConcentration: calculateConcentrationRisk(portfolioData.sectorAllocation),
+      sectorConcentration: calculateConcentrationRisk(portfolioData.sectorAllocation || []),
       geographicDiversification: calculateGeographicDiversification(portfolioData.holdings),
       marketCapExposure: calculateMarketCapExposure(portfolioData.holdings),
       concentrationRisk: calculateHerfindahlIndex(portfolioData.holdings)
