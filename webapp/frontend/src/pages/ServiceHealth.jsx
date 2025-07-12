@@ -731,7 +731,7 @@ function ServiceHealth() {
                           <Box sx={{ ml: 'auto', mr: 2 }}>
                             {(() => {
                               const testArray = Object.values(tests || {});
-                              const successCount = testArray.filter(t => t.status === 'success').length;
+                              const successCount = testArray.filter(t => t && t.status === 'success').length;
                               const totalCount = testArray.length;
                               const allSuccess = successCount === totalCount;
                               return (
@@ -1058,9 +1058,9 @@ function ServiceHealth() {
                                 <TableCell>
                                   <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                                     <Chip
-                                      icon={getStatusIcon(tableData.status)}
-                                      label={tableData.status}
-                                      color={getStatusColor(tableData.status)}
+                                      icon={getStatusIcon(tableData?.status)}
+                                      label={tableData?.status || 'Unknown'}
+                                      color={getStatusColor(tableData?.status)}
                                       size="small"
                                       sx={{ minWidth: 80 }}
                                     />
