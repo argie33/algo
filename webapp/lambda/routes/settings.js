@@ -783,26 +783,95 @@ router.put('/profile', async (req, res) => {
   const userId = req.user.sub;
   const { firstName, lastName, email, phone, timezone, currency } = req.body;
 
+  console.log('🔄 Profile update request for user:', userId);
+  console.log('📝 Update data:', { firstName, lastName, email, phone, timezone, currency });
+
   try {
-    const result = await query(`
+    // First, check what columns actually exist in the users table
+    const columnCheck = await query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'users'
+    `);
+    
+    const existingColumns = columnCheck.rows.map(row => row.column_name);
+    console.log('📋 Available columns in users table:', existingColumns);
+    
+    // Build dynamic query based on existing columns
+    const updates = [];
+    const values = [userId];
+    let valueIndex = 2;
+    
+    // Check each field and only include if column exists
+    if (existingColumns.includes('first_name') && firstName !== undefined) {
+      updates.push(`first_name = $${valueIndex}`);
+      values.push(firstName);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('last_name') && lastName !== undefined) {
+      updates.push(`last_name = $${valueIndex}`);
+      values.push(lastName);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('email') && email !== undefined) {
+      updates.push(`email = $${valueIndex}`);
+      values.push(email);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('phone') && phone !== undefined) {
+      updates.push(`phone = $${valueIndex}`);
+      values.push(phone);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('timezone') && timezone !== undefined) {
+      updates.push(`timezone = $${valueIndex}`);
+      values.push(timezone);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('currency') && currency !== undefined) {
+      updates.push(`currency = $${valueIndex}`);
+      values.push(currency);
+      valueIndex++;
+    }
+    
+    if (existingColumns.includes('updated_at')) {
+      updates.push('updated_at = NOW()');
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update',
+        availableColumns: existingColumns,
+        note: 'Database schema may need updating to support profile fields'
+      });
+    }
+    
+    // Build the return fields based on existing columns
+    const returnFields = [];
+    if (existingColumns.includes('first_name')) returnFields.push('first_name as "firstName"');
+    if (existingColumns.includes('last_name')) returnFields.push('last_name as "lastName"');
+    if (existingColumns.includes('email')) returnFields.push('email');
+    if (existingColumns.includes('phone')) returnFields.push('phone');
+    if (existingColumns.includes('timezone')) returnFields.push('timezone');
+    if (existingColumns.includes('currency')) returnFields.push('currency');
+    
+    const updateQuery = `
       UPDATE users 
-      SET 
-        first_name = COALESCE($2, first_name),
-        last_name = COALESCE($3, last_name),
-        email = COALESCE($4, email),
-        phone = COALESCE($5, phone),
-        timezone = COALESCE($6, timezone),
-        currency = COALESCE($7, currency),
-        updated_at = NOW()
+      SET ${updates.join(', ')}
       WHERE id = $1
-      RETURNING 
-        first_name as "firstName",
-        last_name as "lastName",
-        email,
-        phone,
-        timezone,
-        currency
-    `, [userId, firstName, lastName, email, phone, timezone, currency]);
+      RETURNING ${returnFields.length > 0 ? returnFields.join(', ') : 'id'}
+    `;
+    
+    console.log('🔍 Executing query:', updateQuery);
+    console.log('📊 Query values:', values);
+    
+    const result = await query(updateQuery, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -811,16 +880,41 @@ router.put('/profile', async (req, res) => {
       });
     }
 
+    console.log('✅ Profile update successful');
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      user: result.rows[0]
+      user: result.rows[0],
+      updatedFields: updates.filter(u => !u.includes('updated_at')),
+      availableColumns: existingColumns
     });
   } catch (error) {
-    console.error('Error updating user profile:', error);
-    res.status(500).json({
+    console.error('❌ Error updating user profile:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint
+    });
+    
+    // Provide specific error information
+    let errorMessage = 'Failed to update user profile';
+    let statusCode = 500;
+    
+    if (error.code === '42703') { // Column doesn't exist
+      errorMessage = 'Database schema missing required columns for profile updates';
+      statusCode = 503;
+    } else if (error.code === '42P01') { // Table doesn't exist
+      errorMessage = 'Users table does not exist';
+      statusCode = 503;
+    }
+    
+    res.status(statusCode).json({
       success: false,
-      error: 'Failed to update user profile'
+      error: errorMessage,
+      details: error.message,
+      errorCode: error.code,
+      note: 'Database schema may need updating for profile management'
     });
   }
 });
@@ -1301,6 +1395,99 @@ router.post('/revoke-sessions', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to revoke sessions'
+    });
+  }
+});
+
+// Debug/admin endpoint to add missing database columns
+router.post('/debug/fix-schema', async (req, res) => {
+  console.log('🔧 Database schema fix requested');
+  
+  try {
+    const { transaction } = require('../utils/database');
+    
+    const result = await transaction(async (client) => {
+      const fixes = [];
+      
+      // Add missing columns to users table
+      const userColumns = [
+        { name: 'first_name', type: 'VARCHAR(100)' },
+        { name: 'last_name', type: 'VARCHAR(100)' },
+        { name: 'phone', type: 'VARCHAR(20)' },
+        { name: 'timezone', type: "VARCHAR(50) DEFAULT 'America/New_York'" },
+        { name: 'currency', type: "VARCHAR(3) DEFAULT 'USD'" },
+        { name: 'two_factor_enabled', type: 'BOOLEAN DEFAULT FALSE' },
+        { name: 'two_factor_secret', type: 'VARCHAR(255)' },
+        { name: 'recovery_codes', type: 'TEXT' },
+        { name: 'deleted_at', type: 'TIMESTAMP' }
+      ];
+      
+      for (const col of userColumns) {
+        try {
+          await client.query(`
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}
+          `);
+          fixes.push(`Added ${col.name} to users table`);
+        } catch (error) {
+          fixes.push(`Failed to add ${col.name}: ${error.message}`);
+        }
+      }
+      
+      // Create user preference tables
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS user_notification_preferences (
+            user_id INTEGER PRIMARY KEY,
+            email_notifications BOOLEAN DEFAULT TRUE,
+            push_notifications BOOLEAN DEFAULT TRUE,
+            price_alerts BOOLEAN DEFAULT TRUE,
+            portfolio_updates BOOLEAN DEFAULT TRUE,
+            market_news BOOLEAN DEFAULT FALSE,
+            weekly_reports BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        fixes.push('Created user_notification_preferences table');
+      } catch (error) {
+        fixes.push(`Failed to create user_notification_preferences: ${error.message}`);
+      }
+      
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS user_theme_preferences (
+            user_id INTEGER PRIMARY KEY,
+            dark_mode BOOLEAN DEFAULT FALSE,
+            primary_color VARCHAR(20) DEFAULT '#1976d2',
+            chart_style VARCHAR(20) DEFAULT 'candlestick',
+            layout VARCHAR(20) DEFAULT 'standard',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        fixes.push('Created user_theme_preferences table');
+      } catch (error) {
+        fixes.push(`Failed to create user_theme_preferences: ${error.message}`);
+      }
+      
+      return fixes;
+    });
+    
+    console.log('✅ Schema fixes applied:', result);
+    res.json({
+      success: true,
+      message: 'Database schema fixes applied',
+      fixes: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Schema fix failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to apply schema fixes',
+      details: error.message
     });
   }
 });

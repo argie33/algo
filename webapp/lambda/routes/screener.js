@@ -473,8 +473,8 @@ router.get('/filters', async (req, res) => {
   }
 });
 
-// Get preset screens
-router.get('/presets', (req, res) => {
+// Get preset screens (also available as /templates for backwards compatibility)
+const getPresets = (req, res) => {
   const presets = [
     {
       id: 'value_stocks',
@@ -553,7 +553,10 @@ router.get('/presets', (req, res) => {
     success: true,
     data: presets
   });
-});
+};
+
+router.get('/presets', getPresets);
+router.get('/templates', getPresets); // Alias for backwards compatibility
 
 // Apply preset screen
 router.post('/presets/:presetId/apply', (req, res) => {

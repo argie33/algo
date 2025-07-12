@@ -57,6 +57,15 @@ def create_all_tables(cursor, conn):
             email VARCHAR(255) UNIQUE NOT NULL,
             username VARCHAR(100) UNIQUE NOT NULL,
             password_hash VARCHAR(255),
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            phone VARCHAR(20),
+            timezone VARCHAR(50) DEFAULT 'America/New_York',
+            currency VARCHAR(3) DEFAULT 'USD',
+            two_factor_enabled BOOLEAN DEFAULT FALSE,
+            two_factor_secret VARCHAR(255),
+            recovery_codes TEXT,
+            deleted_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_active BOOLEAN DEFAULT TRUE,
@@ -161,6 +170,33 @@ def create_all_tables(cursor, conn):
             script_name VARCHAR(255) PRIMARY KEY,
             last_run TIMESTAMP WITH TIME ZONE
         )
+        """,
+        
+        # User preferences tables for settings endpoints
+        """
+        CREATE TABLE IF NOT EXISTS user_notification_preferences (
+            user_id INTEGER PRIMARY KEY,
+            email_notifications BOOLEAN DEFAULT TRUE,
+            push_notifications BOOLEAN DEFAULT TRUE,
+            price_alerts BOOLEAN DEFAULT TRUE,
+            portfolio_updates BOOLEAN DEFAULT TRUE,
+            market_news BOOLEAN DEFAULT FALSE,
+            weekly_reports BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        
+        """
+        CREATE TABLE IF NOT EXISTS user_theme_preferences (
+            user_id INTEGER PRIMARY KEY,
+            dark_mode BOOLEAN DEFAULT FALSE,
+            primary_color VARCHAR(20) DEFAULT '#1976d2',
+            chart_style VARCHAR(20) DEFAULT 'candlestick',
+            layout VARCHAR(20) DEFAULT 'standard',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """
         
         # NOTE: Other data loading tables (market_data, key_metrics, etc.)
@@ -184,7 +220,10 @@ def create_all_tables(cursor, conn):
         # Shared dependency table indexes
         "CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol)",
         "CREATE INDEX IF NOT EXISTS idx_etf_symbols_symbol ON etf_symbols(symbol)",
-        "CREATE INDEX IF NOT EXISTS idx_last_updated_script ON last_updated(script_name)"
+        "CREATE INDEX IF NOT EXISTS idx_last_updated_script ON last_updated(script_name)",
+        # User preferences table indexes
+        "CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON user_notification_preferences(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_theme_preferences_user_id ON user_theme_preferences(user_id)"
     ]
     
     try:
@@ -199,7 +238,32 @@ def create_all_tables(cursor, conn):
                 raise
         
         # Add missing columns to existing tables if needed
-        logger.info("Checking and adding missing columns to portfolio tables")
+        logger.info("Checking and adding missing columns to users and portfolio tables")
+        
+        # Add missing columns to users table for profile management
+        user_missing_columns = [
+            ("first_name", "VARCHAR(100)"),
+            ("last_name", "VARCHAR(100)"),
+            ("phone", "VARCHAR(20)"),
+            ("timezone", "VARCHAR(50) DEFAULT 'America/New_York'"),
+            ("currency", "VARCHAR(3) DEFAULT 'USD'"),
+            ("two_factor_enabled", "BOOLEAN DEFAULT FALSE"),
+            ("two_factor_secret", "VARCHAR(255)"),
+            ("recovery_codes", "TEXT"),
+            ("deleted_at", "TIMESTAMP")
+        ]
+        
+        for col_name, col_type in user_missing_columns:
+            try:
+                cursor.execute(f"""
+                    ALTER TABLE users 
+                    ADD COLUMN IF NOT EXISTS {col_name} {col_type}
+                """)
+                conn.commit()  # Commit each column addition
+                logger.info(f"Added {col_name} column to users table (if missing)")
+            except Exception as e:
+                conn.rollback()  # Rollback failed transaction
+                logger.warning(f"Could not add {col_name} to users table: {e}")
         
         # Add api_key_id column to portfolio_metadata if it doesn't exist
         try:
@@ -291,7 +355,9 @@ def create_all_tables(cursor, conn):
             "CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
             "CREATE TRIGGER update_user_api_keys_updated_at BEFORE UPDATE ON user_api_keys FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
             "CREATE TRIGGER update_portfolio_metadata_updated_at BEFORE UPDATE ON portfolio_metadata FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
-            "CREATE TRIGGER update_portfolio_holdings_updated_at BEFORE UPDATE ON portfolio_holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+            "CREATE TRIGGER update_portfolio_holdings_updated_at BEFORE UPDATE ON portfolio_holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+            "CREATE TRIGGER update_user_notification_preferences_updated_at BEFORE UPDATE ON user_notification_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+            "CREATE TRIGGER update_user_theme_preferences_updated_at BEFORE UPDATE ON user_theme_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
         ]
         
         for i, trigger_sql in enumerate(triggers):

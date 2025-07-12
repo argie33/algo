@@ -246,6 +246,44 @@ router.get('/debug/test-query', async (req, res) => {
   }
 });
 
+// Debug endpoint to check table structure
+router.get('/debug/table-structure', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    const tableName = req.query.table || 'users';
+    
+    // Get table column information
+    const result = await query(`
+      SELECT 
+        column_name,
+        data_type,
+        is_nullable,
+        column_default,
+        character_maximum_length
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = $1
+      ORDER BY ordinal_position
+    `, [tableName]);
+    
+    res.json({
+      status: 'success',
+      table: tableName,
+      column_count: result.rows.length,
+      columns: result.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Table structure check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      table: req.query.table || 'users',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint for environment and configuration
 router.get('/debug/env', async (req, res) => {
   try {
