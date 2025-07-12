@@ -548,19 +548,6 @@ const Portfolio = () => {
     loadPortfolioData();
   }, [isAuthenticated, user, dataSource, accountType]);
 
-  // Load available API connections
-  const loadAvailableConnections = async () => {
-    try {
-      const response = await getApiKeys();
-      const connections = response?.apiKeys || [];
-      setAvailableConnections(connections.filter(conn => 
-        ['alpaca', 'robinhood'].includes(conn.provider.toLowerCase())
-      ));
-    } catch (error) {
-      console.error('Failed to load API connections:', error);
-    }
-  };
-
   // Load available accounts when authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
