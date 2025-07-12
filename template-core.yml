@@ -232,6 +232,30 @@ Resources:
             yum update -y
             yum install -y awscli jq
 
+            # Install PostgreSQL client
+            echo "Installing PostgreSQL client..."
+            if amazon-linux-extras list | grep -q postgresql; then
+              echo "Installing PostgreSQL via amazon-linux-extras..."
+              amazon-linux-extras install -y postgresql14
+            elif yum list available | grep -q postgresql15; then
+              echo "Installing PostgreSQL 15..."
+              yum install -y postgresql15
+            elif yum list available | grep -q postgresql; then
+              echo "Installing default PostgreSQL..."
+              yum install -y postgresql
+            else
+              echo "Installing PostgreSQL from source repository..."
+              yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm || true
+              yum install -y postgresql14 || yum install -y postgresql
+            fi
+            
+            # Verify PostgreSQL installation
+            if command -v psql >/dev/null 2>&1; then
+              echo "PostgreSQL installed successfully: $(psql --version)"
+            else
+              echo "Warning: PostgreSQL installation may have failed"
+            fi
+
             # configure AWS region
             aws configure set region ${AWS::Region}
 
