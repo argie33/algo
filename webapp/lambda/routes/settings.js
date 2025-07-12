@@ -249,11 +249,22 @@ router.get('/api-keys', async (req, res) => {
 
 // Add new API key
 router.post('/api-keys', async (req, res) => {
-  const userId = req.user.sub;
+  const userId = req.user?.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
   
   console.log('🔐 POST /api-keys - Creating key for user:', userId);
+  console.log('👤 User object:', req.user);
   console.log('📝 Key details:', { provider, isSandbox, description, hasApiKey: !!apiKey, hasSecret: !!apiSecret });
+
+  // Check if user is properly authenticated
+  if (!userId) {
+    console.error('❌ No user ID found in request');
+    return res.status(401).json({
+      success: false,
+      error: 'User not authenticated',
+      message: 'User ID not found in authentication token'
+    });
+  }
 
   if (!provider || !apiKey) {
     return res.status(400).json({
@@ -263,13 +274,16 @@ router.post('/api-keys', async (req, res) => {
   }
 
   try {
+    console.log('🧂 Generating user salt...');
     // Generate user-specific salt
     const userSalt = crypto.randomBytes(16).toString('hex');
     
+    console.log('🔐 Encrypting API credentials...');
     // Encrypt API credentials
     const encryptedApiKey = encryptApiKey(apiKey, userSalt);
     const encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
 
+    console.log('💾 Attempting database insert...');
     // Insert into database
     const result = await query(`
       INSERT INTO user_api_keys (
@@ -308,7 +322,18 @@ router.post('/api-keys', async (req, res) => {
       apiKey: result.rows[0]
     });
   } catch (error) {
-    console.error('Error adding API key:', error);
+    console.error('❌ Error adding API key:', error.message);
+    console.error('🔍 Full error details:', {
+      message: error.message,
+      code: error.code,
+      severity: error.severity,
+      detail: error.detail,
+      hint: error.hint,
+      constraint: error.constraint,
+      table: error.table,
+      column: error.column,
+      stack: error.stack
+    });
     
     if (error.code === '23505') { // Unique constraint violation
       res.status(400).json({
