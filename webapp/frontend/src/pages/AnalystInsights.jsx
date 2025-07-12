@@ -55,7 +55,8 @@ import {
   FilterList,
   Clear,
   Search,
-  Refresh
+  Refresh,
+  HorizontalRule
 } from '@mui/icons-material';
 
 // Create component-specific logger
