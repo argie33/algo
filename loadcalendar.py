@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v1.8 - retrigger after fixing workflow Dockerfile mapping  
+# Load calendar data - trigger v1.9 - testing comprehensive workflow fixes and robustness
 # Updated 2025-07-12: Fixed workflow issues, testing build and deploy pipeline for earnings calendar data
 import sys
 import time

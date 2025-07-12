@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v5 - force rebuild after Docker image missing
+# Daily technicals loader - deployment test v6 - testing workflow fixes and exit code logic
 # Updated 2025-07-12: Fixed workflow issues, comprehensive error handling and memory optimization
 import sys
 import time
