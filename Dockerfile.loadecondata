@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+# system deps for psycopg2
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc libpq-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# install Python deps
+RUN pip install --no-cache-dir boto3 pandas fredapi psycopg2-binary
+
+# copy the loader script
+COPY loadecondata.py /app/index.py
+
+WORKDIR /app
+ENTRYPOINT ["python", "index.py"]
