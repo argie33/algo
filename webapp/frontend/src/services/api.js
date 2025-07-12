@@ -1467,10 +1467,14 @@ export const screenStocks = async (params) => {
     // Use the stocks screening endpoint
     const endpoint = '/stocks/screen';
     
-    console.log('🔍 [API] Screening stocks with params:', params.toString());
-    console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${params.toString()}`);
+    // Properly serialize params to query string
+    const queryParams = new URLSearchParams(params);
+    const queryString = queryParams.toString();
     
-    const response = await api.get(`${endpoint}?${params.toString()}`, {
+    console.log('🔍 [API] Screening stocks with params:', params);
+    console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${queryString}`);
+    
+    const response = await api.get(`${endpoint}?${queryString}`, {
       baseURL: currentConfig.baseURL
     });
     

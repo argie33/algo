@@ -298,4 +298,155 @@ router.get('/debug/cors-test', async (req, res) => {
   });
 });
 
+// Create essential database tables
+router.post('/create-tables', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    
+    console.log('Creating essential database tables...');
+    
+    // Create core tables needed for the application
+    const tables = [
+      // Stock symbols table
+      `CREATE TABLE IF NOT EXISTS stock_symbols (
+        symbol VARCHAR(50) PRIMARY KEY,
+        exchange VARCHAR(100),
+        security_name TEXT,
+        cqs_symbol VARCHAR(50),
+        market_category VARCHAR(50),
+        test_issue CHAR(1),
+        financial_status VARCHAR(50),
+        round_lot_size INT,
+        etf CHAR(1),
+        secondary_symbol VARCHAR(50),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
+      // ETF symbols table
+      `CREATE TABLE IF NOT EXISTS etf_symbols (
+        symbol VARCHAR(50) PRIMARY KEY,
+        exchange VARCHAR(100),
+        security_name TEXT,
+        fund_family VARCHAR(255),
+        category VARCHAR(100),
+        sub_category VARCHAR(100),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
+      // Users table for authentication
+      `CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(50) UNIQUE,
+        email VARCHAR(255) UNIQUE,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        phone VARCHAR(20),
+        timezone VARCHAR(50) DEFAULT 'UTC',
+        currency VARCHAR(3) DEFAULT 'USD',
+        two_factor_enabled BOOLEAN DEFAULT FALSE,
+        two_factor_secret VARCHAR(255),
+        recovery_codes JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
+      )`,
+      
+      // User API keys table
+      `CREATE TABLE IF NOT EXISTS user_api_keys (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        encrypted_api_key TEXT NOT NULL,
+        key_iv VARCHAR(255),
+        key_auth_tag VARCHAR(255),
+        encrypted_api_secret TEXT,
+        secret_iv VARCHAR(255),
+        secret_auth_tag VARCHAR(255),
+        user_salt VARCHAR(255),
+        is_sandbox BOOLEAN DEFAULT TRUE,
+        description VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP,
+        UNIQUE(user_id, provider)
+      )`,
+      
+      // Portfolio holdings table
+      `CREATE TABLE IF NOT EXISTS portfolio_holdings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        symbol VARCHAR(50) NOT NULL,
+        quantity DECIMAL(15,6) NOT NULL,
+        cost_basis DECIMAL(15,2),
+        market_value DECIMAL(15,2),
+        gain_loss DECIMAL(15,2),
+        gain_loss_percent DECIMAL(8,4),
+        account_type VARCHAR(20) DEFAULT 'paper',
+        broker VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
+      // Metrics table for dashboard
+      `CREATE TABLE IF NOT EXISTS metrics (
+        id SERIAL PRIMARY KEY,
+        metric_name VARCHAR(100) NOT NULL,
+        metric_value DECIMAL(15,4),
+        metric_date DATE,
+        symbol VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`
+    ];
+    
+    const results = [];
+    for (let i = 0; i < tables.length; i++) {
+      try {
+        await query(tables[i]);
+        results.push({ table: i + 1, status: 'created' });
+        console.log(`✅ Table ${i + 1} created successfully`);
+      } catch (error) {
+        results.push({ table: i + 1, status: 'error', error: error.message });
+        console.log(`❌ Table ${i + 1} failed:`, error.message);
+      }
+    }
+    
+    // Insert some basic data
+    try {
+      // Add a few sample stocks
+      await query(`
+        INSERT INTO stock_symbols (symbol, security_name, exchange, is_active) 
+        VALUES 
+          ('AAPL', 'Apple Inc.', 'NASDAQ', true),
+          ('GOOGL', 'Alphabet Inc.', 'NASDAQ', true),
+          ('MSFT', 'Microsoft Corporation', 'NASDAQ', true),
+          ('TSLA', 'Tesla Inc.', 'NASDAQ', true),
+          ('AMZN', 'Amazon.com Inc.', 'NASDAQ', true)
+        ON CONFLICT (symbol) DO NOTHING
+      `);
+      results.push({ sample_data: 'inserted' });
+    } catch (error) {
+      results.push({ sample_data: 'error', error: error.message });
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Database tables created successfully',
+      results: results,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error creating tables:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;
