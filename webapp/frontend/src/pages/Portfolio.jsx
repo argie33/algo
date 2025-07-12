@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Portfolio page - updated to use real data instead of mock data
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getApiKeys } from '../services/api';
+import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
 import {
   Box,
   Container,
