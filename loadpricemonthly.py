@@ -168,17 +168,20 @@ def load_prices(table_name, symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
-    log_mem("startup")
+    try:
+        log_mem("startup")
+        logging.info("Starting pricemonthly loader...")
 
-    # Connect to DB
-    cfg  = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Connect to DB with timeout
+        cfg  = get_db_config()
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"],
+            connect_timeout=30
+        )
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Recreate tables
     logging.info("Recreating price_monthly table…")
@@ -244,6 +247,17 @@ if __name__ == "__main__":
     logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
     logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
 
-    cur.close()
-    conn.close()
-    logging.info("All done.")
+        cur.close()
+        conn.close()
+        logging.info("All done. Exiting successfully.")
+        sys.exit(0)
+        
+    except KeyError as e:
+        logging.error(f"Missing environment variable: {e}")
+        sys.exit(1)
+    except psycopg2.Error as e:
+        logging.error(f"Database error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        sys.exit(1)

@@ -1,4 +1,4 @@
-# requirements-loadpricedaily.txt
+# requirements-loadpricemonthly.txt
 
 psycopg2-binary
 boto3
