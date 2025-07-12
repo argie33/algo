@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getApiConfig } from '../services/api';
+import { getApiConfig, api } from '../services/api';
 import {
   Box,
   Container,
@@ -94,13 +94,9 @@ const TradeHistory = () => {
 
   const fetchImportStatus = async () => {
     try {
-      const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/api/trades/import/status`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.success) {
-        setImportStatus(data);
+      const response = await api.get('/api/trades/import/status');
+      if (response.data?.success) {
+        setImportStatus(response.data);
       }
     } catch (error) {
       console.error('Error fetching import status:', error);
@@ -122,18 +118,14 @@ const TradeHistory = () => {
         }
       });
 
-      const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/api/trades/history?${params}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
+      const response = await api.get(`/api/trades/history?${params}`);
       
-      if (data.success) {
-        setTrades(data.data.trades);
+      if (response.data?.success) {
+        setTrades(response.data.data.trades);
         setPagination(prev => ({
           ...prev,
-          total: data.data.pagination.total,
-          hasMore: data.data.pagination.hasMore
+          total: response.data.data.pagination.total,
+          hasMore: response.data.data.pagination.hasMore
         }));
       }
     } catch (error) {
@@ -146,13 +138,9 @@ const TradeHistory = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/api/trades/analytics/overview?timeframe=${timeframe}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.success) {
-        setAnalytics(data.data);
+      const response = await api.get(`/api/trades/analytics/overview?timeframe=${timeframe}`);
+      if (response.data?.success) {
+        setAnalytics(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -162,29 +150,20 @@ const TradeHistory = () => {
   const handleImportTrades = async () => {
     setImporting(true);
     try {
-      const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/api/trades/import/alpaca`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-          forceRefresh: true
-        })
+      const response = await api.post('/api/trades/import/alpaca', {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        forceRefresh: true
       });
       
-      const data = await response.json();
-      if (data.success) {
+      if (response.data?.success) {
         setAlertMessage({ severity: 'success', message: 'Trades imported successfully!' });
         fetchTradeHistory();
         fetchAnalytics();
         fetchImportStatus();
         setImportDialog(false);
       } else {
-        setAlertMessage({ severity: 'error', message: data.error || 'Import failed' });
+        setAlertMessage({ severity: 'error', message: response.data?.error || 'Import failed' });
       }
     } catch (error) {
       console.error('Error importing trades:', error);
@@ -202,13 +181,12 @@ const TradeHistory = () => {
         endDate: filters.endDate
       });
       
-      const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/api/trades/export?${params}`, {
-        credentials: 'include'
+      const response = await api.get(`/api/trades/export?${params}`, {
+        responseType: format === 'csv' ? 'blob' : 'json'
       });
       
       if (format === 'csv') {
-        const blob = await response.blob();
+        const blob = response.data;
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -216,8 +194,7 @@ const TradeHistory = () => {
         a.click();
         window.URL.revokeObjectURL(url);
       } else {
-        const data = await response.json();
-        console.log('Export data:', data);
+        console.log('Export data:', response.data);
       }
     } catch (error) {
       console.error('Error exporting data:', error);

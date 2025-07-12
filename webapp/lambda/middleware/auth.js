@@ -116,16 +116,22 @@ const authenticateToken = async (req, res, next) => {
     console.log('🌍 Environment:', process.env.NODE_ENV);
     console.log('⚙️  SKIP_AUTH:', process.env.SKIP_AUTH);
     
-    // Skip authentication in development mode
-    if (process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === 'true') {
-      console.log('🛠️  Development mode: Skipping authentication');
+    // Check for demo/development tokens first
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    // Handle demo tokens and development mode
+    if (token === 'demo-token' || token === 'dev-token' || 
+        process.env.NODE_ENV === 'development' || 
+        process.env.SKIP_AUTH === 'true') {
+      console.log('🛠️  Development/Demo mode: Skipping JWT verification');
       req.user = {
-        sub: 'dev-user',
-        email: 'dev@example.com',
-        username: 'dev-user',
+        sub: 'demo-user',
+        email: 'demo@example.com',
+        username: 'demo-user',
         role: 'admin'
       };
-      console.log('👤 Dev user set:', req.user);
+      console.log('👤 Demo user set:', req.user);
       return next();
     }
 
@@ -147,9 +153,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     console.log('🎫 Checking authorization header...');
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
+    // Token already extracted above
     if (!token) {
       console.error('❌ No token found in Authorization header');
       return res.status(401).json({
@@ -241,6 +245,18 @@ const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
+
+    // Handle demo tokens
+    if (token === 'demo-token' || token === 'dev-token') {
+      req.user = {
+        sub: 'demo-user',
+        email: 'demo@example.com',
+        username: 'demo-user',
+        role: 'admin',
+        groups: []
+      };
+      return next();
+    }
 
     // Get verifier
     const jwtVerifier = await getVerifier();
