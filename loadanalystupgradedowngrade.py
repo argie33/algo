@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Analyst upgrade/downgrade data loader for enhanced market intelligence  
-# Updated for deployment verification test - trigger v2.0 - retrigger after fixing workflow missing output
+# Updated for deployment verification test - trigger v3.0 - retrigger after fixing workflow missing output
 # Updated 2025-07-12: Fixed workflow issues, enhanced build and deploy pipeline validation for analyst data
 import sys
 import time
