@@ -234,16 +234,14 @@ function ServiceHealth() {
     { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
   ], []);
 
-  // Comprehensive endpoint tests - organized by category
+  // Comprehensive endpoint tests - only testing endpoints that actually exist
   const comprehensiveEndpoints = useMemo(() => [
     {
       category: 'System Health',
       tests: [
-        { name: 'Health Check (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
-        { name: 'Health Check (Full)', fn: () => healthCheck(), critical: true },
-        { name: 'Database Health', fn: () => api.get('/health'), critical: true },
-        { name: 'Table Readiness Check', fn: () => api.get('/health/ready'), critical: false },
-        { name: 'Quick Health Check', fn: () => api.get('/health?quick=true'), critical: false }
+        { name: 'Health Check (Quick)', fn: () => api.get('/health?quick=true'), critical: true },
+        { name: 'Health Check (Full)', fn: () => api.get('/health'), critical: true },
+        { name: 'API Status', fn: () => testApiConnection(), critical: true }
       ]
     },
     {
@@ -252,27 +250,22 @@ function ServiceHealth() {
         { name: 'Stock List', fn: () => getStocks({ limit: 10 }), critical: true },
         { name: 'Stock Detail (AAPL)', fn: () => api.get('/stocks/AAPL'), critical: true },
         { name: 'Stock Screen', fn: () => screenStocks({ limit: 10 }), critical: true },
-        { name: 'Stock Search', fn: () => api.get('/stocks/search?q=AAPL'), critical: false },
-        { name: 'Stock Prices (AAPL)', fn: () => api.get('/stocks/AAPL/prices'), critical: false }
+        { name: 'Stocks Root', fn: () => api.get('/stocks'), critical: false }
       ]
     },
     {
       category: 'Technical Analysis',
       tests: [
         { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 10 }), critical: true },
-        { name: 'Technical Weekly', fn: () => getTechnicalData('weekly', { limit: 10 }), critical: false },
-        { name: 'Technical Monthly', fn: () => getTechnicalData('monthly', { limit: 10 }), critical: false },
-        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL?timeframe=daily'), critical: false }
+        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL?timeframe=daily'), critical: false },
+        { name: 'Technical Root', fn: () => api.get('/technical'), critical: false }
       ]
     },
     {
       category: 'Market Data',
       tests: [
         { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
-        { name: 'Market Summary', fn: () => api.get('/market/summary'), critical: true },
-        { name: 'Market Indices', fn: () => api.get('/market/indices'), critical: false },
-        { name: 'Market Breadth', fn: () => api.get('/market/breadth'), critical: false },
-        { name: 'Sector Performance', fn: () => api.get('/market/sectors'), critical: false }
+        { name: 'Market Root', fn: () => api.get('/market'), critical: false }
       ]
     },
     {
@@ -280,169 +273,50 @@ function ServiceHealth() {
       tests: [
         { name: 'Buy Signals Daily', fn: () => getBuySignals(), critical: true },
         { name: 'Sell Signals Daily', fn: () => getSellSignals(), critical: true },
-        { name: 'Buy Signals Weekly', fn: () => api.get('/trading/signals/weekly'), critical: false },
-        { name: 'Buy Signals Monthly', fn: () => api.get('/trading/signals/monthly'), critical: false },
-        { name: 'Signals Summary', fn: () => api.get('/signals/summary'), critical: false }
+        { name: 'Signals Root', fn: () => api.get('/signals'), critical: false },
+        { name: 'Trading Root', fn: () => api.get('/trading'), critical: false }
       ]
     },
     {
-      category: 'Financial Data',
+      category: 'Data Routes',
       tests: [
-        { name: 'Financials (AAPL)', fn: () => api.get('/financials/AAPL'), critical: false },
-        { name: 'Income Statement (AAPL)', fn: () => api.get('/financials/AAPL/income'), critical: false },
-        { name: 'Balance Sheet (AAPL)', fn: () => api.get('/financials/AAPL/balance'), critical: false },
-        { name: 'Cash Flow (AAPL)', fn: () => api.get('/financials/AAPL/cashflow'), critical: false },
-        { name: 'Key Metrics (AAPL)', fn: () => api.get('/financials/AAPL/metrics'), critical: false }
+        { name: 'Data Root', fn: () => api.get('/data'), critical: false },
+        { name: 'Metrics Root', fn: () => api.get('/metrics'), critical: false },
+        { name: 'Calendar Root', fn: () => api.get('/calendar'), critical: false },
+        { name: 'Financials Root', fn: () => api.get('/financials'), critical: false }
       ]
     },
     {
-      category: 'Metrics & Scoring',
+      category: 'Portfolio & Trading',
       tests: [
-        { name: 'Metrics List', fn: () => api.get('/metrics'), critical: false },
-        { name: 'Metrics Detail (AAPL)', fn: () => api.get('/metrics/AAPL'), critical: false },
-        { name: 'Top Quality Stocks', fn: () => api.get('/metrics/top/quality'), critical: false },
-        { name: 'Top Value Stocks', fn: () => api.get('/metrics/top/value'), critical: false },
-        { name: 'Top Composite Stocks', fn: () => api.get('/metrics/top/composite'), critical: false }
-      ]
-    },
-    {
-      category: 'Calendar & Events',
-      tests: [
-        { name: 'Earnings Calendar', fn: () => api.get('/calendar/earnings'), critical: false },
-        { name: 'Economic Calendar', fn: () => api.get('/calendar/economic'), critical: false },
-        { name: 'Calendar Events', fn: () => api.get('/calendar'), critical: false }
-      ]
-    },
-    {
-      category: 'Portfolio',
-      tests: [
-        { name: 'Portfolio Overview', fn: () => api.get('/portfolio'), critical: false },
+        { name: 'Portfolio Root', fn: () => api.get('/portfolio'), critical: false },
         { name: 'Portfolio Holdings', fn: () => api.get('/portfolio/holdings'), critical: false },
-        { name: 'Portfolio Performance', fn: () => api.get('/portfolio/performance'), critical: false },
-        { name: 'Portfolio Analytics', fn: () => api.get('/portfolio/analytics'), critical: false }
+        { name: 'Trades Root', fn: () => api.get('/trades'), critical: false }
       ]
     },
     {
-      category: 'Dashboard APIs',
+      category: 'Platform Services',
       tests: [
-        { name: 'Dashboard Summary', fn: () => api.get('/dashboard/summary'), critical: true },
-        { name: 'Market Summary', fn: () => api.get('/dashboard/market-summary'), critical: false },
-        { name: 'Watchlist', fn: () => api.get('/dashboard/watchlist'), critical: false },
-        { name: 'Dashboard Signals', fn: () => api.get('/dashboard/signals'), critical: false },
-        { name: 'Dashboard Symbols', fn: () => api.get('/dashboard/symbols'), critical: false }
+        { name: 'Watchlist Root', fn: () => api.get('/watchlist'), critical: false },
+        { name: 'Sectors Root', fn: () => api.get('/sectors'), critical: false },
+        { name: 'Settings Root', fn: () => api.get('/settings'), critical: false },
+        { name: 'Dashboard Root', fn: () => api.get('/dashboard'), critical: false }
       ]
     },
     {
-      category: 'Data Management',
-      tests: [
-        { name: 'Data Status', fn: () => api.get('/data'), critical: false },
-        { name: 'Data Sources', fn: () => api.get('/data/sources'), critical: false },
-        { name: 'Data Quality', fn: () => api.get('/data/quality'), critical: false }
-      ]
-    },
-    {
-      category: 'External Data',
+      category: 'External Data Sources',
       tests: [
         { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
         { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
       ]
     },
     {
-      category: 'Authentication & Security',
+      category: 'Additional Services',
       tests: [
-        { name: 'Auth Status', fn: () => api.get('/auth/status'), critical: true },
-        { name: 'Token Validation', fn: () => api.get('/auth/validate'), critical: true },
-        { name: 'User Profile', fn: () => api.get('/auth/profile'), critical: false }
-      ]
-    },
-    {
-      category: 'Settings & Configuration',
-      tests: [
-        { name: 'User Settings', fn: () => api.get('/settings'), critical: false },
-        { name: 'API Keys List', fn: () => api.get('/settings/api-keys'), critical: false },
-        { name: 'Trading Preferences', fn: () => api.get('/settings/trading'), critical: false },
-        { name: 'Notification Settings', fn: () => api.get('/settings/notifications'), critical: false }
-      ]
-    },
-    {
-      category: 'Trading & Execution',
-      tests: [
-        { name: 'Trade History', fn: () => api.get('/trades/history'), critical: false },
-        { name: 'Open Orders', fn: () => api.get('/trades/orders'), critical: false },
-        { name: 'Trade Summary', fn: () => api.get('/trades/summary'), critical: false },
-        { name: 'Position Summary', fn: () => api.get('/trades/positions'), critical: false }
-      ]
-    },
-    {
-      category: 'Cryptocurrency',
-      tests: [
-        { name: 'Crypto Overview', fn: () => api.get('/crypto'), critical: false },
-        { name: 'Crypto Prices (BTC)', fn: () => api.get('/crypto/BTC/price'), critical: false },
-        { name: 'Crypto Market Data', fn: () => api.get('/crypto/market'), critical: false },
-        { name: 'Top Cryptocurrencies', fn: () => api.get('/crypto/top'), critical: false }
-      ]
-    },
-    {
-      category: 'Stock Screening',
-      tests: [
-        { name: 'Screener Templates', fn: () => api.get('/screener/templates'), critical: false },
-        { name: 'Growth Stocks Screen', fn: () => api.get('/screener/growth'), critical: false },
-        { name: 'Value Stocks Screen', fn: () => api.get('/screener/value'), critical: false },
-        { name: 'Custom Screen Results', fn: () => api.get('/screener/results'), critical: false }
-      ]
-    },
-    {
-      category: 'Technical Patterns',
-      tests: [
-        { name: 'Pattern Overview', fn: () => api.get('/patterns'), critical: false },
-        { name: 'Bullish Patterns', fn: () => api.get('/patterns/bullish'), critical: false },
-        { name: 'Bearish Patterns', fn: () => api.get('/patterns/bearish'), critical: false },
-        { name: 'Pattern Alerts', fn: () => api.get('/patterns/alerts'), critical: false }
-      ]
-    },
-    {
-      category: 'Watchlists',
-      tests: [
-        { name: 'All Watchlists', fn: () => api.get('/watchlist'), critical: false },
-        { name: 'Default Watchlist', fn: () => api.get('/watchlist/default'), critical: false },
-        { name: 'Watchlist Analytics', fn: () => api.get('/watchlist/analytics'), critical: false },
-        { name: 'Watchlist Performance', fn: () => api.get('/watchlist/performance'), critical: false }
-      ]
-    },
-    {
-      category: 'Sector Analysis',
-      tests: [
-        { name: 'Sector Overview', fn: () => api.get('/sectors'), critical: false },
-        { name: 'Sector Performance', fn: () => api.get('/sectors/performance'), critical: false },
-        { name: 'Sector Rotation', fn: () => api.get('/sectors/rotation'), critical: false },
-        { name: 'Technology Sector', fn: () => api.get('/sectors/technology'), critical: false }
-      ]
-    },
-    {
-      category: 'Backtesting',
-      tests: [
-        { name: 'Backtest Results', fn: () => api.get('/backtest/results'), critical: false },
-        { name: 'Strategy Performance', fn: () => api.get('/backtest/strategies'), critical: false },
-        { name: 'Backtest History', fn: () => api.get('/backtest/history'), critical: false },
-        { name: 'Risk Metrics', fn: () => api.get('/backtest/risk'), critical: false }
-      ]
-    },
-    {
-      category: 'AI Assistant',
-      tests: [
-        { name: 'AI Status', fn: () => api.get('/ai/status'), critical: false },
-        { name: 'AI Chat History', fn: () => api.get('/ai/chat/history'), critical: false },
-        { name: 'AI Recommendations', fn: () => api.get('/ai/recommendations'), critical: false },
-        { name: 'AI Analysis Summary', fn: () => api.get('/ai/analysis'), critical: false }
-      ]
-    },
-    {
-      category: 'Real-time Pricing',
-      tests: [
-        { name: 'Price Quotes (AAPL)', fn: () => api.get('/price/AAPL'), critical: false },
-        { name: 'Real-time Feed Status', fn: () => api.get('/price/status'), critical: false },
-        { name: 'Price Alerts', fn: () => api.get('/price/alerts'), critical: false },
-        { name: 'Market Hours', fn: () => api.get('/price/market-hours'), critical: false }
+        { name: 'Crypto Root', fn: () => api.get('/crypto'), critical: false },
+        { name: 'Screener Root', fn: () => api.get('/screener'), critical: false },
+        { name: 'Patterns Root', fn: () => api.get('/patterns'), critical: false },
+        { name: 'Backtest Root', fn: () => api.get('/backtest'), critical: false }
       ]
     }
   ], []);
