@@ -35,16 +35,14 @@
       };
       document.head.appendChild(script);
     </script>
-    <script type="module" crossorigin src="/assets/index-C5UJ68Ft.js"></script>
+    <script type="module" crossorigin src="/assets/index-DP2TAYvL.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-Bku8mHOg.js">
-    <link rel="modulepreload" crossorigin href="/assets/codemirror-DKBw5cMP.js">
-    <link rel="modulepreload" crossorigin href="/assets/emotion-CZLl5Cln.js">
-    <link rel="modulepreload" crossorigin href="/assets/mui-as3jyNpM.js">
-    <link rel="modulepreload" crossorigin href="/assets/charts-BanWSPXO.js">
-    <link rel="modulepreload" crossorigin href="/assets/aws-qu6Tza4r.js">
-    <link rel="modulepreload" crossorigin href="/assets/utils-BllOriMl.js">
-    <link rel="modulepreload" crossorigin href="/assets/react-query-Cw-1lBhI.js">
-    <link rel="modulepreload" crossorigin href="/assets/dnd-guyQNwu3.js">
+    <link rel="modulepreload" crossorigin href="/assets/mui-DmmWEbK7.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-DuBO59W3.js">
+    <link rel="modulepreload" crossorigin href="/assets/aws-CeNcYWrl.js">
+    <link rel="modulepreload" crossorigin href="/assets/utils-B8o0aSDu.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-query-Ci8aK1T8.js">
+    <link rel="modulepreload" crossorigin href="/assets/dnd-sA-CN8_V.js">
   </head>
   <body>
     <div id="root">
@@ -74,13 +72,13 @@
         }
       }, 1000);
       
-      // Remove loading message after 5 seconds if React hasn't loaded
-      setTimeout(() => {
-        const root = document.getElementById('root');
-        if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
-          root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
-        }
-      }, 5000);
+      // Remove this timeout - let React load naturally
+      // setTimeout(() => {
+      //   const root = document.getElementById('root');
+      //   if (root && root.innerHTML.includes('Loading Financial Dashboard')) {
+      //     root.innerHTML = '<div style="padding: 20px; text-align: center; color: red;"><h1>Loading Failed</h1><p>React app failed to load. Check browser console for errors.</p></div>';
+      //   }
+      // }, 5000);
     </script>
   </body>
 </html>

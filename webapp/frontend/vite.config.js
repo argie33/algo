@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => {
             aws: ['aws-amplify', '@aws-amplify/auth', '@aws-amplify/core', '@aws-amplify/ui-react'],
             utils: ['axios', 'lodash', 'numeral', 'date-fns'],
             'react-query': ['@tanstack/react-query'],
-            emotion: ['@emotion/react', '@emotion/styled'],
             animations: ['framer-motion'],
             dnd: ['react-beautiful-dnd']
           }
@@ -75,11 +74,7 @@ export default defineConfig(({ mode }) => {
         '@codemirror/lang-javascript',
         '@codemirror/lang-python'
       ],
-      exclude: [
-        '@emotion/react',
-        '@emotion/styled',
-        '@emotion/cache'
-      ],
+      force: true,
       // Reduce the number of files opened during optimization
       esbuildOptions: {
         loader: {
