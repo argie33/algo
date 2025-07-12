@@ -140,6 +140,70 @@ function decryptApiKey(encryptedData, userSalt) {
   }
 }
 
+// Debug endpoint to check API keys table
+router.get('/api-keys/debug', async (req, res) => {
+  try {
+    console.log('🔍 [DEBUG] Checking user_api_keys table structure...');
+    
+    // Check if table exists
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'user_api_keys'
+      );
+    `);
+    
+    console.log('📋 Table exists:', tableCheck.rows[0].exists);
+    
+    if (tableCheck.rows[0].exists) {
+      // Get table structure
+      const structure = await query(`
+        SELECT column_name, data_type, is_nullable 
+        FROM information_schema.columns 
+        WHERE table_name = 'user_api_keys' 
+        ORDER BY ordinal_position;
+      `);
+      
+      // Get total count
+      const count = await query(`SELECT COUNT(*) as total FROM user_api_keys`);
+      
+      // Get recent entries (without sensitive data)
+      const recent = await query(`
+        SELECT id, user_id, provider, description, is_active, created_at 
+        FROM user_api_keys 
+        ORDER BY created_at DESC 
+        LIMIT 5
+      `);
+      
+      res.json({
+        success: true,
+        table_exists: true,
+        structure: structure.rows,
+        total_records: count.rows[0].total,
+        recent_entries: recent.rows,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: true,
+        table_exists: false,
+        message: 'user_api_keys table does not exist',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ [DEBUG] Error checking API keys table:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check API keys table',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get all API keys for authenticated user
 router.get('/api-keys', async (req, res) => {
   console.log('🔍 API Keys fetch requested');
