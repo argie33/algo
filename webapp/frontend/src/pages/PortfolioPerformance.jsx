@@ -118,9 +118,10 @@ const PortfolioPerformance = () => {
       const perfData = performanceResponse?.data || performanceResponse;
       
       if (perfData) {
-        // Transform performance data
-        const transformedData = perfData.performance || perfData.data || [];
-        setPerformanceData(transformedData);
+        // Transform performance data - handle new API structure
+        const transformedData = perfData.performanceData || perfData.performance || perfData.data || [];
+        console.log('Performance data structure:', { perfData, transformedData });
+        setPerformanceData(Array.isArray(transformedData) ? transformedData : []);
         
         // Extract or use default metrics
         const responseMetrics = perfData.metrics || {};

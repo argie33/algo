@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sentiment Data Loader Script
+Sentiment Data Loader Script - Auth deployment trigger v2
 
 This script loads comprehensive sentiment analysis data including:
 - Analyst sentiment (recommendations, price targets, revisions)

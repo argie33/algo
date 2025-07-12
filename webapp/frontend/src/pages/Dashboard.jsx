@@ -274,6 +274,13 @@ const mockNews = [
   { title: 'Global Markets Mixed Ahead of FOMC', date: '2025-06-19', sentiment: 'Neutral' }
 ];
 
+const mockWatchlist = [
+  { symbol: 'AAPL', price: 195.89, change: 2.34, changePercent: 1.21, name: 'Apple Inc.' },
+  { symbol: 'TSLA', price: 711.02, change: -5.67, changePercent: -0.79, name: 'Tesla Inc.' },
+  { symbol: 'NVDA', price: 1200.45, change: 15.23, changePercent: 1.29, name: 'NVIDIA Corp.' },
+  { symbol: 'AMZN', price: 3405.12, change: -12.45, changePercent: -0.36, name: 'Amazon.com Inc.' }
+];
+
 const BRAND_NAME = 'ProTrade Analytics';
 
 const marketSummary = [
