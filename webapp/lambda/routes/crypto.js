@@ -2,6 +2,28 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
 
+// Root crypto endpoint for health checks
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      system: 'Cryptocurrency API',
+      version: '1.0.0',
+      status: 'operational',
+      available_endpoints: [
+        'GET /crypto/market-metrics - Overall crypto market metrics',
+        'GET /crypto/fear-greed - Fear and Greed Index',
+        'GET /crypto/movers - Top gainers and losers',
+        'GET /crypto/trending - Trending cryptocurrencies',
+        'GET /crypto/assets - List of crypto assets',
+        'GET /crypto/defi/tvl - DeFi Total Value Locked',
+        'GET /crypto/exchanges - Exchange information'
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 // GET /crypto/market-metrics - Get overall crypto market metrics
 router.get('/market-metrics', async (req, res) => {
   try {

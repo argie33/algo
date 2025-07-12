@@ -6,6 +6,91 @@ const WatchlistAlerts = require('../utils/watchlistAlerts');
 // Apply authentication to all routes
 router.use(authenticateToken);
 
+// Get available alert types
+router.get('/types', async (req, res) => {
+  try {
+    const alertTypes = [
+      {
+        type: 'price_above',
+        name: 'Price Above Target',
+        description: 'Alert when stock price goes above specified value'
+      },
+      {
+        type: 'price_below',
+        name: 'Price Below Target',
+        description: 'Alert when stock price goes below specified value'
+      },
+      {
+        type: 'volume_spike',
+        name: 'Volume Spike',
+        description: 'Alert when trading volume exceeds average by specified percentage'
+      },
+      {
+        type: 'technical_signal',
+        name: 'Technical Signal',
+        description: 'Alert when technical indicators generate buy/sell signals'
+      },
+      {
+        type: 'news_sentiment',
+        name: 'News Sentiment',
+        description: 'Alert when news sentiment changes significantly'
+      },
+      {
+        type: 'earnings_announcement',
+        name: 'Earnings Announcement',
+        description: 'Alert before earnings announcements'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: alertTypes,
+      total: alertTypes.length
+    });
+  } catch (error) {
+    console.error('Error fetching alert types:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch alert types'
+    });
+  }
+});
+
+// Get alert notifications
+router.get('/notifications', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { limit = 20, offset = 0, unreadOnly = false } = req.query;
+
+    // For now, return a basic structure
+    // In a real implementation, this would fetch from a notifications table
+    const notifications = await watchlistAlerts.getUserNotifications(userId, {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      unreadOnly: unreadOnly === 'true'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        notifications: notifications || [],
+        pagination: {
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          total: notifications?.length || 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notifications',
+      message: error.message
+    });
+  }
+});
+
 // Initialize watchlist alerts system
 const watchlistAlerts = new WatchlistAlerts();
 
@@ -166,79 +251,6 @@ router.put('/notifications/:notificationId/read', async (req, res) => {
   }
 });
 
-// Get available alert types
-router.get('/types', (req, res) => {
-  const alertTypes = [
-    {
-      type: 'price_above',
-      name: 'Price Above',
-      description: 'Alert when price goes above target',
-      requiresValue: true,
-      valueType: 'currency'
-    },
-    {
-      type: 'price_below',
-      name: 'Price Below',
-      description: 'Alert when price goes below target',
-      requiresValue: true,
-      valueType: 'currency'
-    },
-    {
-      type: 'price_change_percent',
-      name: 'Price Change %',
-      description: 'Alert when price changes by percentage',
-      requiresValue: true,
-      valueType: 'percentage'
-    },
-    {
-      type: 'volume_spike',
-      name: 'Volume Spike',
-      description: 'Alert when volume exceeds normal levels',
-      requiresValue: true,
-      valueType: 'multiplier'
-    },
-    {
-      type: 'rsi_overbought',
-      name: 'RSI Overbought',
-      description: 'Alert when RSI exceeds target level',
-      requiresValue: true,
-      valueType: 'number'
-    },
-    {
-      type: 'rsi_oversold',
-      name: 'RSI Oversold',
-      description: 'Alert when RSI falls below target level',
-      requiresValue: true,
-      valueType: 'number'
-    },
-    {
-      type: 'macd_signal',
-      name: 'MACD Signal',
-      description: 'Alert on MACD crossover signals',
-      requiresValue: false,
-      valueType: 'condition'
-    },
-    {
-      type: 'moving_average_cross',
-      name: 'Moving Average Cross',
-      description: 'Alert on moving average crossovers',
-      requiresValue: false,
-      valueType: 'condition'
-    },
-    {
-      type: 'breakout',
-      name: 'Breakout',
-      description: 'Alert on price breakouts',
-      requiresValue: true,
-      valueType: 'percentage'
-    }
-  ];
-
-  res.json({
-    success: true,
-    data: alertTypes
-  });
-});
 
 // Test alert system
 router.post('/test', async (req, res) => {

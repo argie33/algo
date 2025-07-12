@@ -5,7 +5,25 @@ const FactorScoringEngine = require('../utils/factorScoring');
 
 const router = express.Router();
 
-// Apply authentication to all routes
+// Root screener endpoint for health checks
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      system: 'Stock Screener API',
+      version: '1.0.0',
+      status: 'operational',
+      available_endpoints: [
+        'GET /screener/screen - Main stock screening with filters',
+        'GET /screener/templates - Pre-built screening templates',
+        'GET /screener/factors - Available screening factors'
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// Apply authentication to all other routes
 router.use(authenticateToken);
 
 // Initialize factor scoring engine

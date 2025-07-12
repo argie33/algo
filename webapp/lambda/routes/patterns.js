@@ -6,7 +6,28 @@ const WatchlistAlerts = require('../utils/watchlistAlerts');
 
 const router = express.Router();
 
-// Apply authentication middleware to all pattern routes
+// Root patterns endpoint for health checks
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      system: 'Pattern Recognition API',
+      version: '1.0.0',
+      status: 'operational',
+      available_endpoints: [
+        'GET /patterns/scan - Scan for patterns in real-time',
+        'GET /patterns/types - Get available pattern types',
+        'GET /patterns/performance - Get pattern performance analytics',
+        'GET /patterns/alerts - Get pattern-based alerts',
+        'GET /patterns/dashboard - Get pattern recognition dashboard',
+        'GET /patterns/statistics - Get pattern statistics'
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// Apply authentication middleware to all other pattern routes
 router.use(authenticateToken);
 
 // Initialize pattern detector and alerts system

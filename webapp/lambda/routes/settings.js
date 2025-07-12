@@ -5,7 +5,28 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Apply authentication middleware to all settings routes
+// Root settings endpoint for health checks
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      system: 'User Settings API',
+      version: '1.0.0',
+      status: 'operational',
+      available_endpoints: [
+        'PUT /settings/api-keys/:keyId - Update API key',
+        'DELETE /settings/api-keys/:keyId - Delete API key',
+        'PUT /settings/profile - Update user profile',
+        'PUT /settings/notifications - Update notification preferences',
+        'PUT /settings/theme - Update theme preferences',
+        'DELETE /settings/delete-account - Delete user account'
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// Apply authentication middleware to all other settings routes
 router.use(authenticateToken);
 
 // 2FA verification middleware for sensitive operations
