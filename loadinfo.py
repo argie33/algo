@@ -105,6 +105,7 @@ def load_company_info(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            info = None  # Initialize info to None
             for attempt in range(1, MAX_BATCH_RETRIES+1):
                 try:
                     ticker = yf.Ticker(yq_sym)
@@ -116,8 +117,13 @@ def load_company_info(symbols, cur, conn):
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
-                        continue
+                        break  # Break out of retry loop
                     time.sleep(RETRY_DELAY)
+            
+            # Only proceed with database operations if info was successfully obtained
+            if info is None:
+                logging.error(f"Failed to get info for {orig_sym} after all retries, skipping")
+                continue  # Skip to next symbol
             
             try:
                 # Insert into company_profile
