@@ -330,6 +330,18 @@ router.post('/api-keys', async (req, res) => {
         note: 'API key saved temporarily - database table creation required'
       });
     } else {
+      // Log the actual error details for debugging
+      console.error('❌ Unexpected database error details:', {
+        message: error.message,
+        code: error.code,
+        severity: error.severity,
+        detail: error.detail,
+        hint: error.hint,
+        constraint: error.constraint,
+        table: error.table,
+        column: error.column
+      });
+      
       // Return success but with note about database issue  
       res.json({
         success: true,
@@ -341,7 +353,11 @@ router.post('/api-keys', async (req, res) => {
           isSandbox: isSandbox,
           createdAt: new Date().toISOString()
         },
-        note: 'API key configuration saved locally - database connectivity issue'
+        note: 'API key configuration saved locally - database connectivity issue',
+        debugInfo: process.env.NODE_ENV === 'development' ? {
+          errorCode: error.code,
+          errorMessage: error.message
+        } : undefined
       });
     }
   }
