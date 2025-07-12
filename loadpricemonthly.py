@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - monthly loader update v9 - optimized memory usage and reliability improvements with API updates
+# Trigger deploy-app-stocks workflow test - monthly loader update v10 - fixed ECR build dependencies
 import sys
 import time
 import logging
