@@ -122,6 +122,7 @@ const authenticateToken = async (req, res, next) => {
     
     // Handle demo tokens and development mode
     if (token === 'demo-token' || token === 'dev-token' || 
+        (token && token.startsWith('dev-')) || 
         process.env.NODE_ENV === 'development' || 
         process.env.SKIP_AUTH === 'true') {
       console.log('🛠️  Development/Demo mode: Skipping JWT verification');
