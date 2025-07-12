@@ -354,6 +354,7 @@ jobs:
             technicalsmonthly)DOCKERFILE=Dockerfile.technicalsmonthly;PARAM=TechnicalsMonthlyImageTag;;\
             swingtrader)      DOCKERFILE=Dockerfile.swingtrader;    PARAM=SwingTraderImageTag;;\
             calendar)         DOCKERFILE=Dockerfile.loadcalendar;   PARAM=CalendarImageTag;;\
+            analystupgradedowngrade) DOCKERFILE=Dockerfile.loadanalystupgradedowngrade; PARAM=AnalystUpgradeDowngradeImageTag;;\
             buysell)          DOCKERFILE=Dockerfile.buysell;        PARAM=BuySellImageTag;;\
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
@@ -642,6 +643,7 @@ jobs:
               TechnicalsMonthlyImageTag=$(grep '^TechnicalsMonthlyImageTag=' tags.env | cut -d= -f2-) \
               SwingTraderImageTag=$(grep '^SwingTraderImageTag=' tags.env | cut -d= -f2-) \
               CalendarImageTag=$(grep '^CalendarImageTag=' tags.env | cut -d= -f2-) \
+              AnalystUpgradeDowngradeImageTag=$(grep '^AnalystUpgradeDowngradeImageTag=' tags.env | cut -d= -f2-) \
               BuySellDailyImageTag=$(grep '^BuySellDailyImageTag=' tags.env | cut -d= -f2-) \
               BuySellWeeklyImageTag=$(grep '^BuySellWeeklyImageTag=' tags.env | cut -d= -f2-) \
               BuySellMonthlyImageTag=$(grep '^BuySellMonthlyImageTag=' tags.env | cut -d= -f2-) \
