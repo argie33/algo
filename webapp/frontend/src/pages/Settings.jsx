@@ -177,34 +177,26 @@ const Settings = () => {
         // Don't fail the entire settings load if API keys fail
       }
 
-      // Load notification preferences
+      // Settings endpoints not implemented yet, using local defaults
+      console.log('Settings API endpoints not implemented yet, using local storage');
+      
+      // Try to load from local storage as fallback
       try {
-        const notifResponse = await fetch(`${apiUrl}/api/settings/notifications`, {
-          headers: {
-            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-          }
-        });
-        if (notifResponse.ok) {
-          const notifData = await notifResponse.json();
-          setNotifications(prev => ({ ...prev, ...notifData.preferences }));
+        const savedNotifs = localStorage.getItem('user-notifications');
+        if (savedNotifs) {
+          setNotifications(prev => ({ ...prev, ...JSON.parse(savedNotifs) }));
         }
       } catch (error) {
-        console.log('Failed to load notification preferences, using defaults');
+        console.log('No saved notification preferences found');
       }
 
-      // Load theme preferences
       try {
-        const themeResponse = await fetch(`${apiUrl}/api/settings/theme`, {
-          headers: {
-            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-          }
-        });
-        if (themeResponse.ok) {
-          const themeData = await themeResponse.json();
-          setThemeSettings(prev => ({ ...prev, ...themeData.preferences }));
+        const savedTheme = localStorage.getItem('user-theme');
+        if (savedTheme) {
+          setThemeSettings(prev => ({ ...prev, ...JSON.parse(savedTheme) }));
         }
       } catch (error) {
-        console.log('Failed to load theme preferences, using defaults');
+        console.log('No saved theme preferences found');
       }
       
     } catch (error) {
@@ -237,13 +229,13 @@ const Settings = () => {
         const data = await response.json();
         setApiKeys(data.apiKeys || []);
       } else {
-        console.error('API keys endpoint returned non-OK status:', response.status);
-        throw new Error(`API keys endpoint failed: ${response.status}`);
+        console.warn('API keys endpoint not available yet, using empty state');
+        setApiKeys([]); // Set empty array for graceful degradation
       }
     } catch (error) {
-      console.error('Error loading API keys:', error);
-      setApiKeys([]); // Set empty array and let user see there's no data
-      throw error; // Re-throw so parent catch can handle it
+      console.warn('API keys endpoint not implemented yet:', error.message);
+      setApiKeys([]); // Set empty array and continue gracefully
+      // Don't throw error - let the page load normally
     }
   };
 

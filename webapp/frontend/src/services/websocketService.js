@@ -56,7 +56,7 @@ class WebSocketService extends EventEmitter {
     
     // Configuration
     this.config = {
-      url: import.meta.env.VITE_WS_URL || 'wss://your-api-id.execute-api.us-east-1.amazonaws.com/dev',
+      url: import.meta.env.VITE_WS_URL || null, // WebSocket not implemented yet
       pingInterval: 30000, // 30 seconds
       connectionTimeout: 10000, // 10 seconds
       maxMessageSize: 1024 * 1024, // 1MB
@@ -89,6 +89,12 @@ class WebSocketService extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       try {
+        if (!this.config.url) {
+          console.log('WebSocket URL not configured, skipping connection');
+          resolve();
+          return;
+        }
+        
         console.log(`Connecting to WebSocket: ${this.config.url}`);
         this.ws = new WebSocket(this.config.url);
         

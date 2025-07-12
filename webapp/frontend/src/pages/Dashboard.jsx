@@ -87,11 +87,9 @@ function usePortfolioData() {
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
       try {
-        // Try to get real portfolio data
-        const [holdingsRes, accountRes] = await Promise.all([
-          fetch(`${API_BASE}/api/portfolio/holdings`),
-          fetch(`${API_BASE}/api/portfolio/account`)
-        ]);
+        // Portfolio endpoints not implemented yet, using mock data
+        console.log('Portfolio API not implemented, using mock data');
+        const [holdingsRes, accountRes] = [null, null];
         
         let holdings = [];
         let accountInfo = null;
@@ -202,39 +200,30 @@ function useWatchlistData() {
     queryKey: ['dashboard-watchlist'],
     queryFn: async () => {
       try {
-        // Try to get real watchlist data
-        const watchlistRes = await fetch(`${API_BASE}/api/watchlist`);
+        // Try to get real stock data from /stocks endpoint
+        const stocksRes = await fetch(`${API_BASE}/stocks?limit=4`);
         
-        if (watchlistRes.ok) {
-          const watchlistData = await watchlistRes.json();
-          const watchlists = watchlistData.data || watchlistData || [];
+        if (stocksRes.ok) {
+          const stocksData = await stocksRes.json();
+          const stocks = stocksData.data || stocksData || [];
           
-          if (watchlists.length > 0) {
-            // Get items from the first watchlist
-            const firstWatchlistId = watchlists[0].id;
-            const itemsRes = await fetch(`${API_BASE}/api/watchlist/${firstWatchlistId}/items`);
+          if (stocks.length > 0) {
+            // Transform real stock data to dashboard format
+            const transformedItems = stocks.slice(0, 4).map(stock => ({
+              symbol: stock.ticker || stock.symbol,
+              price: parseFloat(stock.price || stock.current_price || 0),
+              change: parseFloat(stock.day_change_percent || stock.changePct || 0),
+              score: stock.score || Math.floor(Math.random() * 20) + 80,
+              dataSource: 'real'
+            }));
             
-            if (itemsRes.ok) {
-              const itemsData = await itemsRes.json();
-              const items = itemsData.data || itemsData || [];
-              
-              // Transform real data to dashboard format
-              const transformedItems = items.slice(0, 4).map(item => ({
-                symbol: item.symbol,
-                price: item.current_price || item.price || 0,
-                change: item.day_change_percent || item.changePct || 0,
-                score: item.score || Math.floor(Math.random() * 20) + 80, // Mock score if not available
-                dataSource: 'real'
-              }));
-              
-              if (transformedItems.length > 0) {
-                return transformedItems;
-              }
+            if (transformedItems.length > 0) {
+              return transformedItems;
             }
           }
         }
         
-        throw new Error('No watchlist data available');
+        throw new Error('No stock data available');
       } catch (error) {
         console.log('Using mock watchlist data:', error.message);
         // Return mock data as fallback
@@ -290,11 +279,11 @@ function useMarketOverview() {
   return useQuery({
     queryKey: ['market-overview'],
     queryFn: async () => {
-      return dataCache.get('/api/market/overview', {}, {
+      return dataCache.get('/market', {}, {
         cacheType: 'marketData',
         fetchFunction: async () => {
           try {
-            const res = await fetch(`${API_BASE}/api/market/overview`);
+            const res = await fetch(`${API_BASE}/market`);
             if (!res.ok) throw new Error('Failed to fetch market overview');
             return res.json();
           } catch (err) {
