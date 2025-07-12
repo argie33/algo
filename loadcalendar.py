@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v1.6 - improved data validation and batch processing
+# Load calendar data - trigger v1.7 - ECS deployment test with enhanced error handling
+# Updated 2025-07-12: Testing build and deploy pipeline for earnings calendar data
 import sys
 import time
 import logging

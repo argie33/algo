@@ -1,5 +1,6 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v1 - updated to trigger workflow
+# Daily technicals loader - deployment test v2 - trigger ECS task for testing build/deploy
+# Updated 2025-07-12: Added comprehensive error handling and memory optimization
 import sys
 import time
 import logging
