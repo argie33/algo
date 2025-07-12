@@ -727,12 +727,7 @@ router.get('/debug', async (req, res) => {
         
         console.log('🔧 Debug data collected:', debugData);
         
-        if (!debugData || !Array.isArray(debugData.table_counts) || Object.keys(debugData.table_counts).length === 0) {
-            return res.status(404).json({ error: 'No table counts found' });
-        }
-        if (!debugData || !Array.isArray(debugData.sample_data) || Object.keys(debugData.sample_data).length === 0) {
-            return res.status(404).json({ error: 'No sample data found' });
-        }
+        // Always return debug data, even if some parts failed
         res.json({
             success: true,
             data: debugData

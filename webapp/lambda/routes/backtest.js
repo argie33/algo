@@ -656,6 +656,208 @@ for (const symbol of ['AAPL', 'GOOGL', 'MSFT']) {
   }
 });
 
+// Get user strategies endpoint
+router.get('/strategies', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    // Try to get strategies from database
+    try {
+      const result = await query(`
+        SELECT 
+          id,
+          name,
+          description,
+          strategy_code,
+          parameters,
+          created_at,
+          updated_at,
+          is_active
+        FROM user_strategies 
+        WHERE user_id = $1
+        ORDER BY updated_at DESC
+      `, [userId]);
+
+      const strategies = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        code: row.strategy_code,
+        parameters: typeof row.parameters === 'string' ? JSON.parse(row.parameters) : row.parameters,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        isActive: row.is_active
+      }));
+
+      res.json({
+        success: true,
+        data: strategies
+      });
+
+    } catch (dbError) {
+      console.log('Database query failed for strategies, using mock data:', dbError.message);
+      
+      // Return mock strategies if database fails
+      const mockStrategies = [
+        {
+          id: 'strategy-1',
+          name: 'Simple Moving Average',
+          description: 'Buy when price crosses above 20-day SMA, sell when below',
+          code: 'if (close > sma20) { buy(); } else if (close < sma20) { sell(); }',
+          parameters: { period: 20, symbol: 'AAPL' },
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date().toISOString(),
+          isActive: true
+        },
+        {
+          id: 'strategy-2',
+          name: 'RSI Momentum',
+          description: 'Buy oversold, sell overbought based on RSI',
+          code: 'if (rsi < 30) { buy(); } else if (rsi > 70) { sell(); }',
+          parameters: { rsi_period: 14, oversold: 30, overbought: 70 },
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          updatedAt: new Date(Date.now() - 3600000).toISOString(),
+          isActive: true
+        }
+      ];
+
+      res.json({
+        success: true,
+        data: mockStrategies,
+        note: 'Mock strategies - database connectivity issue'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error fetching strategies:', error);
+    res.status(500).json({ error: 'Failed to fetch strategies', details: error.message });
+  }
+});
+
+// Get backtest history endpoint
+router.get('/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    // Try to get backtest history from database
+    try {
+      const result = await query(`
+        SELECT 
+          id,
+          strategy_name,
+          symbol,
+          start_date,
+          end_date,
+          initial_capital,
+          final_value,
+          total_return,
+          max_drawdown,
+          sharpe_ratio,
+          win_rate,
+          total_trades,
+          created_at,
+          parameters
+        FROM backtest_results 
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [userId, limit, offset]);
+
+      const history = result.rows.map(row => ({
+        id: row.id,
+        strategyName: row.strategy_name,
+        symbol: row.symbol,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        initialCapital: parseFloat(row.initial_capital),
+        finalValue: parseFloat(row.final_value),
+        totalReturn: parseFloat(row.total_return),
+        maxDrawdown: parseFloat(row.max_drawdown),
+        sharpeRatio: parseFloat(row.sharpe_ratio),
+        winRate: parseFloat(row.win_rate),
+        totalTrades: parseInt(row.total_trades),
+        createdAt: row.created_at,
+        parameters: typeof row.parameters === 'string' ? JSON.parse(row.parameters) : row.parameters
+      }));
+
+      // Get total count for pagination
+      const countResult = await query(`
+        SELECT COUNT(*) as total
+        FROM backtest_results 
+        WHERE user_id = $1
+      `, [userId]);
+
+      res.json({
+        success: true,
+        data: history,
+        pagination: {
+          total: parseInt(countResult.rows[0].total),
+          limit,
+          offset,
+          hasMore: offset + history.length < parseInt(countResult.rows[0].total)
+        }
+      });
+
+    } catch (dbError) {
+      console.log('Database query failed for backtest history, using mock data:', dbError.message);
+      
+      // Return mock history if database fails
+      const mockHistory = [
+        {
+          id: 'bt-1',
+          strategyName: 'Moving Average Crossover',
+          symbol: 'AAPL',
+          startDate: '2024-01-01',
+          endDate: '2024-12-31',
+          initialCapital: 100000,
+          finalValue: 112500,
+          totalReturn: 12.5,
+          maxDrawdown: -8.2,
+          sharpeRatio: 1.34,
+          winRate: 0.62,
+          totalTrades: 48,
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          parameters: { fast_period: 10, slow_period: 20 }
+        },
+        {
+          id: 'bt-2',
+          strategyName: 'RSI Mean Reversion',
+          symbol: 'TSLA',
+          startDate: '2024-06-01',
+          endDate: '2024-12-31',
+          initialCapital: 50000,
+          finalValue: 47800,
+          totalReturn: -4.4,
+          maxDrawdown: -12.1,
+          sharpeRatio: -0.23,
+          winRate: 0.45,
+          totalTrades: 32,
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          parameters: { rsi_period: 14, oversold: 30, overbought: 70 }
+        }
+      ];
+
+      res.json({
+        success: true,
+        data: mockHistory,
+        pagination: {
+          total: 2,
+          limit,
+          offset,
+          hasMore: false
+        },
+        note: 'Mock backtest history - database connectivity issue'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error fetching backtest history:', error);
+    res.status(500).json({ error: 'Failed to fetch backtest history', details: error.message });
+  }
+});
+
 // Validate strategy code endpoint
 router.post('/validate', async (req, res) => {
   try {

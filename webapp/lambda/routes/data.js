@@ -642,78 +642,64 @@ router.get('/fear-greed', async (req, res) => {
 // Get data validation summary
 router.get('/validation-summary', async (req, res) => {
   try {
-    const summaryQuery = `
-      SELECT 
-        'stock_symbols' as table_name,
-        COUNT(*) as record_count,
-        NULL as last_updated
-      FROM stock_symbols
-      UNION ALL
-      SELECT 
-        'earnings_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_estimates
-      UNION ALL
-      SELECT 
-        'earnings_history' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM earnings_history
-      UNION ALL
-      SELECT 
-        'revenue_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM revenue_estimates
-      UNION ALL
-      SELECT 
-        'growth_estimates' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM growth_estimates
-      UNION ALL
-      SELECT 
-        'eps_revisions' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_revisions
-      UNION ALL
-      SELECT 
-        'eps_trend' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM eps_trend
-      UNION ALL
-      SELECT 
-        'technical_data_daily' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM technical_data_daily
-      UNION ALL
-      SELECT 
-        'analyst_recommendations' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM analyst_recommendations
-      UNION ALL
-      SELECT 
-        'aaii_sentiment' as table_name,
-        COUNT(*) as record_count,
-        MAX(fetched_at) as last_updated
-      FROM aaii_sentiment
-      ORDER BY table_name
-    `;
+    // Check each table individually to avoid errors from missing tables
+    const validationData = [];
+    
+    const tables = [
+      { name: 'stock_symbols', hasTimestamp: false },
+      { name: 'earnings_estimates', hasTimestamp: true },
+      { name: 'earnings_history', hasTimestamp: true },
+      { name: 'revenue_estimates', hasTimestamp: true },
+      { name: 'growth_estimates', hasTimestamp: true },
+      { name: 'eps_revisions', hasTimestamp: true },
+      { name: 'eps_trend', hasTimestamp: true },
+      { name: 'technical_data_daily', hasTimestamp: true },
+      { name: 'analyst_recommendations', hasTimestamp: true },
+      { name: 'economic_data', hasTimestamp: false },
+      { name: 'naaim', hasTimestamp: true },
+      { name: 'fear_greed_index', hasTimestamp: true }
+    ];
 
-    const result = await query(summaryQuery);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+    for (const table of tables) {
+      try {
+        let tableQuery;
+        if (table.hasTimestamp) {
+          tableQuery = `
+            SELECT 
+              '${table.name}' as table_name,
+              COUNT(*) as record_count,
+              MAX(fetched_at) as last_updated
+            FROM ${table.name}
+          `;
+        } else {
+          tableQuery = `
+            SELECT 
+              '${table.name}' as table_name,
+              COUNT(*) as record_count,
+              NULL as last_updated
+            FROM ${table.name}
+          `;
+        }
+        
+        const result = await query(tableQuery);
+        if (result.rows.length > 0) {
+          validationData.push(result.rows[0]);
+        }
+      } catch (tableError) {
+        // Add error entry for missing table
+        validationData.push({
+          table_name: table.name,
+          record_count: 0,
+          last_updated: null,
+          error: tableError.message
+        });
+      }
     }
 
     res.json({
-      summary: result.rows,
-      generated_at: new Date().toISOString()
+      success: true,
+      data: validationData,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
