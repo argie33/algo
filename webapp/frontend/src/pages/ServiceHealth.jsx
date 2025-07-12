@@ -326,6 +326,104 @@ function ServiceHealth() {
         { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
         { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
       ]
+    },
+    {
+      category: 'Authentication & Security',
+      tests: [
+        { name: 'Auth Status', fn: () => api.get('/auth/status'), critical: true },
+        { name: 'Token Validation', fn: () => api.get('/auth/validate'), critical: true },
+        { name: 'User Profile', fn: () => api.get('/auth/profile'), critical: false }
+      ]
+    },
+    {
+      category: 'Settings & Configuration',
+      tests: [
+        { name: 'User Settings', fn: () => api.get('/settings'), critical: false },
+        { name: 'API Keys List', fn: () => api.get('/settings/api-keys'), critical: false },
+        { name: 'Trading Preferences', fn: () => api.get('/settings/trading'), critical: false },
+        { name: 'Notification Settings', fn: () => api.get('/settings/notifications'), critical: false }
+      ]
+    },
+    {
+      category: 'Trading & Execution',
+      tests: [
+        { name: 'Trade History', fn: () => api.get('/trades/history'), critical: false },
+        { name: 'Open Orders', fn: () => api.get('/trades/orders'), critical: false },
+        { name: 'Trade Summary', fn: () => api.get('/trades/summary'), critical: false },
+        { name: 'Position Summary', fn: () => api.get('/trades/positions'), critical: false }
+      ]
+    },
+    {
+      category: 'Cryptocurrency',
+      tests: [
+        { name: 'Crypto Overview', fn: () => api.get('/crypto'), critical: false },
+        { name: 'Crypto Prices (BTC)', fn: () => api.get('/crypto/BTC/price'), critical: false },
+        { name: 'Crypto Market Data', fn: () => api.get('/crypto/market'), critical: false },
+        { name: 'Top Cryptocurrencies', fn: () => api.get('/crypto/top'), critical: false }
+      ]
+    },
+    {
+      category: 'Stock Screening',
+      tests: [
+        { name: 'Screener Templates', fn: () => api.get('/screener/templates'), critical: false },
+        { name: 'Growth Stocks Screen', fn: () => api.get('/screener/growth'), critical: false },
+        { name: 'Value Stocks Screen', fn: () => api.get('/screener/value'), critical: false },
+        { name: 'Custom Screen Results', fn: () => api.get('/screener/results'), critical: false }
+      ]
+    },
+    {
+      category: 'Technical Patterns',
+      tests: [
+        { name: 'Pattern Overview', fn: () => api.get('/patterns'), critical: false },
+        { name: 'Bullish Patterns', fn: () => api.get('/patterns/bullish'), critical: false },
+        { name: 'Bearish Patterns', fn: () => api.get('/patterns/bearish'), critical: false },
+        { name: 'Pattern Alerts', fn: () => api.get('/patterns/alerts'), critical: false }
+      ]
+    },
+    {
+      category: 'Watchlists',
+      tests: [
+        { name: 'All Watchlists', fn: () => api.get('/watchlist'), critical: false },
+        { name: 'Default Watchlist', fn: () => api.get('/watchlist/default'), critical: false },
+        { name: 'Watchlist Analytics', fn: () => api.get('/watchlist/analytics'), critical: false },
+        { name: 'Watchlist Performance', fn: () => api.get('/watchlist/performance'), critical: false }
+      ]
+    },
+    {
+      category: 'Sector Analysis',
+      tests: [
+        { name: 'Sector Overview', fn: () => api.get('/sectors'), critical: false },
+        { name: 'Sector Performance', fn: () => api.get('/sectors/performance'), critical: false },
+        { name: 'Sector Rotation', fn: () => api.get('/sectors/rotation'), critical: false },
+        { name: 'Technology Sector', fn: () => api.get('/sectors/technology'), critical: false }
+      ]
+    },
+    {
+      category: 'Backtesting',
+      tests: [
+        { name: 'Backtest Results', fn: () => api.get('/backtest/results'), critical: false },
+        { name: 'Strategy Performance', fn: () => api.get('/backtest/strategies'), critical: false },
+        { name: 'Backtest History', fn: () => api.get('/backtest/history'), critical: false },
+        { name: 'Risk Metrics', fn: () => api.get('/backtest/risk'), critical: false }
+      ]
+    },
+    {
+      category: 'AI Assistant',
+      tests: [
+        { name: 'AI Status', fn: () => api.get('/ai/status'), critical: false },
+        { name: 'AI Chat History', fn: () => api.get('/ai/chat/history'), critical: false },
+        { name: 'AI Recommendations', fn: () => api.get('/ai/recommendations'), critical: false },
+        { name: 'AI Analysis Summary', fn: () => api.get('/ai/analysis'), critical: false }
+      ]
+    },
+    {
+      category: 'Real-time Pricing',
+      tests: [
+        { name: 'Price Quotes (AAPL)', fn: () => api.get('/price/AAPL'), critical: false },
+        { name: 'Real-time Feed Status', fn: () => api.get('/price/status'), critical: false },
+        { name: 'Price Alerts', fn: () => api.get('/price/alerts'), critical: false },
+        { name: 'Market Hours', fn: () => api.get('/price/market-hours'), critical: false }
+      ]
     }
   ], []);
 
