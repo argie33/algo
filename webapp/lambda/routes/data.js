@@ -3,6 +3,230 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Data quality endpoint
+router.get('/quality', async (req, res) => {
+  try {
+    console.log('Data quality endpoint called');
+    
+    // Check data quality across key tables
+    const qualityChecks = [
+      {
+        name: 'Stock Symbols',
+        table: 'stock_symbols',
+        query: 'SELECT COUNT(*) as count FROM stock_symbols WHERE symbol IS NOT NULL'
+      },
+      {
+        name: 'Company Profiles',
+        table: 'company_profile',
+        query: 'SELECT COUNT(*) as count FROM company_profile WHERE symbol IS NOT NULL'
+      },
+      {
+        name: 'Market Data',
+        table: 'market_data',
+        query: 'SELECT COUNT(*) as count FROM market_data WHERE symbol IS NOT NULL'
+      },
+      {
+        name: 'Price Data Daily',
+        table: 'price_daily',
+        query: 'SELECT COUNT(*) as count FROM price_daily WHERE symbol IS NOT NULL AND date > CURRENT_DATE - INTERVAL \'7 days\''
+      },
+      {
+        name: 'Technical Data',
+        table: 'technical_data_daily',
+        query: 'SELECT COUNT(*) as count FROM technical_data_daily WHERE symbol IS NOT NULL AND date > CURRENT_DATE - INTERVAL \'7 days\''
+      }
+    ];
+    
+    const results = [];
+    
+    for (const check of qualityChecks) {
+      try {
+        const result = await query(check.query);
+        const count = parseInt(result.rows[0]?.count || 0);
+        
+        results.push({
+          table: check.name,
+          table_name: check.table,
+          record_count: count,
+          status: count > 0 ? 'healthy' : 'no_data',
+          last_checked: new Date().toISOString()
+        });
+      } catch (error) {
+        results.push({
+          table: check.name,
+          table_name: check.table,
+          record_count: 0,
+          status: 'error',
+          error: error.message,
+          last_checked: new Date().toISOString()
+        });
+      }
+    }
+    
+    // Calculate overall health score
+    const healthyTables = results.filter(r => r.status === 'healthy').length;
+    const totalTables = results.length;
+    const healthScore = Math.round((healthyTables / totalTables) * 100);
+    
+    res.json({
+      success: true,
+      data: {
+        quality_checks: results,
+        summary: {
+          healthy_tables: healthyTables,
+          total_tables: totalTables,
+          health_score: healthScore,
+          status: healthScore >= 80 ? 'excellent' : healthScore >= 60 ? 'good' : healthScore >= 40 ? 'fair' : 'poor'
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in data quality check:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check data quality',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Data sources endpoint
+router.get('/sources', async (req, res) => {
+  try {
+    console.log('Data sources endpoint called');
+    
+    // Define all data sources and their status
+    const dataSources = [
+      {
+        name: 'Yahoo Finance',
+        type: 'Market Data',
+        status: 'active',
+        description: 'Real-time and historical stock prices, company profiles',
+        endpoints: ['Price Data', 'Company Info', 'Historical Data'],
+        last_updated: new Date().toISOString()
+      },
+      {
+        name: 'Alpha Vantage',
+        type: 'Technical Analysis',
+        status: 'configured',
+        description: 'Technical indicators and advanced market analytics',
+        endpoints: ['Technical Indicators', 'Economic Data'],
+        last_updated: new Date().toISOString()
+      },
+      {
+        name: 'FRED Economic Data',
+        type: 'Economic Indicators',
+        status: 'available',
+        description: 'Federal Reserve Economic Data',
+        endpoints: ['GDP', 'Inflation', 'Interest Rates', 'Employment'],
+        last_updated: new Date().toISOString()
+      },
+      {
+        name: 'CNN Fear & Greed Index',
+        type: 'Market Sentiment',
+        status: 'available',
+        description: 'Market sentiment indicator',
+        endpoints: ['Fear & Greed Index'],
+        last_updated: new Date().toISOString()
+      },
+      {
+        name: 'NAAIM Exposure Index',
+        type: 'Professional Sentiment',
+        status: 'available',
+        description: 'National Association of Active Investment Managers exposure data',
+        endpoints: ['NAAIM Exposure'],
+        last_updated: new Date().toISOString()
+      },
+      {
+        name: 'AAII Sentiment Survey',
+        type: 'Retail Sentiment',
+        status: 'available',
+        description: 'American Association of Individual Investors sentiment survey',
+        endpoints: ['Bullish/Bearish Sentiment'],
+        last_updated: new Date().toISOString()
+      }
+    ];
+    
+    // Check which data sources have recent data
+    const sourceStatus = await Promise.all(dataSources.map(async (source) => {
+      try {
+        let hasRecentData = false;
+        let recordCount = 0;
+        
+        // Check for recent data based on source type
+        if (source.name === 'Yahoo Finance') {
+          const result = await query(
+            `SELECT COUNT(*) as count FROM market_data WHERE fetched_at > CURRENT_DATE - INTERVAL '7 days'`
+          );
+          recordCount = parseInt(result.rows[0]?.count || 0);
+          hasRecentData = recordCount > 0;
+        } else if (source.name === 'CNN Fear & Greed Index') {
+          try {
+            const result = await query(
+              `SELECT COUNT(*) as count FROM fear_greed_index WHERE date > CURRENT_DATE - INTERVAL '30 days'`
+            );
+            recordCount = parseInt(result.rows[0]?.count || 0);
+            hasRecentData = recordCount > 0;
+          } catch {
+            hasRecentData = false;
+          }
+        } else if (source.name === 'NAAIM Exposure Index') {
+          try {
+            const result = await query(
+              `SELECT COUNT(*) as count FROM naaim WHERE date > CURRENT_DATE - INTERVAL '30 days'`
+            );
+            recordCount = parseInt(result.rows[0]?.count || 0);
+            hasRecentData = recordCount > 0;
+          } catch {
+            hasRecentData = false;
+          }
+        }
+        
+        return {
+          ...source,
+          has_recent_data: hasRecentData,
+          record_count: recordCount,
+          operational_status: hasRecentData ? 'operational' : 'configured'
+        };
+      } catch (error) {
+        return {
+          ...source,
+          has_recent_data: false,
+          record_count: 0,
+          operational_status: 'error',
+          error: error.message
+        };
+      }
+    }));
+    
+    res.json({
+      success: true,
+      data: {
+        sources: sourceStatus,
+        summary: {
+          total_sources: sourceStatus.length,
+          operational_sources: sourceStatus.filter(s => s.operational_status === 'operational').length,
+          configured_sources: sourceStatus.filter(s => s.operational_status === 'configured').length,
+          error_sources: sourceStatus.filter(s => s.operational_status === 'error').length
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching data sources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch data sources',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get EPS revisions data
 router.get('/eps-revisions', async (req, res) => {
   try {
