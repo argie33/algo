@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const { query } = require('../utils/database');
+const { query, transaction } = require('../utils/database');
 const TradeAnalyticsService = require('../services/tradeAnalyticsService');
 const { decrypt } = require('../utils/secrets');
 
@@ -96,13 +96,13 @@ router.get('/import/status', authenticateToken, async (req, res) => {
  */
 router.post('/import/alpaca', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { startDate, endDate, forceRefresh = false } = req.body;
     
     // Database queries will use the query function directly
     
     // Get user's Alpaca API keys
-    const apiKeyResult = await db.query(`
+    const apiKeyResult = await query(`
       SELECT * FROM user_api_keys 
       WHERE user_id = $1 AND provider = 'alpaca' AND is_active = true
       ORDER BY created_at DESC
@@ -132,7 +132,7 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
     }
 
     // Check if import is already in progress
-    const configResult = await db.query(`
+    const configResult = await query(`
       SELECT last_sync_status FROM broker_api_configs 
       WHERE user_id = $1 AND broker = 'alpaca'
     `, [userId]);
@@ -180,7 +180,7 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
  */
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     // Database queries will use the query function directly
     
     if (!tradeAnalyticsService) {
@@ -209,7 +209,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
  */
 router.get('/positions', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { status = 'all', limit = 50, offset = 0 } = req.query;
     // Database queries will use the query function directly
     
@@ -221,7 +221,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
       params.push(status);
     }
 
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         ph.*,
         ta.entry_signal_quality,
@@ -241,7 +241,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
     `, params);
 
     // Get total count
-    const countResult = await db.query(`
+    const countResult = await query(`
       SELECT COUNT(*) as total 
       FROM position_history 
       WHERE user_id = $1 ${status !== 'all' ? `AND status = '${status}'` : ''}
@@ -275,12 +275,12 @@ router.get('/positions', authenticateToken, async (req, res) => {
  */
 router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const positionId = parseInt(req.params.positionId);
     // Database queries will use the query function directly
     
     // Get position with full analytics
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         ph.*,
         ta.*,
@@ -304,7 +304,7 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
     const position = result.rows[0];
 
     // Get related executions
-    const executionsResult = await db.query(`
+    const executionsResult = await query(`
       SELECT * FROM trade_executions 
       WHERE user_id = $1 AND symbol = $2 
       AND execution_time BETWEEN $3 AND $4
@@ -344,7 +344,7 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
  */
 router.get('/insights', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { limit = 10 } = req.query;
     // Database queries will use the query function directly
     
@@ -377,12 +377,12 @@ router.get('/insights', authenticateToken, async (req, res) => {
  */
 router.get('/performance', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { timeframe = '3M' } = req.query;
     // Database queries will use the query function directly
     
     // Get performance benchmarks
-    const benchmarkResult = await db.query(`
+    const benchmarkResult = await query(`
       SELECT * FROM performance_benchmarks 
       WHERE user_id = $1 
       ORDER BY benchmark_date DESC
@@ -390,13 +390,13 @@ router.get('/performance', authenticateToken, async (req, res) => {
     `, [userId]);
 
     // Get portfolio summary
-    const portfolioResult = await db.query(`
+    const portfolioResult = await query(`
       SELECT * FROM portfolio_summary 
       WHERE user_id = $1
     `, [userId]);
 
     // Get performance attribution
-    const attributionResult = await db.query(`
+    const attributionResult = await query(`
       SELECT * FROM performance_attribution 
       WHERE user_id = $1 
       ORDER BY closed_at DESC
@@ -428,7 +428,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
  */
 router.get('/history', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { 
       symbol, 
       startDate, 
@@ -472,7 +472,7 @@ router.get('/history', authenticateToken, async (req, res) => {
     const limitClause = `LIMIT $${++paramCount} OFFSET $${++paramCount}`;
     params.push(parseInt(limit), parseInt(offset));
     
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         te.*,
         ph.gross_pnl,
@@ -498,7 +498,7 @@ router.get('/history', authenticateToken, async (req, res) => {
     `, params);
     
     // Get total count for pagination
-    const countResult = await db.query(`
+    const countResult = await query(`
       SELECT COUNT(*) as total 
       FROM trade_executions te
       ${whereClause}
@@ -532,7 +532,7 @@ router.get('/history', authenticateToken, async (req, res) => {
  */
 router.get('/analytics/overview', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub; // Use req.user.sub for consistency
     const { timeframe = '3M' } = req.query;
     // Database queries will use the query function directly
     
@@ -549,7 +549,7 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
     }
     
     // Get key metrics
-    const metricsResult = await db.query(`
+    const metricsResult = await query(`
       SELECT 
         COUNT(*) as total_trades,
         COUNT(CASE WHEN ph.net_pnl > 0 THEN 1 END) as winning_trades,
@@ -579,7 +579,7 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
       Math.abs(metrics.total_pnl / metrics.losing_trades) : null;
     
     // Get sector breakdown
-    const sectorResult = await db.query(`
+    const sectorResult = await query(`
       SELECT 
         cp.sector,
         COUNT(*) as trade_count,
@@ -632,7 +632,7 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
  */
 router.get('/export', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { format = 'csv', startDate, endDate } = req.query;
     // Database queries will use the query function directly
     
@@ -650,7 +650,7 @@ router.get('/export', authenticateToken, async (req, res) => {
       params.push(endDate);
     }
     
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         te.execution_time,
         te.symbol,
@@ -732,7 +732,7 @@ router.get('/export', authenticateToken, async (req, res) => {
  */
 router.delete('/data', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const { confirm } = req.body;
     
     if (confirm !== 'DELETE_ALL_TRADE_DATA') {
@@ -744,28 +744,20 @@ router.delete('/data', authenticateToken, async (req, res) => {
 
     // Database queries will use the query function directly
     
-    // Delete all trade-related data for user
-    await db.query('BEGIN');
-    
-    try {
-      await db.query('DELETE FROM trade_analytics WHERE user_id = $1', [userId]);
-      await db.query('DELETE FROM position_history WHERE user_id = $1', [userId]);
-      await db.query('DELETE FROM trade_executions WHERE user_id = $1', [userId]);
-      await db.query('DELETE FROM trade_insights WHERE user_id = $1', [userId]);
-      await db.query('DELETE FROM performance_benchmarks WHERE user_id = $1', [userId]);
-      await db.query('DELETE FROM broker_api_configs WHERE user_id = $1', [userId]);
+    // Delete all trade-related data for user using transaction
+    await transaction(async (client) => {
+      await client.query('DELETE FROM trade_analytics WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM position_history WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM trade_executions WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM trade_insights WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM performance_benchmarks WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM broker_api_configs WHERE user_id = $1', [userId]);
+    });
       
-      await db.query('COMMIT');
-      
-      res.json({
-        success: true,
-        message: 'All trade data deleted successfully'
-      });
-      
-    } catch (error) {
-      await db.query('ROLLBACK');
-      throw error;
-    }
+    res.json({
+      success: true,
+      message: 'All trade data deleted successfully'
+    });
 
   } catch (error) {
     console.error('Error deleting trade data:', error);
