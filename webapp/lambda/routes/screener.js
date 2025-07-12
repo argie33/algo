@@ -662,6 +662,108 @@ router.get('/growth', (req, res) => {
   });
 });
 
+// Screener results endpoint
+router.get('/results', async (req, res) => {
+  try {
+    console.log('📊 Screener results endpoint called');
+    const { 
+      limit = 20, 
+      offset = 0,
+      filters = '{}' 
+    } = req.query;
+
+    // Mock screener results for ServiceHealth testing
+    const mockResults = [
+      {
+        symbol: 'AAPL',
+        company_name: 'Apple Inc.',
+        sector: 'Technology',
+        price: 175.50,
+        market_cap: 2750000000000,
+        pe_ratio: 28.5,
+        peg_ratio: 1.8,
+        pb_ratio: 39.2,
+        roe: 0.96,
+        roa: 0.22,
+        revenue_growth: 0.08,
+        earnings_growth: 0.12,
+        dividend_yield: 0.005,
+        factor_score: 85,
+        factor_grade: 'A',
+        recommendation: 'Buy'
+      },
+      {
+        symbol: 'MSFT',
+        company_name: 'Microsoft Corporation',
+        sector: 'Technology',
+        price: 310.25,
+        market_cap: 2300000000000,
+        pe_ratio: 32.1,
+        peg_ratio: 1.9,
+        pb_ratio: 12.8,
+        roe: 0.47,
+        roa: 0.18,
+        revenue_growth: 0.11,
+        earnings_growth: 0.15,
+        dividend_yield: 0.007,
+        factor_score: 82,
+        factor_grade: 'A',
+        recommendation: 'Buy'
+      },
+      {
+        symbol: 'GOOGL',
+        company_name: 'Alphabet Inc.',
+        sector: 'Technology',
+        price: 125.75,
+        market_cap: 1570000000000,
+        pe_ratio: 24.8,
+        peg_ratio: 1.2,
+        pb_ratio: 5.9,
+        roe: 0.26,
+        roa: 0.14,
+        revenue_growth: 0.07,
+        earnings_growth: 0.09,
+        dividend_yield: 0.000,
+        factor_score: 78,
+        factor_grade: 'B+',
+        recommendation: 'Buy'
+      }
+    ];
+
+    // Apply pagination
+    const paginatedResults = mockResults.slice(
+      parseInt(offset), 
+      parseInt(offset) + parseInt(limit)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        stocks: paginatedResults,
+        pagination: {
+          total: mockResults.length,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          hasMore: parseInt(offset) + parseInt(limit) < mockResults.length
+        },
+        filters: {
+          applied: 0,
+          total: 0
+        },
+        source: 'mock_data'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in screener results:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch screener results',
+      details: error.message
+    });
+  }
+});
+
 // Apply preset screen
 router.post('/presets/:presetId/apply', (req, res) => {
   const { presetId } = req.params;
