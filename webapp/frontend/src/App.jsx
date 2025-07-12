@@ -99,7 +99,6 @@ import OptionsStrategies from './pages/options/OptionsStrategies'
 import OptionsFlow from './pages/options/OptionsFlow'
 import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
-import RiskManagement from './pages/RiskManagement'
 import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 
@@ -155,7 +154,6 @@ const menuItems = [
   
   // Tools Section
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
-  { text: 'Risk Management', icon: <HealthAndSafetyIcon />, path: '/risk', category: 'tools', premium: true },
   { text: 'Live Data Feed', icon: <TrendingUpIcon />, path: '/data/alpaca', category: 'tools' },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
@@ -517,7 +515,6 @@ function App() {
             <Route path="/options/greeks" element={<GreeksMonitor />} />
             
             {/* Risk & Data Routes */}
-            <Route path="/risk" element={<RiskManagement />} />
             <Route path="/data/alpaca" element={<SimpleAlpacaData />} />
             
             {/* Cryptocurrency Routes */}
