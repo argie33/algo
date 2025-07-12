@@ -151,9 +151,17 @@ router.get('/api-keys', async (req, res) => {
   
   try {
     console.log('🔄 Attempting to query user_api_keys table...');
+    console.log('🔍 Query params - userId:', userId, 'type:', typeof userId);
+    
+    // First, let's check if ANY keys exist in the table
+    const allKeysResult = await query(`SELECT COUNT(*) as total_keys FROM user_api_keys`);
+    console.log('📊 Total API keys in database (all users):', allKeysResult.rows[0]?.total_keys || 0);
+    
+    // Now check keys for this specific user
     const result = await query(`
       SELECT 
         id,
+        user_id,
         provider,
         description,
         is_sandbox as "isSandbox",
@@ -166,7 +174,12 @@ router.get('/api-keys', async (req, res) => {
     `, [userId]);
 
     console.log('✅ Database query successful');
-    console.log('📊 Found API keys:', result.rows.length);
+    console.log('📊 Found API keys for user', userId, ':', result.rows.length);
+    console.log('🔍 Raw query result:', result.rows.map(row => ({ 
+      id: row.id, 
+      user_id: row.user_id, 
+      provider: row.provider 
+    })));
 
     // Don't return the actual encrypted keys for security
     const apiKeys = result.rows.map(row => ({
@@ -238,6 +251,9 @@ router.get('/api-keys', async (req, res) => {
 router.post('/api-keys', async (req, res) => {
   const userId = req.user.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
+  
+  console.log('🔐 POST /api-keys - Creating key for user:', userId);
+  console.log('📝 Key details:', { provider, isSandbox, description, hasApiKey: !!apiKey, hasSecret: !!apiSecret });
 
   if (!provider || !apiKey) {
     return res.status(400).json({

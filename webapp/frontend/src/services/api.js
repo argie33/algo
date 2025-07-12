@@ -575,6 +575,17 @@ api.interceptors.request.use(
       if (authToken) {
         config.headers['Authorization'] = `Bearer ${authToken}`;
       }
+      
+      // Add session ID for user isolation in development mode
+      if (typeof window !== 'undefined') {
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+          // Generate a unique session ID and store it
+          sessionId = 'session-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('sessionId', sessionId);
+        }
+        config.headers['X-Session-ID'] = sessionId;
+      }
     } catch (error) {
       console.log('Could not retrieve auth token:', error.message);
     }

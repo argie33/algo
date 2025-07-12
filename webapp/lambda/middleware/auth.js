@@ -125,13 +125,26 @@ const authenticateToken = async (req, res, next) => {
         process.env.NODE_ENV === 'development' || 
         process.env.SKIP_AUTH === 'true') {
       console.log('🛠️  Development/Demo mode: Skipping JWT verification');
+      
+      // Generate unique user ID based on stable request characteristics to maintain user isolation
+      const crypto = require('crypto');
+      const userAgent = req.headers['user-agent'] || '';
+      const ipAddress = req.ip || req.connection.remoteAddress || '';
+      
+      // Use session ID from cookie or create stable hash from user agent + IP
+      const sessionId = req.headers['x-session-id'] || req.cookies?.sessionId;
+      const sessionData = sessionId || `${userAgent}-${ipAddress}`;
+      
+      // Create a consistent user ID for this browser/session
+      let uniqueUserId = `dev-user-${crypto.createHash('md5').update(sessionData).digest('hex').substring(0, 8)}`;
+      
       req.user = {
-        sub: 'demo-user',
-        email: 'demo@example.com',
-        username: 'demo-user',
+        sub: uniqueUserId,
+        email: `${uniqueUserId}@example.com`,
+        username: uniqueUserId,
         role: 'admin'
       };
-      console.log('👤 Demo user set:', req.user);
+      console.log('👤 Unique demo user set:', req.user);
       return next();
     }
 
@@ -142,13 +155,22 @@ const authenticateToken = async (req, res, next) => {
     // If no verifier is available, skip authentication with warning
     if (!jwtVerifier) {
       console.warn('⚠️  JWT verifier not available, skipping authentication');
+      
+      // Generate unique user ID to maintain isolation even without proper auth
+      const crypto = require('crypto');
+      const userAgent = req.headers['user-agent'] || '';
+      const ipAddress = req.ip || req.connection.remoteAddress || '';
+      const sessionId = req.headers['x-session-id'] || req.cookies?.sessionId;
+      const sessionData = sessionId || `${userAgent}-${ipAddress}`;
+      let uniqueUserId = `no-auth-${crypto.createHash('md5').update(sessionData).digest('hex').substring(0, 8)}`;
+      
       req.user = {
-        sub: 'no-auth-user',
-        email: 'no-auth@example.com',
-        username: 'no-auth-user',
+        sub: uniqueUserId,
+        email: `${uniqueUserId}@example.com`,
+        username: uniqueUserId,
         role: 'user'
       };
-      console.log('👤 No-auth user set:', req.user);
+      console.log('👤 Unique no-auth user set:', req.user);
       return next();
     }
 
