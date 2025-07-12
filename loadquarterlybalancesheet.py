@@ -15,6 +15,7 @@ import boto3
 import yfinance as yf
 import pandas as pd
 
+# Enhanced quarterly balance sheet data loader with improved error handling and performance monitoring
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
 logging.basicConfig(
     level=logging.INFO,
@@ -23,10 +24,11 @@ logging.basicConfig(
 )
 
 def get_rss_mb():
+    """Calculate RSS memory usage in MB across different platforms"""
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+        return usage / 1024  # Linux reports in KB
+    return usage / (1024 * 1024)  # macOS reports in bytes
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
@@ -47,7 +49,7 @@ def get_db_config():
     }
 
 def safe_convert_to_float(value) -> Optional[float]:
-    """Safely convert value to float, handling various edge cases"""
+    """Safely convert value to float with enhanced validation and error handling"""
     if pd.isna(value) or value is None:
         return None
     try:
@@ -60,7 +62,7 @@ def safe_convert_to_float(value) -> Optional[float]:
         return None
 
 def safe_convert_date(dt) -> Optional[date]:
-    """Safely convert various date formats to date object"""
+    """Safely convert various date formats to date object with timezone handling"""
     if pd.isna(dt) or dt is None:
         return None
     try:
