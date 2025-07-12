@@ -481,12 +481,7 @@ const Portfolio = () => {
 
   // AI-powered insights
   const aiInsights = useMemo(() => {
-    // Mock AI insights
-    return [
-      { type: 'risk', severity: 'medium', message: 'Portfolio concentration in technology sector is slightly elevated' },
-      { type: 'opportunity', severity: 'low', message: 'Consider adding international exposure for better diversification' },
-      { type: 'performance', severity: 'high', message: 'Strong risk-adjusted returns over the past quarter' }
-    ];
+    return generateAIInsights(portfolioMetrics, factorAnalysis, diversificationMetrics);
   }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
 
   // Auto-refresh effect

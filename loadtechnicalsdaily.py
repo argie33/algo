@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v3 - retrigger after fixing workflow Dockerfile mapping
+# Daily technicals loader - deployment test v4 - retrigger after fixing workflow exit code logic  
 # Updated 2025-07-12: Fixed workflow issues, comprehensive error handling and memory optimization
 import sys
 import time

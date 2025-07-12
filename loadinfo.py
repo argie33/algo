@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Stock info loader - fetches company information and metadata
-# Enhanced data collection for comprehensive stock information analysis
-# Trigger deploy-app-stocks workflow test - loadinfo update v25 - FIXED FALLBACK MECHANISM
+# Enhanced data collection for comprehensive stock information analysis  
+# Trigger deploy-app-stocks workflow test - loadinfo update v26 - RETRIGGER AFTER WORKFLOW FIXES
 import sys
 print("🔍 LOADINFO DEBUG: Script starting...")
 print(f"🔍 LOADINFO DEBUG: Python version: {sys.version}")

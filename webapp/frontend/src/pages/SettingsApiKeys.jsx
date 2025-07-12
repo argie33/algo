@@ -153,7 +153,7 @@ const SettingsApiKeys = () => {
         isSandbox: true,
         description: ''
       });
-      setSuccess('API key added successfully! If you don\'t see it in the list, there may be a temporary database connectivity issue. Try refreshing the page.');
+      setSuccess('API key added successfully!');
       // Add a delay before fetching to allow database write to complete
       setTimeout(() => {
         fetchApiKeys();
