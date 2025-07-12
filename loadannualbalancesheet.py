@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Annual balance sheet loader - pipeline test v1.3 - verify comprehensive workflow fixes
 import sys
 import time
 import logging
