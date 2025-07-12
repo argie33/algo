@@ -191,6 +191,30 @@ export const getPortfolioAnalytics = async (timeframe = '1Y') => {
             volatility: 18.7,
             maxDrawdown: -8.2
           }
+        },
+        analytics: {
+          totalReturn: 12.5,
+          annualizedReturn: 15.3,
+          volatility: 18.7,
+          sharpeRatio: 1.45,
+          maxDrawdown: -8.2,
+          winRate: 68.5
+        },
+        attribution: [
+          { name: 'Security Selection', value: 3.2 },
+          { name: 'Asset Allocation', value: 1.8 },
+          { name: 'Market Timing', value: -0.5 },
+          { name: 'Other', value: 0.8 }
+        ],
+        risk: {
+          beta: 1.1,
+          alpha: 2.3,
+          r_squared: 0.85,
+          standardDeviation: 18.7,
+          downside_deviation: 12.4,
+          maximum_drawdown: -8.2,
+          var_95: -2.1,
+          cvar_95: -3.8
         }
       };
     }

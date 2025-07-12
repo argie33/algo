@@ -658,11 +658,28 @@ router.get('/analytics', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching portfolio analytics:', error);
+    console.error('❌ Error fetching portfolio analytics:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      code: error.code,
+      severity: error.severity,
+      detail: error.detail,
+      constraint: error.constraint,
+      table: error.table,
+      column: error.column,
+      userId: req.user?.sub,
+      timeframe: req.query.timeframe
+    });
+    
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve portfolio analytics',
-      details: error.message
+      details: error.message,
+      errorCode: error.code,
+      debugInfo: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        sql: error.sql
+      } : undefined
     });
   }
 });
