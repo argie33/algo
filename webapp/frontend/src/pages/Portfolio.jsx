@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Portfolio page - updated to use real data instead of mock data
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
+import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getApiKeys } from '../services/api';
 import {
   Box,
   Container,
@@ -415,6 +415,19 @@ const Portfolio = () => {
     });
     loadPortfolioData();
   }, [isAuthenticated, user, dataSource, accountType]);
+
+  // Load available API connections
+  const loadAvailableConnections = async () => {
+    try {
+      const response = await getApiKeys();
+      const connections = response?.apiKeys || [];
+      setAvailableConnections(connections.filter(conn => 
+        ['alpaca', 'robinhood'].includes(conn.provider.toLowerCase())
+      ));
+    } catch (error) {
+      console.error('Failed to load API connections:', error);
+    }
+  };
 
   // Load available accounts when authenticated
   useEffect(() => {
@@ -844,18 +857,6 @@ const Portfolio = () => {
     }
   };
 
-  // Load available API connections
-  const loadAvailableConnections = async () => {
-    try {
-      const response = await getApiKeys();
-      const connections = response?.apiKeys || [];
-      setAvailableConnections(connections.filter(conn => 
-        ['alpaca', 'robinhood'].includes(conn.provider.toLowerCase())
-      ));
-    } catch (error) {
-      console.error('Failed to load API connections:', error);
-    }
-  };
 
   // Test connection to broker
   const handleTestConnection = async (connectionId, provider) => {
