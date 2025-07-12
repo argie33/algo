@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
           '/portfolio/import - Import portfolio data from brokers'
         ],
         features: [
-          'Real-time portfolio tracking',
+          'Real-time portfolio tracking via broker API integration',
           'Performance analytics',
           'Risk assessment',
           'Asset allocation analysis',

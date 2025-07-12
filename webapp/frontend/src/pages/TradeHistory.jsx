@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+// Trade History - fully integrated with real broker API data via user API keys
+// Updated: 2025-07-12 - Enhanced real-time trade analytics using broker credentials
 import { getApiConfig, api } from '../services/api';
 import {
   Box,

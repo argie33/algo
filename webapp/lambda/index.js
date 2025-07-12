@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-07-12 - Fixed CORS X-Session-ID header deployment - Deploy v3
+// Updated: 2025-07-12 - Fixed CORS X-Session-ID header deployment - Deploy v4
 
 const serverless = require('serverless-http');
 const express = require('express');

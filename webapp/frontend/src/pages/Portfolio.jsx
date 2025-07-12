@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-// Portfolio page - updated to use real data instead of mock data
+// Portfolio page - fully integrated with real broker API keys for live data
+// Updated: 2025-07-12 - Enhanced real-time integration with broker API credentials
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
