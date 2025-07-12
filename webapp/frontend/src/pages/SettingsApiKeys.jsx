@@ -59,7 +59,8 @@ import {
   TrendingUp,
   Psychology,
   DataObject,
-  Api
+  Api,
+  Refresh
 } from '@mui/icons-material';
 import { 
   getApiKeys, 
@@ -121,6 +122,13 @@ const SettingsApiKeys = () => {
       setLoading(true);
       const response = await getApiKeys();
       setApiKeys(response?.apiKeys || []);
+      
+      // Check if there's a database issue note
+      if (response?.note && response.note.includes('Database connectivity issue')) {
+        setError(`API keys may not be visible due to database connectivity issues. ${response.note}`);
+      } else if (response?.note) {
+        console.warn('API Keys note:', response.note);
+      }
     } catch (err) {
       setError('Failed to fetch API keys');
       console.error('API keys fetch error:', err);
@@ -145,8 +153,11 @@ const SettingsApiKeys = () => {
         isSandbox: true,
         description: ''
       });
-      setSuccess('API key added successfully');
-      fetchApiKeys();
+      setSuccess('API key added successfully! If you don\'t see it in the list, there may be a temporary database connectivity issue. Try refreshing the page.');
+      // Add a delay before fetching to allow database write to complete
+      setTimeout(() => {
+        fetchApiKeys();
+      }, 1000);
     } catch (err) {
       setError('Failed to add API key');
       console.error('Add API key error:', err);
@@ -294,13 +305,23 @@ const SettingsApiKeys = () => {
         <Typography variant="h6">
           Your API Keys ({apiKeys.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setAddDialogOpen(true)}
-        >
-          Add API Key
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchApiKeys}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setAddDialogOpen(true)}
+          >
+            Add API Key
+          </Button>
+        </Box>
       </Box>
 
       {/* API Keys Table */}
