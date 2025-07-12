@@ -657,27 +657,51 @@ router.post('/screens/save', async (req, res) => {
 // Get saved screens
 router.get('/screens', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    console.log('📋 Fetching saved screens for user:', req.user?.sub);
+    const userId = req.user?.sub;
 
-    const result = await query(`
-      SELECT *
-      FROM saved_screens
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-    `, [userId]);
+    if (!userId) {
+      console.error('❌ No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
 
-    const screens = result.rows.map(screen => ({
-      ...screen,
-      filters: JSON.parse(screen.filters)
-    }));
+    // Try to fetch from database first
+    try {
+      const result = await query(`
+        SELECT *
+        FROM saved_screens
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+      `, [userId]);
 
-    res.json({
-      success: true,
-      data: screens
-    });
+      const screens = result.rows.map(screen => ({
+        ...screen,
+        filters: typeof screen.filters === 'string' ? JSON.parse(screen.filters) : screen.filters
+      }));
+
+      console.log(`✅ Found ${screens.length} saved screens for user ${userId}`);
+
+      res.json({
+        success: true,
+        data: screens
+      });
+
+    } catch (dbError) {
+      console.log('⚠️ Database query failed for saved screens, returning empty array:', dbError.message);
+      
+      // Return empty array if database fails
+      res.json({
+        success: true,
+        data: [],
+        note: 'Database unavailable - returning empty screens list'
+      });
+    }
 
   } catch (error) {
-    console.error('Error fetching saved screens:', error);
+    console.error('❌ Error fetching saved screens:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch saved screens',
