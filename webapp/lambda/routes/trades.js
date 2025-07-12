@@ -87,6 +87,7 @@ router.get('/import/status', authenticateToken, async (req, res) => {
       activeBrokers: 0,
       note: 'Unable to fetch import status'
     });
+  }
 });
 
 /**

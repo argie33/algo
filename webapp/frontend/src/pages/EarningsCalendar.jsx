@@ -59,7 +59,8 @@ import {
   AttachMoney,
   Schedule,
   Analytics,
-  EventNote
+  EventNote,
+  HorizontalRule
 } from '@mui/icons-material'
 
 // Create component-specific logger
