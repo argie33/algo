@@ -103,6 +103,7 @@ import {
   Download,
   Upload,
   Settings,
+  Sync,
   CloudSync,
   Security,
   Visibility,
@@ -1885,7 +1886,6 @@ const Portfolio = () => {
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="portfolio tabs" variant="scrollable" scrollButtons="auto">
           <Tab label="Holdings" icon={<AccountBalance />} />
           <Tab label="Performance" icon={<Timeline />} />
-          <Tab label="Activity History" icon={<Assessment />} />
           <Tab label="Factor Analysis" icon={<Analytics />} />
           <Tab label="Risk Management" icon={<Security />} />
           <Tab label="AI Insights" icon={<Psychology />} />
@@ -1896,14 +1896,80 @@ const Portfolio = () => {
       <TabPanel value={activeTab} index={0}>
         {/* Holdings Tab */}
         <Grid container spacing={3}>
+          {/* Broker Integration Status */}
+          <Grid item xs={12}>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Live Portfolio Data
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Import holdings directly from your broker using API keys
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    {availableConnections.length > 0 ? (
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <CheckCircle color="success" />
+                        <Typography variant="body2" color="success.main">
+                          {availableConnections.length} broker{availableConnections.length > 1 ? 's' : ''} connected
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Warning color="warning" />
+                        <Typography variant="body2" color="warning.main">
+                          No brokers connected
+                        </Typography>
+                      </Box>
+                    )}
+                    <Button 
+                      variant="contained" 
+                      startIcon={<Sync />}
+                      onClick={() => setImportDialogOpen(true)}
+                      size="small"
+                    >
+                      Import Holdings
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      onClick={() => loadPortfolioData()}
+                      size="small"
+                      disabled={loading}
+                    >
+                      Refresh
+                    </Button>
+                  </Box>
+                </Box>
+                {/* Show connected brokers */}
+                {availableConnections.length > 0 && (
+                  <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {availableConnections.map((connection, index) => (
+                      <Chip 
+                        key={index}
+                        label={`${connection.provider} (${connection.isSandbox ? 'Paper' : 'Live'})`}
+                        color={connection.isSandbox ? 'warning' : 'success'}
+                        size="small"
+                        icon={<AccountBalance />}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
           <Grid item xs={12} md={8}>
             <Card>
               <CardHeader 
                 title="Portfolio Holdings" 
+                subheader={dataSource === 'mock' ? 'Using demo data - Connect your broker for live data' : 'Live data from connected brokers'}
                 action={
                   <Chip 
                     label={`${portfolioData.holdings.length} positions`} 
-                    color="primary" 
+                    color={dataSource === 'mock' ? 'warning' : 'primary'} 
                     variant="outlined" 
                   />
                 }
@@ -2065,7 +2131,7 @@ const Portfolio = () => {
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={portfolioData.sectorAllocation}
+                          data={portfolioData?.sectorAllocation || []}
                           cx="50%"
                           cy="50%"
                           outerRadius={80}
@@ -2073,7 +2139,7 @@ const Portfolio = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                         >
-                          {portfolioData.sectorAllocation.map((entry, index) => (
+                          {(portfolioData?.sectorAllocation || []).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
@@ -2245,77 +2311,8 @@ const Portfolio = () => {
         </Grid>
       </TabPanel>
 
-      <TabPanel value={activeTab} index={2}>
-        {/* Activity History Tab */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardHeader 
-                title="Recent Activity" 
-                subheader="Portfolio transactions and account activities"
-                action={
-                  <Button size="small" variant="outlined">
-                    Export Activity
-                  </Button>
-                }
-              />
-              <CardContent>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Description</TableCell>
-                        <TableCell align="right">Quantity</TableCell>
-                        <TableCell align="right">Price</TableCell>
-                        <TableCell align="right">Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {portfolioData.activityHistory?.map((activity, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{new Date(activity.date).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={activity.type} 
-                              color={activity.type === 'BUY' ? 'success' : activity.type === 'SELL' ? 'error' : 'default'}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>{activity.symbol || '-'}</TableCell>
-                          <TableCell>{activity.description}</TableCell>
-                          <TableCell align="right">{activity.quantity ? formatNumber(activity.quantity) : '-'}</TableCell>
-                          <TableCell align="right">{activity.price ? formatCurrency(activity.price) : '-'}</TableCell>
-                          <TableCell align="right">
-                            <Typography 
-                              color={activity.amount >= 0 ? 'success.main' : 'error.main'}
-                              fontWeight="bold"
-                            >
-                              {formatCurrency(Math.abs(activity.amount))}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )) || [
-                        <TableRow key="no-data">
-                          <TableCell colSpan={7} align="center">
-                            <Typography color="text.secondary">
-                              No recent activity. Import your portfolio to see transaction history.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ]}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
 
-      <TabPanel value={activeTab} index={3}>
+      <TabPanel value={activeTab} index={2}>
         {/* Factor Analysis Tab */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
@@ -2387,7 +2384,7 @@ const Portfolio = () => {
         </Grid>
       </TabPanel>
 
-      <TabPanel value={activeTab} index={4}>
+      <TabPanel value={activeTab} index={3}>
         {/* Enhanced Risk Management Tab */}
         {/* Risk Summary Cards */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -2636,7 +2633,7 @@ const Portfolio = () => {
         </Card>
       </TabPanel>
 
-      <TabPanel value={activeTab} index={5}>
+      <TabPanel value={activeTab} index={4}>
         {/* AI Insights Tab */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
@@ -2738,7 +2735,7 @@ const Portfolio = () => {
         </Grid>
       </TabPanel>
 
-      <TabPanel value={activeTab} index={6}>
+      <TabPanel value={activeTab} index={5}>
         {/* Enhanced Optimization Tab */}
         <Grid container spacing={3}>
           {/* Optimization Configuration */}
