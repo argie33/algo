@@ -449,7 +449,7 @@ Resources:
       NodeType: !If [IsProduction, cache.r6g.xlarge, cache.r6g.large]
       Port: 6379
       ParameterGroupName: default.redis7
-      NumCacheClusters: !If [IsProduction, 3, 2]
+      NumCacheClusters: !If [IsProduction, 3, 1]
       Engine: redis
       EngineVersion: '7.0'
       CacheSubnetGroupName: !Ref RedisSubnetGroup

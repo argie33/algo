@@ -246,7 +246,7 @@ function App() {
     <div>
       <Toolbar>
         <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          Financial Platform v2.0
+          Financial Platform
         </Typography>
       </Toolbar>
       <List sx={{ px: 1 }}>

@@ -107,6 +107,8 @@ Resources:
       Engine: redis
       EngineVersion: '7.0'
       NumCacheClusters: 1  # Single node for cost optimization
+      AutomaticFailoverEnabled: false  # Required when NumCacheClusters < 2
+      MultiAZEnabled: false  # Cannot be true with single cluster
       CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
       SecurityGroupIds:
         - !Ref ElastiCacheSecurityGroup
