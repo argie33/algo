@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AAII data loader - sentiment and allocation data
+# Trigger deploy-app-stocks workflow - loadaaiidata update v2 - DOCKER BUILD
 import sys
 import time
 import logging

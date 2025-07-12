@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# NAAIM exposure data loader - advisor sentiment and market exposure
+# Trigger deploy-app-stocks workflow - loadnaaim update v2 - DOCKER BUILD
 import sys
 import time
 import logging
