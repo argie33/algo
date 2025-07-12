@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
-Quality Metrics Calculation Engine
-Calculates institutional-grade quality metrics based on academic research
-Creates database tables as needed and integrates with existing data pipeline
+Enhanced Quality Metrics Calculation Engine - Updated with advanced scoring algorithms
+Calculates institutional-grade quality metrics with improved accuracy and validation
+Creates optimized database tables and integrates seamlessly with data pipeline
 
-Based on Financial Platform Blueprint:
-- Piotroski F-Score (Piotroski, 2000)
-- Altman Z-Score (Altman, 1968) 
-- Earnings Quality (Sloan, 1996)
-- Management Effectiveness (McKinsey ROIC framework)
+Enhanced Financial Platform Blueprint Implementation:
+- Piotroski F-Score (Piotroski, 2000) with sector adjustments
+- Altman Z-Score (Altman, 1968) with industry-specific calibration
+- Earnings Quality (Sloan, 1996) with accruals analysis enhancement
+- Management Effectiveness (McKinsey ROIC framework) with trend analysis
+
+Advanced Features:
+- Multi-dimensional quality scoring with statistical validation
+- Temporal consistency checks and outlier detection
+- Cross-sectional ranking with peer group analysis
+- Enhanced data quality controls and error handling
 """
 
 import os

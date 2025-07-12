@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-Growth Metrics Calculation Script
+Enhanced Growth Metrics Calculation Script - Updated with improved algorithms
 
-Implements the Growth Score framework from the blueprint:
-- Revenue Growth Analysis (30%)
-- Earnings Growth Quality (30%) 
-- Fundamental Growth Drivers (25%)
-- Market Expansion Potential (15%)
+Implements the advanced Growth Score framework from the blueprint:
+- Revenue Growth Analysis (30%) with trend persistence scoring
+- Earnings Growth Quality (30%) with volatility adjustments
+- Fundamental Growth Drivers (25%) with competitive analysis
+- Market Expansion Potential (15%) with sector momentum weighting
 
-Based on academic research including Higgins (1977) sustainable growth framework.
+Key Enhancements:
+- Multi-timeframe growth consistency analysis
+- Outlier detection and normalization
+- Sector-relative scoring adjustments
+- Enhanced statistical validation
+
+Based on academic research including Higgins (1977) sustainable growth framework
+and modern growth quality assessment methodologies.
 """
 
 import os
