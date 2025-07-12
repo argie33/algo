@@ -80,7 +80,7 @@ const TradeHistory = () => {
     startDate: null,
     endDate: null,
     tradeType: 'all',
-    sortBy: 'execution_time',
+    sortBy: 'date',  // Changed from 'execution_time' to more standard 'date'
     sortOrder: 'desc'
   });
   const [pagination, setPagination] = useState({
