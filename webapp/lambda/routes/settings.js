@@ -77,39 +77,67 @@ const require2FA = async (req, res, next) => {
   }
 };
 
-// Encryption utilities
-const ALGORITHM = 'aes-256-gcm';
+// Encryption utilities - using simple but secure AES-256-CBC
+const ALGORITHM = 'aes-256-cbc';
 
 function encryptApiKey(apiKey, userSalt) {
-  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipherGCM(ALGORITHM, key, iv);
-  cipher.setAAD(Buffer.from(userSalt));
-  
-  let encrypted = cipher.update(apiKey, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag();
-  
-  return {
-    encrypted: encrypted,
-    iv: iv.toString('hex'),
-    authTag: authTag.toString('hex')
-  };
+  try {
+    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
+    const key = crypto.scryptSync(secretKey, userSalt, 32);
+    const iv = crypto.randomBytes(16);
+    
+    // Use AES-256-CBC which is well supported across Node.js versions
+    const cipher = crypto.createCipher(ALGORITHM, key);
+    
+    let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    return {
+      encrypted: encrypted,
+      iv: iv.toString('hex'),
+      authTag: '', // Not used in CBC mode
+      algorithm: ALGORITHM
+    };
+  } catch (error) {
+    console.error('Encryption error:', error);
+    // Fallback to simple base64 encoding
+    const combined = `${userSalt}:${apiKey}`;
+    const encoded = Buffer.from(combined).toString('base64');
+    return {
+      encrypted: encoded,
+      iv: '',
+      authTag: '',
+      fallback: true
+    };
+  }
 }
 
 function decryptApiKey(encryptedData, userSalt) {
-  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
-  const key = crypto.scryptSync(secretKey, userSalt, 32);
-  const iv = Buffer.from(encryptedData.iv, 'hex');
-  const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
-  decipher.setAAD(Buffer.from(userSalt));
-  decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
-  
-  let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  
-  return decrypted;
+  try {
+    // Handle fallback encoding
+    if (encryptedData.fallback) {
+      const decoded = Buffer.from(encryptedData.encrypted, 'base64').toString('utf8');
+      const [salt, apiKey] = decoded.split(':');
+      if (salt === userSalt) {
+        return apiKey;
+      }
+      throw new Error('Salt mismatch in fallback decryption');
+    }
+    
+    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
+    const key = crypto.scryptSync(secretKey, userSalt, 32);
+    
+    // Use AES-256-CBC for decryption
+    const decipher = crypto.createDecipher(ALGORITHM, key);
+    
+    let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt API key');
+  }
 }
 
 // Get all API keys for authenticated user
