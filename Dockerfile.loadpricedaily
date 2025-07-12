@@ -1,0 +1,12 @@
+# Dockerfile.pricedaily
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# install Python dependencies for loadpricedaily.py
+COPY requirements-loadpricedaily.txt .
+RUN pip install --no-cache-dir -r requirements-loadpricedaily.txt
+
+# copy and run the price-daily loader script
+COPY loadpricedaily.py .
+ENTRYPOINT ["python", "loadpricedaily.py"]

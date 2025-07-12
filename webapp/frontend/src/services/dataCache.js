@@ -183,7 +183,12 @@ class DataCacheService {
         try {
           await this.get(endpoint.endpoint, {}, {
             cacheType: endpoint.cacheType,
-            fetchFunction: () => fetch(endpoint.endpoint).then(r => r.json())
+            fetchFunction: async () => {
+              const { getApiConfig } = await import('./api');
+              const { apiUrl } = getApiConfig();
+              const fullUrl = `${apiUrl}${endpoint.endpoint}`;
+              return fetch(fullUrl).then(r => r.json());
+            }
           });
           await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
         } catch (error) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Latest monthly price data loader - fetches current month OHLCV data  
-# Trigger deploy-app-stocks workflow test - latest monthly loader v4 - improved reliability
+# Trigger deploy-app-stocks workflow test - latest monthly loader v5 - improved reliability and error handling
 import sys
 import time
 import logging

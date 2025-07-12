@@ -1350,8 +1350,8 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // Stock screening with consistent response format
 export const screenStocks = async (params) => {
   try {
-    // Use the dedicated screener endpoint
-    const endpoint = '/api/screener/screen';
+    // Use the stocks screening endpoint
+    const endpoint = '/stocks/screen';
     
     console.log('🔍 [API] Screening stocks with params:', params.toString());
     console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${params.toString()}`);

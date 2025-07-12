@@ -240,6 +240,17 @@ function useWatchlistData() {
   });
 }
 
+const mockPortfolio = {
+  totalValue: 125000,
+  dayChange: 2500,
+  dayChangePercent: 2.04,
+  holdings: [
+    { symbol: 'AAPL', shares: 100, value: 19500, change: 2.1 },
+    { symbol: 'TSLA', shares: 25, value: 17755, change: -1.8 },
+    { symbol: 'NVDA', shares: 10, value: 12000, change: 3.5 }
+  ]
+};
+
 const mockActivity = [
   { type: 'Trade', desc: 'Bought 100 AAPL', date: '2025-06-21', amount: 19500 },
   { type: 'Alert', desc: 'TSLA price alert triggered', date: '2025-06-20', amount: null },
