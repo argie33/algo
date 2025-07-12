@@ -219,7 +219,7 @@ function ServiceHealth() {
     {
       category: 'System Health',
       tests: [
-        { name: 'Health Check (Quick)', fn: () => healthCheck(true), critical: true },
+        { name: 'Health Check (Quick)', fn: () => healthCheck('?quick=true'), critical: true },
         { name: 'Health Check (Full)', fn: () => healthCheck(), critical: true },
         { name: 'Database Health', fn: () => api.get('/health'), critical: true },
         { name: 'Table Readiness Check', fn: () => api.get('/health/ready'), critical: false },

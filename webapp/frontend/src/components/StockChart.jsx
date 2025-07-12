@@ -384,7 +384,7 @@ const StockChart = ({
       <Card sx={{ height: height }}>
         <CardContent>
           <Alert severity="error">
-            {error}
+            {String(error)}
           </Alert>
         </CardContent>
       </Card>

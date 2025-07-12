@@ -301,7 +301,7 @@ function SectorAnalysis() {
       {error && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <Typography variant="body2">
-            {error}
+            {String(error)}
           </Typography>
           <Typography variant="caption" display="block" sx={{ mt: 1 }}>
             Showing mock data for development. Deploy the backend to see live data.

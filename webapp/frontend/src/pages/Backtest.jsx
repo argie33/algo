@@ -945,7 +945,7 @@ export default function Backtest() {
           {/* Error Display */}
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-              {error}
+              {String(error)}
             </Alert>
           )}
 

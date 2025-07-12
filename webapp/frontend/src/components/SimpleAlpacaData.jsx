@@ -279,7 +279,7 @@ const SimpleAlpacaData = () => {
       {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-          {error}
+          {String(error)}
         </Alert>
       )}
 

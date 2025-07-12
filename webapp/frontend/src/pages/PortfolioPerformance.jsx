@@ -286,7 +286,7 @@ const PortfolioPerformance = () => {
         <Box sx={{ py: 4 }}>
           <Alert severity="error">
             <Typography variant="h6">Error Loading Portfolio Performance</Typography>
-            <Typography>{error}</Typography>
+            <Typography>{String(error)}</Typography>
             <Button onClick={fetchPerformanceData} sx={{ mt: 2 }}>Retry</Button>
           </Alert>
         </Box>
@@ -307,7 +307,7 @@ const PortfolioPerformance = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
+          {String(error)}
         </Alert>
       )}
 

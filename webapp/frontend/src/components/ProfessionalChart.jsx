@@ -83,7 +83,7 @@ const ProfessionalChart = ({
       return (
         <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Typography color="error" variant="body2">
-            {error}
+            {String(error)}
           </Typography>
         </Box>
       );

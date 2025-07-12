@@ -102,7 +102,7 @@ const CryptoMarketOverview = () => {
   if (error) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error">{String(error)}</Alert>
       </Container>
     )
   }

@@ -1355,7 +1355,7 @@ const CommoditiesEnhanced = () => {
       <Container maxWidth="xl" sx={{ py: 3 }}>
         <Alert severity="error" sx={{ mb: 3 }}>
           <Typography variant="h6">Error Loading Data</Typography>
-          <Typography variant="body2">{error}</Typography>
+          <Typography variant="body2">{String(error)}</Typography>
         </Alert>
       </Container>
     );

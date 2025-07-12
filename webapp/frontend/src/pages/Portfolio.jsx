@@ -1565,7 +1565,7 @@ const Portfolio = () => {
         <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="400px">
           <Alert severity="error" sx={{ mb: 2 }}>
             <Typography variant="h6">Failed to Load Portfolio Data</Typography>
-            <Typography variant="body2">{error}</Typography>
+            <Typography variant="body2">{String(error)}</Typography>
           </Alert>
           <Button 
             variant="contained" 

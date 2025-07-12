@@ -272,7 +272,7 @@ const SettingsApiKeys = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
+          {String(error)}
         </Alert>
       )}
 
