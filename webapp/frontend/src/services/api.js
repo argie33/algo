@@ -274,7 +274,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
 // API Keys management
 export const getApiKeys = async () => {
   try {
-    const response = await api.get('/api/user/api-keys');
+    const response = await api.get('/settings/api-keys');
     return response.data;
   } catch (error) {
     console.error('Error fetching API keys:', error);
@@ -284,7 +284,7 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   try {
-    const response = await api.post('/api/user/api-keys', apiKeyData);
+    const response = await api.post('/settings/api-keys', apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error adding API key:', error);
@@ -294,7 +294,7 @@ export const addApiKey = async (apiKeyData) => {
 
 export const updateApiKey = async (keyId, apiKeyData) => {
   try {
-    const response = await api.put(`/api/user/api-keys/${keyId}`, apiKeyData);
+    const response = await api.put(`/settings/api-keys/${keyId}`, apiKeyData);
     return response.data;
   } catch (error) {
     console.error('Error updating API key:', error);
@@ -304,7 +304,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
 
 export const deleteApiKey = async (keyId) => {
   try {
-    const response = await api.delete(`/api/user/api-keys/${keyId}`);
+    const response = await api.delete(`/settings/api-keys/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting API key:', error);
@@ -314,7 +314,7 @@ export const deleteApiKey = async (keyId) => {
 
 export const testApiKeyConnection = async (keyId) => {
   try {
-    const response = await api.post(`/api/user/test-connection/${keyId}`);
+    const response = await api.post(`/settings/test-connection/${keyId}`);
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);

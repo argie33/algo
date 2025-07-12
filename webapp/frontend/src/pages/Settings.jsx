@@ -219,7 +219,7 @@ const Settings = () => {
 
   const loadApiKeys = async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/user/api-keys`, {
+      const response = await fetch(`${apiUrl}/settings/api-keys`, {
         headers: {
           'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
