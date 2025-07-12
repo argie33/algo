@@ -298,5 +298,82 @@ router.get('/debug/cors-test', async (req, res) => {
   });
 });
 
+// Debug endpoint to create missing quality_metrics table
+router.post('/create-table', async (req, res) => {
+  try {
+    const { query } = require('../utils/database');
+    
+    // Create quality_metrics table
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS quality_metrics (
+        symbol VARCHAR(10),
+        date DATE,
+        
+        -- Overall Quality Metric
+        quality_metric DECIMAL(8,4),
+        
+        -- Sub-component Metrics
+        earnings_quality_metric DECIMAL(8,4),
+        balance_sheet_metric DECIMAL(8,4),
+        profitability_metric DECIMAL(8,4),
+        management_metric DECIMAL(8,4),
+        
+        -- Detailed Components
+        piotroski_f_score INTEGER,
+        altman_z_score DECIMAL(8,4),
+        accruals_ratio DECIMAL(8,4),
+        cash_conversion_ratio DECIMAL(8,4),
+        roe_metric DECIMAL(8,4),
+        roa_metric DECIMAL(8,4),
+        roic_metric DECIMAL(8,4),
+        shareholder_yield DECIMAL(8,4),
+        
+        -- Metadata
+        confidence_score DECIMAL(5,2),
+        data_completeness DECIMAL(5,2),
+        sector VARCHAR(100),
+        market_cap_tier VARCHAR(20),
+        
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        
+        PRIMARY KEY (symbol, date)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_quality_metrics_symbol_date 
+      ON quality_metrics(symbol, date DESC);
+      
+      CREATE INDEX IF NOT EXISTS idx_quality_metrics_date_quality 
+      ON quality_metrics(date DESC, quality_metric DESC);
+    `;
+    
+    await query(createTableQuery);
+    
+    // Verify table was created
+    const tableCheck = await query(`
+      SELECT COUNT(*) as exists 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = 'quality_metrics'
+    `);
+    
+    const tableExists = parseInt(tableCheck.rows[0].exists) > 0;
+    
+    res.json({
+      status: 'success',
+      message: 'Quality metrics table created successfully',
+      table_exists: tableExists,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Table creation failed:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 
 module.exports = router;

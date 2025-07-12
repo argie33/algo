@@ -131,6 +131,8 @@ app.use((req, res, next) => {
 // CORS configuration (allow API Gateway origins)
 app.use(cors({
   origin: (origin, callback) => {
+    console.log('CORS check for origin:', origin);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
       return callback(null, true);
@@ -142,6 +144,7 @@ app.use(cors({
         origin.includes('localhost') ||
         origin.includes('127.0.0.1') ||
         origin === process.env.FRONTEND_URL) {
+      console.log('CORS allowed for origin:', origin);
       callback(null, true);
     } else {
       console.warn('CORS blocked origin:', origin);
@@ -150,8 +153,33 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID'],
+  optionsSuccessStatus: 200
 }));
+
+// Add explicit CORS headers for all responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Set CORS headers if origin is allowed
+  if (!origin || origin.includes('.execute-api.') || origin.includes('.cloudfront.net') || 
+      origin.includes('localhost') || origin.includes('127.0.0.1') || 
+      origin === process.env.FRONTEND_URL) {
+    
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  
+  next();
+});
 
 // Request parsing with size limits
 app.use(express.json({ limit: '2mb' }));
