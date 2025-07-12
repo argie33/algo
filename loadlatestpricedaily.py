@@ -1,4 +1,5 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3
+# Latest daily price loader - workflow trigger update v6
 import sys
 import time
 import logging
