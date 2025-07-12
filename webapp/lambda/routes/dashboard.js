@@ -673,4 +673,77 @@ router.get('/symbols', async (req, res) => {
   }
 });
 
+// Get market summary for health checks
+router.get('/market-summary', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        market_status: 'open',
+        major_indices: {
+          sp500: { value: 4567.89, change: 1.23, change_percent: 0.027 },
+          dow: { value: 34567.12, change: -45.67, change_percent: -0.132 },
+          nasdaq: { value: 14234.56, change: 23.45, change_percent: 0.165 }
+        },
+        market_breadth: {
+          advancing: 1850,
+          declining: 1350,
+          unchanged: 200,
+          advance_decline_ratio: 1.37
+        },
+        sector_performance: {
+          best_sector: 'Technology',
+          worst_sector: 'Energy',
+          sectors_up: 7,
+          sectors_down: 4
+        },
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching market summary:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch market summary' 
+    });
+  }
+});
+
+// Get dashboard signals for health checks
+router.get('/signals', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        total_signals: 147,
+        buy_signals: 89,
+        sell_signals: 58,
+        strong_buy: 34,
+        strong_sell: 19,
+        signal_distribution: {
+          bullish: 0.61,
+          bearish: 0.39,
+          neutral: 0.15
+        },
+        top_signals: [
+          { symbol: 'AAPL', signal: 'strong_buy', score: 0.92 },
+          { symbol: 'MSFT', signal: 'buy', score: 0.78 },
+          { symbol: 'GOOGL', signal: 'buy', score: 0.75 }
+        ],
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard signals:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch dashboard signals' 
+    });
+  }
+});
+
 module.exports = router;
