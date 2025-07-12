@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getApiConfig } from '../services/api';
 import {
   Box,
   Container,
@@ -93,7 +94,8 @@ const TradeHistory = () => {
 
   const fetchImportStatus = async () => {
     try {
-      const response = await fetch('/api/trades/import/status', {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/import/status`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -120,7 +122,8 @@ const TradeHistory = () => {
         }
       });
 
-      const response = await fetch(`/api/trades/history?${params}`, {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/history?${params}`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -143,7 +146,8 @@ const TradeHistory = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`/api/trades/analytics/overview?timeframe=${timeframe}`, {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/analytics/overview?timeframe=${timeframe}`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -158,7 +162,8 @@ const TradeHistory = () => {
   const handleImportTrades = async () => {
     setImporting(true);
     try {
-      const response = await fetch('/api/trades/import/alpaca', {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/import/alpaca`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +202,8 @@ const TradeHistory = () => {
         endDate: filters.endDate
       });
       
-      const response = await fetch(`/api/trades/export?${params}`, {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/export?${params}`, {
         credentials: 'include'
       });
       
