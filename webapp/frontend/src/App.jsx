@@ -102,7 +102,6 @@ import GreeksMonitor from './pages/options/GreeksMonitor'
 import RiskManagement from './pages/RiskManagement'
 import LiveDataMonitor from './components/LiveDataMonitor'
 import SimpleAlpacaData from './components/SimpleAlpacaData'
-import SmartWatchlist from './components/SmartWatchlist'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 
 const drawerWidth = 240
@@ -130,7 +129,6 @@ const menuItems = [
   { text: 'Financial Data', icon: <StorageIcon />, path: '/financial-data', category: 'stocks' },
   { text: 'Earnings Calendar', icon: <EventIcon />, path: '/earnings', category: 'stocks' },
   { text: 'Watchlist', icon: <TimelineIcon />, path: '/watchlist', category: 'stocks' },
-  { text: 'Smart Watchlist', icon: <Stars />, path: '/smart-watchlist', category: 'stocks' },
   
   // Options Trading Section (Premium)
   { text: 'Options Analytics', icon: <AssessmentIcon />, path: '/options', category: 'options', premium: true },
@@ -504,7 +502,6 @@ function App() {
             <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/commodities" element={<Commodities />} />
             <Route path="/watchlist" element={<Watchlist />} />
-            <Route path="/smart-watchlist" element={<SmartWatchlist />} />
             <Route path="/sentiment/social" element={<SocialMediaSentiment />} />
             <Route path="/sentiment/news" element={<NewsSentiment />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
