@@ -3,6 +3,37 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Root data endpoint - overview of data management
+router.get('/', async (req, res) => {
+  try {
+    console.log('Data overview endpoint called');
+    
+    // Provide overview of data management system
+    res.json({
+      success: true,
+      data: {
+        system: 'Data Management API',
+        version: '1.0.0',
+        status: 'operational',
+        available_endpoints: [
+          '/data/quality - Data quality checks across all tables',
+          '/data/sources - Data source status and health',
+          '/data/metrics - Data freshness and completeness metrics'
+        ],
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in data overview:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch data overview' 
+    });
+  }
+});
+
 // Data quality endpoint
 router.get('/quality', async (req, res) => {
   try {
