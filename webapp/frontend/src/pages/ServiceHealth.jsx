@@ -67,7 +67,7 @@ function ServiceHealth() {
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [comprehensiveMode, setComprehensiveMode] = useState(false);
+  const [comprehensiveMode, setComprehensiveMode] = useState(true); // Default to comprehensive view
 
   // Memoize diagnosticInfo to prevent infinite re-renders
   const diagnosticInfo = useMemo(() => {
@@ -118,13 +118,33 @@ function ServiceHealth() {
         console.log('Request started at:', new Date().toISOString());
         
         const response = await api.get('/health', {
-          timeout: 180000, // 3 minutes
+          timeout: 30000, // Reduced from 3 minutes to 30 seconds
           validateStatus: (status) => status < 500
         });
         
         const endTime = Date.now();
         const duration = endTime - startTime;
         console.log(`Database health check completed in ${duration}ms`);
+        
+        // Handle case where response has error but is still returned
+        if (response.data && response.data.error) {
+          console.warn('Database health check returned error:', response.data.error);
+          return {
+            database: {
+              status: 'error',
+              tables: {},
+              summary: { 
+                total_tables: 0, 
+                healthy_tables: 0, 
+                total_records: 0
+              },
+              error: response.data.error
+            },
+            message: response.data.error,
+            usingFallback: true,
+            timestamp: new Date().toISOString()
+          };
+        }
         
         return response.data;
       } catch (error) {
@@ -174,9 +194,9 @@ function ServiceHealth() {
         };
       }
     },
-    refetchInterval: 120000, // Auto-refresh every 2 minutes (less frequent due to longer timeout)
+    refetchInterval: 300000, // Auto-refresh every 5 minutes (reduced load)
     retry: 1,
-    staleTime: 60000,
+    staleTime: 180000, // Keep data fresh for 3 minutes
     enabled: true
   });
 
