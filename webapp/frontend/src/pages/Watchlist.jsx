@@ -396,10 +396,10 @@ const Watchlist = () => {
   };
 
   const getPERating = (pe) => {
-    if (!pe || pe <= 0) return { label: 'N/A', color: 'text.secondary' };
-    if (pe < 15) return { label: 'Low', color: 'success.main' };
-    if (pe < 25) return { label: 'Fair', color: 'warning.main' };
-    return { label: 'High', color: 'error.main' };
+    if (!pe || pe <= 0) return { label: 'N/A', color: '#666666' }; // Use hex color instead of theme color
+    if (pe < 15) return { label: 'Low', color: '#4caf50' }; // success color
+    if (pe < 25) return { label: 'Fair', color: '#ff9800' }; // warning color
+    return { label: 'High', color: '#f44336' }; // error color
   };
 
   const renderWatchlistTable = () => {

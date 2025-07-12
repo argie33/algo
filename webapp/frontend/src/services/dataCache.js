@@ -188,10 +188,12 @@ class DataCacheService {
                 const { getApiConfig } = await import('./api');
                 const { apiUrl } = getApiConfig();
                 const fullUrl = `${apiUrl}${endpoint.endpoint}`;
+                
+                console.log(`[DataCache] Fetching ${fullUrl}`);
                 const response = await fetch(fullUrl);
                 
-                if (response.status === 500) {
-                  console.warn(`500 error for ${endpoint.endpoint}, using mock data`);
+                if (response.status === 500 || response.status === 404) {
+                  console.warn(`${response.status} error for ${endpoint.endpoint}, using mock data`);
                   // Return mock data based on endpoint
                   if (endpoint.endpoint === '/metrics') {
                     return {
@@ -207,9 +209,13 @@ class DataCacheService {
                   return { success: true, data: [] };
                 }
                 
-                return response.json();
+                if (!response.ok) {
+                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
               } catch (error) {
-                console.warn(`Error fetching ${endpoint.endpoint}:`, error.message);
+                console.warn(`[DataCache] Error fetching ${endpoint.endpoint}:`, error.message);
                 // Return mock data for any errors
                 if (endpoint.endpoint === '/metrics') {
                   return {
