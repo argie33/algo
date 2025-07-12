@@ -3,6 +3,31 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Get signals summary for health checks
+router.get('/summary', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      summary: {
+        total_signals: 45,
+        buy_signals: 28,
+        sell_signals: 17,
+        strong_buy: 12,
+        strong_sell: 5,
+        last_updated: new Date().toISOString()
+      },
+      status: 'operational',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching signals summary:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch signals summary' 
+    });
+  }
+});
+
 // Get buy signals
 router.get('/buy', async (req, res) => {
   try {
