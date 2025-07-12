@@ -205,10 +205,10 @@ const SimpleAlpacaData = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Simple Alpaca Live Data
+        Live Data Feed
       </Typography>
       <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-        Direct WebSocket connection to Alpaca for real-time stock data
+        Real-time market data streaming with WebSocket connections
       </Typography>
 
       {/* Connection Status */}
