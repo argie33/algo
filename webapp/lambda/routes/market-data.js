@@ -5,7 +5,28 @@ const AlpacaService = require('../utils/alpacaService');
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
+// Root market-data endpoint for health checks (no auth required)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      system: 'Market Data API',
+      version: '1.0.0',
+      status: 'operational',
+      available_endpoints: [
+        'GET /market-data/status - Market status and trading hours',
+        'GET /market-data/quotes - Real-time quotes for symbols',
+        'GET /market-data/bars/:symbol - Historical price bars',
+        'GET /market-data/trades/:symbol - Latest trades',
+        'GET /market-data/calendar - Market calendar',
+        'GET /market-data/assets - Tradeable assets'
+      ],
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// Apply authentication middleware to all other routes
 router.use(authenticateToken);
 
 // Get real-time quotes for multiple symbols
@@ -201,37 +222,68 @@ router.get('/calendar', async (req, res) => {
 // Get market status
 router.get('/status', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    console.log('📈 Market status endpoint called for user:', req.user?.sub);
+    const userId = req.user?.sub;
     
-    // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
-    
-    if (!credentials) {
-      return res.status(404).json({
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
+        error: 'User authentication required'
       });
     }
+    
+    try {
+      // Try to get user's API key
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      
+      if (credentials && credentials.apiKey && credentials.apiSecret) {
+        console.log('✅ Valid API credentials found, fetching real market status...');
+        
+        // Initialize Alpaca service
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
 
-    // Initialize Alpaca service
-    const alpaca = new AlpacaService(
-      credentials.apiKey,
-      credentials.apiSecret,
-      credentials.isSandbox
-    );
+        // Get market status from Alpaca
+        const status = await alpaca.getClock();
 
-    // Get market status
-    const status = await alpaca.getClock();
+        return res.json({
+          success: true,
+          data: status,
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live'
+        });
+      }
+    } catch (apiError) {
+      console.log('⚠️ API credentials failed, using fallback status:', apiError.message);
+    }
+    
+    // Fallback to general market status
+    console.log('📝 Using fallback market status');
+    const now = new Date();
+    const currentHour = now.getUTCHours() - 5; // EST conversion (approximate)
+    const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
+    const isMarketHours = isWeekday && currentHour >= 9 && currentHour < 16;
+    
+    const fallbackStatus = {
+      timestamp: now.toISOString(),
+      is_open: isMarketHours,
+      next_open: isMarketHours ? null : new Date(now.getTime() + (24 * 60 * 60 * 1000)).toISOString(),
+      next_close: isMarketHours ? new Date(now.getTime() + (6 * 60 * 60 * 1000)).toISOString() : null,
+      timezone: 'America/New_York'
+    };
 
     res.json({
       success: true,
-      data: status,
-      provider: 'alpaca',
-      environment: credentials.isSandbox ? 'sandbox' : 'live'
+      data: fallbackStatus,
+      provider: 'fallback',
+      note: 'Using estimated market status - add API credentials for real-time data'
     });
+
   } catch (error) {
-    console.error('Market status error:', error);
+    console.error('❌ Market status error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch market status',
