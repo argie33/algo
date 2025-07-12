@@ -117,8 +117,19 @@ class ApiKeyService {
   // Get decrypted API credentials for a provider
   async getDecryptedCredentials(provider) {
     try {
-      // Check if user is authenticated first
-      const token = localStorage.getItem('token');
+      // Check if user is authenticated first - use same token logic as API service
+      let token = null;
+      
+      // Check if we're in browser context
+      if (typeof window !== 'undefined') {
+        // Try various storage locations for auth token (same as api.js)
+        token = localStorage.getItem('authToken') || 
+               sessionStorage.getItem('authToken') ||
+               localStorage.getItem('accessToken') ||
+               sessionStorage.getItem('accessToken') ||
+               localStorage.getItem('token'); // Fallback to old key
+      }
+      
       if (!token) {
         console.warn(`No authentication token found - skipping ${provider} credential retrieval`);
         return null;
