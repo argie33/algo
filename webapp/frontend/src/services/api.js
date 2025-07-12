@@ -597,8 +597,8 @@ const retryRequest = async (error) => {
 // Request interceptor for logging and Lambda optimization
 api.interceptors.request.use(
   (config) => {
-    // Remove any double /api/api
-    if (config.url && config.url.startsWith('/api/api')) {
+    // Remove any double /api/api with robust type checking
+    if (config.url && typeof config.url === 'string' && config.url.startsWith('/api/api')) {
       config.url = config.url.replace('/api/api', '/api');
     }
     
