@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
-import { isCognitoConfigured } from '../config/amplify';
+import { isCognitoConfigured, getCognitoConfig } from '../config/amplify';
 import devAuth from '../services/devAuth';
 
 // Initial auth state
@@ -443,6 +443,26 @@ export function AuthProvider({ children }) {
           
           dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
           
+          return {
+            success: true,
+            nextStep: result.nextStep,
+            message: 'Password reset code sent to your email'
+          };
+        } catch (error) {
+          console.error('Dev auth password reset error:', error);
+          const errorMessage = getErrorMessage(error);
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+          return { success: false, error: errorMessage };
+        }
+      }
+
+      // Additional check to prevent undefined domain issues
+      const cognitoConfig = getCognitoConfig();
+      if (!cognitoConfig.domain || cognitoConfig.domain === 'undefined' || cognitoConfig.domain === '') {
+        console.warn('Cognito domain not configured - falling back to development authentication');
+        try {
+          const result = await devAuth.resetPassword(username);
+          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
           return {
             success: true,
             nextStep: result.nextStep,

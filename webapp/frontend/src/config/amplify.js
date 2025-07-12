@@ -5,20 +5,29 @@ const isCognitoConfigured = () => {
   // First check runtime config
   const runtimeConfig = window.__CONFIG__?.COGNITO;
   if (runtimeConfig?.USER_POOL_ID && runtimeConfig?.CLIENT_ID) {
-    return !!(runtimeConfig.USER_POOL_ID !== 'us-east-1_DUMMY' && 
-             runtimeConfig.CLIENT_ID !== 'dummy-client-id');
+    const isValid = !!(runtimeConfig.USER_POOL_ID !== 'us-east-1_DUMMY' && 
+                      runtimeConfig.CLIENT_ID !== 'dummy-client-id' &&
+                      runtimeConfig.USER_POOL_ID !== 'undefined' &&
+                      runtimeConfig.CLIENT_ID !== 'undefined');
+    console.log('Runtime Cognito config check:', { isValid, userPoolId: runtimeConfig.USER_POOL_ID, clientId: runtimeConfig.CLIENT_ID });
+    return isValid;
   }
   
   // Fallback to environment variables
   const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
   const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
   
-  return !!(userPoolId && 
-           clientId && 
-           userPoolId !== '' && 
-           clientId !== '' &&
-           userPoolId !== 'us-east-1_DUMMY' &&
-           clientId !== 'dummy-client-id');
+  const isValid = !!(userPoolId && 
+                    clientId && 
+                    userPoolId !== '' && 
+                    clientId !== '' &&
+                    userPoolId !== 'us-east-1_DUMMY' &&
+                    clientId !== 'dummy-client-id' &&
+                    userPoolId !== 'undefined' &&
+                    clientId !== 'undefined');
+  
+  console.log('Environment Cognito config check:', { isValid, userPoolId, clientId });
+  return isValid;
 };
 
 // Get configuration from runtime config or environment variables
@@ -47,7 +56,9 @@ const getAmplifyConfig = () => {
         region: cognitoConfig.region,
         signUpVerificationMethod: 'code',
         loginWith: {
-          oauth: cognitoConfig.domain ? {
+          oauth: (cognitoConfig.domain && 
+                 cognitoConfig.domain !== '' && 
+                 cognitoConfig.domain !== 'undefined') ? {
             domain: cognitoConfig.domain,
             scopes: ['email', 'profile', 'openid'],
             redirectSignIn: cognitoConfig.redirectSignIn,
