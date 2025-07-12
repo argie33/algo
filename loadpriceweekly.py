@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - weekly loader update v11 - fixed filter dependencies
+# Trigger deploy-app-stocks workflow test - weekly loader update v12 - test workflow execution after filter fix
 import sys
 import time
 import logging
