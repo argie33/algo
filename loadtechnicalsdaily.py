@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v6 - testing workflow fixes and exit code logic
+# Daily technicals loader - deployment test v7 - force Docker rebuild for missing ECR image
 # Updated 2025-07-12: Fixed workflow issues, comprehensive error handling and memory optimization
 import sys
 import time
