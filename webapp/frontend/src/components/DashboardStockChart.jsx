@@ -111,10 +111,11 @@ const DashboardStockChart = ({
     simpleAlpacaWebSocket.on('disconnected', handleDisconnected);
     simpleAlpacaWebSocket.on('data', handleData);
 
-    // Connect if not already connected
+    // Connect if not already connected (silently handle auth failures)
     if (!simpleAlpacaWebSocket.isConnected) {
       simpleAlpacaWebSocket.connect().catch(error => {
-        console.error('Failed to connect to Alpaca WebSocket:', error);
+        console.warn('Alpaca WebSocket connection not available:', error.message);
+        // Don't spam the console with errors for normal auth failures
       });
     }
 

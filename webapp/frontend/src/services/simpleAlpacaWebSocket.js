@@ -42,8 +42,8 @@ class SimpleAlpacaWebSocket {
       const credentials = await apiKeyService.getAlpacaCredentials();
       
       if (!credentials) {
-        console.error('❌ No Alpaca API credentials found in user settings');
-        this.emit('error', new Error('No Alpaca API credentials found. Please add your Alpaca API key in Settings.'));
+        console.warn('⚠️ No Alpaca API credentials found - real-time data will not be available');
+        // Don't emit error, just warn - this is a normal state for unauthenticated users
         return false;
       }
 

@@ -117,15 +117,26 @@ class ApiKeyService {
   // Get decrypted API credentials for a provider
   async getDecryptedCredentials(provider) {
     try {
+      // Check if user is authenticated first
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn(`No authentication token found - skipping ${provider} credential retrieval`);
+        return null;
+      }
+
       const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys/${provider}/credentials`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          console.warn(`Authentication failed for ${provider} credentials - user may need to log in`);
+          return null;
+        }
         if (response.status === 404) {
           console.warn(`No active ${provider} API key found`);
           return null;
