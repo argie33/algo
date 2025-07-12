@@ -1,18 +1,22 @@
 import axios from 'axios' 
 
 // Get API configuration - exported for ServiceHealth 
+let configLoggedOnce = false;
 export const getApiConfig = () => {
   // Dynamic API URL resolution with fallback
   const apiUrl = window.__CONFIG__?.API_URL || 
                  import.meta.env.VITE_API_URL || 
                  'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
   
-  console.log('🔧 [API CONFIG] URL Resolution:', {
-    windowConfig: window.__CONFIG__?.API_URL,
-    envApiUrl: import.meta.env.VITE_API_URL,
-    finalApiUrl: apiUrl,
-    allEnvVars: import.meta.env
-  });
+  // Only log config details once or in development mode
+  if (!configLoggedOnce || import.meta.env.DEV) {
+    console.log('🔧 [API CONFIG] URL Resolution:', {
+      windowConfig: window.__CONFIG__?.API_URL,
+      envApiUrl: import.meta.env.VITE_API_URL,
+      finalApiUrl: apiUrl
+    });
+    configLoggedOnce = true;
+  }
   
   return {
     baseURL: apiUrl,

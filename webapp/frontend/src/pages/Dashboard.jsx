@@ -94,12 +94,12 @@ function usePortfolioData() {
         let holdings = [];
         let accountInfo = null;
         
-        if (holdingsRes.ok) {
+        if (holdingsRes && holdingsRes.ok) {
           const holdingsData = await holdingsRes.json();
           holdings = holdingsData.data?.holdings || [];
         }
         
-        if (accountRes.ok) {
+        if (accountRes && accountRes.ok) {
           const accountData = await accountRes.json();
           accountInfo = accountData.data || null;
         }

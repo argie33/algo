@@ -112,7 +112,7 @@ const DashboardStockChart = ({
     simpleAlpacaWebSocket.on('data', handleData);
 
     // Connect if not already connected
-    if (!simpleAlpacaWebSocket.getConnectionStatus() === 'CONNECTED') {
+    if (!simpleAlpacaWebSocket.isConnected) {
       simpleAlpacaWebSocket.connect();
     }
 
