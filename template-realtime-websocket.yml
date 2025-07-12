@@ -69,7 +69,6 @@ Resources:
                 Action:
                   - execute-api:Invoke
                 Resource: 'arn:aws:execute-api:*:*:*'
-                Description: Allow calling existing stocks API
 
   #############################################################################
   # ELASTICACHE REDIS - LOW LATENCY CACHING

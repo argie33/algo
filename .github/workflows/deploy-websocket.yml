@@ -67,15 +67,15 @@ jobs:
           
           # Delete new stack if exists  
           NEW_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-websocket-stack-v2 \
+            --stack-name stocks-websocket-stack \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "DOES_NOT_EXIST")
           
           if [ "$NEW_STATUS" != "DOES_NOT_EXIST" ]; then
-            echo "Deleting new stack: stocks-websocket-stack-v2 (Status: $NEW_STATUS)"
-            aws cloudformation delete-stack --stack-name stocks-websocket-stack-v2
+            echo "Deleting new stack: stocks-websocket-stack (Status: $NEW_STATUS)"
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack
             echo "Waiting for new stack deletion..."
-            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack-v2
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
             echo "New stack deleted"
           fi
           
@@ -90,7 +90,7 @@ jobs:
           if [ $TEMPLATE_SIZE -lt 51200 ]; then
             echo "Template is small enough, deploying directly without S3..."
             aws cloudformation deploy \
-              --stack-name stocks-websocket-stack-v2 \
+              --stack-name stocks-websocket-stack \
               --template-file template-realtime-websocket.yml \
               --parameter-overrides \
                 Environment=dev \
@@ -99,7 +99,7 @@ jobs:
           else
             echo "Template is large, using S3 bucket..."
             aws cloudformation deploy \
-              --stack-name stocks-websocket-stack-v2 \
+              --stack-name stocks-websocket-stack \
               --template-file template-realtime-websocket.yml \
               --parameter-overrides \
                 Environment=dev \
