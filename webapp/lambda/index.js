@@ -115,6 +115,14 @@ app.use((req, res, next) => {
   res.setHeader('X-RateLimit-Limit', '1000');
   res.setHeader('X-RateLimit-Window', '3600');
   
+  // Debug logging for routing issues
+  if (req.path.includes('/screen')) {
+    console.log(`🔍 Request to screen endpoint: ${req.method} ${req.path}`);
+    console.log(`🔍 Full URL: ${req.url}`);
+    console.log(`🔍 Base URL: ${req.baseUrl}`);
+    console.log(`🔍 Original URL: ${req.originalUrl}`);
+  }
+  
   next();
 });
 

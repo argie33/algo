@@ -822,7 +822,9 @@ router.get('/filters/sectors', async (req, res) => {
 // Screen stocks with advanced filtering - THE KEY ENDPOINT THE FRONTEND USES
 router.get('/screen', async (req, res) => {
   try {
-    console.log('Screen endpoint called with params:', req.query);
+    console.log('🔍 Screen endpoint HIT! Method:', req.method, 'URL:', req.url);
+    console.log('🔍 Screen endpoint called with params:', req.query);
+    console.log('🔍 Request headers:', req.headers);
     
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 25, 100);
@@ -1257,14 +1259,52 @@ router.get('/screen', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Screen endpoint error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Screen query failed',
-      details: error.message,
-      data: [], // Always return data as an array for frontend safety
-      timestamp: new Date().toISOString()
+    console.error('❌ Screen endpoint error:', error.message);
+    console.error('🔍 Full error details:', {
+      message: error.message,
+      code: error.code,
+      severity: error.severity,
+      detail: error.detail,
+      hint: error.hint,
+      table: error.table,
+      constraint: error.constraint,
+      stack: error.stack
     });
+    
+    // Handle specific database errors
+    if (error.code === '42P01') { // Table doesn't exist
+      res.status(503).json({ 
+        success: false,
+        error: 'Database tables not ready',
+        message: 'Required tables (stock_symbols, company_profile) have not been created yet. Please run the data loading workflows.',
+        details: error.message,
+        data: [], 
+        errorCode: error.code,
+        solution: 'Run deploy-app-stocks workflow to create stock_symbols table',
+        timestamp: new Date().toISOString()
+      });
+    } else if (error.code === '42703') { // Column doesn't exist
+      res.status(503).json({ 
+        success: false,
+        error: 'Database schema mismatch',
+        message: 'Required database columns are missing. The database schema may be outdated.',
+        details: error.message,
+        data: [], 
+        errorCode: error.code,
+        solution: 'Run database migration or recreate tables with updated schema',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({ 
+        success: false,
+        error: 'Screen query failed',
+        message: 'An unexpected error occurred while screening stocks',
+        details: error.message,
+        data: [], 
+        errorCode: error.code,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 
