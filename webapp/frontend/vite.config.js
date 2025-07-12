@@ -73,7 +73,9 @@ export default defineConfig(({ mode }) => {
       include: [
         '@uiw/react-codemirror',
         '@codemirror/lang-javascript',
-        '@codemirror/lang-python',
+        '@codemirror/lang-python'
+      ],
+      exclude: [
         '@emotion/react',
         '@emotion/styled',
         '@emotion/cache'
