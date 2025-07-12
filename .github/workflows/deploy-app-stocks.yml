@@ -199,6 +199,18 @@ jobs:
               - loadanalystupgradedowngrade.py
               - requirements-loadanalystupgradedowngrade.txt
               - Dockerfile.loadanalystupgradedowngrade
+            feargreed:
+              - loadfeargreed.py
+              - requirements-loadfeargreed.txt
+              - Dockerfile.loadfeargreed
+            naaim:
+              - loadnaaim.py
+              - requirements-loadnaaim.txt
+              - Dockerfile.loadnaaim
+            aaiidata:
+              - loadaaiidata.py
+              - requirements-loadaaiidata.txt
+              - Dockerfile.loadaaiidata
             app:
               - template-app-stocks.yml
               - template-app-ecs-tasks.yml
@@ -229,6 +241,9 @@ jobs:
              [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] || \
              [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.feargreed }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.naaim }}" = "true" ] || \
+             [ "${{ steps.paths.outputs.aaiidata }}" = "true" ] || \
              [ "${{ steps.paths.outputs.app }}" = "true" ]; then
             echo "any=true" >> $GITHUB_OUTPUT
           else
@@ -262,6 +277,9 @@ jobs:
           [ "${{ steps.paths.outputs.latesttechnicalsdaily }}" = "true" ]  && arr="$arr,\"latesttechnicalsdaily\""
           [ "${{ steps.paths.outputs.latesttechnicalsweekly }}" = "true" ] && arr="$arr,\"latesttechnicalsweekly\""
           [ "${{ steps.paths.outputs.latesttechnicalsmonthly }}" = "true" ] && arr="$arr,\"latesttechnicalsmonthly\""
+          [ "${{ steps.paths.outputs.feargreed }}" = "true" ] && arr="$arr,\"feargreed\""
+          [ "${{ steps.paths.outputs.naaim }}" = "true" ] && arr="$arr,\"naaim\""
+          [ "${{ steps.paths.outputs.aaiidata }}" = "true" ] && arr="$arr,\"aaiidata\""
           
           if [ -z "$arr" ]; then
             echo "matrix=[\"none\"]" >> $GITHUB_OUTPUT
@@ -330,6 +348,9 @@ jobs:
             latesttechnicalsdaily)   DOCKERFILE=Dockerfile.latesttechnicalsdaily;   PARAM=LatestTechnicalsDailyImageTag;;\
             latesttechnicalsweekly)  DOCKERFILE=Dockerfile.latesttechnicalsweekly;  PARAM=LatestTechnicalsWeeklyImageTag;;\
             latesttechnicalsmonthly) DOCKERFILE=Dockerfile.latesttechnicalsmonthly; PARAM=LatestTechnicalsMonthlyImageTag;;\
+            feargreed)        DOCKERFILE=Dockerfile.loadfeargreed;    PARAM=FearGreedImageTag;;\
+            naaim)            DOCKERFILE=Dockerfile.loadnaaim;       PARAM=NaaimImageTag;;\
+            aaiidata)         DOCKERFILE=Dockerfile.loadaaiidata;    PARAM=AaiiImageTag;;\
           esac
           TAG=${{ matrix.loader }}-${{ github.sha }}
           LATEST_TAG=${{ matrix.loader }}-latest
@@ -2408,5 +2429,278 @@ jobs:
           echo "→ Exit code: $EXIT"
           if [ "$EXIT" != "0" ] && [ "$EXIT" != "None" ] && [ "$EXIT" != "null" ] && [ -n "$EXIT" ]; then
             echo "❌ load-latest-price-monthly failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+################################################################################
+# Fear & Greed Index Loader Job                                               #
+################################################################################
+  run_feargreed:
+    name: Run fear-greed loader
+    needs: [build, deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.feargreed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FearGreedTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets & SG
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run fear-greed Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started fear-greed task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ fear-greed task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" != "0" ] && [ "$EXIT" != "None" ] && [ "$EXIT" != "null" ] && [ -n "$EXIT" ]; then
+            echo "❌ fear-greed failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+################################################################################
+# NAAIM Data Loader Job                                                       #
+################################################################################
+  run_naaim:
+    name: Run naaim loader
+    needs: [build, deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.naaim == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='NaaimTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets & SG
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run naaim Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started naaim task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ naaim task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" != "0" ] && [ "$EXIT" != "None" ] && [ "$EXIT" != "null" ] && [ -n "$EXIT" ]; then
+            echo "❌ naaim failed with exit code $EXIT"
+            exit $EXIT
+          fi
+
+################################################################################
+# AAII Sentiment Data Loader Job                                              #
+################################################################################
+  run_aaiidata:
+    name: Run aaii-data loader
+    needs: [build, deploy-tasks, filter]
+    if: ${{ needs.filter.outputs.aaiidata == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Fetch Task Definition ARN
+        id: td
+        run: |
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='AaiiTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Fetch cluster ARN & subnets & SG
+        id: infra
+        run: |
+          CLUSTER=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUB1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUB2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
+          echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run aaii-data Fargate task
+        id: run
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "🟢 Started aaii-data task $TASK_ARN"
+
+      - name: Wait up to 60m for task to stop
+        run: |
+          for i in $(seq 1 180); do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+              --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "Attempt $i – status=$STATUS"
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          if [ "$STATUS" != "STOPPED" ]; then
+            echo "❌ aaii-data task did not stop within 60m"
+            exit 1
+          fi
+
+      - name: Check container exit code
+        run: |
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --tasks "${{ steps.run.outputs.TASK_ARN }}" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          echo "→ Exit code: $EXIT"
+          if [ "$EXIT" != "0" ] && [ "$EXIT" != "None" ] && [ "$EXIT" != "null" ] && [ -n "$EXIT" ]; then
+            echo "❌ aaii-data failed with exit code $EXIT"
             exit $EXIT
           fi
