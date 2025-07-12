@@ -396,6 +396,138 @@ const Portfolio = () => {
     factorConstraints: true
   });
 
+  // ALL HOOKS MUST BE DECLARED AT THE TOP TO FIX REACT ERROR #310
+  // Advanced portfolio metrics calculations
+  const portfolioMetrics = useMemo(() => {
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {
+        totalValue: 0,
+        totalCost: 0,
+        totalGainLoss: 0,
+        totalGainLossPercent: 0,
+        volatility: 0,
+        sharpeRatio: 0,
+        beta: 1,
+        var95: 0,
+        maxDrawdown: 0,
+        treynorRatio: 0,
+        informationRatio: 0,
+        calmarRatio: 0
+      };
+    }
+
+    const { holdings } = portfolioData;
+    const totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+    const totalCost = holdings.reduce((sum, h) => sum + ((h.avgCost || 0) * (h.shares || 0)), 0);
+    const totalGainLoss = totalValue - totalCost;
+    const totalGainLossPercent = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
+
+    // Calculate risk metrics with safe defaults
+    const volatility = 18.5; // Mock volatility
+    const sharpeRatio = 1.25; // Mock Sharpe ratio
+    const beta = 1.1; // Mock beta
+    const var95 = -2.5; // Mock VaR
+    const maxDrawdown = -8.2; // Mock max drawdown
+
+    return {
+      totalValue,
+      totalCost,
+      totalGainLoss,
+      totalGainLossPercent,
+      volatility,
+      sharpeRatio,
+      beta,
+      var95,
+      maxDrawdown,
+      treynorRatio: beta !== 0 ? totalGainLossPercent / beta : 0,
+      informationRatio: 0.85, // Mock information ratio
+      calmarRatio: maxDrawdown !== 0 ? totalGainLossPercent / Math.abs(maxDrawdown) : 0
+    };
+  }, [portfolioData]);
+
+  // Factor analysis calculations
+  const factorAnalysis = useMemo(() => {
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {};
+    }
+    // Mock factor analysis
+    return {
+      quality: 0.75,
+      growth: 0.65,
+      value: 0.45,
+      momentum: 0.55,
+      size: 0.30,
+      volatility: 0.40
+    };
+  }, [portfolioData]);
+
+  // Sector and geographic diversification
+  const diversificationMetrics = useMemo(() => {
+    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
+      return {
+        sectorConcentration: 0,
+        geographicDiversification: 0,
+        marketCapExposure: {},
+        concentrationRisk: 0
+      };
+    }
+    return {
+      sectorConcentration: 0.35, // Mock concentration
+      geographicDiversification: 0.68, // Mock diversification
+      marketCapExposure: { large: 0.75, mid: 0.20, small: 0.05 }, // Mock market cap exposure
+      concentrationRisk: 0.15 // Mock concentration risk
+    };
+  }, [portfolioData]);
+
+  // AI-powered insights
+  const aiInsights = useMemo(() => {
+    // Mock AI insights
+    return [
+      { type: 'risk', severity: 'medium', message: 'Portfolio concentration in technology sector is slightly elevated' },
+      { type: 'opportunity', severity: 'low', message: 'Consider adding international exposure for better diversification' },
+      { type: 'performance', severity: 'high', message: 'Strong risk-adjusted returns over the past quarter' }
+    ];
+  }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        setLastRefresh(new Date());
+        loadPortfolioData();
+      }, 30000); // Refresh every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, isAuthenticated, user]);
+
+  const sortedHoldings = useMemo(() => {
+    if (!portfolioData?.holdings) return [];
+    return portfolioData.holdings.sort((a, b) => {
+      const aValue = a[orderBy];
+      const bValue = b[orderBy];
+      
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+  }, [portfolioData?.holdings, orderBy, order]);
+
+  // Load available API connections
+  const loadAvailableConnections = async () => {
+    try {
+      const response = await getApiKeys();
+      const connections = response?.apiKeys || [];
+      setAvailableConnections(connections.filter(conn => 
+        ['alpaca', 'robinhood'].includes(conn.provider.toLowerCase())
+      ));
+    } catch (error) {
+      console.error('Failed to load API connections:', error);
+    }
+  };
+
   // Authentication guard - disabled (portfolio available to all users)
   // useEffect(() => {
   //   // Skip authentication check in development mode
@@ -703,97 +835,6 @@ const Portfolio = () => {
   //   return null;
   // }
 
-  // Advanced portfolio metrics calculations
-  const portfolioMetrics = useMemo(() => {
-    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
-      return {
-        totalValue: 0,
-        totalCost: 0,
-        totalGainLoss: 0,
-        totalGainLossPercent: 0,
-        volatility: 0,
-        sharpeRatio: 0,
-        beta: 1,
-        var95: 0,
-        maxDrawdown: 0,
-        treynorRatio: 0,
-        informationRatio: 0,
-        calmarRatio: 0
-      };
-    }
-
-    const { holdings } = portfolioData;
-    const totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    const totalCost = holdings.reduce((sum, h) => sum + ((h.avgCost || 0) * (h.shares || 0)), 0);
-    const totalGainLoss = totalValue - totalCost;
-    const totalGainLossPercent = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
-
-    // Calculate risk metrics with safe defaults
-    const volatility = 18.5; // Mock volatility
-    const sharpeRatio = 1.25; // Mock Sharpe ratio
-    const beta = 1.1; // Mock beta
-    const var95 = -2.5; // Mock VaR
-    const maxDrawdown = -8.2; // Mock max drawdown
-
-    return {
-      totalValue,
-      totalCost,
-      totalGainLoss,
-      totalGainLossPercent,
-      volatility,
-      sharpeRatio,
-      beta,
-      var95,
-      maxDrawdown,
-      treynorRatio: beta !== 0 ? totalGainLossPercent / beta : 0,
-      informationRatio: 0.85, // Mock information ratio
-      calmarRatio: maxDrawdown !== 0 ? totalGainLossPercent / Math.abs(maxDrawdown) : 0
-    };
-  }, [portfolioData]);
-
-  // Factor analysis calculations
-  const factorAnalysis = useMemo(() => {
-    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
-      return {};
-    }
-    // Mock factor analysis
-    return {
-      quality: 0.75,
-      growth: 0.65,
-      value: 0.45,
-      momentum: 0.55,
-      size: 0.30,
-      volatility: 0.40
-    };
-  }, [portfolioData]);
-
-  // Sector and geographic diversification
-  const diversificationMetrics = useMemo(() => {
-    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
-      return {
-        sectorConcentration: 0,
-        geographicDiversification: 0,
-        marketCapExposure: {},
-        concentrationRisk: 0
-      };
-    }
-    return {
-      sectorConcentration: 0.35, // Mock concentration
-      geographicDiversification: 0.68, // Mock diversification
-      marketCapExposure: { large: 0.75, mid: 0.20, small: 0.05 }, // Mock market cap exposure
-      concentrationRisk: 0.15 // Mock concentration risk
-    };
-  }, [portfolioData]);
-
-  // AI-powered insights
-  const aiInsights = useMemo(() => {
-    // Mock AI insights
-    return [
-      { type: 'risk', severity: 'medium', message: 'Portfolio concentration in technology sector is slightly elevated' },
-      { type: 'opportunity', severity: 'low', message: 'Consider adding international exposure for better diversification' },
-      { type: 'performance', severity: 'high', message: 'Strong risk-adjusted returns over the past quarter' }
-    ];
-  }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -1504,31 +1545,6 @@ const Portfolio = () => {
     );
   };
 
-  // Auto-refresh effect
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        setLastRefresh(new Date());
-        loadPortfolioData();
-      }, 30000); // Refresh every 30 seconds
-      
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, isAuthenticated, user]);
-
-  const sortedHoldings = useMemo(() => {
-    if (!portfolioData?.holdings) return [];
-    return portfolioData.holdings.sort((a, b) => {
-      const aValue = a[orderBy];
-      const bValue = b[orderBy];
-      
-      if (order === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-  }, [portfolioData?.holdings, orderBy, order]);
 
   // Show loading spinner only while actually loading data
   if (loading) {
