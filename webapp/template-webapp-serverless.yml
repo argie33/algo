@@ -188,7 +188,7 @@ Resources:
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-        AllowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+        AllowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID']
 
   ApiIntegration:
     Type: AWS::ApiGatewayV2::Integration

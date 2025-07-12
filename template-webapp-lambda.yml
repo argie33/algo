@@ -216,7 +216,7 @@ Resources:
       StageName: !Ref EnvironmentName
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,X-Session-ID'"
         AllowOrigin: "'*'"
         AllowCredentials: false
       Variables:
