@@ -339,7 +339,25 @@ const Watchlist = () => {
       setSnackbar({ open: true, message: 'Stock removed from watchlist', severity: 'success' });
     } catch (error) {
       console.error('Error removing stock from watchlist:', error);
-      setSnackbar({ open: true, message: 'Error removing stock from watchlist', severity: 'error' });
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        // Item already deleted or doesn't exist - remove from local state
+        setWatchlistItems(watchlistItems.filter(item => item.id !== itemId));
+        setSnackbar({ 
+          open: true, 
+          message: 'Stock was already removed from watchlist', 
+          severity: 'info' 
+        });
+      } else {
+        // Other errors
+        const errorMessage = error.response?.data?.error || 'Error removing stock from watchlist';
+        setSnackbar({ 
+          open: true, 
+          message: errorMessage, 
+          severity: 'error' 
+        });
+      }
     }
   };
 
