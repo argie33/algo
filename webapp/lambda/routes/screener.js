@@ -473,8 +473,9 @@ router.get('/filters', async (req, res) => {
   }
 });
 
-// Get preset screens (also available as /templates for backwards compatibility)
-const getPresets = (req, res) => {
+
+// Get preset screens
+router.get('/presets', (req, res) => {
   const presets = [
     {
       id: 'value_stocks',
@@ -553,10 +554,113 @@ const getPresets = (req, res) => {
     success: true,
     data: presets
   });
-};
+});
 
-router.get('/presets', getPresets);
-router.get('/templates', getPresets); // Alias for backwards compatibility
+// Templates endpoint (alias for presets)
+router.get('/templates', (req, res) => {
+  const templates = [
+    {
+      id: 'value_stocks',
+      name: 'Value Stocks Template',
+      description: 'Low P/E, P/B ratios with decent profitability',
+      filters: {
+        peRatioMax: 15,
+        pbRatioMax: 1.5,
+        roeMin: 10,
+        debtToEquityMax: 0.5,
+        marketCapMin: 1000000000
+      }
+    },
+    {
+      id: 'growth_stocks',
+      name: 'Growth Stocks Template',
+      description: 'High revenue and earnings growth',
+      filters: {
+        revenueGrowthMin: 15,
+        earningsGrowthMin: 20,
+        pegRatioMax: 2,
+        marketCapMin: 2000000000
+      }
+    },
+    {
+      id: 'dividend_stocks',
+      name: 'Dividend Stocks Template',
+      description: 'High dividend yield with sustainable payout',
+      filters: {
+        dividendYieldMin: 3,
+        payoutRatioMax: 60,
+        debtToEquityMax: 0.8,
+        marketCapMin: 5000000000
+      }
+    },
+    {
+      id: 'momentum_stocks',
+      name: 'Momentum Stocks Template',
+      description: 'Strong price momentum and technical indicators',
+      filters: {
+        priceMomentum3mMin: 5,
+        priceMomentum12mMin: 10,
+        rsiMin: 50,
+        rsiMax: 80,
+        volumeMin: 500000
+      }
+    },
+    {
+      id: 'quality_stocks',
+      name: 'Quality Stocks Template',
+      description: 'High-quality companies with strong fundamentals',
+      filters: {
+        roeMin: 15,
+        roaMin: 8,
+        netMarginMin: 10,
+        debtToEquityMax: 0.3,
+        currentRatioMin: 1.5,
+        factorScoreMin: 70
+      }
+    },
+    {
+      id: 'small_cap_growth',
+      name: 'Small Cap Growth Template',
+      description: 'Small cap stocks with high growth potential',
+      filters: {
+        marketCapMin: 300000000,
+        marketCapMax: 2000000000,
+        revenueGrowthMin: 20,
+        earningsGrowthMin: 25,
+        pegRatioMax: 1.5
+      }
+    }
+  ];
+
+  res.json({
+    success: true,
+    data: templates
+  });
+});
+
+// Growth stocks endpoint (specific growth filter)
+router.get('/growth', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      id: 'growth_stocks',
+      name: 'Growth Stocks',
+      description: 'High revenue and earnings growth stocks',
+      filters: {
+        revenueGrowthMin: 15,
+        earningsGrowthMin: 20,
+        pegRatioMax: 2,
+        marketCapMin: 2000000000
+      },
+      criteria: {
+        revenueGrowth: 'minimum 15%',
+        earningsGrowth: 'minimum 20%',
+        pegRatio: 'maximum 2.0',
+        marketCap: 'minimum $2B'
+      }
+    }
+  });
+});
 
 // Apply preset screen
 router.post('/presets/:presetId/apply', (req, res) => {
