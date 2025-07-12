@@ -2,3 +2,5 @@ boto3
 pandas
 fredapi
 psycopg2-binary
+requests
+# Updated for loadecondata v4 deployment - July 2025

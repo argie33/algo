@@ -4,4 +4,5 @@ pandas==2.1.4
 requests==2.31.0
 lxml==4.9.3
 html5lib==1.1
-beautifulsoup4==4.12.2 
+beautifulsoup4==4.12.2
+# Updated for loadnaaim v4 deployment - July 2025 
