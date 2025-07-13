@@ -71,6 +71,7 @@ import {
   Pie
 } from 'recharts';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+import api from '../services/api';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -101,6 +102,11 @@ const RealTimeDashboard = () => {
   const [refreshInterval, setRefreshInterval] = useState(5); // seconds
   const intervalRef = useRef(null);
 
+  // Initial data fetch on mount
+  useEffect(() => {
+    updateMarketData();
+  }, []);
+
   useEffect(() => {
     if (isStreaming) {
       intervalRef.current = setInterval(() => {
@@ -120,21 +126,74 @@ const RealTimeDashboard = () => {
     };
   }, [isStreaming, refreshInterval]);
 
-  const updateMarketData = () => {
-    // ⚠️ MOCK DATA - Simulate real-time data updates with mock data
-    setMarketData(prevData => ({
-      ...prevData,
-      watchlistData: prevData.watchlistData.map(stock => ({
-        ...stock,
-        price: stock.price * (1 + (Math.random() - 0.5) * 0.002), // ±0.1% random movement
-        change: stock.price * (Math.random() - 0.5) * 0.002,
-        volume: Math.floor(stock.volume * (1 + (Math.random() - 0.5) * 0.1))
-      })),
-      marketMovers: prevData.marketMovers.map(stock => ({
-        ...stock,
-        change: stock.change * (1 + (Math.random() - 0.5) * 0.1)
-      }))
-    }));
+  const updateMarketData = async () => {
+    try {
+      console.log('🔄 Fetching real-time market data...');
+      
+      // Fetch market overview data from the real API
+      const marketResponse = await api.get('/market/overview');
+      const marketData = marketResponse.data?.data;
+      
+      if (marketData) {
+        // Update market data with real API response
+        setMarketData(prevData => ({
+          ...prevData,
+          isMockData: false,
+          indices: {
+            sp500: marketData.indices?.sp500 || prevData.indices.sp500,
+            nasdaq: marketData.indices?.nasdaq || prevData.indices.nasdaq,
+            dow: marketData.indices?.dow || prevData.indices.dow
+          },
+          vix: marketData.sentiment?.vix || prevData.vix,
+          lastUpdate: new Date()
+        }));
+        
+        console.log('✅ Market data updated from API');
+      }
+      
+      // Fetch watchlist quotes if symbols exist
+      if (watchlist.length > 0) {
+        try {
+          const quotesResponse = await api.get(`/market-data/quotes?symbols=${watchlist.join(',')}`);
+          const quotesData = quotesResponse.data?.data;
+          
+          if (quotesData && Array.isArray(quotesData)) {
+            // Update watchlist data with real quotes
+            setMarketData(prevData => ({
+              ...prevData,
+              watchlistData: quotesData.map(quote => ({
+                isMockData: false,
+                symbol: quote.symbol,
+                price: quote.price,
+                change: quote.change,
+                changePercent: quote.changePercent,
+                volume: quote.volume,
+                alert: Math.abs(quote.changePercent) > 2, // Alert if >2% change
+                chartData: prevData.watchlistData.find(w => w.symbol === quote.symbol)?.chartData || []
+              }))
+            }));
+            console.log('✅ Watchlist data updated from API');
+          }
+        } catch (quotesError) {
+          console.warn('⚠️ Failed to fetch quotes, keeping existing data:', quotesError.message);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch market data:', error);
+      // Fallback to mock data simulation if API fails
+      setMarketData(prevData => ({
+        ...prevData,
+        watchlistData: prevData.watchlistData.map(stock => ({
+          ...stock,
+          price: stock.price * (1 + (Math.random() - 0.5) * 0.002), // ±0.1% random movement
+          change: stock.price * (Math.random() - 0.5) * 0.002,
+          volume: Math.floor(stock.volume * (1 + (Math.random() - 0.5) * 0.1))
+        })),
+        lastApiError: error.message,
+        lastUpdate: new Date()
+      }));
+    }
   };
 
   const handleTabChange = (event, newValue) => {
@@ -178,7 +237,12 @@ const RealTimeDashboard = () => {
           <Box display="flex" gap={1} mt={1}>
             <Chip label="Level II Data" color="primary" size="small" variant="outlined" />
             <Chip label="Market Microstructure" color="success" size="small" variant="outlined" />
-            <Chip label="Real-time Analytics" color="info" size="small" variant="outlined" />
+            <Chip 
+              label={marketData?.isMockData === false ? "Live API Data" : "Mock Data"} 
+              color={marketData?.isMockData === false ? "success" : "warning"} 
+              size="small" 
+              variant="outlined" 
+            />
             <Chip label={`${refreshInterval}s refresh`} color="warning" size="small" variant="outlined" />
           </Box>
         </Box>
