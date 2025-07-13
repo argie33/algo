@@ -1725,43 +1725,216 @@ router.get('/risk-analysis', async (req, res) => {
   try {
     console.log(`Getting risk analysis for user ${userId}`);
     
-    // This would typically use real portfolio data and advanced risk calculations
-    // For now, providing comprehensive mock analysis with realistic values
+    // Get live portfolio data for risk analysis
+    let portfolioData = null;
+    let portfolioHistory = null;
     
-    const riskAnalysis = {
-      portfolioRisk: {
-        volatility: 0.18, // 18% annual volatility
-        var95: -0.025, // 2.5% daily VaR at 95% confidence
-        var99: -0.042, // 4.2% daily VaR at 99% confidence
-        beta: 1.05,
-        correlationWithMarket: 0.85,
-        maxDrawdown: -0.12 // Historical max drawdown of 12%
-      },
-      riskFactors: [
+    try {
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      
+      if (credentials) {
+        console.log('📡 Fetching live portfolio data for risk analysis...');
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        
+        const [positions, account, history] = await Promise.all([
+          alpaca.getPositions(),
+          alpaca.getAccount(),
+          alpaca.getPortfolioHistory({
+            period: '1Y',
+            timeframe: '1Day'
+          }).catch(e => {
+            console.warn('Portfolio history unavailable:', e.message);
+            return null;
+          })
+        ]);
+        
+        portfolioData = {
+          totalValue: parseFloat(account.portfolio_value || account.equity || 0),
+          positions: positions.map(pos => ({
+            symbol: pos.symbol,
+            marketValue: parseFloat(pos.market_value || 0),
+            unrealizedPL: parseFloat(pos.unrealized_pl || 0),
+            unrealizedPLPercent: parseFloat(pos.unrealized_plpc || 0) * 100,
+            weight: 0 // Calculate below
+          }))
+        };
+        
+        // Calculate position weights
+        if (portfolioData.totalValue > 0) {
+          portfolioData.positions.forEach(pos => {
+            pos.weight = (pos.marketValue / portfolioData.totalValue);
+          });
+        }
+        
+        portfolioHistory = history;
+        console.log(`✅ Retrieved portfolio data for risk analysis: $${portfolioData.totalValue.toFixed(2)}`);
+      }
+    } catch (apiError) {
+      console.warn('Failed to fetch live data for risk analysis:', apiError.message);
+    }
+    
+    // Calculate risk metrics from live data or use realistic defaults
+    let riskMetrics;
+    
+    if (portfolioHistory && portfolioHistory.equity && portfolioHistory.equity.length > 30) {
+      // Calculate actual risk metrics from portfolio history
+      const returns = [];
+      for (let i = 1; i < portfolioHistory.equity.length; i++) {
+        const dailyReturn = (portfolioHistory.equity[i] - portfolioHistory.equity[i-1]) / portfolioHistory.equity[i-1];
+        returns.push(dailyReturn);
+      }
+      
+      // Calculate volatility (standard deviation of returns)
+      const meanReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+      const variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
+      const volatility = Math.sqrt(variance * 252); // Annualized
+      
+      // Calculate VaR
+      const sortedReturns = returns.slice().sort((a, b) => a - b);
+      const var95Index = Math.floor(returns.length * 0.05);
+      const var99Index = Math.floor(returns.length * 0.01);
+      const var95 = sortedReturns[var95Index] || -0.025;
+      const var99 = sortedReturns[var99Index] || -0.042;
+      
+      // Calculate max drawdown
+      let maxDrawdown = 0;
+      let peak = portfolioHistory.equity[0];
+      for (const value of portfolioHistory.equity) {
+        if (value > peak) peak = value;
+        const drawdown = (peak - value) / peak;
+        if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+      }
+      
+      riskMetrics = {
+        volatility: volatility,
+        var95: var95,
+        var99: var99,
+        maxDrawdown: -maxDrawdown,
+        beta: 1.0, // Would need market data to calculate
+        correlationWithMarket: 0.8 // Would need market data
+      };
+      
+      console.log(`📊 Calculated risk metrics from ${returns.length} days of data`);
+    } else {
+      // Use reasonable defaults based on portfolio composition if available
+      const techWeight = portfolioData ? 
+        portfolioData.positions.filter(p => ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA'].includes(p.symbol))
+          .reduce((sum, p) => sum + p.weight, 0) : 0.5;
+      
+      riskMetrics = {
+        volatility: 0.15 + (techWeight * 0.1), // Higher vol for tech-heavy portfolios
+        var95: -0.02 - (techWeight * 0.01),
+        var99: -0.035 - (techWeight * 0.015),
+        maxDrawdown: -0.08 - (techWeight * 0.05),
+        beta: 0.9 + (techWeight * 0.3),
+        correlationWithMarket: 0.75 + (techWeight * 0.15)
+      };
+    }
+    
+    // Build risk factors based on actual portfolio composition
+    const riskFactors = [];
+    let sectorConcentration = 0;
+    
+    if (portfolioData && portfolioData.positions.length > 0) {
+      // Calculate sector concentration risk
+      const sectorWeights = {};
+      portfolioData.positions.forEach(pos => {
+        // Simple sector mapping - would be enhanced with real sector data
+        let sector = 'Other';
+        if (['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'META'].includes(pos.symbol)) sector = 'Technology';
+        else if (['JPM', 'BAC', 'WFC', 'C'].includes(pos.symbol)) sector = 'Financial';
+        else if (['JNJ', 'PFE', 'UNH', 'ABBV'].includes(pos.symbol)) sector = 'Healthcare';
+        
+        sectorWeights[sector] = (sectorWeights[sector] || 0) + pos.weight;
+      });
+      
+      sectorConcentration = Math.max(...Object.values(sectorWeights));
+      
+      riskFactors.push(
+        { factor: 'Market Risk', exposure: 0.75, contribution: 0.65 },
+        { factor: 'Sector Concentration', exposure: sectorConcentration, contribution: sectorConcentration * 0.4 },
+        { factor: 'Currency Risk', exposure: 0.15, contribution: 0.08 },
+        { factor: 'Liquidity Risk', exposure: 0.25, contribution: 0.07 }
+      );
+    } else {
+      // Default risk factors
+      riskFactors.push(
         { factor: 'Market Risk', exposure: 0.75, contribution: 0.65 },
         { factor: 'Sector Concentration', exposure: 0.45, contribution: 0.20 },
         { factor: 'Currency Risk', exposure: 0.15, contribution: 0.08 },
         { factor: 'Liquidity Risk', exposure: 0.25, contribution: 0.07 }
-      ],
-      stressTesting: {
-        marketCrash2020: { portfolioLoss: -0.28, marketLoss: -0.35, beta: 0.8 },
-        dotComBubble: { portfolioLoss: -0.45, marketLoss: -0.49, beta: 0.92 },
-        financialCrisis2008: { portfolioLoss: -0.38, marketLoss: -0.42, beta: 0.90 }
+      );
+    }
+    
+    // Generate portfolio-specific recommendations
+    const recommendations = [];
+    if (sectorConcentration > 0.5) {
+      recommendations.push({
+        type: 'warning',
+        title: 'High Sector Concentration',
+        message: `${(sectorConcentration * 100).toFixed(1)}% concentration in single sector increases risk`,
+        impact: 'Consider diversifying across sectors'
+      });
+    }
+    
+    if (portfolioData && portfolioData.positions.length < 5) {
+      recommendations.push({
+        type: 'info',
+        title: 'Limited Diversification',
+        message: 'Portfolio has fewer than 5 positions, increasing concentration risk',
+        impact: 'Consider adding more positions for better diversification'
+      });
+    }
+    
+    if (!recommendations.length) {
+      recommendations.push({
+        type: 'info',
+        title: 'Diversification Opportunity',
+        message: 'Consider adding international exposure to reduce market concentration',
+        impact: 'Could reduce volatility by 2-3%'
+      });
+    }
+
+    const riskAnalysis = {
+      portfolioRisk: {
+        volatility: riskMetrics.volatility,
+        var95: riskMetrics.var95,
+        var99: riskMetrics.var99,
+        beta: riskMetrics.beta,
+        correlationWithMarket: riskMetrics.correlationWithMarket,
+        maxDrawdown: riskMetrics.maxDrawdown
       },
-      recommendations: [
-        {
-          type: 'info',
-          title: 'Diversification Opportunity',
-          message: 'Consider adding international exposure to reduce market concentration',
-          impact: 'Could reduce volatility by 2-3%'
+      riskFactors: riskFactors,
+      stressTesting: {
+        marketCrash2020: { 
+          portfolioLoss: riskMetrics.maxDrawdown * 1.2, 
+          marketLoss: -0.35, 
+          beta: riskMetrics.beta 
         },
-        {
-          type: 'warning',
-          title: 'Sector Concentration',
-          message: 'High exposure to technology sector increases risk during tech selloffs',
-          impact: 'Consider rebalancing to other sectors'
+        dotComBubble: { 
+          portfolioLoss: riskMetrics.maxDrawdown * 1.8, 
+          marketLoss: -0.49, 
+          beta: riskMetrics.beta * 0.95 
+        },
+        financialCrisis2008: { 
+          portfolioLoss: riskMetrics.maxDrawdown * 1.5, 
+          marketLoss: -0.42, 
+          beta: riskMetrics.beta * 0.9 
         }
-      ]
+      },
+      recommendations: recommendations,
+      dataSource: portfolioHistory ? 'live_api' : (portfolioData ? 'live_positions' : 'estimated'),
+      metadata: {
+        hasHistoricalData: !!portfolioHistory,
+        hasCurrentPositions: !!(portfolioData && portfolioData.positions.length > 0),
+        analysisDate: new Date().toISOString(),
+        portfolioValue: portfolioData ? portfolioData.totalValue : null,
+        positionCount: portfolioData ? portfolioData.positions.length : 0
+      }
     };
 
     res.json({
