@@ -57,7 +57,7 @@ router.get('/debug', async (req, res) => {
     // Check all market-related tables
     const requiredTables = [
       'market_data', 'economic_data', 'fear_greed_index', 'naaim', 
-      'company_profile', 'aaii_sentiment'
+      'symbols', 'aaii_sentiment'
     ];
     
     const tableStatus = await checkRequiredTables(requiredTables);
@@ -329,7 +329,7 @@ router.get('/health', async (req, res) => {
     // 2. Check required tables
     const requiredTables = [
       'market_data', 'economic_data', 'fear_greed_index', 
-      'naaim', 'aaii_sentiment', 'company_profile'
+      'naaim', 'aaii_sentiment', 'symbols'
     ];
     
     const tableResults = {};

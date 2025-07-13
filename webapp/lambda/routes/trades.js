@@ -964,14 +964,14 @@ router.get('/export', authenticateToken, async (req, res) => {
         ta.trade_pattern_type,
         ta.pattern_confidence,
         ta.risk_reward_ratio,
-        cp.sector,
-        cp.industry
+        s.sector,
+        s.industry
       FROM trade_executions te
       LEFT JOIN position_history ph ON te.symbol = ph.symbol 
         AND te.user_id = ph.user_id
         AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN company_profile cp ON te.symbol = cp.ticker
+      LEFT JOIN symbols s ON te.symbol = s.symbol
       ${whereClause}
       ORDER BY te.execution_time DESC
     `, params);
