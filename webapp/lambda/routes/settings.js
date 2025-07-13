@@ -826,15 +826,67 @@ router.put('/profile', async (req, res) => {
   console.log('📝 Update data:', { firstName, lastName, email, phone, timezone, currency });
 
   try {
-    // First, check what columns actually exist in the users table
-    const columnCheck = await query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' AND table_name = 'users'
-    `);
-    
-    const existingColumns = columnCheck.rows.map(row => row.column_name);
-    console.log('📋 Available columns in users table:', existingColumns);
+    // Test database connectivity first
+    console.log('🔍 Testing database connectivity...');
+    try {
+      await query('SELECT 1 as test', [], 3000);
+      console.log('✅ Database connection successful');
+    } catch (dbError) {
+      console.error('❌ Database connection failed:', dbError.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Database temporarily unavailable',
+        message: 'Please try again in a few moments',
+        details: dbError.message
+      });
+    }
+
+    // Check what columns actually exist in the users table
+    console.log('🔍 Checking users table schema...');
+    let existingColumns = [];
+    try {
+      const columnCheck = await query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'users'
+      `, [], 5000);
+      
+      existingColumns = columnCheck.rows.map(row => row.column_name);
+      console.log('📋 Available columns in users table:', existingColumns);
+    } catch (schemaError) {
+      console.error('❌ Schema check failed:', schemaError.message);
+      
+      // Check if the users table exists at all
+      try {
+        const tableExists = await query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'users'
+          )
+        `, [], 3000);
+        
+        if (!tableExists.rows[0].exists) {
+          return res.status(503).json({
+            success: false,
+            error: 'Database schema not initialized',
+            message: 'The users table does not exist. Database needs to be initialized.',
+            details: 'Contact administrator to run database initialization script'
+          });
+        }
+      } catch (tableCheckError) {
+        console.error('❌ Table existence check failed:', tableCheckError.message);
+        return res.status(503).json({
+          success: false,
+          error: 'Database schema check failed',
+          message: 'Unable to verify database structure',
+          details: tableCheckError.message
+        });
+      }
+      
+      // If table exists but column check failed, assume basic columns
+      existingColumns = ['id', 'email', 'username'];
+      console.log('⚠️ Using fallback column list:', existingColumns);
+    }
     
     // Build dynamic query based on existing columns
     const updates = [];
@@ -910,12 +962,73 @@ router.put('/profile', async (req, res) => {
     console.log('🔍 Executing query:', updateQuery);
     console.log('📊 Query values:', values);
     
-    const result = await query(updateQuery, values);
+    let result;
+    try {
+      result = await query(updateQuery, values, 10000); // 10 second timeout
+      console.log('✅ Query executed successfully, rows affected:', result.rowCount);
+    } catch (queryError) {
+      console.error('❌ Query execution failed:', queryError.message);
+      console.error('🔍 Query error details:', {
+        message: queryError.message,
+        code: queryError.code,
+        detail: queryError.detail,
+        hint: queryError.hint,
+        position: queryError.position,
+        query: updateQuery.substring(0, 200) + '...'
+      });
+      
+      // Handle specific database errors
+      if (queryError.code === '42703') { // Column doesn't exist
+        return res.status(503).json({
+          success: false,
+          error: 'Database schema missing required columns',
+          message: 'The database schema needs to be updated to support profile fields',
+          details: `Column referenced in query does not exist: ${queryError.message}`,
+          solution: 'Use the schema fix endpoint: PUT /api/settings/debug/fix-schema'
+        });
+      } else if (queryError.code === '42P01') { // Table doesn't exist
+        return res.status(503).json({
+          success: false,
+          error: 'Users table does not exist',
+          message: 'The database schema needs to be initialized',
+          details: 'The users table is missing from the database',
+          solution: 'Contact administrator to run database initialization script'
+        });
+      } else if (queryError.code === '23502') { // NOT NULL violation
+        return res.status(400).json({
+          success: false,
+          error: 'Required field missing',
+          message: 'A required database field is null',
+          details: queryError.detail || queryError.message
+        });
+      } else if (queryError.code === '23505') { // Unique constraint violation
+        return res.status(400).json({
+          success: false,
+          error: 'Duplicate value',
+          message: 'The provided value already exists',
+          details: queryError.detail || queryError.message
+        });
+      } else {
+        // Generic database error
+        return res.status(503).json({
+          success: false,
+          error: 'Database operation failed',
+          message: 'An error occurred while updating the profile',
+          details: queryError.message,
+          errorCode: queryError.code,
+          solution: 'Please try again or contact support if the problem persists'
+        });
+      }
+    }
 
-    if (result.rows.length === 0) {
+    if (!result || result.rows.length === 0) {
+      console.warn('⚠️ No rows affected by update query');
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: 'User not found',
+        message: 'No user exists with the provided ID',
+        userId: userId,
+        note: 'The user may not exist in the database or the ID format is incorrect'
       });
     }
 
@@ -925,35 +1038,28 @@ router.put('/profile', async (req, res) => {
       message: 'Profile updated successfully',
       user: result.rows[0],
       updatedFields: updates.filter(u => !u.includes('updated_at')),
-      availableColumns: existingColumns
+      availableColumns: existingColumns,
+      rowsAffected: result.rowCount
     });
   } catch (error) {
-    console.error('❌ Error updating user profile:', error);
+    console.error('❌ Unexpected error updating user profile:', error);
     console.error('🔍 Error details:', {
       message: error.message,
       code: error.code,
       detail: error.detail,
-      hint: error.hint
+      hint: error.hint,
+      stack: error.stack?.substring(0, 500)
     });
     
-    // Provide specific error information
-    let errorMessage = 'Failed to update user profile';
-    let statusCode = 500;
-    
-    if (error.code === '42703') { // Column doesn't exist
-      errorMessage = 'Database schema missing required columns for profile updates';
-      statusCode = 503;
-    } else if (error.code === '42P01') { // Table doesn't exist
-      errorMessage = 'Users table does not exist';
-      statusCode = 503;
-    }
-    
-    res.status(statusCode).json({
+    // Final catch-all error handling
+    res.status(500).json({
       success: false,
-      error: errorMessage,
+      error: 'Internal server error',
+      message: 'An unexpected error occurred while updating the profile',
       details: error.message,
       errorCode: error.code,
-      note: 'Database schema may need updating for profile management'
+      timestamp: new Date().toISOString(),
+      note: 'This is an unexpected error. Please contact support.'
     });
   }
 });

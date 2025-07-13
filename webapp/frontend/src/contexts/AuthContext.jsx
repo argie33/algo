@@ -458,15 +458,20 @@ export function AuthProvider({ children }) {
 
       // Additional check to prevent undefined domain issues
       const cognitoConfig = getCognitoConfig();
-      if (!cognitoConfig.domain || cognitoConfig.domain === 'undefined' || cognitoConfig.domain === '') {
-        console.warn('Cognito domain not configured - falling back to development authentication');
+      if (!cognitoConfig.domain || 
+          cognitoConfig.domain === 'undefined' || 
+          cognitoConfig.domain === '' ||
+          cognitoConfig.domain === null ||
+          cognitoConfig.userPoolId.includes('FALLBACK') ||
+          cognitoConfig.userPoolClientId.includes('fallback')) {
+        console.warn('Cognito domain not configured or using fallback values - using development authentication');
         try {
           const result = await devAuth.resetPassword(username);
           dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
           return {
             success: true,
             nextStep: result.nextStep,
-            message: 'Password reset code sent to your email'
+            message: 'Password reset code sent to your email (development mode)'
           };
         } catch (error) {
           console.error('Dev auth password reset error:', error);

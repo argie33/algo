@@ -1182,22 +1182,50 @@ function getDataPointsForTimeframe(timeframe) {
 
 // Portfolio import endpoint
 router.post('/import/:broker', async (req, res) => {
-  const { broker } = req.params;
-  const { accountType = 'paper' } = req.query;
-  const userId = req.user.sub;
+  const startTime = Date.now();
   
   try {
-    console.log(`🔄 Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
+    const { broker } = req.params;
+    const { accountType = 'paper' } = req.query;
+    const userId = req.user?.sub;
+    
+    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
+    console.log(`🔄 [IMPORT] Request headers:`, Object.keys(req.headers));
+    console.log(`🔄 [IMPORT] Memory usage:`, process.memoryUsage());
+    
+    // Validate required parameters
+    if (!broker) {
+      console.error(`❌ [IMPORT] Missing broker parameter`);
+      return res.status(400).json({
+        success: false,
+        error: 'Missing broker parameter',
+        message: 'Broker parameter is required for portfolio import'
+      });
+    }
+    
+    if (!userId) {
+      console.error(`❌ [IMPORT] Missing user ID - authentication may have failed`);
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'User must be authenticated to import portfolio data'
+      });
+    }
     
     // Step 1: Get the user's API key for this broker with robust error handling
+    console.log(`🔑 [IMPORT] Step 1: Fetching API keys for ${broker}...`);
     let credentials;
     try {
       // First check if API key service is enabled
+      console.log(`🔑 [IMPORT] API key service enabled: ${apiKeyService.isEnabled}`);
+      
       if (!apiKeyService.isEnabled) {
-        console.warn(`⚠️ API key service disabled - using development fallback`);
+        console.warn(`⚠️ [IMPORT] API key service disabled - using development fallback`);
         // In development, use environment variables as fallback
         const devApiKey = process.env[`${broker.toUpperCase()}_API_KEY`];
         const devApiSecret = process.env[`${broker.toUpperCase()}_API_SECRET`];
+        
+        console.log(`🔑 [IMPORT] Dev API key exists: ${!!devApiKey}, Dev secret exists: ${!!devApiSecret}`);
         
         if (devApiKey && devApiSecret) {
           credentials = {
@@ -1208,17 +1236,23 @@ router.post('/import/:broker', async (req, res) => {
             isSandbox: accountType === 'paper',
             isActive: true
           };
-          console.log(`✅ Using development API keys for ${broker}`);
+          console.log(`✅ [IMPORT] Using development API keys for ${broker}`);
+        } else {
+          console.error(`❌ [IMPORT] No development API keys found for ${broker}`);
         }
       } else {
+        console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey...`);
         credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
+        console.log(`🔑 [IMPORT] API key service returned:`, !!credentials);
       }
     } catch (error) {
-      console.error(`❌ Error fetching API key for ${broker}:`, error.message);
-      return res.status(400).json({
+      console.error(`❌ [IMPORT] Error fetching API key for ${broker}:`, error.message);
+      console.error(`❌ [IMPORT] Error stack:`, error.stack);
+      return res.status(500).json({
         success: false,
         error: 'API key service error',
-        message: `Unable to access API keys: ${error.message}. Please check your API key configuration in Settings.`
+        message: `Unable to access API keys: ${error.message}. Please check your API key configuration in Settings.`,
+        duration: Date.now() - startTime
       });
     }
     
@@ -1234,26 +1268,51 @@ router.post('/import/:broker', async (req, res) => {
     console.log(`✅ Found API key for ${broker} (sandbox: ${credentials.isSandbox})`);
     
     // Step 2: Connect to the broker's API and fetch portfolio data
-    console.log(`📡 Connecting to ${broker} API...`);
+    console.log(`📡 [IMPORT] Step 2: Connecting to ${broker} API...`);
+    console.log(`📡 [IMPORT] API endpoint will be: ${credentials.isSandbox || accountType === 'paper' ? 'paper-api.alpaca.markets' : 'api.alpaca.markets'}`);
     
     let portfolioData;
     try {
       if (broker.toLowerCase() === 'alpaca') {
-        const alpaca = new AlpacaService(
-          credentials.apiKey,
-          credentials.apiSecret,
-          credentials.isSandbox || accountType === 'paper'
-        );
+        console.log(`🔗 [IMPORT] Initializing AlpacaService...`);
+        let alpaca;
+        try {
+          alpaca = new AlpacaService(
+            credentials.apiKey,
+            credentials.apiSecret,
+            credentials.isSandbox || accountType === 'paper'
+          );
+          console.log(`✅ [IMPORT] AlpacaService initialized successfully`);
+        } catch (initError) {
+          console.error(`❌ [IMPORT] Failed to initialize AlpacaService:`, initError.message);
+          throw new Error(`Alpaca service initialization failed: ${initError.message}`);
+        }
+        
+        console.log(`📊 [IMPORT] Fetching portfolio data from Alpaca...`);
         
         // Get comprehensive portfolio data including positions, account info, and activities
-        const [positions, account, activities] = await Promise.all([
-          alpaca.getPositions(),
-          alpaca.getAccount(),
-          alpaca.getActivities().catch(e => {
-            console.warn('Failed to fetch activities:', e.message);
-            return [];
-          })
-        ]);
+        let positions, account, activities;
+        try {
+          console.log(`📊 [IMPORT] Fetching account info...`);
+          account = await alpaca.getAccount();
+          console.log(`✅ [IMPORT] Account fetched successfully`);
+          
+          console.log(`📊 [IMPORT] Fetching positions...`);
+          positions = await alpaca.getPositions();
+          console.log(`✅ [IMPORT] ${positions.length} positions fetched`);
+          
+          console.log(`📊 [IMPORT] Fetching activities...`);
+          try {
+            activities = await alpaca.getActivities();
+            console.log(`✅ [IMPORT] ${activities.length} activities fetched`);
+          } catch (actError) {
+            console.warn(`⚠️ [IMPORT] Failed to fetch activities:`, actError.message);
+            activities = [];
+          }
+        } catch (dataError) {
+          console.error(`❌ [IMPORT] Failed to fetch portfolio data:`, dataError.message);
+          throw new Error(`Failed to fetch data from Alpaca: ${dataError.message}`);
+        }
         
         // Process and structure the portfolio data
         portfolioData = {
@@ -1395,12 +1454,26 @@ router.post('/import/:broker', async (req, res) => {
     res.json(successResponse);
     
   } catch (error) {
-    console.error('Error importing portfolio:', error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ [IMPORT] Fatal error after ${duration}ms:`, error.message);
+    console.error(`❌ [IMPORT] Error stack:`, error.stack);
+    console.error(`❌ [IMPORT] Memory usage:`, process.memoryUsage());
+    
+    // Return detailed error information for debugging
     res.status(500).json({
       success: false,
       error: 'Failed to import portfolio',
-      details: error.message,
-      timestamp: new Date().toISOString()
+      message: error.message,
+      details: {
+        errorType: error.constructor.name,
+        duration: duration,
+        endpoint: `${req.method} ${req.path}`,
+        broker: req.params?.broker,
+        accountType: req.query?.accountType,
+        userId: req.user?.sub ? 'present' : 'missing',
+        hasApiKey: !!req.user?.sub,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });
