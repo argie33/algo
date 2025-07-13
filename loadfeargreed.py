@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Fear & Greed Index loader - market sentiment indicators  
-# Trigger deploy-app-stocks workflow - loadfeargreed update v5.2 - TAGS.ENV CREATION
+# Trigger deploy-app-stocks workflow - loadfeargreed update v5.3 - ECR URI ERROR HANDLING
 import sys
 import time
 import logging

@@ -477,9 +477,26 @@ jobs:
 
       - name: Check and build missing Docker images
         run: |
-          # Get ECR repository URI
-          REPO_NAME="stocks-app-registry-$(aws sts get-caller-identity --query Account --output text)"
-          URI=$(aws ecr describe-repositories --repository-names "$REPO_NAME" --query 'repositories[0].repositoryUri' --output text)
+          # Get ECR repository URI with error handling
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "🔍 Account ID: $ACCOUNT_ID"
+          REPO_NAME="stocks-app-registry-$ACCOUNT_ID"
+          echo "🔍 Repository name: $REPO_NAME"
+          
+          URI=$(aws ecr describe-repositories --repository-names "$REPO_NAME" --query 'repositories[0].repositoryUri' --output text 2>/dev/null || echo "")
+          
+          if [ -z "$URI" ] || [ "$URI" = "None" ]; then
+            echo "❌ ECR repository not found, creating it..."
+            aws ecr create-repository --repository-name "$REPO_NAME" --region us-east-1 || true
+            URI=$(aws ecr describe-repositories --repository-names "$REPO_NAME" --query 'repositories[0].repositoryUri' --output text)
+          fi
+          
+          echo "🔍 ECR URI: $URI"
+          
+          if [ -z "$URI" ] || [ "$URI" = "None" ]; then
+            echo "❌ Failed to get ECR repository URI, skipping image builds"
+            exit 1
+          fi
           
           # Check if symbols image exists, build if missing
           SYMBOLS_TAG=$(grep '^StockSymbolsImageTag=' tags.env | cut -d= -f2- || echo "")
@@ -620,8 +637,11 @@ jobs:
           fi
           
           # Check if feargreed image exists, build if missing
-          FEARGREED_TAG=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "")
-          if [ -n "$FEARGREED_TAG" ]; then
+          FEARGREED_TAG=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "feargreed-fallback-v5.2")
+          echo "🔍 FEARGREED_TAG resolved to: '$FEARGREED_TAG'"
+          echo "🔍 URI resolved to: '$URI'"
+          echo "🔍 REPO_NAME resolved to: '$REPO_NAME'"
+          if [ -n "$FEARGREED_TAG" ] && [ -n "$URI" ]; then
             if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$FEARGREED_TAG" >/dev/null 2>&1; then
               echo "🔨 Building feargreed image with tags: $FEARGREED_TAG, $LATEST_TAG"
               docker buildx build \
@@ -638,8 +658,9 @@ jobs:
           fi
           
           # Check if naaim image exists, build if missing
-          NAAIM_TAG=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "")
-          if [ -n "$NAAIM_TAG" ]; then
+          NAAIM_TAG=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "naaim-fallback-v5.2")
+          echo "🔍 NAAIM_TAG resolved to: '$NAAIM_TAG'"
+          if [ -n "$NAAIM_TAG" ] && [ -n "$URI" ]; then
             if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$NAAIM_TAG" >/dev/null 2>&1; then
               echo "🔨 Building naaim image with tags: $NAAIM_TAG, $LATEST_TAG"
               docker buildx build \
@@ -656,8 +677,9 @@ jobs:
           fi
           
           # Check if aaiidata image exists, build if missing
-          AAIIDATA_TAG=$(grep '^AaiiDataImageTag=' tags.env | cut -d= -f2- || echo "")
-          if [ -n "$AAIIDATA_TAG" ]; then
+          AAIIDATA_TAG=$(grep '^AaiiDataImageTag=' tags.env | cut -d= -f2- || echo "aaiidata-fallback-v5.2")
+          echo "🔍 AAIIDATA_TAG resolved to: '$AAIIDATA_TAG'"
+          if [ -n "$AAIIDATA_TAG" ] && [ -n "$URI" ]; then
             if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$AAIIDATA_TAG" >/dev/null 2>&1; then
               echo "🔨 Building aaiidata image with tags: $AAIIDATA_TAG, $LATEST_TAG"
               docker buildx build \

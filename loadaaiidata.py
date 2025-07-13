@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.2 - TAGS.ENV CREATION
+# Trigger deploy-app-stocks workflow - loadaaiidata update v5.3 - ECR URI ERROR HANDLING
 import sys
 import time
 import logging

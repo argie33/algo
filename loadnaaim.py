@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # NAAIM exposure data loader - advisor sentiment and market exposure
-# Trigger deploy-app-stocks workflow - loadnaaim update v5.2 - TAGS.ENV CREATION
+# Trigger deploy-app-stocks workflow - loadnaaim update v5.3 - ECR URI ERROR HANDLING
 import sys
 import time
 import logging
