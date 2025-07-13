@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Updated: 2025-07-12 - Enhanced real-time integration with broker API credentials
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
+import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys } from '../services/api';
 import {
   Box,
   Container,
@@ -512,14 +512,22 @@ const Portfolio = () => {
     });
   }, [portfolioData?.holdings, orderBy, order]);
 
-  // Load available API connections
+  // Load available API connections and accounts
   const loadAvailableConnections = async () => {
     try {
+      // Load API keys for connection testing
       const response = await getApiKeys();
       const connections = response?.apiKeys || [];
       setAvailableConnections(connections.filter(conn => 
         ['alpaca', 'robinhood'].includes(conn.provider.toLowerCase())
       ));
+      
+      // Load available accounts for portfolio data
+      const accountsResponse = await getAvailableAccounts();
+      if (accountsResponse?.success && accountsResponse?.data) {
+        setAvailableAccounts(accountsResponse.data);
+        console.log('📊 Available accounts loaded:', accountsResponse.data);
+      }
     } catch (error) {
       console.error('Failed to load API connections:', error);
     }
@@ -595,30 +603,51 @@ const Portfolio = () => {
         console.log('✅ Mock data loaded successfully');
       } else {
         console.log('🌐 Loading real portfolio data from API');
-        console.log('API Config:', getApiConfig());
+        const apiConfig = getApiConfig();
+        console.log('📡 API Config:', {
+          baseURL: apiConfig.baseURL,
+          isConfigured: apiConfig.isConfigured,
+          environment: apiConfig.environment
+        });
+        console.log('🔑 Auth state:', {
+          isAuthenticated,
+          userId: user?.sub || 'unknown',
+          userEmail: user?.email || 'unknown',
+          tokenPresent: !!tokens?.accessToken
+        });
         
         try {
           // Add timeout handling for API calls
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API call timeout')), 5000)
+            setTimeout(() => reject(new Error('API call timeout after 8 seconds')), 8000)
           );
           
+          console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}`);
           // Load real data from API with timeout
           const portfolioResponse = await Promise.race([
             getPortfolioData(accountType),
             timeoutPromise
           ]);
-          console.log('Portfolio API Response:', portfolioResponse);
+          console.log('✅ [PORTFOLIO] Portfolio API Response:', {
+            success: portfolioResponse?.success,
+            holdingsCount: portfolioResponse?.holdings?.length || 0,
+            hasData: !!portfolioResponse
+          });
           
+          console.log(`🏦 [ACCOUNT] Loading account info for: ${accountType}`);
           const accountResponse = await Promise.race([
             getAccountInfo(accountType),
             timeoutPromise
           ]);
-          console.log('Account API Response:', accountResponse);
+          console.log('✅ [ACCOUNT] Account API Response:', {
+            success: accountResponse?.success,
+            accountType: accountResponse?.accountType,
+            hasBalance: !!accountResponse?.balance
+          });
           
           setPortfolioData(portfolioResponse);
           setAccountInfo(accountResponse);
-          console.log('✅ Real data loaded successfully');
+          console.log('🎉 Real data loaded and set successfully');
         } catch (apiError) {
           console.error('API call failed:', apiError);
           console.error('API Error details:', {
@@ -878,7 +907,7 @@ const Portfolio = () => {
   const handleManualRefresh = () => {
     setLastRefresh(new Date());
     if (isAuthenticated && user) {
-      loadUserPortfolio();
+      loadPortfolioData();
     }
   };
 
@@ -887,7 +916,7 @@ const Portfolio = () => {
   const handleTestConnection = async (connectionId, provider) => {
     try {
       setTestingConnection(prev => ({ ...prev, [connectionId]: true }));
-      const result = await testApiConnection(connectionId);
+      const result = await testApiConnection();
       
       if (result.success) {
         setImportSuccess(`${provider} connection test successful`);
@@ -916,7 +945,7 @@ const Portfolio = () => {
         setImportSuccess(`Portfolio imported successfully from ${provider}`);
         setImportDialogOpen(false);
         // Reload portfolio data
-        loadUserPortfolio();
+        loadPortfolioData();
         setTimeout(() => setImportSuccess(null), 5000);
       } else {
         setImportError(`Portfolio import failed: ${result.error}`);

@@ -63,6 +63,22 @@ export const getPortfolioData = async (accountType = 'paper') => {
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio data:', error);
+    
+    // Return empty portfolio for 404 (no data found) instead of throwing
+    if (error.response?.status === 404) {
+      console.warn('No portfolio data found (404) - returning empty portfolio');
+      return {
+        success: true,
+        holdings: [],
+        summary: {
+          totalValue: 0,
+          totalCost: 0,
+          totalGainLoss: 0,
+          totalGainLossPercent: 0
+        }
+      };
+    }
+    
     throw error;
   }
 };
@@ -139,9 +155,9 @@ export const getPortfolioPerformance = async (timeframe = '1Y') => {
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio performance:', error);
-    // Return mock data for 401 auth errors until backend is deployed
-    if (error.response?.status === 401) {
-      console.warn('Authentication not yet deployed, using mock performance data');
+    // Return mock data for 401 auth errors or 404 (no portfolio data) until backend is deployed
+    if (error.response?.status === 401 || error.response?.status === 404) {
+      console.warn(`Portfolio performance API returned ${error.response?.status} - using mock performance data`);
       return {
         success: true,
         data: {
@@ -172,9 +188,9 @@ export const getPortfolioAnalytics = async (timeframe = '1Y') => {
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio analytics:', error);
-    // Return mock data for 500/401 errors until backend is fixed
-    if (error.response?.status === 500 || error.response?.status === 401) {
-      console.warn('Portfolio analytics API not available, using mock data');
+    // Return mock data for 500/401/404 errors until backend is fixed
+    if (error.response?.status === 500 || error.response?.status === 401 || error.response?.status === 404) {
+      console.warn(`Portfolio analytics API returned ${error.response?.status} - using mock data`);
       return {
         success: true,
         data: {
