@@ -590,11 +590,12 @@ function ServiceHealth() {
     }
   };
 
-  // Auto-run API tests on component mount
-  useEffect(() => {
-    // Run API tests automatically when component mounts
-    testAllEndpoints();
-  }, [testAllEndpoints]);
+  // Removed auto-run API tests on component mount per user request
+  // API tests now only run when button is pressed manually
+  // useEffect(() => {
+  //   // Run API tests automatically when component mounts
+  //   testAllEndpoints();
+  // }, [testAllEndpoints]);
 
   // Refresh health status background job
   const refreshHealthStatus = async () => {
