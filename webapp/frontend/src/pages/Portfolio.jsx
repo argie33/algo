@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Updated: 2025-07-12 - Enhanced real-time integration with broker API credentials
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys } from '../services/api';
+import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys, getApiConfig, testApiConnection } from '../services/api';
 import {
   Box,
   Container,
@@ -132,7 +132,6 @@ import {
   GetApp,
   NotificationsNone
 } from '@mui/icons-material';
-import { getApiConfig, testApiConnection, getApiKeys, getAvailableAccounts, getAccountInfo } from '../services/api';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 // ⚠️ MOCK DATA - Replace with real API when available
