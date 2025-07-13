@@ -2,12 +2,6 @@ import { Amplify } from 'aws-amplify';
 
 // Check if Cognito is configured
 const isCognitoConfigured = () => {
-  // Force development authentication for now
-  console.log('🔧 Forcing development authentication - Cognito disabled');
-  return false;
-  
-  // TODO: Re-enable for production
-  /*
   // First check runtime config
   const runtimeConfig = window.__CONFIG__?.COGNITO;
   if (runtimeConfig?.USER_POOL_ID && runtimeConfig?.CLIENT_ID) {
@@ -19,7 +13,7 @@ const isCognitoConfigured = () => {
     return isValid;
   }
   
-  // Fallback to environment variables
+  // Check environment variables
   const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
   const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
   
@@ -34,7 +28,6 @@ const isCognitoConfigured = () => {
   
   console.log('Environment Cognito config check:', { isValid, userPoolId, clientId });
   return isValid;
-  */
 };
 
 // Get configuration from runtime config or environment variables

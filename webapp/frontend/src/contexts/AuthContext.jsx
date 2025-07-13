@@ -155,8 +155,8 @@ export function AuthProvider({ children }) {
         }
       }
       
-      // Development fallback when Cognito is not configured - but with CONSISTENT user IDs
-      console.log('🔧 FALLBACK MODE - Using development authentication with consistent user IDs');
+      // Use development authentication for local development (will be replaced by Cognito in AWS)
+      console.log('🔧 Using development authentication - will use real Cognito in AWS');
       
       try {
         const user = await devAuth.getCurrentUser();
@@ -173,7 +173,7 @@ export function AuthProvider({ children }) {
               tokens: session.tokens
             }
           });
-          console.log('✅ Development user authenticated with consistent ID');
+          console.log('✅ Development user authenticated (backend compatible)');
           return;
         }
       } catch (error) {
@@ -252,8 +252,8 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Development fallback when Cognito is not configured - but with CONSISTENT user IDs
-      console.log('🔧 FALLBACK LOGIN - Using development authentication with consistent user IDs');
+      // Development authentication for local development (will use real Cognito in AWS)
+      console.log('🔧 DEVELOPMENT LOGIN - Using local dev auth (real Cognito in AWS)');
         
       try {
         const result = await devAuth.signIn(username, password);
@@ -269,7 +269,7 @@ export function AuthProvider({ children }) {
           }
         });
         
-        console.log('✅ Development login successful with consistent user ID');
+        console.log('✅ Development login successful (backend compatible)');
         return { success: true };
       } catch (error) {
         console.error('Dev auth login error:', error);
@@ -291,9 +291,9 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth with consistent user IDs
+      // Use development authentication for local development (will use real Cognito in AWS)
       if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication with consistent user IDs');
+        console.log('🔧 DEVELOPMENT REGISTER - Using local dev auth (real Cognito in AWS)');
         try {
           const result = await devAuth.signUp(username, password, email, firstName, lastName);
           
@@ -415,8 +415,15 @@ export function AuthProvider({ children }) {
         }
       });
       
-      console.log('🔧 Using development authentication - cleared all auth data');
-      await devAuth.signOut();
+      // Use appropriate logout method based on authentication type
+      if (!isCognitoConfigured()) {
+        console.log('🔧 DEVELOPMENT LOGOUT - Using local dev auth (real Cognito in AWS)');
+        await devAuth.signOut();
+      } else {
+        console.log('🚀 Using AWS Cognito logout');
+        await signOut();
+      }
+      
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: true };
     } catch (error) {
