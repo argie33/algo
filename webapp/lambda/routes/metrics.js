@@ -164,7 +164,7 @@ router.get('/', async (req, res) => {
     // Add sector filter
     if (sector && sector.trim() !== '') {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND s.sector = $${paramCount}`;
       params.push(sector);
     }
 
@@ -198,12 +198,12 @@ router.get('/', async (req, res) => {
       SELECT 
         ss.symbol,
         ss.security_name as company_name,
-        COALESCE(cp.sector, 'Unknown') as sector,
-        COALESCE(cp.industry, 'Unknown') as industry,
-        COALESCE(cp.market_cap, 0) as market_cap,
-        COALESCE(cp.current_price, 0) as current_price,
-        COALESCE(cp.trailing_pe, 0) as trailing_pe,
-        COALESCE(cp.price_to_book, 0) as price_to_book,
+        COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(s.industry, 'Unknown') as industry,
+        COALESCE(s.market_cap, 0) as market_cap,
+        COALESCE(s.current_price, 0) as current_price,
+        COALESCE(s.trailing_pe, 0) as trailing_pe,
+        COALESCE(s.price_to_book, 0) as price_to_book,
         
         -- Try to get quality metrics if table exists, otherwise null
         NULL as quality_metric,
@@ -239,7 +239,7 @@ router.get('/', async (req, res) => {
         NOW() as last_updated
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       ${whereClause}
       ORDER BY ss.symbol ${safeOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -259,7 +259,7 @@ router.get('/', async (req, res) => {
       const countQuery = `
         SELECT COUNT(DISTINCT ss.symbol) as total
         FROM stock_symbols ss
-        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+        LEFT JOIN symbols s ON ss.symbol = s.symbol
         ${whereClause}
       `;
       
@@ -450,21 +450,21 @@ router.get('/:symbol', async (req, res) => {
         vm.current_pb,
         vm.current_ev_ebitda,
         ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
-        cp.dividend_yield,
-        cp.return_on_equity,
-        cp.return_on_assets,
-        cp.debt_to_equity,
-        cp.free_cash_flow
+        s.sector,
+        s.industry,
+        s.market_cap,
+        s.current_price,
+        s.trailing_pe,
+        s.price_to_book,
+        s.dividend_yield,
+        s.return_on_equity,
+        s.return_on_assets,
+        s.debt_to_equity,
+        s.free_cash_flow
       FROM quality_metrics qm
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       LEFT JOIN stock_symbols ss ON qm.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON qm.symbol = cp.symbol
+      LEFT JOIN symbols s ON qm.symbol = s.symbol
       WHERE qm.symbol = $1
       ORDER BY qm.date DESC
       LIMIT 12
@@ -491,8 +491,8 @@ router.get('/:symbol', async (req, res) => {
         COUNT(*) as peer_count
       FROM quality_metrics qm
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
-      LEFT JOIN company_profile cp ON qm.symbol = cp.symbol
-      WHERE cp.sector = $1
+      LEFT JOIN symbols s ON qm.symbol = s.symbol
+      WHERE s.sector = $1
       AND qm.date = $2
       AND qm.quality_metric IS NOT NULL
     `;
@@ -617,7 +617,7 @@ router.get('/sectors/analysis', async (req, res) => {
 
     const sectorQuery = `
       SELECT 
-        cp.sector,
+        s.sector,
         COUNT(DISTINCT qm.symbol) as stock_count,
         AVG(qm.quality_metric) as avg_quality,
         AVG(vm.value_metric) as avg_value,
@@ -626,15 +626,15 @@ router.get('/sectors/analysis', async (req, res) => {
         MAX(qm.quality_metric) as max_quality,
         MIN(qm.quality_metric) as min_quality,
         MAX(qm.updated_at) as last_updated
-      FROM company_profile cp
-      INNER JOIN quality_metrics qm ON cp.symbol = qm.symbol
+      FROM symbols s
+      INNER JOIN quality_metrics qm ON s.symbol = qm.symbol
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       WHERE qm.date = (
-        SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = cp.symbol
+        SELECT MAX(date) FROM quality_metrics qm2 WHERE qm2.symbol = s.symbol
       )
-      AND cp.sector IS NOT NULL
+      AND s.sector IS NOT NULL
       AND qm.quality_metric IS NOT NULL
-      GROUP BY cp.sector
+      GROUP BY s.sector
       HAVING COUNT(DISTINCT qm.symbol) >= 5
       ORDER BY avg_quality DESC
     `;
@@ -702,16 +702,16 @@ router.get('/top/:category', async (req, res) => {
       SELECT 
         ss.symbol,
         ss.security_name as company_name,
-        COALESCE(cp.sector, 'Unknown') as sector,
-        COALESCE(cp.market_cap, 0) as market_cap,
-        COALESCE(cp.current_price, 0) as current_price,
+        COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(s.market_cap, 0) as market_cap,
+        COALESCE(s.current_price, 0) as current_price,
         0 as quality_metric,
         0 as value_metric,
         0 as category_metric,
         0.5 as confidence_score,
         NOW() as updated_at
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       WHERE ss.is_active = true
       ORDER BY ss.symbol
       LIMIT $1
