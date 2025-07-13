@@ -586,8 +586,8 @@ app.use('*', (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// Export Lambda handler
-module.exports.handler = serverless(app, {
+// Custom Lambda handler with CORS timeout protection
+const serverlessHandler = serverless(app, {
   // Lambda-specific options
   request: (request, event, context) => {
     // Add AWS event/context to request if needed
@@ -595,6 +595,110 @@ module.exports.handler = serverless(app, {
     request.context = context;
   }
 });
+
+// Wrap the serverless handler to ensure CORS headers on ALL responses
+module.exports.handler = async (event, context) => {
+  console.log(`🔍 Lambda handler entry: ${event.httpMethod} ${event.path || event.rawPath}`);
+  console.log(`🔍 Lambda context:`, {
+    requestId: context.awsRequestId,
+    remainingTime: context.getRemainingTimeInMillis(),
+    functionName: context.functionName
+  });
+  
+  // Set up a timeout that triggers 2 seconds before Lambda timeout
+  const timeoutBuffer = 2000; // 2 seconds buffer
+  const remainingTime = context.getRemainingTimeInMillis();
+  const timeoutMs = Math.max(remainingTime - timeoutBuffer, 1000); // At least 1 second
+  
+  console.log(`⏰ Setting Lambda timeout protection: ${timeoutMs}ms (${remainingTime}ms remaining)`);
+  
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => {
+      console.error(`🕐 Lambda timeout protection triggered after ${timeoutMs}ms`);
+      resolve({
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Max-Age': '86400',
+          'Access-Control-Expose-Headers': 'Content-Length, Content-Type, X-Request-ID',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'Lambda function timeout protection',
+          message: 'The request is taking too long to process',
+          details: {
+            timeout: timeoutMs,
+            remainingTime: remainingTime,
+            requestId: context.awsRequestId,
+            functionName: context.functionName
+          },
+          timestamp: new Date().toISOString()
+        })
+      });
+    }, timeoutMs);
+  });
+  
+  try {
+    // Race between the actual handler and timeout
+    const result = await Promise.race([
+      serverlessHandler(event, context),
+      timeoutPromise
+    ]);
+    
+    console.log(`✅ Lambda handler completed with status: ${result.statusCode}`);
+    
+    // Ensure CORS headers are always present
+    if (!result.headers) {
+      result.headers = {};
+    }
+    
+    // Force CORS headers on the response
+    result.headers['Access-Control-Allow-Origin'] = '*';
+    result.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH';
+    result.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma';
+    result.headers['Access-Control-Allow-Credentials'] = 'true';
+    result.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Type, X-Request-ID';
+    
+    console.log(`🌐 CORS headers applied to response: ${Object.keys(result.headers).filter(h => h.toLowerCase().includes('access-control')).join(', ')}`);
+    
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ Lambda handler error:`, {
+      message: error.message,
+      stack: error.stack,
+      requestId: context.awsRequestId
+    });
+    
+    // Return error response with CORS headers
+    return {
+      statusCode: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Type, X-Request-ID',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        success: false,
+        error: 'Lambda function error',
+        message: error.message,
+        details: {
+          requestId: context.awsRequestId,
+          functionName: context.functionName
+        },
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
+};
 
 // Export app for local testing
 module.exports.app = app;

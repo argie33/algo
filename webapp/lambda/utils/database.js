@@ -73,36 +73,82 @@ async function getDbConfig() {
  */
 async function initializeDatabase() {
     if (dbInitialized && pool) {
+        console.log('✅ Database already initialized, returning existing pool');
         return pool;
     }
 
+    const initStart = Date.now();
     try {
         console.log('🔄 Initializing database connection pool...');
         
+        const configStart = Date.now();
         const config = await getDbConfig();
-        pool = new Pool(config);
+        console.log(`✅ Database config retrieved in ${Date.now() - configStart}ms`);
+        
+        // Create pool with optimized settings for Lambda
+        const poolConfig = {
+            ...config,
+            max: 2, // Reduced for Lambda
+            idleTimeoutMillis: 10000, // Shorter timeout
+            connectionTimeoutMillis: 5000, // Faster connection timeout
+            acquireTimeoutMillis: 5000, // Shorter acquire timeout
+            createTimeoutMillis: 5000, // Shorter create timeout
+            destroyTimeoutMillis: 5000, // Shorter destroy timeout
+            createRetryIntervalMillis: 500, // Faster retry
+            reapIntervalMillis: 1000 // More frequent cleanup
+        };
+        
+        console.log(`🏊 Creating pool with config:`, {
+            host: poolConfig.host,
+            port: poolConfig.port,
+            database: poolConfig.database,
+            max: poolConfig.max,
+            connectionTimeoutMillis: poolConfig.connectionTimeoutMillis
+        });
+        
+        const poolStart = Date.now();
+        pool = new Pool(poolConfig);
+        console.log(`✅ Pool created in ${Date.now() - poolStart}ms`);
 
-        // Test connection with simple query
+        // Test connection with shorter timeout and simpler query
         console.log('🧪 Testing database connection...');
-        const start = Date.now();
+        const testStart = Date.now();
         
         const client = await Promise.race([
             pool.connect(),
             new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
+                setTimeout(() => reject(new Error('Connection test timeout after 3 seconds')), 3000)
             )
         ]);
         
-        await client.query('SELECT 1');
+        console.log(`✅ Client connected in ${Date.now() - testStart}ms`);
+        
+        // Use the simplest possible query
+        const queryStart = Date.now();
+        await client.query('SELECT 1 as test');
+        console.log(`✅ Test query completed in ${Date.now() - queryStart}ms`);
+        
         client.release();
         
-        const duration = Date.now() - start;
-        console.log(`✅ Database ready in ${duration}ms`);
+        const totalDuration = Date.now() - initStart;
+        console.log(`✅ Database fully initialized in ${totalDuration}ms`);
 
         dbInitialized = true;
         return pool;
     } catch (error) {
-        console.error('❌ Database initialization failed:', error.message);
+        const errorDuration = Date.now() - initStart;
+        console.error(`❌ Database initialization failed after ${errorDuration}ms:`, {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            hint: error.hint
+        });
+        
+        // Reset state on failure
+        pool = null;
+        dbInitialized = false;
+        dbConfig = null;
+        
         throw error;
     }
 }
@@ -120,7 +166,7 @@ function getPool() {
 /**
  * Execute a database query with timeout and detailed logging
  */
-async function query(text, params = [], timeoutMs = 10000) {
+async function query(text, params = [], timeoutMs = 3000) {
     const queryId = Math.random().toString(36).substr(2, 9);
     const startTime = Date.now();
     

@@ -7,6 +7,14 @@ const errorHandler = (err, req, res, next) => {
     timestamp: new Date().toISOString()
   });
 
+  // CRITICAL: Set CORS headers immediately to prevent CORS errors
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
+
   // Default error response
   let status = 500;
   let message = 'Internal Server Error';
@@ -49,6 +57,7 @@ const errorHandler = (err, req, res, next) => {
     response.error.details = details;
   }
 
+  console.log(`🚨 Error handler sending response with CORS headers: ${status} ${message}`);
   res.status(status).json(response);
 };
 
