@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function  
-// Updated: 2025-07-13 - FULL SOLUTION FIXED - v8 - DEPLOY NOW
+// Updated: 2025-07-13 - ROUTE LOADING FIXED - v9 - DEPLOY NOW
 
 const serverless = require('serverless-http');
 const express = require('express');
@@ -91,7 +91,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    version: '8.0.0',
+    version: '9.0.0',
     cors_test: 'Headers should be present',
     origin: req.headers.origin || 'no-origin',
     database: dbAvailable ? 'connected' : 'not connected'
@@ -106,53 +106,66 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    version: '8.0.0',
+    version: '9.0.0',
     cors_test: 'Headers should be present',
     origin: req.headers.origin || 'no-origin',
     database: dbAvailable ? 'connected' : 'not connected'
   });
 });
 
-// Conditional route loading middleware - load routes only when needed
-app.use(async (req, res, next) => {
-  const path = req.path;
-  
+// Safe route loading - load all routes at startup with error handling
+console.log('🔄 Loading routes...');
+
+// Helper function to safely load routes
+const safeLoadRoute = (routePath, modulePath, routeName) => {
   try {
-    // Load routes dynamically based on request path
-    if (path.includes('/settings') || path.includes('/api-keys')) {
-      const settingsRoutes = require('./routes/settings');
-      app.use('/settings', settingsRoutes);
-      app.use('/api/settings', settingsRoutes);
-    } else if (path.includes('/portfolio')) {
-      const portfolioRoutes = require('./routes/portfolio');
-      app.use('/portfolio', portfolioRoutes);
-      app.use('/api/portfolio', portfolioRoutes);
-    } else if (path.includes('/stocks')) {
-      const stockRoutes = require('./routes/stocks');
-      app.use('/stocks', stockRoutes);
-      app.use('/api/stocks', stockRoutes);
-    } else if (path.includes('/auth')) {
-      const authRoutes = require('./routes/auth');
-      app.use('/auth', authRoutes);
-      app.use('/api/auth', authRoutes);
-    } else if (path.includes('/market')) {
-      const marketRoutes = require('./routes/market');
-      app.use('/market', marketRoutes);
-      app.use('/api/market', marketRoutes);
-    }
-    
-    // Try to ensure database for data endpoints (non-blocking)
-    if (!path.includes('/health') && !path.includes('/cors-test')) {
-      ensureDatabase().catch(err => {
-        console.log('⚠️ Database not available for', path);
-      });
-    }
-    
+    const routeModule = require(modulePath);
+    app.use(routePath, routeModule);
+    console.log(`✅ Loaded ${routeName} route: ${routePath}`);
+    return true;
   } catch (error) {
-    console.error(`⚠️ Error loading route for ${path}:`, error.message);
-    // Continue anyway
+    console.error(`⚠️ Failed to load ${routeName} route:`, error.message);
+    // Create a placeholder route that returns a helpful error
+    app.use(routePath, (req, res) => {
+      res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: `${routeName} service is being loaded`,
+        route: routePath,
+        timestamp: new Date().toISOString()
+      });
+    });
+    return false;
   }
-  
+};
+
+// Load all routes with error handling
+safeLoadRoute('/settings', './routes/settings', 'Settings');
+safeLoadRoute('/api/settings', './routes/settings', 'API Settings');
+safeLoadRoute('/portfolio', './routes/portfolio', 'Portfolio');
+safeLoadRoute('/api/portfolio', './routes/portfolio', 'API Portfolio');
+safeLoadRoute('/stocks', './routes/stocks', 'Stocks');
+safeLoadRoute('/api/stocks', './routes/stocks', 'API Stocks');
+safeLoadRoute('/auth', './routes/auth', 'Auth');
+safeLoadRoute('/api/auth', './routes/auth', 'API Auth');
+safeLoadRoute('/market', './routes/market', 'Market');
+safeLoadRoute('/api/market', './routes/market', 'API Market');
+safeLoadRoute('/metrics', './routes/metrics', 'Metrics');
+safeLoadRoute('/api/metrics', './routes/metrics', 'API Metrics');
+
+// Try to load other common routes
+safeLoadRoute('/health-detailed', './routes/health', 'Health Detailed');
+safeLoadRoute('/api/health-detailed', './routes/health', 'API Health Detailed');
+
+console.log('✅ Route loading completed');
+
+// Database initialization middleware (non-blocking)
+app.use(async (req, res, next) => {
+  // Try to ensure database for data endpoints (non-blocking)
+  if (!req.path.includes('/health') && !req.path.includes('/cors-test') && !req.path.includes('/debug')) {
+    ensureDatabase().catch(err => {
+      console.log('⚠️ Database not available for', req.path);
+    });
+  }
   next();
 });
 
@@ -160,7 +173,7 @@ app.use(async (req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'Financial Dashboard API',
-    version: '8.0.0',
+    version: '9.0.0',
     status: 'operational',
     timestamp: new Date().toISOString(),
     database: dbAvailable ? 'connected' : 'not connected',
