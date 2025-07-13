@@ -470,75 +470,71 @@ const checkTableAvailability = async (tableName) => {
   }
 };
 
-// Initialize database connection with shorter timeout
+// Initialize database connection with aggressive timeout and fallback
 const ensureDatabase = async () => {
   if (!dbInitPromise) {
-    console.log('Initializing database connection...');
+    console.log('🔄 Quick database initialization...');
     dbInitPromise = Promise.race([
       initializeDatabase().catch(err => {
-        console.error('Database initialization error details:', {
-          message: err.message,
-          stack: err.stack,
-          config: err.config,
-          env: err.env
-        });
-        throw err;
+        console.error('⚠️ Database init failed, continuing without DB:', err.message);
+        return null; // Don't throw, just return null
       }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database initialization timeout after 30 seconds')), 30000)
+      new Promise((resolve) => 
+        setTimeout(() => {
+          console.warn('⚠️ Database init timeout, continuing without DB');
+          resolve(null);
+        }, 5000) // Much shorter timeout
       )
     ]).then(pool => {
-      dbAvailable = true;
-      console.log('Database connection established successfully');
+      if (pool) {
+        dbAvailable = true;
+        console.log('✅ Database connected');
+      } else {
+        dbAvailable = false;
+        console.log('⚠️ Database unavailable, API will run with limited functionality');
+      }
       return pool;
     }).catch(err => {
-      console.error('Failed to initialize database:', err);
-      dbInitPromise = null; // Reset to allow retry
+      console.error('⚠️ Database error, continuing anyway:', err.message);
+      dbInitPromise = null;
       dbAvailable = false;
-      throw err;
+      return null; // Don't throw
     });
   }
   return dbInitPromise;
 };
 
-// Middleware to check database requirement based on endpoint
+// Middleware to check database requirement based on endpoint (non-blocking)
 app.use(async (req, res, next) => {
-  console.log(`Processing request: ${req.method} ${req.path}`);
+  console.log(`📥 Processing: ${req.method} ${req.path}`);
   
-  // Endpoints that don't require database
-  const nonDbEndpoints = ['/', '/health'];
+  // Endpoints that don't require database - proceed immediately
+  const nonDbEndpoints = ['/', '/health', '/cors-test', '/debug', '/api/health', '/api/cors-test'];
   const isHealthQuick = req.path === '/health' && req.query.quick === 'true';
   
-  if (nonDbEndpoints.includes(req.path) || isHealthQuick) {
-    console.log('Endpoint does not require database connection');
+  if (nonDbEndpoints.includes(req.path) || isHealthQuick || req.path.includes('cors-test')) {
+    console.log('🚀 Non-DB endpoint, proceeding immediately');
     return next();
   }
   
-  // For endpoints that need database, try to ensure connection
+  // For other endpoints, try database but don't block
+  console.log('📊 DB endpoint, attempting quick connection...');
   try {
-    await ensureDatabase();
-    console.log('Database connection verified for database-dependent endpoint');
-    next();
-  } catch (error) {
-    console.error('Database initialization failed for database-dependent endpoint:', {
-      message: error.message,
-      stack: error.stack,
-      config: error.config,
-      env: error.env
-    });
-    
-    // For health endpoint (non-quick), still allow it to proceed with DB error info
-    if (req.path === '/health') {
-      req.dbError = error;
-      return next();
+    const pool = await ensureDatabase();
+    if (pool) {
+      console.log('✅ Database ready for endpoint');
+    } else {
+      console.log('⚠️ Database unavailable, proceeding with limited functionality');
+      req.dbError = new Error('Database unavailable');
+      req.dbAvailable = false;
     }
-    
-    // For data endpoints, proceed but mark database as unavailable
+  } catch (error) {
+    console.error('⚠️ Database error, proceeding anyway:', error.message);
     req.dbError = error;
     req.dbAvailable = false;
-    console.log('Proceeding with endpoint despite database issues - will return partial data');
-    next();
   }
+  
+  next(); // Always proceed
 });
 
 // Routes (note: API Gateway handles the /api prefix)
@@ -691,120 +687,27 @@ app.use('*', (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// Custom Lambda handler with CORS timeout protection
-const serverlessHandler = serverless(app, {
+// Simplified Lambda handler to fix 502 errors
+module.exports.handler = serverless(app, {
   // Lambda-specific options
   request: (request, event, context) => {
     // Add AWS event/context to request if needed
     request.event = event;
     request.context = context;
+    console.log(`🔍 Lambda handler: ${event.httpMethod} ${event.path || event.rawPath}`);
+  },
+  response: (response, event, context) => {
+    // Ensure CORS headers are always present on response
+    if (!response.headers) {
+      response.headers = {};
+    }
+    response.headers['Access-Control-Allow-Origin'] = '*';
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH';
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin';
+    response.headers['Access-Control-Allow-Credentials'] = 'true';
+    console.log(`🌐 CORS headers applied to ${response.statusCode} response`);
   }
 });
-
-// Wrap the serverless handler to ensure CORS headers on ALL responses
-module.exports.handler = async (event, context) => {
-  console.log(`🔍 Lambda handler entry: ${event.httpMethod} ${event.path || event.rawPath}`);
-  console.log(`🔍 Event details:`, JSON.stringify(event, null, 2));
-  console.log(`🔍 Lambda context:`, {
-    requestId: context.awsRequestId,
-    remainingTime: context.getRemainingTimeInMillis(),
-    functionName: context.functionName
-  });
-  
-  // Set up a timeout that triggers 2 seconds before Lambda timeout
-  const timeoutBuffer = 2000; // 2 seconds buffer
-  const remainingTime = context.getRemainingTimeInMillis();
-  const timeoutMs = Math.max(remainingTime - timeoutBuffer, 1000); // At least 1 second
-  
-  console.log(`⏰ Setting Lambda timeout protection: ${timeoutMs}ms (${remainingTime}ms remaining)`);
-  
-  const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => {
-      console.error(`🕐 Lambda timeout protection triggered after ${timeoutMs}ms`);
-      resolve({
-        statusCode: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma',
-          'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Max-Age': '86400',
-          'Access-Control-Expose-Headers': 'Content-Length, Content-Type, X-Request-ID',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          success: false,
-          error: 'Lambda function timeout protection',
-          message: 'The request is taking too long to process',
-          details: {
-            timeout: timeoutMs,
-            remainingTime: remainingTime,
-            requestId: context.awsRequestId,
-            functionName: context.functionName
-          },
-          timestamp: new Date().toISOString()
-        })
-      });
-    }, timeoutMs);
-  });
-  
-  try {
-    // Race between the actual handler and timeout
-    const result = await Promise.race([
-      serverlessHandler(event, context),
-      timeoutPromise
-    ]);
-    
-    console.log(`✅ Lambda handler completed with status: ${result.statusCode}`);
-    
-    // Ensure CORS headers are always present
-    if (!result.headers) {
-      result.headers = {};
-    }
-    
-    // Force CORS headers on the response
-    result.headers['Access-Control-Allow-Origin'] = '*';
-    result.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH';
-    result.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma';
-    result.headers['Access-Control-Allow-Credentials'] = 'true';
-    result.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Type, X-Request-ID';
-    
-    console.log(`🌐 CORS headers applied to response: ${Object.keys(result.headers).filter(h => h.toLowerCase().includes('access-control')).join(', ')}`);
-    
-    return result;
-    
-  } catch (error) {
-    console.error(`❌ Lambda handler error:`, {
-      message: error.message,
-      stack: error.stack,
-      requestId: context.awsRequestId
-    });
-    
-    // Return error response with CORS headers
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma',
-        'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Max-Age': '86400',
-        'Access-Control-Expose-Headers': 'Content-Length, Content-Type, X-Request-ID',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        success: false,
-        error: 'Lambda function error',
-        message: error.message,
-        details: {
-          requestId: context.awsRequestId,
-          functionName: context.functionName
-        },
-        timestamp: new Date().toISOString()
-      })
-    };
-  }
-};
 
 // Export app for local testing
 module.exports.app = app;
