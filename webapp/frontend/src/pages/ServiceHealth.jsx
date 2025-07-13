@@ -155,7 +155,7 @@ function ServiceHealth() {
         
         setDbHealth(response.data);
         return response.data;
-      } catch (error) {
+    } catch (error) {
         const endTime = Date.now();
         const duration = endTime - startTime;
         
