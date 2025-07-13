@@ -740,17 +740,17 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
       // Get sector breakdown from stored data
       const sectorResult = await query(`
         SELECT 
-          COALESCE(se.sector, 'Unknown') as sector,
+          COALESCE(cp.sector, 'Unknown') as sector,
           COUNT(*) as trade_count,
           SUM(ph.net_pnl) as sector_pnl,
           AVG(ph.return_percentage) as avg_roi,
           SUM(ph.quantity * ph.avg_entry_price) as total_volume
         FROM position_history ph
-        LEFT JOIN stocks_extended se ON ph.symbol = se.symbol
+        LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
-        GROUP BY COALESCE(se.sector, 'Unknown')
+        GROUP BY COALESCE(cp.sector, 'Unknown')
         ORDER BY sector_pnl DESC
       `, [userId, startDate, endDate], 10000);
       
