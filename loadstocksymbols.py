@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger rebuild: 2025-07-13 - Test loader functionality
 # Updated database schema to match webapp portfolio table requirements v44 - test ECR race
 import os
 import re
