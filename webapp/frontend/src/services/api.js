@@ -149,9 +149,14 @@ export const deleteHolding = async (holdingId) => {
   }
 };
 
-export const importPortfolioFromBroker = async (broker, accountType = 'paper') => {
+export const importPortfolioFromBroker = async (broker, accountType = 'paper', selectedKeyId = null) => {
   try {
-    const response = await api.post(`/api/portfolio/import/${broker}?accountType=${accountType}`);
+    const params = new URLSearchParams({ accountType });
+    if (selectedKeyId) {
+      params.append('keyId', selectedKeyId);
+    }
+    
+    const response = await api.post(`/api/portfolio/import/${broker}?${params.toString()}`);
     return response.data;
   } catch (error) {
     console.error('Error importing portfolio from broker:', error);

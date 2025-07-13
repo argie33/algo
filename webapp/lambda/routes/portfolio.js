@@ -309,11 +309,63 @@ router.get('/holdings', async (req, res) => {
     console.log(`👤 User ID: ${userId}`);
     console.log(`📊 Account type: ${accountType}`);
     
-    // Try to get real data from broker API first
+    // Try to get real data from database first, filtered by account type
     try {
+      console.log(`🔍 [HOLDINGS] Looking for stored portfolio data for user ${userId}, account type: ${accountType}`);
+      
+      // Get user's API keys filtered by account type (sandbox for paper, live for live)
+      const isSandbox = accountType === 'paper';
+      const storedHoldings = await query(`
+        SELECT ph.*, uak.provider, uak.is_sandbox
+        FROM portfolio_holdings ph
+        JOIN user_api_keys uak ON ph.api_key_id = uak.id
+        WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
+        ORDER BY ph.market_value DESC
+      `, [userId, isSandbox]);
+      
+      if (storedHoldings.rows.length > 0) {
+        console.log(`✅ [HOLDINGS] Found ${storedHoldings.rows.length} stored holdings for ${accountType} account`);
+        
+        const holdings = storedHoldings.rows;
+        const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+        const totalGainLoss = holdings.reduce((sum, h) => sum + parseFloat(h.unrealized_pl || 0), 0);
+
+        const formattedHoldings = holdings.map(h => ({
+          symbol: h.symbol,
+          company: h.symbol + ' Inc.', // Would need company lookup
+          shares: parseFloat(h.quantity || 0),
+          avgCost: parseFloat(h.avg_cost || 0),
+          currentPrice: parseFloat(h.current_price || 0),
+          marketValue: parseFloat(h.market_value || 0),
+          gainLoss: parseFloat(h.unrealized_pl || 0),
+          gainLossPercent: parseFloat(h.unrealized_plpc || 0),
+          sector: 'Technology', // Would need sector lookup
+          allocation: totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) * 100 : 0,
+          lastUpdated: h.updated_at
+        }));
+
+        return res.json({
+          success: true,
+          data: {
+            holdings: formattedHoldings,
+            summary: {
+              totalValue: totalValue,
+              totalGainLoss: totalGainLoss,
+              totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+              numPositions: holdings.length,
+              accountType: accountType,
+              dataSource: 'database'
+            }
+          }
+        });
+      }
+      
+      // If no stored data, try to get fresh data from broker API
+      console.log(`📡 [HOLDINGS] No stored data found, fetching fresh data from broker API`);
       const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
       
-      if (credentials) {
+      if (credentials && credentials.isSandbox === isSandbox) {
+        console.log(`🔑 [HOLDINGS] Using API key: ${credentials.provider} (${credentials.isSandbox ? 'sandbox' : 'live'})`);
         const alpaca = new AlpacaService(
           credentials.apiKey,
           credentials.apiSecret,
@@ -1338,10 +1390,10 @@ router.post('/import/:broker', async (req, res) => {
   
   try {
     const { broker } = req.params;
-    const { accountType = 'paper' } = req.query; // Keep for logging, but API key setting is authoritative
+    const { accountType = 'paper', keyId } = req.query; // accountType for logging, keyId for specific API key selection
     const userId = req.user?.sub;
     
-    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, requested account: ${accountType}, user: ${userId}`);
+    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, requested account: ${accountType}, keyId: ${keyId || 'auto-select'}, user: ${userId}`);
     console.log(`🔄 [IMPORT] Request headers:`, Object.keys(req.headers));
     console.log(`🔄 [IMPORT] Memory usage:`, process.memoryUsage());
     
@@ -1431,10 +1483,65 @@ router.post('/import/:broker', async (req, res) => {
         
         // If no credentials yet, try the main API key service call
         if (!credentials) {
-          credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
-          console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
-          if (credentials) {
-            console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
+          // If specific key ID is provided, get that specific key
+          if (keyId) {
+            console.log(`🔑 [IMPORT] Fetching specific API key with ID: ${keyId}`);
+            try {
+              const specificKeyResult = await query(`
+                SELECT 
+                  id,
+                  provider,
+                  encrypted_api_key,
+                  key_iv,
+                  key_auth_tag,
+                  encrypted_api_secret,
+                  secret_iv,
+                  secret_auth_tag,
+                  user_salt,
+                  is_sandbox,
+                  is_active
+                FROM user_api_keys 
+                WHERE id = $1 AND user_id = $2 AND provider = $3 AND is_active = true
+              `, [keyId, userId, broker]);
+              
+              if (specificKeyResult.rows.length > 0) {
+                const keyData = specificKeyResult.rows[0];
+                
+                // Decrypt the API credentials using the apiKeyService
+                const apiKey = apiKeyService.decryptApiKey({
+                  encrypted: keyData.encrypted_api_key,
+                  iv: keyData.key_iv,
+                  authTag: keyData.key_auth_tag
+                }, keyData.user_salt);
+                
+                const apiSecret = keyData.encrypted_api_secret ? apiKeyService.decryptApiKey({
+                  encrypted: keyData.encrypted_api_secret,
+                  iv: keyData.secret_iv,
+                  authTag: keyData.secret_auth_tag
+                }, keyData.user_salt) : null;
+                
+                credentials = {
+                  id: keyData.id,
+                  provider: keyData.provider,
+                  apiKey: apiKey,
+                  apiSecret: apiSecret,
+                  isSandbox: keyData.is_sandbox,
+                  isActive: keyData.is_active
+                };
+                console.log(`✅ [IMPORT] Retrieved specific key ${keyId}: ${credentials.provider} (${credentials.isSandbox ? 'sandbox' : 'live'})`);
+              } else {
+                console.error(`❌ [IMPORT] Specific key ${keyId} not found for user ${userId}`);
+              }
+            } catch (keyError) {
+              console.error(`❌ [IMPORT] Error fetching specific key ${keyId}:`, keyError.message);
+            }
+          } else {
+            // Default behavior - get any available key for the broker
+            credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
+            console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
+            if (credentials) {
+              console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
+            }
           }
         }
       }

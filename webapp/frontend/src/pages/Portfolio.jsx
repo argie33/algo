@@ -933,15 +933,21 @@ const Portfolio = () => {
   };
 
   // Import portfolio from broker
-  const handleImportPortfolio = async (provider) => {
+  const handleImportPortfolio = async (provider, selectedKeyId = null) => {
     try {
       setImporting(true);
       setImportError(null);
       
-      const result = await importPortfolioFromBroker(provider);
+      // Use the account type from the selected API key or default to paper
+      const selectedConnection = availableConnections.find(c => c.provider === provider && (!selectedKeyId || c.id === selectedKeyId));
+      const accountType = selectedConnection?.isSandbox ? 'paper' : 'live';
+      
+      console.log(`🔄 Importing portfolio from ${provider} (${accountType}) using key ID: ${selectedKeyId || 'auto-select'}`);
+      
+      const result = await importPortfolioFromBroker(provider, accountType, selectedKeyId);
       
       if (result.success) {
-        setImportSuccess(`Portfolio imported successfully from ${provider}`);
+        setImportSuccess(`Portfolio imported successfully from ${provider} (${accountType})`);
         setImportDialogOpen(false);
         // Reload portfolio data
         loadPortfolioData();
@@ -1704,6 +1710,31 @@ const Portfolio = () => {
               )}
             </Select>
           </FormControl>
+
+          {/* Account Type Filter - Show when using real data */}
+          {dataSource !== 'mock' && (
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Account Type</InputLabel>
+              <Select
+                value={accountType}
+                label="Account Type"
+                onChange={(e) => setAccountType(e.target.value)}
+              >
+                <MenuItem value="paper">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Paper" color="warning" variant="outlined" />
+                    Paper
+                  </Box>
+                </MenuItem>
+                <MenuItem value="live">
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip size="small" label="Live" color="success" variant="outlined" />
+                    Live
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+          )}
 
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Timeframe</InputLabel>
@@ -3178,14 +3209,18 @@ const Portfolio = () => {
                               {connection.provider.charAt(0).toUpperCase() + connection.provider.slice(1)}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {connection.description || 'Brokerage account'}
+                              {connection.description || `${connection.isSandbox ? 'Paper' : 'Live'} account`}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Key ID: {connection.id}
                             </Typography>
                           </Box>
                         </Box>
                         <Chip 
-                          label={connection.isSandbox ? 'Paper' : 'Live'} 
+                          label={connection.isSandbox ? 'Paper Trading' : 'Live Trading'} 
                           color={connection.isSandbox ? 'warning' : 'success'}
                           size="small"
+                          variant="outlined"
                         />
                       </Box>
                       
@@ -3202,11 +3237,12 @@ const Portfolio = () => {
                         <Button
                           size="small"
                           variant="contained"
+                          color={connection.isSandbox ? 'warning' : 'success'}
                           startIcon={importing ? <CircularProgress size={16} /> : <Upload />}
-                          onClick={() => handleImportPortfolio(connection.provider)}
+                          onClick={() => handleImportPortfolio(connection.provider, connection.id)}
                           disabled={importing}
                         >
-                          Import
+                          Import {connection.isSandbox ? 'Paper' : 'Live'}
                         </Button>
                       </Box>
                     </CardContent>
