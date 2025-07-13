@@ -203,7 +203,6 @@ function ServiceHealth() {
         setDbError(error);
         setDbHealth(result);
         return result;
-      }
     } finally {
       setDbLoading(false);
     }
