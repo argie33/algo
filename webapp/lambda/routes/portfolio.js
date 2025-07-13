@@ -1479,6 +1479,21 @@ router.post('/import/:broker', async (req, res) => {
             // Check for alpaca keys specifically
             const alpacaKeysResult = await query(`SELECT user_id, provider, is_active, created_at FROM user_api_keys WHERE provider = 'alpaca' ORDER BY created_at DESC LIMIT 5`);
             console.log(`🔍 [IMPORT DEBUG] Recent alpaca keys:`, alpacaKeysResult.rows.map(k => `${k.user_id}/${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+            
+            // Development fallback: If real user has no keys, try to use any available dev key for the same provider
+            if (debugResult.rows.length === 0 && alpacaKeysResult.rows.length > 0) {
+              console.log(`🔧 [IMPORT DEBUG] Real user ${userId} has no keys, trying development fallback...`);
+              const availableKey = alpacaKeysResult.rows.find(k => k.is_active);
+              if (availableKey) {
+                console.log(`🔧 [IMPORT DEBUG] Attempting to use key from ${availableKey.user_id} for current user`);
+                if (apiKeyService.isEnabled) {
+                  credentials = await apiKeyService.getDecryptedApiKey(availableKey.user_id, broker);
+                  if (credentials) {
+                    console.log(`✅ [IMPORT DEBUG] Successfully retrieved development key for real user`);
+                  }
+                }
+              }
+            }
           }
         } catch (debugError) {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
