@@ -110,31 +110,33 @@ function calculateDataAge(lastUpdate) {
 
 // Get comprehensive metrics for all stocks with filtering and pagination
 router.get('/', async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
   try {
-    console.log('Metrics endpoint called with params:', req.query);
+    console.log(`📊 [${requestId}] Metrics endpoint called with params:`, JSON.stringify(req.query, null, 2));
+    console.log(`📊 [${requestId}] Memory at start:`, process.memoryUsage());
     
     // Check database availability immediately to prevent timeouts
+    console.log(`🔍 [${requestId}] Testing database connectivity for metrics...`);
     let dbAvailable = false;
     try {
-      await query('SELECT 1', [], 2000); // 2 second timeout
+      const dbStart = Date.now();
+      await query('SELECT 1', [], 3000); // 3 second timeout
       dbAvailable = true;
+      console.log(`✅ [${requestId}] Database available after ${Date.now() - dbStart}ms`);
     } catch (dbError) {
-      console.log('Database not available for metrics endpoint, using mock data');
-    }
-    
-    // If database is not available, return mock data immediately
-    if (!dbAvailable) {
-      return res.json({
-        success: true,
-        data: getMockMetricsData(req.query),
-        pagination: {
-          page: parseInt(req.query.page) || 1,
-          limit: Math.min(parseInt(req.query.limit) || 50, 200),
-          total: 8500,
-          pages: 170
+      console.error(`❌ [${requestId}] Database unavailable for metrics endpoint after ${Date.now() - startTime}ms:`, dbError.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Database temporarily unavailable',
+        message: 'Metrics data requires database connectivity',
+        details: {
+          endpoint: 'GET /metrics',
+          duration: Date.now() - startTime,
+          dbError: dbError.message
         },
-        timestamp: new Date().toISOString(),
-        dataSource: 'mock'
+        timestamp: new Date().toISOString()
       });
     }
     

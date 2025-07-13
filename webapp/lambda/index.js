@@ -185,12 +185,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Global timeout protection middleware to prevent CORS issues from Lambda timeouts
+// Enhanced logging and timeout protection middleware
 app.use((req, res, next) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  console.log(`🔍 [${requestId}] REQUEST START: ${req.method} ${req.path}`);
+  console.log(`🔍 [${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+  console.log(`🔍 [${requestId}] Query:`, JSON.stringify(req.query, null, 2));
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(`🔍 [${requestId}] Body:`, JSON.stringify(req.body, null, 2));
+  }
+  
+  // Add request tracking to res.locals
+  res.locals.requestId = requestId;
+  res.locals.startTime = startTime;
+  
   // Set a global timeout to ensure we always send a response
   const globalTimeout = setTimeout(() => {
     if (!res.headersSent) {
-      console.warn(`🕐 Global timeout triggered for ${req.method} ${req.path}`);
+      const duration = Date.now() - startTime;
+      console.error(`🕐 [${requestId}] GLOBAL TIMEOUT after ${duration}ms for ${req.method} ${req.path}`);
+      console.error(`🕐 [${requestId}] Memory usage:`, process.memoryUsage());
       
       // Ensure CORS headers are set
       const origin = req.headers.origin;
@@ -199,25 +215,50 @@ app.use((req, res, next) => {
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
       res.header('Access-Control-Allow-Credentials', 'true');
       
-      // Send a timeout response
-      res.status(200).json({
-        success: true,
-        error: 'Request timeout',
-        message: 'Request took too long, returning fallback data',
-        data: {},
-        timestamp: new Date().toISOString(),
-        dataSource: 'timeout'
+      // Send a diagnostic response
+      res.status(500).json({
+        success: false,
+        error: 'Lambda function timeout',
+        message: 'The request exceeded the maximum processing time',
+        details: {
+          duration: duration,
+          endpoint: `${req.method} ${req.path}`,
+          requestId: requestId,
+          memoryUsage: process.memoryUsage()
+        },
+        timestamp: new Date().toISOString()
       });
     }
   }, 25000); // 25 second global timeout (Lambda max is 30s)
   
+  // Enhanced response logging
+  const originalSend = res.send;
+  res.send = function(...args) {
+    const duration = Date.now() - startTime;
+    console.log(`✅ [${requestId}] RESPONSE SENT: ${res.statusCode} after ${duration}ms`);
+    clearTimeout(globalTimeout);
+    return originalSend.apply(this, args);
+  };
+  
+  const originalJson = res.json;
+  res.json = function(...args) {
+    const duration = Date.now() - startTime;
+    console.log(`✅ [${requestId}] JSON RESPONSE: ${res.statusCode} after ${duration}ms`);
+    clearTimeout(globalTimeout);
+    return originalJson.apply(this, args);
+  };
+  
   // Clear the timeout when response is sent
   res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    console.log(`🏁 [${requestId}] REQUEST FINISHED after ${duration}ms`);
     clearTimeout(globalTimeout);
   });
   
   // Clear the timeout when response starts
   res.on('close', () => {
+    const duration = Date.now() - startTime;
+    console.log(`🔒 [${requestId}] CONNECTION CLOSED after ${duration}ms`);
     clearTimeout(globalTimeout);
   });
   

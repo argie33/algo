@@ -362,29 +362,30 @@ router.get('/api-keys', async (req, res) => {
 
 // Add new API key
 router.post('/api-keys', async (req, res) => {
-  // Set response timeout to prevent Lambda timeouts
-  const responseTimeout = setTimeout(() => {
-    if (!res.headersSent) {
-      res.status(200).json({
-        success: false,
-        error: 'Request timeout',
-        message: 'API key creation took too long, please try again',
-        timestamp: new Date().toISOString()
-      });
-    }
-  }, 10000); // 10 second timeout
-
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  console.log(`🔐 [${requestId}] POST /api-keys - Starting API key creation`);
+  console.log(`🔐 [${requestId}] Memory at start:`, process.memoryUsage());
+  
   const userId = req.user?.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
   
-  console.log('🔐 POST /api-keys - Creating key for user:', userId);
-  console.log('👤 User object:', req.user);
-  console.log('📝 Key details:', { provider, isSandbox, description, hasApiKey: !!apiKey, hasSecret: !!apiSecret });
+  console.log(`🔐 [${requestId}] User ID:`, userId);
+  console.log(`🔐 [${requestId}] User object:`, JSON.stringify(req.user, null, 2));
+  console.log(`🔐 [${requestId}] Request body:`, JSON.stringify({ 
+    provider, 
+    isSandbox, 
+    description, 
+    hasApiKey: !!apiKey, 
+    hasSecret: !!apiSecret,
+    apiKeyLength: apiKey?.length,
+    secretLength: apiSecret?.length
+  }, null, 2));
 
   // Check if user is properly authenticated
   if (!userId) {
-    clearTimeout(responseTimeout);
-    console.error('❌ No user ID found in request');
+    console.error(`❌ [${requestId}] No user ID found in request after ${Date.now() - startTime}ms`);
     return res.status(401).json({
       success: false,
       error: 'User not authenticated',
@@ -393,7 +394,7 @@ router.post('/api-keys', async (req, res) => {
   }
 
   if (!provider || !apiKey) {
-    clearTimeout(responseTimeout);
+    console.error(`❌ [${requestId}] Missing required fields: provider=${!!provider}, apiKey=${!!apiKey} after ${Date.now() - startTime}ms`);
     return res.status(400).json({
       success: false,
       error: 'Provider and API key are required'
@@ -401,11 +402,13 @@ router.post('/api-keys', async (req, res) => {
   }
 
   // Check database availability immediately
+  console.log(`🔍 [${requestId}] Testing database connectivity...`);
   try {
+    const dbStart = Date.now();
     await query('SELECT 1', [], 2000); // 2 second timeout
+    console.log(`✅ [${requestId}] Database available after ${Date.now() - dbStart}ms`);
   } catch (dbError) {
-    clearTimeout(responseTimeout);
-    console.log('Database not available for API key creation');
+    console.error(`❌ [${requestId}] Database unavailable after ${Date.now() - startTime}ms:`, dbError.message);
     return res.status(503).json({
       success: false,
       error: 'Database temporarily unavailable',
@@ -415,17 +418,21 @@ router.post('/api-keys', async (req, res) => {
   }
 
   try {
-    console.log('🧂 Generating user salt...');
+    console.log(`🧂 [${requestId}] Generating user salt after ${Date.now() - startTime}ms...`);
     // Generate user-specific salt
     const userSalt = crypto.randomBytes(16).toString('hex');
+    console.log(`✅ [${requestId}] Salt generated after ${Date.now() - startTime}ms`);
     
-    console.log('🔐 Encrypting API credentials...');
+    console.log(`🔐 [${requestId}] Encrypting API credentials after ${Date.now() - startTime}ms...`);
     // Encrypt API credentials
+    const encryptionStart = Date.now();
     const encryptedApiKey = encryptApiKey(apiKey, userSalt);
     const encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
+    console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
 
-    console.log('💾 Attempting database insert...');
+    console.log(`💾 [${requestId}] Attempting database insert after ${Date.now() - startTime}ms...`);
     // Insert into database
+    const insertStart = Date.now();
     const result = await query(`
       INSERT INTO user_api_keys (
         user_id, 
@@ -455,16 +462,18 @@ router.post('/api-keys', async (req, res) => {
       userSalt,
       isSandbox,
       description
-    ]);
+    ], 15000); // 15 second timeout for insert
+    
+    console.log(`✅ [${requestId}] Database insert completed after ${Date.now() - insertStart}ms`);
+    console.log(`✅ [${requestId}] Total request time: ${Date.now() - startTime}ms`);
 
-    clearTimeout(responseTimeout);
     res.json({
       success: true,
       message: 'API key added successfully',
       apiKey: result.rows[0]
     });
   } catch (error) {
-    clearTimeout(responseTimeout);
+    console.error(`❌ [${requestId}] Error after ${Date.now() - startTime}ms:`, error.message);
     console.error('❌ Error adding API key:', error.message);
     console.error('🔍 Full error details:', {
       message: error.message,
