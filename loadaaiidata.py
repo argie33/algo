@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v4.9 - FORCE RETRIGGER
+# Trigger deploy-app-stocks workflow - loadaaiidata update v5.0 - LOADER FIX RETRIGGER
 import sys
 import time
 import logging
