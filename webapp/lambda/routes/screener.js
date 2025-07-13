@@ -58,129 +58,129 @@ router.get('/screen', async (req, res) => {
 
     // Market cap filters
     if (filters.marketCapMin) {
-      whereConditions.push(`sf.market_cap >= $${paramIndex}`);
+      whereConditions.push(`s.market_cap >= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMin));
       paramIndex++;
     }
     if (filters.marketCapMax) {
-      whereConditions.push(`sf.market_cap <= $${paramIndex}`);
+      whereConditions.push(`s.market_cap <= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMax));
       paramIndex++;
     }
 
     // Valuation filters
     if (filters.peRatioMin) {
-      whereConditions.push(`sf.pe_ratio >= $${paramIndex}`);
+      whereConditions.push(`s.pe_ratio >= $${paramIndex}`);
       params.push(parseFloat(filters.peRatioMin));
       paramIndex++;
     }
     if (filters.peRatioMax) {
-      whereConditions.push(`sf.pe_ratio <= $${paramIndex}`);
+      whereConditions.push(`s.pe_ratio <= $${paramIndex}`);
       params.push(parseFloat(filters.peRatioMax));
       paramIndex++;
     }
 
     if (filters.pegRatioMin) {
-      whereConditions.push(`sf.peg_ratio >= $${paramIndex}`);
+      whereConditions.push(`s.peg_ratio >= $${paramIndex}`);
       params.push(parseFloat(filters.pegRatioMin));
       paramIndex++;
     }
     if (filters.pegRatioMax) {
-      whereConditions.push(`sf.peg_ratio <= $${paramIndex}`);
+      whereConditions.push(`s.peg_ratio <= $${paramIndex}`);
       params.push(parseFloat(filters.pegRatioMax));
       paramIndex++;
     }
 
     if (filters.pbRatioMin) {
-      whereConditions.push(`sf.pb_ratio >= $${paramIndex}`);
+      whereConditions.push(`s.pb_ratio >= $${paramIndex}`);
       params.push(parseFloat(filters.pbRatioMin));
       paramIndex++;
     }
     if (filters.pbRatioMax) {
-      whereConditions.push(`sf.pb_ratio <= $${paramIndex}`);
+      whereConditions.push(`s.pb_ratio <= $${paramIndex}`);
       params.push(parseFloat(filters.pbRatioMax));
       paramIndex++;
     }
 
     // Profitability filters
     if (filters.roeMin) {
-      whereConditions.push(`sf.roe >= $${paramIndex}`);
+      whereConditions.push(`s.roe >= $${paramIndex}`);
       params.push(parseFloat(filters.roeMin) / 100);
       paramIndex++;
     }
     if (filters.roeMax) {
-      whereConditions.push(`sf.roe <= $${paramIndex}`);
+      whereConditions.push(`s.roe <= $${paramIndex}`);
       params.push(parseFloat(filters.roeMax) / 100);
       paramIndex++;
     }
 
     if (filters.roaMin) {
-      whereConditions.push(`sf.roa >= $${paramIndex}`);
+      whereConditions.push(`s.roa >= $${paramIndex}`);
       params.push(parseFloat(filters.roaMin) / 100);
       paramIndex++;
     }
     if (filters.roaMax) {
-      whereConditions.push(`sf.roa <= $${paramIndex}`);
+      whereConditions.push(`s.roa <= $${paramIndex}`);
       params.push(parseFloat(filters.roaMax) / 100);
       paramIndex++;
     }
 
     if (filters.netMarginMin) {
-      whereConditions.push(`sf.net_margin >= $${paramIndex}`);
+      whereConditions.push(`s.net_margin >= $${paramIndex}`);
       params.push(parseFloat(filters.netMarginMin) / 100);
       paramIndex++;
     }
     if (filters.netMarginMax) {
-      whereConditions.push(`sf.net_margin <= $${paramIndex}`);
+      whereConditions.push(`s.net_margin <= $${paramIndex}`);
       params.push(parseFloat(filters.netMarginMax) / 100);
       paramIndex++;
     }
 
     // Growth filters
     if (filters.revenueGrowthMin) {
-      whereConditions.push(`sf.revenue_growth >= $${paramIndex}`);
+      whereConditions.push(`s.revenue_growth >= $${paramIndex}`);
       params.push(parseFloat(filters.revenueGrowthMin) / 100);
       paramIndex++;
     }
     if (filters.revenueGrowthMax) {
-      whereConditions.push(`sf.revenue_growth <= $${paramIndex}`);
+      whereConditions.push(`s.revenue_growth <= $${paramIndex}`);
       params.push(parseFloat(filters.revenueGrowthMax) / 100);
       paramIndex++;
     }
 
     if (filters.earningsGrowthMin) {
-      whereConditions.push(`sf.earnings_growth >= $${paramIndex}`);
+      whereConditions.push(`s.earnings_growth >= $${paramIndex}`);
       params.push(parseFloat(filters.earningsGrowthMin) / 100);
       paramIndex++;
     }
     if (filters.earningsGrowthMax) {
-      whereConditions.push(`sf.earnings_growth <= $${paramIndex}`);
+      whereConditions.push(`s.earnings_growth <= $${paramIndex}`);
       params.push(parseFloat(filters.earningsGrowthMax) / 100);
       paramIndex++;
     }
 
     // Dividend filters
     if (filters.dividendYieldMin) {
-      whereConditions.push(`sf.dividend_yield >= $${paramIndex}`);
+      whereConditions.push(`s.dividend_yield >= $${paramIndex}`);
       params.push(parseFloat(filters.dividendYieldMin) / 100);
       paramIndex++;
     }
     if (filters.dividendYieldMax) {
-      whereConditions.push(`sf.dividend_yield <= $${paramIndex}`);
+      whereConditions.push(`s.dividend_yield <= $${paramIndex}`);
       params.push(parseFloat(filters.dividendYieldMax) / 100);
       paramIndex++;
     }
 
     // Sector filter
     if (filters.sector) {
-      whereConditions.push(`sse.sector = $${paramIndex}`);
+      whereConditions.push(`ss.sector = $${paramIndex}`);
       params.push(filters.sector);
       paramIndex++;
     }
 
     // Exchange filter
     if (filters.exchange) {
-      whereConditions.push(`sse.exchange = $${paramIndex}`);
+      whereConditions.push(`ss.exchange = $${paramIndex}`);
       params.push(filters.exchange);
       paramIndex++;
     }
@@ -205,19 +205,19 @@ router.get('/screen', async (req, res) => {
 
     // Beta filter
     if (filters.betaMin) {
-      whereConditions.push(`sf.beta >= $${paramIndex}`);
+      whereConditions.push(`s.beta >= $${paramIndex}`);
       params.push(parseFloat(filters.betaMin));
       paramIndex++;
     }
     if (filters.betaMax) {
-      whereConditions.push(`sf.beta <= $${paramIndex}`);
+      whereConditions.push(`s.beta <= $${paramIndex}`);
       params.push(parseFloat(filters.betaMax));
       paramIndex++;
     }
 
     // Factor score filter
     if (filters.factorScoreMin) {
-      whereConditions.push(`sf.factor_score >= $${paramIndex}`);
+      whereConditions.push(`s.factor_score >= $${paramIndex}`);
       params.push(parseFloat(filters.factorScoreMin));
       paramIndex++;
     }
@@ -229,69 +229,69 @@ router.get('/screen', async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = 'ORDER BY sf.market_cap DESC';
+    let orderBy = 'ORDER BY s.market_cap DESC';
     if (filters.sortBy) {
       const sortField = filters.sortBy;
       const sortOrder = filters.sortOrder === 'desc' ? 'DESC' : 'ASC';
       
       // Map frontend sort fields to database fields
       const fieldMap = {
-        'symbol': 'sf.symbol',
-        'companyName': 'sse.company_name',
+        'symbol': 's.symbol',
+        'companyName': 'ss.company_name',
         'price': 'sd.close',
-        'marketCap': 'sf.market_cap',
-        'peRatio': 'sf.pe_ratio',
-        'pegRatio': 'sf.peg_ratio',
-        'pbRatio': 'sf.pb_ratio',
-        'roe': 'sf.roe',
-        'roa': 'sf.roa',
-        'netMargin': 'sf.net_margin',
-        'revenueGrowth': 'sf.revenue_growth',
-        'earningsGrowth': 'sf.earnings_growth',
-        'dividendYield': 'sf.dividend_yield',
-        'factorScore': 'sf.factor_score',
+        'marketCap': 's.market_cap',
+        'peRatio': 's.pe_ratio',
+        'pegRatio': 's.peg_ratio',
+        'pbRatio': 's.pb_ratio',
+        'roe': 's.roe',
+        'roa': 's.roa',
+        'netMargin': 's.net_margin',
+        'revenueGrowth': 's.revenue_growth',
+        'earningsGrowth': 's.earnings_growth',
+        'dividendYield': 's.dividend_yield',
+        'factorScore': 's.factor_score',
         'volume': 'sd.volume',
         'rsi': 'td.rsi',
-        'beta': 'sf.beta'
+        'beta': 's.beta'
       };
 
-      const dbField = fieldMap[sortField] || 'sf.market_cap';
+      const dbField = fieldMap[sortField] || 's.market_cap';
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
     // Main query
     const mainQuery = `
       SELECT 
-        sf.symbol,
-        sse.company_name,
-        sse.sector,
-        sse.exchange,
+        s.symbol,
+        ss.company_name,
+        ss.sector,
+        ss.exchange,
         sd.close as price,
         sd.volume,
         sd.date as price_date,
-        sf.market_cap,
-        sf.pe_ratio,
-        sf.peg_ratio,
-        sf.pb_ratio,
-        sf.ps_ratio,
-        sf.roe,
-        sf.roa,
-        sf.gross_margin,
-        sf.operating_margin,
-        sf.net_margin,
-        sf.revenue_growth,
-        sf.earnings_growth,
-        sf.eps_growth,
-        sf.dividend_yield,
-        sf.payout_ratio,
-        sf.debt_to_equity,
-        sf.current_ratio,
-        sf.quick_ratio,
-        sf.interest_coverage,
-        sf.asset_turnover,
-        sf.inventory_turnover,
-        sf.beta,
-        sf.factor_score,
+        s.market_cap,
+        s.pe_ratio,
+        s.peg_ratio,
+        s.pb_ratio,
+        s.ps_ratio,
+        s.roe,
+        s.roa,
+        s.gross_margin,
+        s.operating_margin,
+        s.net_margin,
+        s.revenue_growth,
+        s.earnings_growth,
+        s.eps_growth,
+        s.dividend_yield,
+        s.payout_ratio,
+        s.debt_to_equity,
+        s.current_ratio,
+        s.quick_ratio,
+        s.interest_coverage,
+        s.asset_turnover,
+        s.inventory_turnover,
+        s.beta,
+        s.factor_score,
         td.rsi,
         td.macd,
         td.macd_signal,
@@ -300,19 +300,19 @@ router.get('/screen', async (req, res) => {
         td.sma_200,
         td.price_momentum_3m,
         td.price_momentum_12m,
-        (sd.close - LAG(sd.close, 1) OVER (PARTITION BY sf.symbol ORDER BY sd.date)) / LAG(sd.close, 1) OVER (PARTITION BY sf.symbol ORDER BY sd.date) * 100 as price_change_percent
-      FROM stock_fundamentals sf
-      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+        (sd.close - LAG(sd.close, 1) OVER (PARTITION BY s.symbol ORDER BY sd.date)) / LAG(sd.close, 1) OVER (PARTITION BY s.symbol ORDER BY sd.date) * 100 as price_change_percent
+      FROM symbols s
+      JOIN stock_symbols ss ON s.symbol = ss.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM stock_data
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON sf.symbol = sd.symbol
+      ) sd ON s.symbol = sd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technical_data_daily
+        FROM technicals_daily
         ORDER BY symbol, date DESC
-      ) td ON sf.symbol = td.symbol
+      ) td ON s.symbol = td.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -323,18 +323,18 @@ router.get('/screen', async (req, res) => {
     // Count query
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stock_fundamentals sf
-      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+      FROM symbols s
+      JOIN stock_symbols ss ON s.symbol = ss.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM stock_data
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON sf.symbol = sd.symbol
+      ) sd ON s.symbol = sd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM technical_data_daily
+        FROM technicals_daily
         ORDER BY symbol, date DESC
-      ) td ON sf.symbol = td.symbol
+      ) td ON s.symbol = td.symbol
       ${whereClause}
     `;
 
@@ -408,7 +408,7 @@ router.get('/filters', async (req, res) => {
     // Get sectors
     const sectorsResult = await query(`
       SELECT DISTINCT sector
-      FROM stock_symbols_enhanced
+      FROM stock_symbols
       WHERE sector IS NOT NULL
       ORDER BY sector
     `);
@@ -416,7 +416,7 @@ router.get('/filters', async (req, res) => {
     // Get exchanges
     const exchangesResult = await query(`
       SELECT DISTINCT exchange
-      FROM stock_symbols_enhanced
+      FROM stock_symbols
       WHERE exchange IS NOT NULL
       ORDER BY exchange
     `);
@@ -429,7 +429,7 @@ router.get('/filters', async (req, res) => {
         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY market_cap) as q1_market_cap,
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY market_cap) as median_market_cap,
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY market_cap) as q3_market_cap
-      FROM stock_fundamentals
+      FROM symbols
       WHERE market_cap > 0
     `);
 
@@ -441,9 +441,9 @@ router.get('/filters', async (req, res) => {
         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY close) as q1_price,
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY close) as median_price,
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY close) as q3_price
-      FROM stock_data sd
+      FROM price_daily sd
       WHERE EXISTS (
-        SELECT 1 FROM stock_data sd2 
+        SELECT 1 FROM price_daily sd2 
         WHERE sd2.symbol = sd.symbol 
         AND sd2.date >= sd.date 
         ORDER BY sd2.date DESC 
@@ -935,28 +935,28 @@ router.post('/export', async (req, res) => {
     const symbolsStr = symbols.map(s => `'${s}'`).join(',');
     const result = await query(`
       SELECT 
-        sf.symbol,
-        sse.company_name,
-        sse.sector,
+        s.symbol,
+        ss.company_name,
+        ss.sector,
         sd.close as price,
-        sf.market_cap,
-        sf.pe_ratio,
-        sf.pb_ratio,
-        sf.roe,
-        sf.roa,
-        sf.revenue_growth,
-        sf.earnings_growth,
-        sf.dividend_yield,
-        sf.factor_score
-      FROM stock_fundamentals sf
-      JOIN stock_symbols_enhanced sse ON sf.symbol = sse.symbol
+        s.market_cap,
+        s.pe_ratio,
+        s.pb_ratio,
+        s.roe,
+        s.roa,
+        s.revenue_growth,
+        s.earnings_growth,
+        s.dividend_yield,
+        s.factor_score
+      FROM symbols s
+      JOIN stock_symbols ss ON s.symbol = ss.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
-        FROM stock_data
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) sd ON sf.symbol = sd.symbol
-      WHERE sf.symbol IN (${symbolsStr})
-      ORDER BY sf.market_cap DESC
+      ) sd ON s.symbol = sd.symbol
+      WHERE s.symbol IN (${symbolsStr})
+      ORDER BY s.market_cap DESC
     `);
 
     if (format === 'csv') {
