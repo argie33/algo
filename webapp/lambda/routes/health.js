@@ -416,7 +416,7 @@ router.post('/update-status', async (req, res) => {
  */
 async function getComprehensiveDbHealth() {
   try {
-    console.log('🔍 Starting comprehensive database health check...');
+    console.log('🔍 Starting optimized database health check...');
     const startTime = Date.now();
     
     // First test basic connectivity
@@ -442,21 +442,6 @@ async function getComprehensiveDbHealth() {
         timestamp: new Date().toISOString()
       };
     }
-    
-    // Get all tables in the database
-    console.log('📋 Getting list of all tables...');
-    const tablesResult = await query(`
-      SELECT 
-        table_name,
-        table_type
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `, [], 10000);
-    
-    const allTables = tablesResult.rows;
-    console.log(`📋 Found ${allTables.length} tables in database`);
     
     // Define table categories and critical tables
     const tableCategorization = {
@@ -487,7 +472,29 @@ async function getComprehensiveDbHealth() {
       return 'other';
     }
     
-    // Analyze each table
+    // OPTIMIZED: Get table info and record counts in one efficient query
+    console.log('📋 Getting table info and record counts efficiently...');
+    const batchQuery = `
+      SELECT 
+        t.table_name,
+        t.table_type,
+        COALESCE(s.n_tup_ins - s.n_tup_del, 0) as estimated_rows,
+        s.last_vacuum,
+        s.last_autovacuum,
+        s.last_analyze,
+        s.last_autoanalyze
+      FROM information_schema.tables t
+      LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name
+      WHERE t.table_schema = 'public' 
+      AND t.table_type = 'BASE TABLE'
+      ORDER BY t.table_name
+    `;
+    
+    const tablesResult = await query(batchQuery, [], 15000);
+    const allTables = tablesResult.rows;
+    console.log(`📋 Found ${allTables.length} tables in database`);
+    
+    // Build table health data efficiently
     const tableHealth = {};
     let totalRecords = 0;
     let healthyTables = 0;
@@ -495,91 +502,48 @@ async function getComprehensiveDbHealth() {
     let errorTables = 0;
     let emptyTables = 0;
     
-    console.log('🔍 Analyzing each table...');
+    console.log('🔍 Processing table health data...');
     for (const table of allTables) {
       const tableName = table.table_name;
-      console.log(`  📊 Analyzing table: ${tableName}`);
+      const estimatedRows = parseInt(table.estimated_rows) || 0;
+      totalRecords += estimatedRows;
       
-      try {
-        // Get record count
-        const countResult = await query(
-          `SELECT COUNT(*) as record_count FROM "${tableName}"`,
-          [],
-          5000
-        );
-        const recordCount = parseInt(countResult.rows[0].record_count);
-        totalRecords += recordCount;
-        
-        // Try to get last updated time (check common timestamp columns)
-        let lastUpdated = null;
-        const timestampColumns = ['updated_at', 'last_updated', 'created_at', 'date', 'timestamp'];
-        
-        for (const column of timestampColumns) {
-          try {
-            const timestampResult = await query(
-              `SELECT MAX(${column}) as last_updated FROM "${tableName}" WHERE ${column} IS NOT NULL`,
-              [],
-              3000
-            );
-            if (timestampResult.rows[0]?.last_updated) {
-              lastUpdated = timestampResult.rows[0].last_updated;
-              break;
-            }
-          } catch (e) {
-            // Column doesn't exist, try next one
-            continue;
-          }
-        }
-        
-        // Determine table status
-        let status = 'healthy';
-        let isStale = false;
-        
-        if (recordCount === 0) {
-          status = 'empty';
-          emptyTables++;
-        } else if (lastUpdated) {
-          const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
-          if (hoursSinceUpdate > 72) { // 3 days
-            status = 'stale';
-            isStale = true;
-            staleTables++;
-          } else {
-            healthyTables++;
-          }
+      // Use pg_stat timestamps for freshness check
+      const lastUpdated = table.last_analyze || table.last_autoanalyze || table.last_vacuum || table.last_autovacuum;
+      
+      // Determine table status
+      let status = 'healthy';
+      let isStale = false;
+      
+      if (estimatedRows === 0) {
+        status = 'empty';
+        emptyTables++;
+      } else if (lastUpdated) {
+        const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+        if (hoursSinceUpdate > 72) { // 3 days
+          status = 'stale';
+          isStale = true;
+          staleTables++;
         } else {
-          // No timestamp available, assume healthy if has data
           healthyTables++;
         }
-        
-        tableHealth[tableName] = {
-          status: status,
-          record_count: recordCount,
-          last_updated: lastUpdated,
-          last_checked: new Date().toISOString(),
-          table_category: categorizeTable(tableName),
-          critical_table: criticalTables.includes(tableName),
-          is_stale: isStale,
-          missing_data_count: 0, // Could be enhanced to check for NULL values
-          error: null
-        };
-        
-      } catch (error) {
-        console.error(`❌ Error analyzing table ${tableName}:`, error.message);
-        errorTables++;
-        
-        tableHealth[tableName] = {
-          status: 'error',
-          record_count: 0,
-          last_updated: null,
-          last_checked: new Date().toISOString(),
-          table_category: categorizeTable(tableName),
-          critical_table: criticalTables.includes(tableName),
-          is_stale: false,
-          missing_data_count: 0,
-          error: error.message
-        };
+      } else {
+        // No timestamp available, assume healthy if has data
+        healthyTables++;
       }
+      
+      tableHealth[tableName] = {
+        status: status,
+        record_count: estimatedRows,
+        last_updated: lastUpdated,
+        last_checked: new Date().toISOString(),
+        table_category: categorizeTable(tableName),
+        critical_table: criticalTables.includes(tableName),
+        is_stale: isStale,
+        missing_data_count: 0,
+        error: null,
+        note: 'Using pg_stat estimated counts for performance'
+      };
     }
     
     // Calculate summary statistics
