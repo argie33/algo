@@ -19,18 +19,23 @@ const secretsManager = new SecretsManagerClient({
  */
 async function getDbConfig() {
     if (dbConfig) {
+        console.log('✅ Using cached database config');
         return dbConfig;
     }
 
+    const configStart = Date.now();
     try {
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn) {
             throw new Error('DB_SECRET_ARN environment variable not set');
         }
 
-        console.log('Getting DB credentials from Secrets Manager...');
+        console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);
+        const secretStart = Date.now();
         const command = new GetSecretValueCommand({ SecretId: secretArn });
         const response = await secretsManager.send(command);
+        console.log(`✅ Secrets Manager responded in ${Date.now() - secretStart}ms`);
+        
         const secret = JSON.parse(response.SecretString);
 
         dbConfig = {
@@ -113,13 +118,64 @@ function getPool() {
 }
 
 /**
- * Execute a database query
+ * Execute a database query with timeout and detailed logging
  */
-async function query(text, params) {
-    if (!dbInitialized || !pool) {
-        await initializeDatabase();
+async function query(text, params = [], timeoutMs = 10000) {
+    const queryId = Math.random().toString(36).substr(2, 9);
+    const startTime = Date.now();
+    
+    console.log(`🔍 [${queryId}] QUERY START: ${text.substring(0, 100)}...`);
+    console.log(`🔍 [${queryId}] Params:`, params);
+    console.log(`🔍 [${queryId}] Timeout: ${timeoutMs}ms`);
+    
+    try {
+        // Check if we need to initialize database
+        if (!dbInitialized || !pool) {
+            console.log(`🔄 [${queryId}] Database not initialized, initializing...`);
+            const initStart = Date.now();
+            await initializeDatabase();
+            console.log(`✅ [${queryId}] Database initialized in ${Date.now() - initStart}ms`);
+        }
+        
+        console.log(`📡 [${queryId}] Executing query...`);
+        const queryStart = Date.now();
+        
+        // Execute query with timeout
+        const result = await Promise.race([
+            pool.query(text, params),
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error(`Query timeout after ${timeoutMs}ms`)), timeoutMs)
+            )
+        ]);
+        
+        const queryDuration = Date.now() - queryStart;
+        const totalDuration = Date.now() - startTime;
+        
+        console.log(`✅ [${queryId}] Query completed in ${queryDuration}ms (total: ${totalDuration}ms)`);
+        console.log(`✅ [${queryId}] Rows returned: ${result.rows?.length || 0}`);
+        
+        return result;
+        
+    } catch (error) {
+        const errorDuration = Date.now() - startTime;
+        console.error(`❌ [${queryId}] Query failed after ${errorDuration}ms:`, error.message);
+        console.error(`❌ [${queryId}] Error details:`, {
+            code: error.code,
+            severity: error.severity,
+            detail: error.detail,
+            hint: error.hint,
+            position: error.position,
+            internalPosition: error.internalPosition,
+            internalQuery: error.internalQuery,
+            where: error.where,
+            schema: error.schema,
+            table: error.table,
+            column: error.column,
+            dataType: error.dataType,
+            constraint: error.constraint
+        });
+        throw error;
     }
-    return pool.query(text, params);
 }
 
 /**
