@@ -716,7 +716,7 @@ Resources:
     Properties:
       Name: daily-pipeline-trigger
       Description: "Trigger daily data pipeline with Step Functions orchestration"
-      ScheduleExpression: "cron(30 21 ? * MON-FRI *)"  # 4:30 PM ET, Monday-Friday
+      ScheduleExpression: "cron(30 21 ? * MON-FRI)"  # 4:30 PM ET, Monday-Friday
       State: ENABLED
       Targets:
         - Arn: !Ref DailyDataPipelineStateMachine
@@ -729,7 +729,7 @@ Resources:
     Properties:
       Name: weekly-pipeline-trigger
       Description: "Trigger weekly data pipeline with Step Functions orchestration"
-      ScheduleExpression: "cron(0 11 ? * SUN *)"  # 6:00 AM ET on Sundays
+      ScheduleExpression: "cron(0 11 ? * SUN)"  # 6:00 AM ET on Sundays
       State: ENABLED
       Targets:
         - Arn: !Ref WeeklyDataPipelineStateMachine
@@ -742,7 +742,7 @@ Resources:
     Properties:
       Name: monthly-pipeline-trigger
       Description: "Trigger monthly data pipeline with Step Functions orchestration"
-      ScheduleExpression: "cron(0 14 ? * SUN#1 *)"  # 9:00 AM ET on first Sunday of month
+      ScheduleExpression: "cron(0 14 ? * SUN#1)"  # 9:00 AM ET on first Sunday of month
       State: ENABLED
       Targets:
         - Arn: !Ref MonthlyDataPipelineStateMachine

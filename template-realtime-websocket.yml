@@ -720,8 +720,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub '${AWS::StackName}-broadcast-schedule'
-      Description: Trigger market data broadcast every 5 seconds
-      ScheduleExpression: 'rate(5 seconds)'
+      Description: Trigger market data broadcast every minute
+      ScheduleExpression: 'rate(1 minute)'
       State: ENABLED
       Targets:
         - Arn: !GetAtt MarketDataBroadcaster.Arn

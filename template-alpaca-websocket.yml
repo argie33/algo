@@ -976,8 +976,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub '${AWS::StackName}-data-connector-schedule'
-      Description: Trigger Alpaca data connector every 1 second for HFT
-      ScheduleExpression: 'rate(1 second)'
+      Description: Trigger Alpaca data connector every minute for data updates
+      ScheduleExpression: 'rate(1 minute)'
       State: ENABLED
       Targets:
         - Arn: !GetAtt AlpacaDataConnector.Arn
