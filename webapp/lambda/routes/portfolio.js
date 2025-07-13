@@ -1349,10 +1349,17 @@ router.post('/import/:broker', async (req, res) => {
     
     if (!credentials) {
       console.log(`❌ No API key found for broker ${broker}`);
+      console.log(`❌ Debug info: userId=${userId}, broker=${broker}`);
+      console.log(`❌ Recommended action: Check that user has saved API keys in Settings and they are active`);
       return res.status(400).json({
         success: false,
         error: 'API key not found',
-        message: `No API key configured for ${broker}. Please add your API key in Settings.`
+        message: `No API key configured for ${broker}. Please add your API key in Settings.`,
+        debug: {
+          userId: userId,
+          broker: broker,
+          timestamp: new Date().toISOString()
+        }
       });
     }
     

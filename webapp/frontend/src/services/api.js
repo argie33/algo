@@ -155,6 +155,9 @@ export const importPortfolioFromBroker = async (broker, accountType = 'paper') =
     return response.data;
   } catch (error) {
     console.error('Error importing portfolio from broker:', error);
+    console.error('Error response data:', error.response?.data);
+    console.error('Error response status:', error.response?.status);
+    console.error('Request config:', error.config);
     throw error;
   }
 };
