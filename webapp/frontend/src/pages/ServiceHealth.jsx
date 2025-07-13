@@ -67,6 +67,7 @@ function ServiceHealth() {
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [creatingHealthTable, setCreatingHealthTable] = useState(false);
   const [comprehensiveMode, setComprehensiveMode] = useState(true); // Default to comprehensive view
 
   // Memoize diagnosticInfo to prevent infinite re-renders
@@ -589,19 +590,45 @@ function ServiceHealth() {
   const refreshHealthStatus = async () => {
     try {
       setRefreshing(true);
+      console.log('🔄 Triggering comprehensive database health update...');
       
-      // Use the standard api instance to trigger background update
-      // Note: Health status update not implemented yet
-      console.log('Health status would be updated here');
+      // Call the backend to update health status
+      const response = await api.post('/health/update-status', {}, {
+        timeout: 60000 // 1 minute timeout for comprehensive analysis
+      });
       
-      // Use React Query's refetch to get updated data
+      console.log('✅ Health status update completed:', response.data.message);
+      
+      // Refetch the health data to show updated results
       await refetchDb();
       
     } catch (error) {
-      console.error('Failed to refresh health status:', error);
-      // Don't throw - just log the error
+      console.error('❌ Failed to refresh health status:', error);
+      // Don't throw - just log the error so UI doesn't break
     } finally {
       setRefreshing(false);
+    }
+  };
+  
+  // Create health_status table if it doesn't exist
+  const createHealthTable = async () => {
+    try {
+      setCreatingHealthTable(true);
+      console.log('🛠️ Creating health_status table...');
+      
+      const response = await api.post('/health/create-health-table', {}, {
+        timeout: 30000
+      });
+      
+      console.log('✅ Health table created:', response.data.message);
+      
+      // After creating table, update health status
+      await refreshHealthStatus();
+      
+    } catch (error) {
+      console.error('❌ Failed to create health table:', error);
+    } finally {
+      setCreatingHealthTable(false);
     }
   };
 
@@ -1011,16 +1038,26 @@ function ServiceHealth() {
                 <Storage sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Database Health
               </Typography>
-              <Button 
-                variant="outlined" 
-                size="small" 
-                startIcon={<Refresh />}
-                onClick={refreshHealthStatus}
-                sx={{ ml: 'auto', mr: 2 }}
-                disabled={refreshing}
-              >
-                {refreshing ? 'Updating...' : 'Update All Tables'}
-              </Button>
+              <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                <Button 
+                  variant="outlined" 
+                  size="small" 
+                  startIcon={<Storage />}
+                  onClick={createHealthTable}
+                  disabled={creatingHealthTable || refreshing}
+                >
+                  {creatingHealthTable ? 'Creating...' : 'Create Health Table'}
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  size="small" 
+                  startIcon={<Refresh />}
+                  onClick={refreshHealthStatus}
+                  disabled={refreshing || creatingHealthTable}
+                >
+                  {refreshing ? 'Updating...' : 'Update All Tables'}
+                </Button>
+              </Box>
             </AccordionSummary>
             <AccordionDetails>
               {dbLoading && (

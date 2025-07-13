@@ -1,5 +1,5 @@
 const express = require('express');
-const { healthCheck } = require('../utils/database');
+const { healthCheck, query } = require('../utils/database');
 
 const router = express.Router();
 
@@ -27,9 +27,9 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Full health check with database
-    const dbHealth = await healthCheck();
-    const isHealthy = dbHealth.status === 'healthy';
+    // Full health check with comprehensive database table analysis
+    const dbHealth = await getComprehensiveDbHealth();
+    const isHealthy = dbHealth.status === 'connected';
 
     return res.status(isHealthy ? 200 : 503).json({
       status: isHealthy ? 'healthy' : 'unhealthy',
@@ -336,7 +336,351 @@ router.get('/debug/cors-test', async (req, res) => {
   });
 });
 
-// REMOVED: Table creation endpoint - tables should be created by loader scripts or db-init
+// Update health status endpoint - for "Update All Tables" button
+router.post('/update-status', async (req, res) => {
+  try {
+    console.log('🔄 Health status update requested');
+    
+    // Get comprehensive database health
+    const healthData = await getComprehensiveDbHealth();
+    
+    // Optionally store in health_status table if it exists
+    try {
+      // Check if health_status table exists
+      const tableCheck = await query(`
+        SELECT COUNT(*) as exists 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'health_status'
+      `);
+      
+      if (parseInt(tableCheck.rows[0].exists) > 0) {
+        console.log('💾 Storing health data in health_status table...');
+        
+        // Store each table's health data
+        for (const [tableName, tableData] of Object.entries(healthData.database.tables)) {
+          await query(`
+            INSERT INTO health_status (
+              table_name, record_count, status, last_updated, 
+              last_checked, critical_table, table_category, error_message
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (table_name) DO UPDATE SET
+              record_count = EXCLUDED.record_count,
+              status = EXCLUDED.status,
+              last_updated = EXCLUDED.last_updated,
+              last_checked = EXCLUDED.last_checked,
+              critical_table = EXCLUDED.critical_table,
+              table_category = EXCLUDED.table_category,
+              error_message = EXCLUDED.error_message
+          `, [
+            tableName,
+            tableData.record_count,
+            tableData.status,
+            tableData.last_updated,
+            tableData.last_checked,
+            tableData.critical_table,
+            tableData.table_category,
+            tableData.error
+          ]);
+        }
+        
+        console.log('✅ Health data stored in health_status table');
+      } else {
+        console.log('⚠️ health_status table does not exist - skipping storage');
+      }
+    } catch (storeError) {
+      console.warn('⚠️ Failed to store health data in health_status table:', storeError.message);
+      // Don't fail the whole request if storage fails
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Database health status updated successfully',
+      data: healthData,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to update health status:', error);
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to update health status',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
+/**
+ * Comprehensive database health check that analyzes all tables
+ * This is what the frontend ServiceHealth.jsx expects to receive
+ */
+async function getComprehensiveDbHealth() {
+  try {
+    console.log('🔍 Starting comprehensive database health check...');
+    const startTime = Date.now();
+    
+    // First test basic connectivity
+    const basicHealth = await healthCheck();
+    if (basicHealth.status !== 'healthy') {
+      return {
+        status: 'disconnected',
+        error: basicHealth.error,
+        database: {
+          status: 'error',
+          tables: {},
+          summary: {
+            total_tables: 0,
+            healthy_tables: 0,
+            stale_tables: 0,
+            error_tables: 0,
+            empty_tables: 0,
+            missing_tables: 0,
+            total_records: 0,
+            total_missing_data: 0
+          }
+        },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Get all tables in the database
+    console.log('📋 Getting list of all tables...');
+    const tablesResult = await query(`
+      SELECT 
+        table_name,
+        table_type
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `, [], 10000);
+    
+    const allTables = tablesResult.rows;
+    console.log(`📋 Found ${allTables.length} tables in database`);
+    
+    // Define table categories and critical tables
+    const tableCategorization = {
+      'symbols': ['symbols', 'stock_symbols', 'etf_symbols'],
+      'prices': ['price_daily', 'price_weekly', 'price_monthly', 'latest_prices'],
+      'technicals': ['technicals_daily', 'technicals_weekly', 'technicals_monthly', 'latest_technicals'],
+      'financials': ['balance_sheet', 'income_statement', 'cash_flow', 'key_metrics'],
+      'company': ['company_profile', 'company_profiles'],
+      'earnings': ['earnings_estimates', 'earnings_history', 'earnings_metrics'],
+      'sentiment': ['fear_greed_index', 'naaim', 'aaii_sentiment'],
+      'trading': ['buy_sell_daily', 'buy_sell_weekly', 'swing_trader', 'trade_executions'],
+      'portfolio': ['portfolio_holdings', 'position_history', 'user_api_keys'],
+      'system': ['health_status', 'last_updated']
+    };
+    
+    const criticalTables = [
+      'symbols', 'stock_symbols', 'price_daily', 'latest_prices', 
+      'portfolio_holdings', 'user_api_keys', 'health_status', 'last_updated'
+    ];
+    
+    // Function to categorize table
+    function categorizeTable(tableName) {
+      for (const [category, tables] of Object.entries(tableCategorization)) {
+        if (tables.includes(tableName)) {
+          return category;
+        }
+      }
+      return 'other';
+    }
+    
+    // Analyze each table
+    const tableHealth = {};
+    let totalRecords = 0;
+    let healthyTables = 0;
+    let staleTables = 0;
+    let errorTables = 0;
+    let emptyTables = 0;
+    
+    console.log('🔍 Analyzing each table...');
+    for (const table of allTables) {
+      const tableName = table.table_name;
+      console.log(`  📊 Analyzing table: ${tableName}`);
+      
+      try {
+        // Get record count
+        const countResult = await query(
+          `SELECT COUNT(*) as record_count FROM "${tableName}"`,
+          [],
+          5000
+        );
+        const recordCount = parseInt(countResult.rows[0].record_count);
+        totalRecords += recordCount;
+        
+        // Try to get last updated time (check common timestamp columns)
+        let lastUpdated = null;
+        const timestampColumns = ['updated_at', 'last_updated', 'created_at', 'date', 'timestamp'];
+        
+        for (const column of timestampColumns) {
+          try {
+            const timestampResult = await query(
+              `SELECT MAX(${column}) as last_updated FROM "${tableName}" WHERE ${column} IS NOT NULL`,
+              [],
+              3000
+            );
+            if (timestampResult.rows[0]?.last_updated) {
+              lastUpdated = timestampResult.rows[0].last_updated;
+              break;
+            }
+          } catch (e) {
+            // Column doesn't exist, try next one
+            continue;
+          }
+        }
+        
+        // Determine table status
+        let status = 'healthy';
+        let isStale = false;
+        
+        if (recordCount === 0) {
+          status = 'empty';
+          emptyTables++;
+        } else if (lastUpdated) {
+          const hoursSinceUpdate = (new Date() - new Date(lastUpdated)) / (1000 * 60 * 60);
+          if (hoursSinceUpdate > 72) { // 3 days
+            status = 'stale';
+            isStale = true;
+            staleTables++;
+          } else {
+            healthyTables++;
+          }
+        } else {
+          // No timestamp available, assume healthy if has data
+          healthyTables++;
+        }
+        
+        tableHealth[tableName] = {
+          status: status,
+          record_count: recordCount,
+          last_updated: lastUpdated,
+          last_checked: new Date().toISOString(),
+          table_category: categorizeTable(tableName),
+          critical_table: criticalTables.includes(tableName),
+          is_stale: isStale,
+          missing_data_count: 0, // Could be enhanced to check for NULL values
+          error: null
+        };
+        
+      } catch (error) {
+        console.error(`❌ Error analyzing table ${tableName}:`, error.message);
+        errorTables++;
+        
+        tableHealth[tableName] = {
+          status: 'error',
+          record_count: 0,
+          last_updated: null,
+          last_checked: new Date().toISOString(),
+          table_category: categorizeTable(tableName),
+          critical_table: criticalTables.includes(tableName),
+          is_stale: false,
+          missing_data_count: 0,
+          error: error.message
+        };
+      }
+    }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_tables: allTables.length,
+      healthy_tables: healthyTables,
+      stale_tables: staleTables,
+      error_tables: errorTables,
+      empty_tables: emptyTables,
+      missing_tables: 0, // Tables we expect but don't exist
+      total_records: totalRecords,
+      total_missing_data: 0 // Could be enhanced
+    };
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ Comprehensive database health check completed in ${duration}ms`);
+    console.log(`📊 Summary: ${summary.total_tables} tables, ${summary.healthy_tables} healthy, ${summary.total_records} total records`);
+    
+    return {
+      status: 'connected',
+      database: {
+        status: 'connected',
+        currentTime: basicHealth.timestamp,
+        postgresVersion: basicHealth.version,
+        tables: tableHealth,
+        summary: summary
+      },
+      timestamp: new Date().toISOString(),
+      note: `Analyzed ${allTables.length} database tables in ${duration}ms`
+    };
+    
+  } catch (error) {
+    console.error('❌ Comprehensive database health check failed:', error);
+    return {
+      status: 'error',
+      error: error.message,
+      database: {
+        status: 'error',
+        tables: {},
+        summary: {
+          total_tables: 0,
+          healthy_tables: 0,
+          stale_tables: 0,
+          error_tables: 0,
+          empty_tables: 0,
+          missing_tables: 0,
+          total_records: 0,
+          total_missing_data: 0
+        }
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+// Create health_status table if it doesn't exist (for storing health data)
+router.post('/create-health-table', async (req, res) => {
+  try {
+    console.log('🛠️ Creating health_status table if it does not exist...');
+    
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS health_status (
+        table_name VARCHAR(255) PRIMARY KEY,
+        record_count BIGINT DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'unknown',
+        last_updated TIMESTAMP WITH TIME ZONE,
+        last_checked TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        critical_table BOOLEAN DEFAULT false,
+        table_category VARCHAR(100),
+        error_message TEXT,
+        missing_data_count BIGINT DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_health_status_category ON health_status(table_category);
+      CREATE INDEX IF NOT EXISTS idx_health_status_status ON health_status(status);
+      CREATE INDEX IF NOT EXISTS idx_health_status_critical ON health_status(critical_table);
+    `;
+    
+    await query(createTableSQL, [], 10000);
+    
+    console.log('✅ health_status table created successfully');
+    
+    res.json({
+      status: 'success',
+      message: 'health_status table created successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to create health_status table:', error);
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to create health_status table',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// REMOVED: Other table creation endpoints - tables should be created by loader scripts or db-init
 
 module.exports = router;
