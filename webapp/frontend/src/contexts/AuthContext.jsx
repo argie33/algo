@@ -177,19 +177,7 @@ export function AuthProvider({ children }) {
           return;
         }
       } catch (error) {
-        console.log('No dev auth session found, creating demo user');
-        
-        // Create a demo user if no authentication is available
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: { username: 'demo-user', isPremium: true, email: 'demo@example.com' },
-            tokens: { accessToken: 'demo-token' }
-          }
-        });
-        localStorage.setItem('accessToken', 'demo-token');
-        console.log('✅ Demo user created for development');
-        return;
+        console.log('No dev auth session found, user needs to login');
       }
       
       // No valid session found

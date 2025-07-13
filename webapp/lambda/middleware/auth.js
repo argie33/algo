@@ -120,59 +120,39 @@ const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
-    // Handle demo tokens and development mode
-    if (token === 'demo-token' || token === 'dev-token' || 
-        (token && token.startsWith('dev-')) || 
-        process.env.NODE_ENV === 'development' || 
-        process.env.SKIP_AUTH === 'true') {
-      console.log('🛠️  Development/Demo mode: Skipping JWT verification');
+    // Handle development tokens with user info
+    if (token && token.startsWith('dev-access-')) {
+      console.log('🛠️  Development token detected');
       
-      // Generate unique user ID based on stable request characteristics to maintain user isolation
-      const crypto = require('crypto');
-      const userAgent = req.headers['user-agent'] || '';
-      const ipAddress = req.ip || req.connection.remoteAddress || '';
-      
-      // Use session ID from cookie or create stable hash from user agent + IP
-      const sessionId = req.headers['x-session-id'] || req.cookies?.sessionId;
-      const sessionData = sessionId || `${userAgent}-${ipAddress}`;
-      
-      // Create a consistent user ID for this browser/session
-      let uniqueUserId = `dev-user-${crypto.createHash('md5').update(sessionData).digest('hex').substring(0, 8)}`;
-      
-      req.user = {
-        sub: uniqueUserId,
-        email: `${uniqueUserId}@example.com`,
-        username: uniqueUserId,
-        role: 'admin'
-      };
-      console.log('👤 Unique demo user set:', req.user);
-      return next();
+      // Format: dev-access-{username}-{timestamp}
+      const parts = token.split('-');
+      if (parts.length >= 3) {
+        const extractedUsername = parts[2];
+        const uniqueUserId = `dev-${extractedUsername}`;
+        const userEmail = `${extractedUsername}@example.com`;
+        
+        req.user = {
+          sub: uniqueUserId,
+          email: userEmail,
+          username: extractedUsername,
+          role: 'user'
+        };
+        console.log('👤 Development user authenticated:', req.user);
+        return next();
+      }
     }
 
     // Get verifier (will load config if needed)
     console.log('🔍 Getting JWT verifier...');
     const jwtVerifier = await getVerifier();
 
-    // If no verifier is available, skip authentication with warning
+    // If no verifier is available, authentication is required
     if (!jwtVerifier) {
-      console.warn('⚠️  JWT verifier not available, skipping authentication');
-      
-      // Generate unique user ID to maintain isolation even without proper auth
-      const crypto = require('crypto');
-      const userAgent = req.headers['user-agent'] || '';
-      const ipAddress = req.ip || req.connection.remoteAddress || '';
-      const sessionId = req.headers['x-session-id'] || req.cookies?.sessionId;
-      const sessionData = sessionId || `${userAgent}-${ipAddress}`;
-      let uniqueUserId = `no-auth-${crypto.createHash('md5').update(sessionData).digest('hex').substring(0, 8)}`;
-      
-      req.user = {
-        sub: uniqueUserId,
-        email: `${uniqueUserId}@example.com`,
-        username: uniqueUserId,
-        role: 'user'
-      };
-      console.log('👤 Unique no-auth user set:', req.user);
-      return next();
+      console.error('❌ JWT verifier not available - authentication required');
+      return res.status(503).json({
+        error: 'Authentication service unavailable',
+        message: 'Unable to verify authentication tokens. Please try again later.'
+      });
     }
 
     console.log('🎫 Checking authorization header...');
@@ -269,16 +249,20 @@ const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    // Handle demo tokens
-    if (token === 'demo-token' || token === 'dev-token') {
-      req.user = {
-        sub: 'demo-user',
-        email: 'demo@example.com',
-        username: 'demo-user',
-        role: 'admin',
-        groups: []
-      };
-      return next();
+    // Handle development tokens
+    if (token && token.startsWith('dev-access-')) {
+      const parts = token.split('-');
+      if (parts.length >= 3) {
+        const extractedUsername = parts[2];
+        req.user = {
+          sub: `dev-${extractedUsername}`,
+          email: `${extractedUsername}@example.com`,
+          username: extractedUsername,
+          role: 'user',
+          groups: []
+        };
+        return next();
+      }
     }
 
     // Get verifier
@@ -293,16 +277,8 @@ const optionalAuth = async (req, res, next) => {
         role: payload['custom:role'] || 'user',
         groups: payload['cognito:groups'] || []
       };
-    } else if (!jwtVerifier) {
-      // If no verifier, create a default user
-      req.user = {
-        sub: 'no-auth-user',
-        email: 'no-auth@example.com',
-        username: 'no-auth-user',
-        role: 'user',
-        groups: []
-      };
     }
+    // If no token or verifier, continue without setting req.user
   } catch (error) {
     // Silently continue without authentication
     console.log('Optional auth failed:', error.message);
