@@ -81,45 +81,60 @@ console.log('Dashboard API Base:', API_BASE);
 const DEFAULT_TICKER = 'AAPL';
 const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
-// Real portfolio data hook
+// Real portfolio data hook - integrated with user API keys
 function usePortfolioData() {
   return useQuery({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
       try {
-        // Portfolio endpoints not implemented yet, using mock data
-        console.log('Portfolio API not implemented, using mock data');
-        const [holdingsRes, accountRes] = [null, null];
+        console.log('🏦 Fetching real portfolio data from broker APIs...');
+        
+        // Fetch real portfolio data from our backend using the api service
+        const { api } = await import('../services/api');
+        
+        const [holdingsRes, accountRes] = await Promise.all([
+          api.get('/api/portfolio/holdings').catch(err => {
+            console.warn('Holdings API call failed:', err.message);
+            return null;
+          }),
+          api.get('/api/portfolio/performance').catch(err => {
+            console.warn('Performance API call failed:', err.message);
+            return null;
+          })
+        ]);
         
         let holdings = [];
         let accountInfo = null;
         
-        if (holdingsRes && holdingsRes.ok) {
-          const holdingsData = await holdingsRes.json();
-          holdings = holdingsData.data?.holdings || [];
+        if (holdingsRes && holdingsRes.data) {
+          console.log('✅ Holdings data received:', holdingsRes.data.data?.holdings?.length || 0, 'positions');
+          holdings = holdingsRes.data.data?.holdings || [];
         }
         
-        if (accountRes && accountRes.ok) {
-          const accountData = await accountRes.json();
-          accountInfo = accountData.data || null;
+        if (accountRes && accountRes.data) {
+          console.log('✅ Account data received:', accountRes.data.data ? 'success' : 'no data');
+          accountInfo = accountRes.data.data || null;
         }
         
         // Transform real data to dashboard format
-        if (holdings.length > 0 && accountInfo) {
-          const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
-          const totalGainLoss = holdings.reduce((sum, h) => sum + h.gainLoss, 0);
+        if (holdings.length > 0) {
+          const totalValue = holdings.reduce((sum, h) => sum + (h.market_value || h.marketValue || 0), 0);
+          const totalGainLoss = holdings.reduce((sum, h) => sum + (h.unrealized_pl || h.gainLoss || 0), 0);
+          
+          console.log(`📊 Portfolio: $${totalValue.toFixed(2)} total value, $${totalGainLoss.toFixed(2)} P&L`);
           
           const allocation = holdings.slice(0, 4).map(h => ({
             name: h.symbol,
-            value: ((h.marketValue / totalValue) * 100).toFixed(1),
+            value: totalValue > 0 ? ((h.market_value || h.marketValue || 0) / totalValue * 100).toFixed(1) : '0',
             sector: h.sector || 'Technology'
           }));
           
-          // Add cash allocation
-          if (accountInfo.cash) {
+          // Add cash allocation if available
+          const cashValue = accountInfo?.cash || accountInfo?.buying_power || 0;
+          if (cashValue > 0) {
             allocation.push({
               name: 'Cash',
-              value: ((accountInfo.cash / totalValue) * 100).toFixed(1),
+              value: totalValue > 0 ? (cashValue / (totalValue + cashValue) * 100).toFixed(1) : '100',
               sector: 'Cash'
             });
           }
@@ -127,7 +142,7 @@ function usePortfolioData() {
           return {
             value: totalValue,
             pnl: { 
-              daily: accountInfo.dayChange || totalGainLoss,
+              daily: accountInfo?.dayChange || accountInfo?.today_pl || totalGainLoss,
               mtd: totalGainLoss,
               ytd: totalGainLoss
             },
@@ -136,10 +151,29 @@ function usePortfolioData() {
           };
         }
         
+        // If no holdings but account info exists
+        if (accountInfo) {
+          const cashValue = accountInfo.cash || accountInfo.buying_power || 0;
+          console.log('📊 Account with no positions, cash:', cashValue);
+          
+          return {
+            value: cashValue,
+            pnl: { 
+              daily: accountInfo.dayChange || accountInfo.today_pl || 0,
+              mtd: 0,
+              ytd: 0
+            },
+            allocation: [
+              { name: 'Cash', value: 100, sector: 'Cash' }
+            ],
+            dataSource: 'real'
+          };
+        }
+        
         throw new Error('No portfolio data available');
       } catch (error) {
-        console.log('Using mock portfolio data:', error.message);
-        // Return mock data as fallback
+        console.log('⚠️ Using mock portfolio data due to error:', error.message);
+        // Return mock data as fallback only when real API fails
         return {
           value: 1250000,
           pnl: { daily: 3200, mtd: 18000, ytd: 92000 },

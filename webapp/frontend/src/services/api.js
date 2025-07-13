@@ -49,6 +49,42 @@ const api = axios.create({
   },
 })
 
+// Add request interceptor to automatically include auth token
+api.interceptors.request.use(
+  (config) => {
+    // Get token from localStorage (try both possible names for backward compatibility)
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('🔒 Authentication failed, clearing tokens');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Export the api instance for direct use
 export { api }
 
