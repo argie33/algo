@@ -1138,74 +1138,218 @@ router.post('/import/:broker', async (req, res) => {
   try {
     console.log(`🔄 Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
     
-    // For now, return mock successful import to get the frontend working
-    // This will be replaced with real API integration once API keys are properly configured
-    console.log(`✅ Returning mock successful import for ${broker}`);
+    // Step 1: Get the user's API key for this broker with robust error handling
+    let credentials;
+    try {
+      // First check if API key service is enabled
+      if (!apiKeyService.isEnabled) {
+        console.warn(`⚠️ API key service disabled - using development fallback`);
+        // In development, use environment variables as fallback
+        const devApiKey = process.env[`${broker.toUpperCase()}_API_KEY`];
+        const devApiSecret = process.env[`${broker.toUpperCase()}_API_SECRET`];
+        
+        if (devApiKey && devApiSecret) {
+          credentials = {
+            id: 'dev-key-' + broker,
+            provider: broker,
+            apiKey: devApiKey,
+            apiSecret: devApiSecret,
+            isSandbox: accountType === 'paper',
+            isActive: true
+          };
+          console.log(`✅ Using development API keys for ${broker}`);
+        }
+      } else {
+        credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching API key for ${broker}:`, error.message);
+      return res.status(400).json({
+        success: false,
+        error: 'API key service error',
+        message: `Unable to access API keys: ${error.message}. Please check your API key configuration in Settings.`
+      });
+    }
     
-    const mockSuccessResponse = {
+    if (!credentials) {
+      console.log(`❌ No API key found for broker ${broker}`);
+      return res.status(400).json({
+        success: false,
+        error: 'API key not found',
+        message: `No API key configured for ${broker}. Please add your API key in Settings.`
+      });
+    }
+    
+    console.log(`✅ Found API key for ${broker} (sandbox: ${credentials.isSandbox})`);
+    
+    // Step 2: Connect to the broker's API and fetch portfolio data
+    console.log(`📡 Connecting to ${broker} API...`);
+    
+    let portfolioData;
+    try {
+      if (broker.toLowerCase() === 'alpaca') {
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox || accountType === 'paper'
+        );
+        
+        // Get comprehensive portfolio data including positions, account info, and activities
+        const [positions, account, activities] = await Promise.all([
+          alpaca.getPositions(),
+          alpaca.getAccount(),
+          alpaca.getActivities().catch(e => {
+            console.warn('Failed to fetch activities:', e.message);
+            return [];
+          })
+        ]);
+        
+        // Process and structure the portfolio data
+        portfolioData = {
+          summary: {
+            totalValue: parseFloat(account.portfolio_value || account.equity || 0),
+            totalPnL: parseFloat(account.unrealized_pl || 0),
+            totalPnLPercent: parseFloat(account.unrealized_plpc || 0) * 100,
+            cashBalance: parseFloat(account.cash || account.buying_power || 0),
+            dayChange: parseFloat(account.unrealized_pl || 0),
+            dayChangePercent: parseFloat(account.unrealized_plpc || 0) * 100
+          },
+          positions: positions.map(pos => ({
+            symbol: pos.symbol,
+            quantity: parseFloat(pos.qty),
+            side: pos.side,
+            marketValue: parseFloat(pos.market_value || 0),
+            averageEntryPrice: parseFloat(pos.avg_entry_price || 0),
+            currentPrice: parseFloat(pos.current_price || pos.lastday_price || 0),
+            unrealizedPL: parseFloat(pos.unrealized_pl || 0),
+            unrealizedPLPercent: parseFloat(pos.unrealized_plpc || 0) * 100,
+            costBasis: parseFloat(pos.cost_basis || 0),
+            lastTradeTime: pos.lastday_price_timeframe || new Date().toISOString()
+          })),
+          account: {
+            accountId: account.id,
+            status: account.status,
+            tradingBlocked: account.trading_blocked,
+            transfersBlocked: account.transfers_blocked,
+            accountBlocked: account.account_blocked,
+            createdAt: account.created_at,
+            currency: account.currency || 'USD',
+            patternDayTrader: account.pattern_day_trader,
+            daytradeCount: account.daytrade_count,
+            lastEquity: parseFloat(account.last_equity || 0)
+          },
+          activities: activities.slice(0, 50).map(activity => ({
+            id: activity.id,
+            activityType: activity.activity_type,
+            date: activity.date,
+            symbol: activity.symbol,
+            side: activity.side,
+            qty: parseFloat(activity.qty || 0),
+            price: parseFloat(activity.price || 0),
+            netAmount: parseFloat(activity.net_amount || 0)
+          }))
+        };
+        
+      } else if (broker.toLowerCase() === 'td_ameritrade') {
+        // TD Ameritrade integration would go here
+        throw new Error(`TD Ameritrade integration not yet implemented`);
+      } else {
+        throw new Error(`Unsupported broker: ${broker}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to fetch portfolio from ${broker}:`, error);
+      return res.status(500).json({
+        success: false,
+        error: 'Broker API error',
+        message: `Failed to fetch portfolio from ${broker}. Please check your API key and try again. Error: ${error.message}`
+      });
+    }
+    
+    // Step 3: Store the portfolio data in the database with enhanced error handling
+    console.log(`💾 Storing portfolio data in database...`);
+    
+    try {
+      await storePortfolioData(userId, credentials.id, portfolioData, accountType);
+      console.log(`✅ Portfolio data stored successfully`);
+      
+      // Also store individual positions
+      for (const position of portfolioData.positions) {
+        try {
+          await query(`
+            INSERT INTO portfolio_holdings (
+              user_id, api_key_id, symbol, quantity, avg_cost, current_price, 
+              market_value, unrealized_pl, unrealized_plpc, side, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ON CONFLICT (user_id, api_key_id, symbol) DO UPDATE SET
+              quantity = EXCLUDED.quantity,
+              avg_cost = EXCLUDED.avg_cost,
+              current_price = EXCLUDED.current_price,
+              market_value = EXCLUDED.market_value,
+              unrealized_pl = EXCLUDED.unrealized_pl,
+              unrealized_plpc = EXCLUDED.unrealized_plpc,
+              side = EXCLUDED.side,
+              updated_at = NOW()
+          `, [
+            userId, credentials.id, position.symbol, position.quantity,
+            position.averageEntryPrice, position.currentPrice, position.marketValue,
+            position.unrealizedPL, position.unrealizedPLPercent, position.side
+          ]);
+        } catch (posError) {
+          console.warn(`Failed to store position ${position.symbol}:`, posError.message);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to store portfolio data:', error);
+      // Don't fail the import if database storage fails - the user still gets the data
+      console.warn('Continuing without database storage...');
+    }
+    
+    // Return comprehensive success response with all portfolio data
+    const successResponse = {
       success: true,
       data: {
         imported: new Date().toISOString(),
         broker: broker,
         accountType: accountType,
-        summary: {
-          positions: 5,
-          totalValue: 145672.38,
-          totalPnL: 8934.22,
-          totalPnLPercent: 6.54
-        },
-        holdings: [
-          {
-            symbol: 'AAPL',
-            quantity: 50,
-            marketValue: 9850.00,
-            unrealizedPL: 485.50,
-            unrealizedPLPC: 5.18
-          },
-          {
-            symbol: 'TSLA',
-            quantity: 25,
-            marketValue: 5475.25,
-            unrealizedPL: -234.75,
-            unrealizedPLPC: -4.11
-          },
-          {
-            symbol: 'MSFT',
-            quantity: 75,
-            marketValue: 28350.75,
-            unrealizedPL: 1245.30,
-            unrealizedPLPC: 4.60
-          },
-          {
-            symbol: 'NVDA',
-            quantity: 30,
-            marketValue: 15840.00,
-            unrealizedPL: 2105.85,
-            unrealizedPLPC: 15.35
-          },
-          {
-            symbol: 'AMZN',
-            quantity: 40,
-            marketValue: 6720.80,
-            unrealizedPL: 156.40,
-            unrealizedPLPC: 2.38
-          }
-        ]
+        summary: portfolioData.summary,
+        holdings: portfolioData.positions.map(pos => ({
+          symbol: pos.symbol,
+          quantity: pos.quantity,
+          marketValue: pos.marketValue,
+          unrealizedPL: pos.unrealizedPL,
+          unrealizedPLPC: pos.unrealizedPLPercent,
+          avgCost: pos.averageEntryPrice,
+          currentPrice: pos.currentPrice,
+          side: pos.side
+        })),
+        account: portfolioData.account,
+        recentActivities: portfolioData.activities,
+        statistics: {
+          totalPositions: portfolioData.positions.length,
+          longPositions: portfolioData.positions.filter(p => p.side === 'long').length,
+          shortPositions: portfolioData.positions.filter(p => p.side === 'short').length,
+          topGainer: portfolioData.positions.reduce((max, pos) => 
+            pos.unrealizedPLPercent > (max?.unrealizedPLPercent || -Infinity) ? pos : max, null),
+          topLoser: portfolioData.positions.reduce((min, pos) => 
+            pos.unrealizedPLPercent < (min?.unrealizedPLPercent || Infinity) ? pos : min, null)
+        }
       },
       provider: broker,
-      environment: accountType === 'paper' ? 'sandbox' : 'live',
-      message: 'Portfolio imported successfully (mock data)',
-      dataSource: 'mock'
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      timestamp: new Date().toISOString(),
+      dataSource: 'live_api'
     };
     
-    res.json(mockSuccessResponse);
+    res.json(successResponse);
     
   } catch (error) {
     console.error('Error importing portfolio:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to import portfolio',
-      details: error.message
+      details: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
