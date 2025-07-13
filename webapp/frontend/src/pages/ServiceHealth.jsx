@@ -109,18 +109,23 @@ function ServiceHealth() {
   }, []);
 
   // Enhanced comprehensive health checks
-  const { data: dbHealth, isLoading: dbLoading, error: dbError, refetch: refetchDb } = useQuery({
-    queryKey: ['databaseHealth'],
-    queryFn: async () => {
-      const startTime = Date.now();
-      try {
-        console.log('Starting enhanced database health check...');
-        console.log('Request started at:', new Date().toISOString());
-        
-        const response = await api.get('/health', {
-          timeout: 30000, // Reduced from 3 minutes to 30 seconds
-          validateStatus: (status) => status < 500
-        });
+  // Manual database health check state
+  const [dbHealth, setDbHealth] = useState(null);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [dbError, setDbError] = useState(null);
+  
+  const refetchDb = async () => {
+    const startTime = Date.now();
+    setDbLoading(true);
+    setDbError(null);
+    try {
+      console.log('Starting enhanced database health check...');
+      console.log('Request started at:', new Date().toISOString());
+      
+      const response = await api.get('/health', {
+        timeout: 30000, // Reduced from 3 minutes to 30 seconds
+        validateStatus: (status) => status < 500
+      });
         
         const endTime = Date.now();
         const duration = endTime - startTime;
@@ -129,7 +134,7 @@ function ServiceHealth() {
         // Handle case where response has error but is still returned
         if (response.data && response.data.error) {
           console.warn('Database health check returned error:', response.data.error);
-          return {
+          const errorResult = {
             database: {
               status: 'error',
               tables: {},
@@ -144,8 +149,11 @@ function ServiceHealth() {
             usingFallback: true,
             timestamp: new Date().toISOString()
           };
+          setDbHealth(errorResult);
+          return errorResult;
         }
         
+        setDbHealth(response.data);
         return response.data;
       } catch (error) {
         const endTime = Date.now();
@@ -174,7 +182,7 @@ function ServiceHealth() {
           timeoutCause = 'Server error - backend issue';
         }
         
-        return {
+        const result = {
           error: true,
           message: error.message || 'Unknown database health error',
           timeoutCause: timeoutCause,
@@ -192,13 +200,14 @@ function ServiceHealth() {
             }
           }
         };
+        setDbError(error);
+        setDbHealth(result);
+        return result;
       }
-    },
-    refetchInterval: 300000, // Auto-refresh every 5 minutes (reduced load)
-    retry: 1,
-    staleTime: 180000, // Keep data fresh for 3 minutes
-    enabled: true
-  });
+    } finally {
+      setDbLoading(false);
+    }
+  };
 
 
 
@@ -561,23 +570,26 @@ function ServiceHealth() {
     setTestingInProgress(false);
   }, [endpoints, comprehensiveMode]);
 
-  // Health check query - simplified
-  const { data: healthData, isLoading: healthLoading, error: healthError, refetch: refetchHealth } = useQuery({
-    queryKey: ['serviceHealth'],
-    queryFn: async () => {
-      try {
-        const result = await healthCheck();
-        return result;
-      } catch (error) {
-        console.error('Health check failed:', error);
-        throw error;
-      }
-    },
-    refetchInterval: false,
-    retry: 1,
-    staleTime: 30000,
-    enabled: true // Auto-run on mount
-  });
+  // Manual health check state
+  const [healthData, setHealthData] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState(null);
+  
+  const refetchHealth = async () => {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      const result = await healthCheck();
+      setHealthData(result);
+      return result;
+    } catch (error) {
+      console.error('Health check failed:', error);
+      setHealthError(error);
+      throw error;
+    } finally {
+      setHealthLoading(false);
+    }
+  };
 
   // Auto-run API tests on component mount
   useEffect(() => {
