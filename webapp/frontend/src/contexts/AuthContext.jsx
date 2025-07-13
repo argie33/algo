@@ -393,21 +393,30 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      // Clear stored auth token
+      // Clear ALL tokens from storage including any Cognito tokens
       localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('idToken');
       localStorage.removeItem('authToken');
       sessionStorage.removeItem('accessToken');
       sessionStorage.removeItem('authToken');
       
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
-        await devAuth.signOut();
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-        return { success: true };
-      }
-
-      await signOut();
+      // Clear development auth storage
+      localStorage.removeItem('dev_session');
+      localStorage.removeItem('dev_users');
+      localStorage.removeItem('dev_pending');
+      
+      // Clear any Cognito storage
+      localStorage.removeItem('amplify-signin-with-hostedUI');
+      localStorage.removeItem('amplify-redirected-from-hosted-ui');
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('amplify-') || key.startsWith('CognitoIdentityServiceProvider.')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      console.log('🔧 Using development authentication - cleared all auth data');
+      await devAuth.signOut();
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: true };
     } catch (error) {
