@@ -47,6 +47,80 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Debug endpoint for API key troubleshooting (before auth middleware)
+router.get('/debug/api-keys', async (req, res) => {
+  try {
+    console.log('🔍 [DEBUG] API keys debug endpoint called');
+    console.log('🔍 [DEBUG] Headers:', Object.keys(req.headers));
+    console.log('🔍 [DEBUG] Authorization header present:', !!req.headers.authorization);
+    
+    // Try to extract user ID from header manually
+    let userId = 'unknown';
+    if (req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.replace('Bearer ', '');
+        // In development, the token might be 'demo-token' or contain user info
+        if (token === 'demo-token') {
+          userId = 'dev-user-55f38a86';
+        } else {
+          // Try to decode if it's a JWT (basic decode without verification for debug)
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          userId = payload.sub || payload.userId || payload.user_id || 'unknown';
+        }
+      } catch (e) {
+        console.log('🔍 [DEBUG] Could not decode token:', e.message);
+      }
+    }
+    
+    console.log(`🔍 [DEBUG] Extracted user ID: ${userId}`);
+    
+    // Check API keys in database
+    const allKeysResult = await query(`
+      SELECT user_id, provider, is_active, is_sandbox, created_at, last_used
+      FROM user_api_keys 
+      ORDER BY created_at DESC 
+      LIMIT 20
+    `);
+    
+    const userKeysResult = await query(`
+      SELECT provider, is_active, is_sandbox, created_at, last_used
+      FROM user_api_keys 
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      debug: {
+        extractedUserId: userId,
+        authHeaderPresent: !!req.headers.authorization,
+        userApiKeys: userKeysResult.rows,
+        userApiKeyCount: userKeysResult.rows.length,
+        allRecentKeys: allKeysResult.rows.map(k => ({ 
+          user_id: k.user_id, 
+          provider: k.provider, 
+          active: k.is_active,
+          sandbox: k.is_sandbox,
+          created: k.created_at
+        })),
+        apiKeyServiceEnabled: apiKeyService.isEnabled,
+        hasEncryptionSecret: !!process.env.API_KEY_ENCRYPTION_SECRET
+      }
+    });
+    
+  } catch (error) {
+    console.error('🔍 [DEBUG] Error in debug endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      debug: {
+        apiKeyServiceEnabled: apiKeyService.isEnabled,
+        hasEncryptionSecret: !!process.env.API_KEY_ENCRYPTION_SECRET
+      }
+    });
+  }
+});
+
 // Apply authentication middleware to all other portfolio routes
 router.use(authenticateToken);
 
@@ -1326,6 +1400,14 @@ router.post('/import/:broker', async (req, res) => {
         try {
           const debugResult = await query(`SELECT id, provider, user_id, is_active, created_at FROM user_api_keys WHERE user_id = $1`, [userId]);
           console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+          
+          // Additional debug: Check for similar user IDs
+          const allUsersResult = await query(`SELECT DISTINCT user_id, COUNT(*) as key_count FROM user_api_keys GROUP BY user_id ORDER BY key_count DESC LIMIT 10`);
+          console.log(`🔍 [IMPORT DEBUG] All users with API keys:`, allUsersResult.rows.map(u => `${u.user_id}(${u.key_count} keys)`));
+          
+          // Check for alpaca keys specifically
+          const alpacaKeysResult = await query(`SELECT user_id, provider, is_active, created_at FROM user_api_keys WHERE provider = 'alpaca' ORDER BY created_at DESC LIMIT 5`);
+          console.log(`🔍 [IMPORT DEBUG] Recent alpaca keys:`, alpacaKeysResult.rows.map(k => `${k.user_id}/${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
         } catch (debugError) {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
         }
