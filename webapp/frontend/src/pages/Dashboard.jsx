@@ -53,7 +53,7 @@ import {
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
+import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getWatchlists, getWatchlistItems } from '../services/api';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
 import HistoricalPriceChart from '../components/HistoricalPriceChart';
@@ -194,49 +194,67 @@ const mockEconomicIndicators = [
   { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', isMockData: true }
 ];
 
-// Real watchlist data hook
-function useWatchlistData() {
+// Real user watchlist data hook - uses actual watchlist API
+function useUserWatchlistData() {
+  const { isAuthenticated } = useAuth();
+  
   return useQuery({
-    queryKey: ['dashboard-watchlist'],
+    queryKey: ['dashboard-user-watchlist'],
     queryFn: async () => {
       try {
-        // Try to get real stock data from /stocks endpoint
-        const stocksRes = await fetch(`${API_BASE}/stocks?limit=4`);
+        console.log('🔍 Fetching user watchlists for dashboard...');
         
-        if (stocksRes.ok) {
-          const stocksData = await stocksRes.json();
-          const stocks = stocksData.data || stocksData || [];
-          
-          if (stocks.length > 0) {
-            // Transform real stock data to dashboard format
-            const transformedItems = stocks.slice(0, 4).map(stock => ({
-              symbol: stock.ticker || stock.symbol,
-              price: parseFloat(stock.price || stock.current_price || 0),
-              change: parseFloat(stock.day_change_percent || stock.changePct || 0),
-              score: stock.score || Math.floor(Math.random() * 20) + 80,
-              dataSource: 'real'
-            }));
-            
-            if (transformedItems.length > 0) {
-              return transformedItems;
-            }
-          }
+        // First get all user watchlists
+        const watchlistsData = await getWatchlists();
+        console.log('📋 User watchlists:', watchlistsData);
+        
+        if (!watchlistsData?.data || watchlistsData.data.length === 0) {
+          throw new Error('No watchlists found');
         }
         
-        throw new Error('No stock data available');
+        // Use the first (default) watchlist
+        const defaultWatchlist = watchlistsData.data[0];
+        console.log('🎯 Using default watchlist:', defaultWatchlist.name, `(ID: ${defaultWatchlist.id})`);
+        
+        // Get items from the default watchlist
+        const itemsData = await getWatchlistItems(defaultWatchlist.id);
+        console.log('📊 Watchlist items:', itemsData);
+        
+        if (!itemsData?.data?.items || itemsData.data.items.length === 0) {
+          throw new Error('No items in watchlist');
+        }
+        
+        // Transform API data to dashboard format
+        const transformedItems = itemsData.data.items.slice(0, 6).map(item => ({
+          symbol: item.symbol,
+          price: parseFloat(item.current_price || item.price || 0),
+          change: parseFloat(item.day_change_amount || item.change || 0),
+          changePercent: parseFloat(item.day_change_percent || item.changePercent || 0),
+          name: item.security_name || item.short_name || item.name || item.symbol,
+          score: item.score || Math.floor(Math.random() * 20) + 80, // Add random score if not provided
+          dataSource: 'user-watchlist',
+          watchlistName: defaultWatchlist.name
+        }));
+        
+        console.log('✅ Dashboard watchlist data ready:', transformedItems);
+        return transformedItems;
+        
       } catch (error) {
-        console.log('Using mock watchlist data:', error.message);
-        // Return mock data as fallback
+        console.log('⚠️ Failed to fetch user watchlist, using fallback:', error.message);
+        
+        // Return fallback mock data
         return [
-          { symbol: 'AAPL', price: 195.12, change: 2.1, score: 82, dataSource: 'mock' },
-          { symbol: 'TSLA', price: 710.22, change: -1.8, score: 78, dataSource: 'mock' },
-          { symbol: 'NVDA', price: 1200, change: 3.5, score: 95, dataSource: 'mock' },
-          { symbol: 'MSFT', price: 420.5, change: 0.7, score: 88, dataSource: 'mock' }
+          { symbol: 'AAPL', price: 195.89, change: 2.34, changePercent: 1.21, name: 'Apple Inc.', score: 85, dataSource: 'fallback' },
+          { symbol: 'TSLA', price: 711.02, change: -5.67, changePercent: -0.79, name: 'Tesla Inc.', score: 78, dataSource: 'fallback' },
+          { symbol: 'NVDA', price: 1200.45, change: 15.23, changePercent: 1.29, name: 'NVIDIA Corp.', score: 95, dataSource: 'fallback' },
+          { symbol: 'AMZN', price: 3405.12, change: -12.45, changePercent: -0.36, name: 'Amazon.com Inc.', score: 82, dataSource: 'fallback' }
         ];
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: 5 * 60 * 1000 // 5 minutes refresh
+    enabled: isAuthenticated, // Only run if user is authenticated
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchInterval: 2 * 60 * 1000, // 2 minutes refresh for real-time updates
+    retry: 2
   });
 }
 
@@ -631,6 +649,7 @@ const Dashboard = () => {
   const { data: portfolioData } = usePortfolioData();
   const { data: marketData } = useMarketOverview();
   const { data: topStocksData } = useTopStocks();
+  const { data: userWatchlistData, isLoading: watchlistLoading } = useUserWatchlistData();
   
   const { data: priceData, isLoading: priceLoading } = useQuery({
     queryKey: ['stock-prices', selectedSymbol],
@@ -674,7 +693,7 @@ const Dashboard = () => {
   
   // Use data or fallback to mock
   const safePortfolio = portfolioData?.data || mockPortfolio;
-  const safeWatchlist = mockWatchlist;
+  const safeWatchlist = userWatchlistData || mockWatchlist;
   const safeNews = mockNews;
   const safeActivity = mockActivity;
   const safeCalendar = mockCalendar;
@@ -979,7 +998,15 @@ const Dashboard = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <ShowChart sx={{ color: 'success.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Elite Watchlist</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {userWatchlistData && userWatchlistData.length > 0 && userWatchlistData[0].watchlistName
+                    ? userWatchlistData[0].watchlistName
+                    : 'My Watchlist'
+                  }
+                </Typography>
+                {watchlistLoading && (
+                  <CircularProgress size={16} sx={{ ml: 1 }} />
+                )}
               </Box>
               <TableContainer sx={{ maxHeight: 320 }}>
                 <Table size="small">
@@ -1000,8 +1027,8 @@ const Dashboard = () => {
                         </TableCell>
                         <TableCell align="right">${item.price?.toFixed(2) || '--'}</TableCell>
                         <TableCell align="right">
-                          <Typography variant="body2" color={item.change >= 0 ? 'success.main' : 'error.main'} fontWeight="bold">
-                            {item.change >= 0 ? '+' : ''}{item.change ?? '--'}%
+                          <Typography variant="body2" color={(item.changePercent || item.change) >= 0 ? 'success.main' : 'error.main'} fontWeight="bold">
+                            {(item.changePercent || item.change) >= 0 ? '+' : ''}{(item.changePercent || item.change)?.toFixed(2) ?? '--'}%
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
@@ -1021,6 +1048,21 @@ const Dashboard = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+              
+              {/* Data source indicator */}
+              <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">
+                  {userWatchlistData && userWatchlistData.length > 0 && userWatchlistData[0].dataSource === 'user-watchlist' 
+                    ? '🟢 Live Data' 
+                    : '🟡 Demo Data'
+                  }
+                </Typography>
+                {userWatchlistData && userWatchlistData.length > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {userWatchlistData.length} stocks
+                  </Typography>
+                )}
+              </Box>
             </CardContent>
           </Card>
         </Grid>
