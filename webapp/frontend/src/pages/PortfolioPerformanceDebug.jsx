@@ -49,9 +49,8 @@ const PortfolioPerformanceDebug = () => {
       setError(null);
       addDebugInfo('Starting data fetch...');
 
-      // Check if we have any auth token
-      const accessToken = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
-      addDebugInfo(`Access token exists: ${!!accessToken} (length: ${accessToken ? accessToken.length : 0})`);
+      // Check auth state from useAuth
+      addDebugInfo(`User authenticated: ${isAuthenticated}, User object: ${!!user}`);
 
       // Test 1: Portfolio Performance
       addDebugInfo('Calling getPortfolioPerformance API...');
@@ -109,7 +108,7 @@ const PortfolioPerformanceDebug = () => {
           <Typography>Auth Loading: {authLoading ? '⏳ Yes' : '✅ No'}</Typography>
           <Typography>Authenticated: {isAuthenticated ? '✅ Yes' : '❌ No'}</Typography>
           <Typography>User: {user ? `✅ ${user.username}` : '❌ None'}</Typography>
-          <Typography>Access Token: {localStorage.getItem('accessToken') ? '✅ Present' : '❌ Missing'}</Typography>
+          <Typography>Auth Context: {isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</Typography>
         </Paper>
       </Box>
 

@@ -295,7 +295,7 @@ router.get('/holdings', async (req, res) => {
         // Check if database is available (don't fail on health check)
         if (!req.dbError) {
           
-          // Query real portfolio holdings
+          // Query real portfolio holdings with company profile data
           const holdingsQuery = `
             SELECT 
               ph.symbol,
@@ -307,11 +307,12 @@ router.get('/holdings', async (req, res) => {
               ph.unrealized_plpc as gain_loss_percent,
               ph.side,
               ph.updated_at,
-              COALESCE(se.company_name, ph.symbol || ' Inc.') as company,
-              COALESCE(se.sector, 'Technology') as sector,
-              COALESCE(se.exchange, 'NASDAQ') as exchange
+              COALESCE(cp.name, ph.symbol || ' Inc.') as company,
+              COALESCE(cp.sector, 'Technology') as sector,
+              COALESCE(cp.exchange, 'NASDAQ') as exchange,
+              cp.industry
             FROM portfolio_holdings ph
-            LEFT JOIN stocks se ON ph.symbol = se.symbol  
+            LEFT JOIN company_profile cp ON ph.symbol = cp.ticker  
             WHERE ph.user_id = $1 AND ph.quantity > 0
             ORDER BY ph.market_value DESC
           `;
@@ -334,13 +335,31 @@ router.get('/holdings', async (req, res) => {
               gainLoss: parseFloat(h.gain_loss || 0),
               gainLossPercent: parseFloat(h.gain_loss_percent || 0),
               sector: h.sector,
+              industry: h.industry,
               allocation: totalValue > 0 ? (parseFloat(h.market_value) / totalValue) * 100 : 0
             }));
+
+            // Calculate sector allocation from real holdings data
+            const sectorMap = {};
+            formattedHoldings.forEach(holding => {
+              const sector = holding.sector || 'Other';
+              if (!sectorMap[sector]) {
+                sectorMap[sector] = { value: 0, allocation: 0 };
+              }
+              sectorMap[sector].value += holding.marketValue;
+            });
+
+            const sectorAllocation = Object.entries(sectorMap).map(([sector, data]) => ({
+              sector,
+              value: data.value,
+              allocation: totalValue > 0 ? (data.value / totalValue) * 100 : 0
+            })).sort((a, b) => b.value - a.value);
 
             return res.json({
               success: true,
               data: {
                 holdings: formattedHoldings,
+                sectorAllocation: sectorAllocation,
                 summary: {
                   totalValue: totalValue,
                   totalGainLoss: totalGainLoss,

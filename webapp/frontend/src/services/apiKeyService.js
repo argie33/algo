@@ -8,10 +8,11 @@ class ApiKeyService {
   // Get all API keys for the current user
   async getApiKeys() {
     try {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
       const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -42,10 +43,11 @@ class ApiKeyService {
   // Test API key connection and get decrypted credentials
   async testAndGetApiKey(keyId) {
     try {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
       const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/test-connection/${keyId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });

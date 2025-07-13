@@ -448,16 +448,9 @@ const AdvancedScreener = () => {
 
   const loadUserScreens = async () => {
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (user?.token) {
-        headers['Authorization'] = `Bearer ${user.token}`;
-      }
-      
-      const response = await fetch(`${API_BASE}/api/screener/screens`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        setSavedScreens(data.screens || []);
-      }
+      const { api } = await import('../services/api');
+      const response = await api.get('/api/screener/screens');
+      setSavedScreens(response.data?.screens || []);
     } catch (error) {
       console.error('Error loading user screens:', error);
       // Fallback to localStorage
@@ -468,16 +461,9 @@ const AdvancedScreener = () => {
 
   const loadUserWatchlists = async () => {
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (user?.token) {
-        headers['Authorization'] = `Bearer ${user.token}`;
-      }
-      
-      const response = await fetch(`${API_BASE}/api/screener/watchlists`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        setWatchlists(data.watchlists || []);
-      }
+      const { api } = await import('../services/api');
+      const response = await api.get('/api/screener/watchlists');
+      setWatchlists(response.data?.watchlists || []);
     } catch (error) {
       console.error('Error loading user watchlists:', error);
     }
@@ -498,19 +484,9 @@ const AdvancedScreener = () => {
 
   const loadSectors = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/stocks/sectors`);
-      if (response.ok) {
-        const data = await response.json();
-        setSectors(data.sectors || []);
-      } else if (response.status === 500 || response.status === 404) {
-        console.warn('Sectors API not available, using mock data');
-        // Use mock sectors data
-        setSectors([
-          'Technology', 'Healthcare', 'Financials', 'Consumer Discretionary',
-          'Communication Services', 'Industrials', 'Consumer Staples',
-          'Energy', 'Utilities', 'Real Estate', 'Materials'
-        ]);
-      }
+      const { api } = await import('../services/api');
+      const response = await api.get('/api/stocks/sectors');
+      setSectors(response.data?.sectors || []);
     } catch (error) {
       console.error('Failed to load sectors:', error);
       // Fallback to mock data
@@ -524,21 +500,9 @@ const AdvancedScreener = () => {
 
   const loadScreenStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/stocks/screen/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setScreenStats(data);
-      } else if (response.status === 500 || response.status === 404) {
-        console.warn('Screen stats API not available, using mock data');
-        // Use mock screen stats
-        setScreenStats({
-          totalStocks: 8500,
-          lastUpdated: new Date().toISOString(),
-          averageMarketCap: '2.5B',
-          sectors: 11,
-          exchanges: 3
-        });
-      }
+      const { api } = await import('../services/api');
+      const response = await api.get('/api/stocks/screen/stats');
+      setScreenStats(response.data || {});
     } catch (error) {
       console.error('Failed to load screen stats:', error);
       // Fallback to mock data

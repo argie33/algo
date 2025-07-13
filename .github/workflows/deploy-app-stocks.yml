@@ -622,7 +622,7 @@ jobs:
           # Check if feargreed image exists, build if missing
           FEARGREED_TAG=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "")
           if [ -n "$FEARGREED_TAG" ]; then
-            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$FEARGREED_TAG" >/dev/null 2>&1; then
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$FEARGREED_TAG" >/dev/null 2>&1; then
               echo "🔨 Building feargreed image with tags: $FEARGREED_TAG, $LATEST_TAG"
               docker buildx build \
                 --platform linux/arm64 \
@@ -640,7 +640,7 @@ jobs:
           # Check if naaim image exists, build if missing
           NAAIM_TAG=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "")
           if [ -n "$NAAIM_TAG" ]; then
-            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$NAAIM_TAG" >/dev/null 2>&1; then
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$NAAIM_TAG" >/dev/null 2>&1; then
               echo "🔨 Building naaim image with tags: $NAAIM_TAG, $LATEST_TAG"
               docker buildx build \
                 --platform linux/arm64 \
@@ -658,7 +658,7 @@ jobs:
           # Check if aaiidata image exists, build if missing
           AAIIDATA_TAG=$(grep '^AaiiDataImageTag=' tags.env | cut -d= -f2- || echo "")
           if [ -n "$AAIIDATA_TAG" ]; then
-            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$AAIIDATA_TAG" >/dev/null 2>&1; then
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$AAIIDATA_TAG" >/dev/null 2>&1; then
               echo "🔨 Building aaiidata image with tags: $AAIIDATA_TAG, $LATEST_TAG"
               docker buildx build \
                 --platform linux/arm64 \

@@ -89,7 +89,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const Settings = () => {
-  const { user, isAuthenticated, isLoading, logout, checkAuthState } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, checkAuthState, forgotPassword } = useAuth();
   const navigate = useNavigate();
   const { apiUrl } = getApiConfig();
   
@@ -375,34 +375,28 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/portfolio/import/${brokerName}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const summary = data.data.summary;
-        showSnackbar(
-          `✅ Portfolio imported! ${summary.positions} positions, 
-          $${summary.totalValue?.toLocaleString()} total value, 
-          $${summary.totalPnL?.toLocaleString()} P&L (${summary.totalPnLPercent?.toFixed(2)}%)`, 
-          'success'
-        );
-        
-        // Refresh the page or redirect to portfolio view
-        setTimeout(() => {
-          window.location.href = '/portfolio';
-        }, 2000);
-      } else {
-        const error = await response.json();
-        showSnackbar(error.error || 'Failed to import portfolio', 'error');
-      }
+      // Use the API service instead of manual fetch
+      const { api } = await import('../services/api');
+      const response = await api.post(`/api/portfolio/import/${brokerName}`);
+      
+      const data = response.data;
+      const summary = data.data.summary;
+      showSnackbar(
+        `✅ Portfolio imported! ${summary.positions} positions, 
+        $${summary.totalValue?.toLocaleString()} total value, 
+        $${summary.totalPnL?.toLocaleString()} P&L (${summary.totalPnLPercent?.toFixed(2)}%)`, 
+        'success'
+      );
+      
+      // Refresh the page or redirect to portfolio view
+      setTimeout(() => {
+        window.location.href = '/portfolio';
+      }, 2000);
+      
     } catch (error) {
       console.error('Error importing portfolio:', error);
-      showSnackbar('Failed to import portfolio', 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to import portfolio';
+      showSnackbar(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
@@ -463,16 +457,18 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
-    // TODO: Implement password change dialog with proper form
     try {
-      // For now, redirect to Cognito hosted UI for password change
-      // In a full implementation, you'd show a modal with old/new password fields
-      const cognitoUrl = `https://${process.env.REACT_APP_COGNITO_DOMAIN}/forgotPassword?client_id=${process.env.REACT_APP_COGNITO_CLIENT_ID}&response_type=code&scope=email+openid&redirect_uri=${encodeURIComponent(window.location.origin)}`;
-      window.open(cognitoUrl, '_blank');
-      showSnackbar('Password change opened in new tab', 'info');
+      // Use the AuthContext's forgotPassword method which has proper fallbacks
+      const result = await forgotPassword(user.email || user.username);
+      
+      if (result.success) {
+        showSnackbar('Password reset code sent to your email', 'success');
+      } else {
+        showSnackbar(result.error || 'Failed to initiate password reset', 'error');
+      }
     } catch (error) {
-      console.error('Error opening password change:', error);
-      showSnackbar('Error opening password change. Please try again.', 'error');
+      console.error('Error initiating password change:', error);
+      showSnackbar('Error initiating password change. Please try again.', 'error');
     }
   };
 
