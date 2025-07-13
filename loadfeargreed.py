@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Fear & Greed Index loader - market sentiment indicators
-# Trigger deploy-app-stocks workflow - loadfeargreed update v4.8 - TEST WORKFLOW FIX
+# Fear & Greed Index loader - market sentiment indicators  
+# Trigger deploy-app-stocks workflow - loadfeargreed update v4.9 - FORCE RETRIGGER
 import sys
 import time
 import logging
