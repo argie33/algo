@@ -1273,6 +1273,7 @@ router.post('/import/:broker', async (req, res) => {
     
     // Step 1: Get the user's API key for this broker with robust error handling
     console.log(`🔑 [IMPORT] Step 1: Fetching API keys for ${broker}...`);
+    console.log(`🔑 [IMPORT] User ID: ${userId}, Broker: ${broker}`);
     let credentials;
     try {
       // First check if API key service is enabled
@@ -1300,9 +1301,21 @@ router.post('/import/:broker', async (req, res) => {
           console.error(`❌ [IMPORT] No development API keys found for ${broker}`);
         }
       } else {
-        console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey...`);
+        console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey with userId=${userId}, broker=${broker}...`);
+        
+        // Debug: Check if user has any API keys at all
+        try {
+          const debugResult = await query(`SELECT id, provider, user_id, is_active, created_at FROM user_api_keys WHERE user_id = $1`, [userId]);
+          console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+        } catch (debugError) {
+          console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
+        }
+        
         credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
-        console.log(`🔑 [IMPORT] API key service returned:`, !!credentials);
+        console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
+        if (credentials) {
+          console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
+        }
       }
     } catch (error) {
       console.error(`❌ [IMPORT] Error fetching API key for ${broker}:`, error.message);

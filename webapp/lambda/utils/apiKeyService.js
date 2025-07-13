@@ -52,6 +52,7 @@ class ApiKeyService {
       return null;
     }
     try {
+      console.log(`🔍 [API KEY SERVICE] Querying for userId=${userId}, provider=${provider}`);
       const result = await query(`
         SELECT 
           id,
@@ -71,7 +72,10 @@ class ApiKeyService {
         LIMIT 1
       `, [userId, provider]);
 
+      console.log(`🔍 [API KEY SERVICE] Query returned ${result.rows.length} rows`);
+      
       if (result.rows.length === 0) {
+        console.log(`🔍 [API KEY SERVICE] No API key found for user ${userId}, provider ${provider}`);
         return null;
       }
 
