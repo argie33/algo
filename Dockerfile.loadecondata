@@ -5,8 +5,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends gcc libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
-# install Python deps
-RUN pip install --no-cache-dir boto3 pandas fredapi psycopg2-binary
+# copy requirements first for better caching
+COPY requirements-loadecondata.txt /app/requirements.txt
+
+# install Python deps from requirements file
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # copy the loader script
 COPY loadecondata.py /app/index.py

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Economic data loader - Fed data, inflation, employment, GDP
-# Trigger deploy-app-stocks workflow - loadecondata update v4.3 - DOCKER BUILD RETRIGGER - DEPLOY NOW 
+# Trigger deploy-app-stocks workflow - loadecondata update v4.4 - DOCKER BUILD RETRIGGER - FIXED REQUESTS MODULE 
 import sys
 import os
 import json
