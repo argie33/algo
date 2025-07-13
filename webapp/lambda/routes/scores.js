@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
     // Add sector filter
     if (sector && sector.trim() !== '') {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND s.sector = $${paramCount}`;
       params.push(sector);
     }
 
@@ -73,12 +73,12 @@ router.get('/', async (req, res) => {
       SELECT 
         ss.symbol,
         ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
+        s.sector,
+        s.industry,
+        s.market_cap,
+        s.current_price,
+        s.trailing_pe,
+        s.price_to_book,
         
         -- Main Scores
         sc.composite_score,
@@ -107,7 +107,7 @@ router.get('/', async (req, res) => {
         sc.updated_at as last_updated
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -128,7 +128,7 @@ router.get('/', async (req, res) => {
     const countQuery = `
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -325,20 +325,20 @@ router.get('/:symbol', async (req, res) => {
       SELECT 
         sc.*,
         ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.market_cap,
-        cp.current_price,
-        cp.trailing_pe,
-        cp.price_to_book,
-        cp.dividend_yield,
-        cp.return_on_equity,
-        cp.return_on_assets,
-        cp.debt_to_equity,
-        cp.free_cash_flow
+        s.sector,
+        s.industry,
+        s.market_cap,
+        s.current_price,
+        s.trailing_pe,
+        s.price_to_book,
+        s.dividend_yield,
+        s.return_on_equity,
+        s.return_on_assets,
+        s.debt_to_equity,
+        s.free_cash_flow
       FROM stock_scores sc
       LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
+      LEFT JOIN symbols s ON sc.symbol = s.symbol
       WHERE sc.symbol = $1
       ORDER BY sc.date DESC
       LIMIT 12
@@ -365,8 +365,8 @@ router.get('/:symbol', async (req, res) => {
         AVG(value_score) as avg_value,
         COUNT(*) as peer_count
       FROM stock_scores sc
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
-      WHERE cp.sector = $1
+      LEFT JOIN symbols s ON sc.symbol = s.symbol
+      WHERE s.sector = $1
       AND sc.date = $2
       AND sc.composite_score IS NOT NULL
     `;
@@ -527,7 +527,7 @@ router.get('/sectors/analysis', async (req, res) => {
 
     const sectorQuery = `
       SELECT 
-        cp.sector,
+        s.sector,
         COUNT(*) as stock_count,
         AVG(sc.composite_score) as avg_composite,
         AVG(sc.quality_score) as avg_quality,
@@ -540,14 +540,14 @@ router.get('/sectors/analysis', async (req, res) => {
         MAX(sc.composite_score) as max_score,
         MIN(sc.composite_score) as min_score,
         MAX(sc.updated_at) as last_updated
-      FROM company_profile cp
-      INNER JOIN stock_scores sc ON cp.symbol = sc.symbol
+      FROM symbols s
+      INNER JOIN stock_scores sc ON s.symbol = sc.symbol
       WHERE sc.date = (
-        SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = cp.symbol
+        SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = s.symbol
       )
-      AND cp.sector IS NOT NULL
+      AND s.sector IS NOT NULL
       AND sc.composite_score IS NOT NULL
-      GROUP BY cp.sector
+      GROUP BY s.sector
       HAVING COUNT(*) >= 5
       ORDER BY avg_composite DESC
     `;
@@ -618,9 +618,9 @@ router.get('/top/:category', async (req, res) => {
       SELECT 
         ss.symbol,
         ss.security_name as company_name,
-        cp.sector,
-        cp.market_cap,
-        cp.current_price,
+        s.sector,
+        s.market_cap,
+        s.current_price,
         sc.composite_score,
         sc.${scoreColumn} as category_score,
         sc.confidence_score,
@@ -628,7 +628,7 @@ router.get('/top/:category', async (req, res) => {
         sc.updated_at
       FROM stock_scores sc
       INNER JOIN stock_symbols ss ON sc.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON sc.symbol = cp.symbol
+      LEFT JOIN symbols s ON sc.symbol = s.symbol
       WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = sc.symbol
       )

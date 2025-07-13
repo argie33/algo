@@ -190,8 +190,8 @@ router.get('/signals/:timeframe', async (req, res) => {
             bs.inposition,
             bs.strength,
             md.current_price,
-            cp.short_name as company_name,
-            cp.sector,
+            s.short_name as company_name,
+            s.sector,
             md.market_cap,
             km.trailing_pe,
             km.dividend_yield,
@@ -205,7 +205,7 @@ router.get('/signals/:timeframe', async (req, res) => {
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           LEFT JOIN market_data md ON bs.symbol = md.ticker
-          LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+          LEFT JOIN symbols s ON bs.symbol = s.ticker
           LEFT JOIN key_metrics km ON bs.symbol = km.ticker
           ${whereClause}
         )
@@ -225,8 +225,8 @@ router.get('/signals/:timeframe', async (req, res) => {
           bs.inposition,
           bs.strength,
           md.current_price,
-          cp.short_name as company_name,
-          cp.sector,
+          s.short_name as company_name,
+          s.sector,
           md.market_cap,
           km.trailing_pe,
           km.dividend_yield,
@@ -239,7 +239,7 @@ router.get('/signals/:timeframe', async (req, res) => {
           END as performance_percent
         FROM ${tableName} bs
         LEFT JOIN market_data md ON bs.symbol = md.ticker
-        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN symbols s ON bs.symbol = s.ticker
         LEFT JOIN key_metrics km ON bs.symbol = km.ticker
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -390,7 +390,7 @@ router.get('/swing-signals', async (req, res) => {
     const swingQuery = `
       SELECT 
         st.symbol,
-        cp.short_name as company_name,
+        s.short_name as company_name,
         st.signal,
         st.entry_price,
         st.stop_loss,
@@ -410,7 +410,7 @@ router.get('/swing-signals', async (req, res) => {
           ELSE 'ACTIVE'
         END as status
       FROM swing_trader st
-      JOIN company_profile cp ON st.symbol = cp.ticker
+      JOIN symbols s ON st.symbol = s.ticker
       LEFT JOIN market_data md ON st.symbol = md.ticker
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
@@ -624,7 +624,7 @@ router.get('/signals/current/:timeframe', async (req, res) => {
     // Filter by sector if specified
     if (sector && sector !== 'all') {
       paramCount++;
-      conditions.push(`cp.sector = $${paramCount}`);
+      conditions.push(`s.sector = $${paramCount}`);
       queryParams.push(sector);
     }
 
@@ -644,9 +644,9 @@ router.get('/signals/current/:timeframe', async (req, res) => {
           bs.inposition,
           md.current_price,
           md.regular_market_price,
-          cp.short_name as company_name,
-          cp.sector,
-          cp.industry,
+          s.short_name as company_name,
+          s.sector,
+          s.industry,
           md.market_cap,
           km.trailing_pe,
           km.dividend_yield,
@@ -692,7 +692,7 @@ router.get('/signals/current/:timeframe', async (req, res) => {
           ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
         FROM ${tableName} bs
         LEFT JOIN market_data md ON bs.symbol = md.ticker
-        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN symbols s ON bs.symbol = s.ticker
         LEFT JOIN key_metrics km ON bs.symbol = km.ticker
         ${whereClause}
       )
@@ -721,7 +721,7 @@ router.get('/signals/current/:timeframe', async (req, res) => {
           END as signal_strength,
           ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
         FROM ${tableName} bs
-        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN symbols s ON bs.symbol = s.ticker
         ${whereClause}
       )
       SELECT COUNT(*) as total
@@ -797,7 +797,7 @@ router.get('/analytics/:timeframe', async (req, res) => {
           bs.date,
           bs.buylevel,
           md.current_price,
-          cp.sector,
+          s.sector,
           CASE 
             WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel AND bs.buylevel > 0
             THEN ((md.current_price - bs.buylevel) / bs.buylevel * 100)
@@ -812,7 +812,7 @@ router.get('/analytics/:timeframe', async (req, res) => {
           END as is_winning
         FROM ${tableName} bs
         LEFT JOIN market_data md ON bs.symbol = md.ticker
-        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN symbols s ON bs.symbol = s.ticker
         WHERE bs.date >= CURRENT_DATE - INTERVAL '30 days'
           AND bs.signal IS NOT NULL 
           AND bs.signal != 'None'
@@ -835,7 +835,7 @@ router.get('/analytics/:timeframe', async (req, res) => {
     // Get sector breakdown
     const sectorQuery = `
       SELECT 
-        cp.sector,
+        s.sector,
         COUNT(*) as signal_count,
         AVG(CASE 
           WHEN bs.signal = 'Buy' AND md.current_price > bs.buylevel AND bs.buylevel > 0
@@ -846,13 +846,13 @@ router.get('/analytics/:timeframe', async (req, res) => {
         END) as avg_performance
       FROM ${tableName} bs
       LEFT JOIN market_data md ON bs.symbol = md.ticker
-      LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+      LEFT JOIN symbols s ON bs.symbol = s.ticker
       WHERE bs.date >= CURRENT_DATE - INTERVAL '30 days'
         AND bs.signal IS NOT NULL 
         AND bs.signal != 'None'
         AND bs.signal != ''
-        AND cp.sector IS NOT NULL
-      GROUP BY cp.sector
+        AND s.sector IS NOT NULL
+      GROUP BY s.sector
       ORDER BY signal_count DESC
     `;
 

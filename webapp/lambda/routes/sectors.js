@@ -72,8 +72,8 @@ router.get('/analysis', async (req, res) => {
             ),
             sector_summary AS (
                 SELECT 
-                    cp.sector,
-                    cp.industry,
+                    s.sector,
+                    s.industry,
                     COUNT(*) as stock_count,
                     COUNT(lp.symbol) as priced_stocks,
                     AVG(lp.current_price) as avg_price,
@@ -106,48 +106,48 @@ router.get('/analysis', async (req, res) => {
                     -- Performance ranking
                     RANK() OVER (ORDER BY AVG(lp.monthly_change_pct) DESC) as performance_rank
                     
-                FROM company_profile cp
-                LEFT JOIN latest_prices lp ON cp.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol  
-                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
-                WHERE cp.sector IS NOT NULL 
-                    AND cp.sector != ''
-                    AND cp.industry IS NOT NULL
-                    AND cp.industry != ''
-                GROUP BY cp.sector, cp.industry
+                FROM symbols s
+                LEFT JOIN latest_prices lp ON s.ticker = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol  
+                LEFT JOIN momentum_data md ON s.ticker = md.ticker
+                WHERE s.sector IS NOT NULL 
+                    AND s.sector != ''
+                    AND s.industry IS NOT NULL
+                    AND s.industry != ''
+                GROUP BY s.sector, s.industry
                 HAVING COUNT(lp.symbol) >= 3  -- Only include sectors/industries with at least 3 priced stocks
             ),
             top_performers AS (
                 SELECT 
-                    cp.sector,
-                    cp.ticker,
-                    cp.short_name,
+                    s.sector,
+                    s.ticker,
+                    s.short_name,
                     lp.current_price,
                     lp.monthly_change_pct,
                     lt.momentum as current_momentum,
                     md.jt_momentum_12_1,
-                    ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct DESC) as sector_rank
-                FROM company_profile cp
-                INNER JOIN latest_prices lp ON cp.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
-                WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
+                    ROW_NUMBER() OVER (PARTITION BY s.sector ORDER BY lp.monthly_change_pct DESC) as sector_rank
+                FROM symbols s
+                INNER JOIN latest_prices lp ON s.ticker = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol
+                LEFT JOIN momentum_data md ON s.ticker = md.ticker
+                WHERE s.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             ),
             bottom_performers AS (
                 SELECT 
-                    cp.sector,
-                    cp.ticker,
-                    cp.short_name,
+                    s.sector,
+                    s.ticker,
+                    s.short_name,
                     lp.current_price,
                     lp.monthly_change_pct,
                     lt.momentum as current_momentum,
                     md.jt_momentum_12_1,
-                    ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct ASC) as sector_rank
-                FROM company_profile cp
-                INNER JOIN latest_prices lp ON cp.ticker = lp.symbol
-                LEFT JOIN latest_technicals lt ON cp.ticker = lt.symbol
-                LEFT JOIN momentum_data md ON cp.ticker = md.ticker
-                WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
+                    ROW_NUMBER() OVER (PARTITION BY s.sector ORDER BY lp.monthly_change_pct ASC) as sector_rank
+                FROM symbols s
+                INNER JOIN latest_prices lp ON s.ticker = lp.symbol
+                LEFT JOIN latest_technicals lt ON s.ticker = lt.symbol
+                LEFT JOIN momentum_data md ON s.ticker = md.ticker
+                WHERE s.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             )
             
             SELECT 
@@ -364,21 +364,21 @@ router.get('/:sector/details', async (req, res) => {
         
         const sectorDetailQuery = `
             WITH latest_data AS (
-                SELECT DISTINCT ON (cp.ticker)
-                    cp.ticker,
-                    cp.short_name,
-                    cp.long_name,
-                    cp.industry,
-                    cp.market,
-                    cp.country,
+                SELECT DISTINCT ON (s.ticker)
+                    s.ticker,
+                    s.short_name,
+                    s.long_name,
+                    s.industry,
+                    s.market,
+                    s.country,
                     pd.close as current_price,
                     pd.volume,
                     pd.date as price_date,
                     
                     -- Performance metrics
-                    (pd.close - LAG(pd.close, 1) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) / LAG(pd.close, 1) OVER (PARTITION BY cp.ticker ORDER BY pd.date) * 100 as daily_change,
-                    (pd.close - LAG(pd.close, 5) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) / LAG(pd.close, 5) OVER (PARTITION BY cp.ticker ORDER BY pd.date) * 100 as weekly_change,
-                    (pd.close - LAG(pd.close, 22) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) / LAG(pd.close, 22) OVER (PARTITION BY cp.ticker ORDER BY pd.date) * 100 as monthly_change,
+                    (pd.close - LAG(pd.close, 1) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 1) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as daily_change,
+                    (pd.close - LAG(pd.close, 5) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 5) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as weekly_change,
+                    (pd.close - LAG(pd.close, 22) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close, 22) OVER (PARTITION BY s.ticker ORDER BY pd.date) * 100 as monthly_change,
                     
                     -- Technical indicators
                     td.rsi,
@@ -398,13 +398,13 @@ router.get('/:sector/details', async (req, res) => {
                     -- Market cap estimate (price * volume as proxy)
                     pd.close * pd.volume as dollar_volume
                     
-                FROM company_profile cp
-                LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
-                LEFT JOIN technical_data_daily td ON cp.ticker = td.symbol AND td.date = pd.date
-                LEFT JOIN momentum_metrics mm ON cp.ticker = mm.symbol
-                WHERE cp.sector = $1
+                FROM symbols s
+                LEFT JOIN price_daily pd ON s.ticker = pd.symbol
+                LEFT JOIN technical_data_daily td ON s.ticker = td.symbol AND td.date = pd.date
+                LEFT JOIN momentum_metrics mm ON s.ticker = mm.symbol
+                WHERE s.sector = $1
                     AND pd.date >= CURRENT_DATE - INTERVAL '7 days'
-                ORDER BY cp.ticker, pd.date DESC
+                ORDER BY s.ticker, pd.date DESC
             )
             
             SELECT *,

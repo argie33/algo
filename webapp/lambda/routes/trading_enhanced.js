@@ -51,14 +51,14 @@ async function getEnhancedSignals(event) {
             ELSE 'NO_POSITION'
           END as position_status,
           -- Additional metrics
-          cp.trailing_pe,
-          cp.forward_pe,
-          cp.peg_ratio,
-          cp.price_to_book,
-          cp.beta
+          s.trailing_pe,
+          s.forward_pe,
+          s.peg_ratio,
+          s.price_to_book,
+          s.beta
         FROM buy_sell_${timeframe} bs
         JOIN stock_symbols ss ON bs.symbol = ss.symbol
-        LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
+        LEFT JOIN symbols s ON bs.symbol = s.ticker
         WHERE bs.strength >= $1
           ${signalType !== 'all' ? "AND bs.signal = $2" : ''}
         ORDER BY bs.symbol, bs.date DESC

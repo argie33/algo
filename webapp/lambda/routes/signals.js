@@ -47,8 +47,8 @@ router.get('/buy', async (req, res) => {
     const buySignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
-        cp.sector,
+        s.short_name as company_name,
+        s.sector,
         bs.signal,
         bs.date,
         md.current_price,
@@ -56,7 +56,7 @@ router.get('/buy', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN company_profile cp ON bs.symbol = cp.ticker
+      JOIN symbols s ON bs.symbol = s.ticker
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
@@ -125,8 +125,8 @@ router.get('/sell', async (req, res) => {
     const sellSignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.short_name as company_name,
-        cp.sector,
+        s.short_name as company_name,
+        s.sector,
         bs.signal,
         bs.date,
         md.current_price,
@@ -134,7 +134,7 @@ router.get('/sell', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN company_profile cp ON bs.symbol = cp.ticker
+      JOIN symbols s ON bs.symbol = s.ticker
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
