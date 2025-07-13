@@ -816,6 +816,13 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='EconDataTaskDefArn'].OutputValue" \
             --output text)
+          echo "🔍 Retrieved ARN: $ARN"
+          if [ -z "$ARN" ] || [ "$ARN" = "None" ] || [ "$ARN" = "null" ]; then
+            echo "❌ Task Definition ARN is empty or null"
+            echo "Available outputs from stack:"
+            aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack --query "Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}" --output table
+            exit 1
+          fi
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets
@@ -830,19 +837,52 @@ jobs:
           SUB2=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
             --output text)
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          echo "🔍 Infrastructure values:"
+          echo "  CLUSTER=$CLUSTER"
+          echo "  SUB1=$SUB1"
+          echo "  SUB2=$SUB2"
+          echo "  SG=$SG"
+          if [ -z "$CLUSTER" ] || [ -z "$SUB1" ] || [ -z "$SUB2" ] || [ -z "$SG" ]; then
+            echo "❌ One or more infrastructure values are empty"
+            exit 1
+          fi
           echo "CLUSTER=$CLUSTER" >> $GITHUB_OUTPUT
           echo "SUB1=$SUB1" >> $GITHUB_OUTPUT
           echo "SUB2=$SUB2" >> $GITHUB_OUTPUT
+          echo "SG=$SG" >> $GITHUB_OUTPUT
 
       - name: Run econ-data Fargate task
         id: run
         run: |
+          # Validate all required parameters
+          CLUSTER="${{ steps.infra.outputs.CLUSTER }}"
+          TASK_DEF="${{ steps.td.outputs.TASK_DEF_ARN }}"
+          SUB1="${{ steps.infra.outputs.SUB1 }}"
+          SUB2="${{ steps.infra.outputs.SUB2 }}"
+          SG="${{ steps.infra.outputs.SG }}"
+          
+          echo "🔍 Task execution parameters:"
+          echo "  CLUSTER=$CLUSTER"
+          echo "  TASK_DEF=$TASK_DEF"
+          echo "  SUB1=$SUB1"
+          echo "  SUB2=$SUB2"
+          echo "  SG=$SG"
+          
+          if [ -z "$CLUSTER" ] || [ -z "$TASK_DEF" ] || [ -z "$SUB1" ] || [ -z "$SUB2" ] || [ -z "$SG" ]; then
+            echo "❌ One or more required parameters are empty - cannot run task"
+            exit 1
+          fi
+          
+          echo "🚀 Running ECS task..."
           TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ steps.infra.outputs.CLUSTER }}" \
+            --cluster "$CLUSTER" \
             --launch-type FARGATE \
-            --task-definition "${{ steps.td.outputs.TASK_DEF_ARN }}" \
+            --task-definition "$TASK_DEF" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.SUB1 }},${{ steps.infra.outputs.SUB2 }}],securityGroups=[${{ steps.infra.outputs.SG }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUB1,$SUB2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
             --query 'tasks[0].taskArn' \
             --output text)
           echo "TASK_ARN=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -2496,6 +2536,13 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='FearGreedTaskDefArn'].OutputValue" \
             --output text)
+          echo "🔍 Retrieved ARN: $ARN"
+          if [ -z "$ARN" ] || [ "$ARN" = "None" ] || [ "$ARN" = "null" ]; then
+            echo "❌ Task Definition ARN is empty or null"
+            echo "Available outputs from stack:"
+            aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack --query "Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}" --output table
+            exit 1
+          fi
           echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets & SG
