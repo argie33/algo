@@ -507,6 +507,65 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('OPTIMIZED endpoint error:', error);
+    
+    // If symbols table doesn't exist, fallback to stock_symbols only
+    if (error.message && error.message.includes('does not exist')) {
+      console.log('Symbols table missing, using fallback query with stock_symbols only');
+      try {
+        const fallbackQuery = `
+          SELECT 
+            ss.symbol,
+            ss.security_name,
+            ss.exchange,
+            ss.market_category,
+            ss.cqs_symbol,
+            ss.financial_status,
+            ss.round_lot_size,
+            ss.etf,
+            ss.secondary_symbol,
+            ss.test_issue,
+            NULL as short_name,
+            NULL as long_name,
+            NULL as sector,
+            NULL as industry,
+            NULL as market_cap,
+            NULL as current_price
+          FROM stock_symbols ss
+          ${whereClause}
+          ORDER BY ${sortColumn} ${sortDirection}
+          LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+        `;
+        
+        const fallbackCountQuery = `
+          SELECT COUNT(*) as total
+          FROM stock_symbols ss
+          ${whereClause}
+        `;
+        
+        params.push(limit, offset);
+        
+        const [stocksResult, countResult] = await Promise.all([
+          query(fallbackQuery, params.slice(0, -2).concat([limit, offset])),
+          query(fallbackCountQuery, params.slice(0, -2))
+        ]);
+        
+        return res.json({
+          success: true,
+          data: stocksResult.rows,
+          pagination: {
+            page,
+            limit,
+            total: parseInt(countResult.rows[0].total),
+            totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+          },
+          note: 'Using basic stock symbols data. Run stock-symbols loader to enable enhanced data.',
+          timestamp: new Date().toISOString()
+        });
+      } catch (fallbackError) {
+        console.error('Fallback query failed:', fallbackError);
+      }
+    }
+    
     res.status(500).json({ 
       error: 'Optimized query failed',
       details: error.message,
