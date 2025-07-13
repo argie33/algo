@@ -556,6 +556,64 @@ router.get('/account', async (req, res) => {
   }
 });
 
+// Available accounts endpoint - returns account types user can access
+router.get('/accounts', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    console.log(`🏦 Available accounts endpoint called for user: ${userId}`);
+    
+    // Get user's API keys to determine available account types
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    
+    const availableAccounts = [];
+    
+    if (credentials) {
+      // If user has Alpaca API keys, they can access both paper and live accounts
+      availableAccounts.push({
+        type: 'paper',
+        name: 'Paper Trading Account',
+        description: 'Virtual trading account for testing strategies',
+        provider: 'alpaca',
+        isActive: true
+      });
+      
+      if (!credentials.isSandbox) {
+        availableAccounts.push({
+          type: 'live',
+          name: 'Live Trading Account', 
+          description: 'Real money trading account',
+          provider: 'alpaca',
+          isActive: true
+        });
+      }
+    } else {
+      // If no API keys, only mock account is available
+      availableAccounts.push({
+        type: 'mock',
+        name: 'Demo Account',
+        description: 'Demonstration account with sample data',
+        provider: 'demo',
+        isActive: true
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: availableAccounts,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching available accounts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch available accounts',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Apply authentication middleware to remaining routes
 router.use(authenticateToken);
 
