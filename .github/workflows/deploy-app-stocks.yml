@@ -2149,7 +2149,7 @@ jobs:
 
       - name: Check container exit code
         run: |
-          EXIT=$(aws ecs.describe-tasks \
+          EXIT=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.CLUSTER }}" \
             --tasks "${{ steps.run.outputs.TASK_ARN }}" \
             --query 'tasks[0].containers[0].exitCode' \
