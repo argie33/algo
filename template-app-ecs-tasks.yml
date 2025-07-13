@@ -3123,11 +3123,6 @@ Outputs:
     Export:
       Name: LatestTechnicalsMonthlyTaskDefArn
 
-  AaiiDataTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for AAII sentiment data loader
-    Value: !Ref AaiiDataTaskDefinition
-    Export:
-      Name: AaiiDataTaskDefArn
 
   FearGreedDataTaskDefArn:
     Description: ARN of the ECS TaskDefinition for Fear & Greed data loader
@@ -3135,11 +3130,6 @@ Outputs:
     Export:
       Name: FearGreedDataTaskDefArn
 
-  NaaaimDataTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for NAAIM data loader
-    Value: !Ref NaaaimDataTaskDefinition
-    Export:
-      Name: NaaaimDataTaskDefArn
 
   EarningsHistoryTaskDefArn:
     Description: ARN of the ECS TaskDefinition for earnings history loader
