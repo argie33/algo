@@ -362,6 +362,18 @@ router.get('/api-keys', async (req, res) => {
 
 // Add new API key
 router.post('/api-keys', async (req, res) => {
+  // Set response timeout to prevent Lambda timeouts
+  const responseTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(200).json({
+        success: false,
+        error: 'Request timeout',
+        message: 'API key creation took too long, please try again',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, 10000); // 10 second timeout
+
   const userId = req.user?.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
   
@@ -371,6 +383,7 @@ router.post('/api-keys', async (req, res) => {
 
   // Check if user is properly authenticated
   if (!userId) {
+    clearTimeout(responseTimeout);
     console.error('❌ No user ID found in request');
     return res.status(401).json({
       success: false,
@@ -380,9 +393,24 @@ router.post('/api-keys', async (req, res) => {
   }
 
   if (!provider || !apiKey) {
+    clearTimeout(responseTimeout);
     return res.status(400).json({
       success: false,
       error: 'Provider and API key are required'
+    });
+  }
+
+  // Check database availability immediately
+  try {
+    await query('SELECT 1', [], 2000); // 2 second timeout
+  } catch (dbError) {
+    clearTimeout(responseTimeout);
+    console.log('Database not available for API key creation');
+    return res.status(503).json({
+      success: false,
+      error: 'Database temporarily unavailable',
+      message: 'Please try again in a few moments',
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -429,12 +457,14 @@ router.post('/api-keys', async (req, res) => {
       description
     ]);
 
+    clearTimeout(responseTimeout);
     res.json({
       success: true,
       message: 'API key added successfully',
       apiKey: result.rows[0]
     });
   } catch (error) {
+    clearTimeout(responseTimeout);
     console.error('❌ Error adding API key:', error.message);
     console.error('🔍 Full error details:', {
       message: error.message,

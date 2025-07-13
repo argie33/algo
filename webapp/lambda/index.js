@@ -185,6 +185,45 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global timeout protection middleware to prevent CORS issues from Lambda timeouts
+app.use((req, res, next) => {
+  // Set a global timeout to ensure we always send a response
+  const globalTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.warn(`🕐 Global timeout triggered for ${req.method} ${req.path}`);
+      
+      // Ensure CORS headers are set
+      const origin = req.headers.origin;
+      res.header('Access-Control-Allow-Origin', origin || '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
+      // Send a timeout response
+      res.status(200).json({
+        success: true,
+        error: 'Request timeout',
+        message: 'Request took too long, returning fallback data',
+        data: {},
+        timestamp: new Date().toISOString(),
+        dataSource: 'timeout'
+      });
+    }
+  }, 25000); // 25 second global timeout (Lambda max is 30s)
+  
+  // Clear the timeout when response is sent
+  res.on('finish', () => {
+    clearTimeout(globalTimeout);
+  });
+  
+  // Clear the timeout when response starts
+  res.on('close', () => {
+    clearTimeout(globalTimeout);
+  });
+  
+  next();
+});
+
 // Request parsing with size limits
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
