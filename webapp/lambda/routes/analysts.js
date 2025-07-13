@@ -12,7 +12,7 @@ router.get('/upgrades', async (req, res) => {
       const upgradesQuery = `
       SELECT 
         aud.symbol,
-        cp.short_name AS company_name,
+        s.short_name AS company_name,
         aud.from_grade,
         aud.to_grade,
         aud.action,
@@ -20,7 +20,7 @@ router.get('/upgrades', async (req, res) => {
         aud.date,
         aud.details
       FROM analyst_upgrade_downgrade aud
-      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      LEFT JOIN symbols s ON aud.symbol = s.symbol
       ORDER BY aud.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -473,7 +473,7 @@ router.get('/recent-actions', async (req, res) => {
     const recentActionsQuery = `
       SELECT 
         aud.symbol,
-        cp.short_name AS company_name,
+        s.short_name AS company_name,
         aud.from_grade,
         aud.to_grade,
         aud.action,
@@ -486,7 +486,7 @@ router.get('/recent-actions', async (req, res) => {
           ELSE 'neutral'
         END as action_type
       FROM analyst_upgrade_downgrade aud
-      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      LEFT JOIN symbols s ON aud.symbol = s.symbol
       WHERE aud.date = $1
       ORDER BY aud.date DESC, aud.symbol ASC
       LIMIT $2

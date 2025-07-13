@@ -48,9 +48,9 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
              pd.change_amount as day_change_amount,
              pd.previous_close,
              pd.volume,
-             cp.short_name,
-             cp.security_name,
-             cp.sector,
+             s.short_name,
+             s.security_name,
+             s.sector,
              md.market_cap,
              md.average_volume,
              md.fifty_two_week_low,
@@ -58,7 +58,7 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
              km.trailing_pe
       FROM watchlist_items wi
       LEFT JOIN price_daily pd ON wi.symbol = pd.symbol
-      LEFT JOIN company_profile cp ON wi.symbol = cp.symbol
+      LEFT JOIN symbols s ON wi.symbol = s.symbol
       LEFT JOIN market_data md ON wi.symbol = md.ticker
       LEFT JOIN key_metrics km ON wi.symbol = km.ticker
       WHERE wi.watchlist_id = $1

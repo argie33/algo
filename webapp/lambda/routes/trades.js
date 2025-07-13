@@ -232,11 +232,11 @@ router.get('/positions', authenticateToken, async (req, res) => {
         ta.alpha_generated,
         ta.trade_pattern_type,
         ta.pattern_confidence,
-        cp.sector,
-        cp.industry
+        s.sector,
+        s.industry
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN symbols s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 ${statusFilter}
       ORDER BY ph.opened_at DESC
       LIMIT $2 OFFSET $3
@@ -286,13 +286,13 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
       SELECT 
         ph.*,
         ta.*,
-        cp.sector,
-        cp.industry,
-        cp.market_cap,
-        cp.description as company_description
+        s.sector,
+        s.industry,
+        s.market_cap,
+        s.description as company_description
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN symbols s ON ph.symbol = s.symbol
       WHERE ph.id = $1 AND ph.user_id = $2
     `, [positionId, userId]);
 
