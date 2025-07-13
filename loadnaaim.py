@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # NAAIM exposure data loader - advisor sentiment and market exposure
-# Trigger deploy-app-stocks workflow - loadnaaim update v4.6 - RETRIGGER BUILD AND DEPLOY NOW
+# Trigger deploy-app-stocks workflow - loadnaaim update v4.7 - RETRIGGER AFTER CF FIX
 import sys
 import time
 import logging

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Fear & Greed Index loader - market sentiment indicators
-# Trigger deploy-app-stocks workflow - loadfeargreed update v4.6 - RETRIGGER BUILD AND DEPLOY NOW
+# Trigger deploy-app-stocks workflow - loadfeargreed update v4.7 - RETRIGGER AFTER CF FIX
 import sys
 import time
 import logging
