@@ -132,40 +132,43 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 CREATE TABLE IF NOT EXISTS portfolio_holdings (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
+    api_key_id INTEGER,
     symbol VARCHAR(10) NOT NULL,
     quantity DECIMAL(15,4) NOT NULL,
+    avg_cost DECIMAL(12,4),
+    current_price DECIMAL(12,4),
     market_value DECIMAL(15,2),
     cost_basis DECIMAL(15,2),
-    pnl DECIMAL(15,2),
-    pnl_percent DECIMAL(8,4),
-    weight DECIMAL(8,4),
-    sector VARCHAR(100),
-    current_price DECIMAL(12,4),
-    average_entry_price DECIMAL(12,4),
+    unrealized_pl DECIMAL(15,2),
+    unrealized_plpc DECIMAL(8,4),
     day_change DECIMAL(15,2),
     day_change_percent DECIMAL(8,4),
+    sector VARCHAR(100),
     exchange VARCHAR(20),
     broker VARCHAR(50),
-    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    account_type VARCHAR(20) DEFAULT 'paper',
+    last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, symbol, broker)
+    UNIQUE(user_id, api_key_id, symbol)
 );
 
 -- Create Portfolio Metadata table
 CREATE TABLE IF NOT EXISTS portfolio_metadata (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
-    broker VARCHAR(50) NOT NULL,
-    total_value DECIMAL(15,2),
-    total_cash DECIMAL(15,2),
-    total_pnl DECIMAL(15,2),
-    total_pnl_percent DECIMAL(8,4),
-    positions_count INTEGER,
+    api_key_id INTEGER,
+    total_equity DECIMAL(15,2),
+    total_market_value DECIMAL(15,2),
+    total_unrealized_pl DECIMAL(15,2),
+    total_unrealized_plpc DECIMAL(8,4),
+    account_type VARCHAR(20) DEFAULT 'paper',
+    broker VARCHAR(50),
     account_status VARCHAR(50),
-    environment VARCHAR(20),
-    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, broker)
+    UNIQUE(user_id, api_key_id)
 );
 
 -- ================================
