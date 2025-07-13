@@ -1,5 +1,5 @@
 name: deploy-webapp
-# Updated 2025-07-11 - Force redeploy to fix React loading issue
+# Updated 2025-07-13 - Fix portfolio API integration and task definition retrieval
 
 on:  
   push:
@@ -536,10 +536,9 @@ jobs:
           echo "📝 NOTE: This creates WEBAPP tables only (user_api_keys, portfolio_holdings, etc.)"
           echo "📝 NOTE: stock_symbols table is created by deploy-app-stocks workflow"
           
-          # Get the task definition ARN from the stack
-          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
-            --stack-name ${{ env.STACK_NAME }} \
-            --query "Stacks[0].Outputs[?OutputKey=='DatabaseInitTaskDefArn'].OutputValue" \
+          # Get the task definition ARN from the stack exports
+          TASK_DEF_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${{ env.STACK_NAME }}-DatabaseInitTaskDefArn'].Value" \
             --output text)
           
           if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then

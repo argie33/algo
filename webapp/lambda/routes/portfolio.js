@@ -919,112 +919,113 @@ router.get('/performance', async (req, res) => {
     if (userId) {
       console.log(`📊 [${requestId}] Getting portfolio performance for user: ${userId}`);
       
-      // Try to get live performance data from broker API
-      let livePerformanceData = null;
       try {
-        const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
-        
-        if (credentials) {
-          console.log(`📡 [${requestId}] Fetching live performance data from Alpaca...`);
-          const alpaca = new AlpacaService(
-            credentials.apiKey,
-            credentials.apiSecret,
-            credentials.isSandbox
-          );
-          
-          // Get portfolio history for performance calculation
-          const account = await alpaca.getAccount();
-          const portfolioHistory = await alpaca.getPortfolioHistory({
-            period: timeframe,
-            timeframe: '1Day'
-          });
-          
-          if (portfolioHistory && portfolioHistory.equity) {
-            livePerformanceData = portfolioHistory.equity.map((equity, index) => ({
-              date: portfolioHistory.timestamp[index] ? 
-                new Date(portfolioHistory.timestamp[index] * 1000).toISOString().split('T')[0] : 
-                new Date().toISOString().split('T')[0],
-              portfolioValue: parseFloat(equity || 0),
-              totalPnL: index > 0 ? 
-                parseFloat(equity - portfolioHistory.equity[0]) : 0,
-              dailyReturn: index > 0 ? 
-                ((equity - portfolioHistory.equity[index - 1]) / portfolioHistory.equity[index - 1]) * 100 : 0
-            }));
-            
-            console.log(`✅ [${requestId}] Retrieved ${livePerformanceData.length} days of live performance data`);
-          }
-        }
-      } catch (apiError) {
-        console.warn(`⚠️ [${requestId}] API performance fetch failed:`, apiError.message);
-      }
-      
-      // Use live data if available, otherwise query database
-      let performanceData = livePerformanceData;
-      if (!performanceData) {
-        console.log(`📊 [${requestId}] Falling back to database query...`);
+        // Try to get live performance data from broker API
+        let livePerformanceData = null;
         try {
-          const portfolioQuery = `
-            SELECT 
-              DATE(updated_at) as date,
-              SUM(market_value) as portfolio_value,
-              SUM(unrealized_pl) as total_pnl
-            FROM portfolio_holdings 
-            WHERE user_id = $1 AND quantity > 0
-            GROUP BY DATE(updated_at)
-            ORDER BY DATE(updated_at) DESC
-            LIMIT 50
-          `;
+          const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
           
-          const result = await query(portfolioQuery, [userId], 8000);
-          console.log(`✅ [${requestId}] Portfolio query completed, found ${result.rows.length} records`);
-          
-          if (result.rows.length > 0) {
-            performanceData = result.rows.map(row => ({
-              date: row.date,
-              portfolioValue: parseFloat(row.portfolio_value || 0),
-              totalPnL: parseFloat(row.total_pnl || 0),
-              dailyReturn: 0
-            }));
+          if (credentials) {
+            console.log(`📡 [${requestId}] Fetching live performance data from Alpaca...`);
+            const alpaca = new AlpacaService(
+              credentials.apiKey,
+              credentials.apiSecret,
+              credentials.isSandbox
+            );
+            
+            // Get portfolio history for performance calculation
+            const account = await alpaca.getAccount();
+            const portfolioHistory = await alpaca.getPortfolioHistory({
+              period: timeframe,
+              timeframe: '1Day'
+            });
+            
+            if (portfolioHistory && portfolioHistory.equity) {
+              livePerformanceData = portfolioHistory.equity.map((equity, index) => ({
+                date: portfolioHistory.timestamp[index] ? 
+                  new Date(portfolioHistory.timestamp[index] * 1000).toISOString().split('T')[0] : 
+                  new Date().toISOString().split('T')[0],
+                portfolioValue: parseFloat(equity || 0),
+                totalPnL: index > 0 ? 
+                  parseFloat(equity - portfolioHistory.equity[0]) : 0,
+                dailyReturn: index > 0 ? 
+                  ((equity - portfolioHistory.equity[index - 1]) / portfolioHistory.equity[index - 1]) * 100 : 0
+              }));
+              
+              console.log(`✅ [${requestId}] Retrieved ${livePerformanceData.length} days of live performance data`);
+            }
           }
-        } catch (dbError) {
-          console.error(`❌ [${requestId}] Database query failed:`, dbError.message);
+        } catch (apiError) {
+          console.warn(`⚠️ [${requestId}] API performance fetch failed:`, apiError.message);
         }
-      }
-      
-      if (performanceData && performanceData.length > 0) {
-          
-          const metrics = {
-            totalReturn: performanceData[0]?.totalPnL || 0,
-            totalReturnPercent: 0,
-            annualizedReturn: 12.0,
-            volatility: 16.5,
-            sharpeRatio: 0.85,
-            maxDrawdown: -8.5,
-            beta: 1.05,
-            alpha: 2.0,
-            informationRatio: 0.4,
-            calmarRatio: 1.3,
-            sortinoRatio: 1.2
-          };
-          
-          console.log(`✅ [${requestId}] Returning real performance data after ${Date.now() - startTime}ms`);
-          return res.json({
-            success: true,
-            data: { performance: performanceData, metrics: metrics },
-            timestamp: new Date().toISOString(),
-            dataSource: 'database',
-            duration: Date.now() - startTime
-          });
-        } else {
-          console.log(`⚠️ [${requestId}] No portfolio data found for user`);
-          return res.status(404).json({
-            success: false,
-            error: 'No portfolio data found',
-            message: 'No portfolio holdings found for this user.',
-            duration: Date.now() - startTime,
-            timestamp: new Date().toISOString()
-          });
+        
+        // Use live data if available, otherwise query database
+        let performanceData = livePerformanceData;
+        if (!performanceData) {
+          console.log(`📊 [${requestId}] Falling back to database query...`);
+          try {
+            const portfolioQuery = `
+              SELECT 
+                DATE(updated_at) as date,
+                SUM(market_value) as portfolio_value,
+                SUM(unrealized_pl) as total_pnl
+              FROM portfolio_holdings 
+              WHERE user_id = $1 AND quantity > 0
+              GROUP BY DATE(updated_at)
+              ORDER BY DATE(updated_at) DESC
+              LIMIT 50
+            `;
+            
+            const result = await query(portfolioQuery, [userId], 8000);
+            console.log(`✅ [${requestId}] Portfolio query completed, found ${result.rows.length} records`);
+            
+            if (result.rows.length > 0) {
+              performanceData = result.rows.map(row => ({
+                date: row.date,
+                portfolioValue: parseFloat(row.portfolio_value || 0),
+                totalPnL: parseFloat(row.total_pnl || 0),
+                dailyReturn: 0
+              }));
+            }
+          } catch (dbError) {
+            console.error(`❌ [${requestId}] Database query failed:`, dbError.message);
+          }
         }
+        
+        if (performanceData && performanceData.length > 0) {
+            
+            const metrics = {
+              totalReturn: performanceData[0]?.totalPnL || 0,
+              totalReturnPercent: 0,
+              annualizedReturn: 12.0,
+              volatility: 16.5,
+              sharpeRatio: 0.85,
+              maxDrawdown: -8.5,
+              beta: 1.05,
+              alpha: 2.0,
+              informationRatio: 0.4,
+              calmarRatio: 1.3,
+              sortinoRatio: 1.2
+            };
+            
+            console.log(`✅ [${requestId}] Returning real performance data after ${Date.now() - startTime}ms`);
+            return res.json({
+              success: true,
+              data: { performance: performanceData, metrics: metrics },
+              timestamp: new Date().toISOString(),
+              dataSource: 'database',
+              duration: Date.now() - startTime
+            });
+          } else {
+            console.log(`⚠️ [${requestId}] No portfolio data found for user`);
+            return res.status(404).json({
+              success: false,
+              error: 'No portfolio data found',
+              message: 'No portfolio holdings found for this user.',
+              duration: Date.now() - startTime,
+              timestamp: new Date().toISOString()
+            });
+          }
       } catch (queryError) {
         console.error(`❌ [${requestId}] Portfolio query failed:`, queryError.message);
         return res.status(500).json({
@@ -1186,10 +1187,10 @@ router.post('/import/:broker', async (req, res) => {
   
   try {
     const { broker } = req.params;
-    const { accountType = 'paper' } = req.query;
+    const { accountType = 'paper' } = req.query; // Keep for logging, but API key setting is authoritative
     const userId = req.user?.sub;
     
-    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, account: ${accountType}, user: ${userId}`);
+    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, requested account: ${accountType}, user: ${userId}`);
     console.log(`🔄 [IMPORT] Request headers:`, Object.keys(req.headers));
     console.log(`🔄 [IMPORT] Memory usage:`, process.memoryUsage());
     
@@ -1233,7 +1234,7 @@ router.post('/import/:broker', async (req, res) => {
             provider: broker,
             apiKey: devApiKey,
             apiSecret: devApiSecret,
-            isSandbox: accountType === 'paper',
+            isSandbox: true, // Default to sandbox for dev keys unless explicitly set
             isActive: true
           };
           console.log(`✅ [IMPORT] Using development API keys for ${broker}`);
@@ -1266,10 +1267,11 @@ router.post('/import/:broker', async (req, res) => {
     }
     
     console.log(`✅ Found API key for ${broker} (sandbox: ${credentials.isSandbox})`);
+    console.log(`📊 [IMPORT] API key setting is authoritative - using ${credentials.isSandbox ? 'PAPER' : 'LIVE'} account`);
     
     // Step 2: Connect to the broker's API and fetch portfolio data
     console.log(`📡 [IMPORT] Step 2: Connecting to ${broker} API...`);
-    console.log(`📡 [IMPORT] API endpoint will be: ${credentials.isSandbox || accountType === 'paper' ? 'paper-api.alpaca.markets' : 'api.alpaca.markets'}`);
+    console.log(`📡 [IMPORT] API endpoint will be: ${credentials.isSandbox ? 'paper-api.alpaca.markets' : 'api.alpaca.markets'}`);
     
     let portfolioData;
     try {
@@ -1280,7 +1282,7 @@ router.post('/import/:broker', async (req, res) => {
           alpaca = new AlpacaService(
             credentials.apiKey,
             credentials.apiSecret,
-            credentials.isSandbox || accountType === 'paper'
+            credentials.isSandbox // Use API key setting as authoritative source
           );
           console.log(`✅ [IMPORT] AlpacaService initialized successfully`);
         } catch (initError) {
@@ -1583,7 +1585,44 @@ router.post('/optimization/run', async (req, res) => {
   try {
     console.log(`Running portfolio optimization for user ${userId}`);
     
-    const OptimizationEngine = require('../services/optimizationEngine');
+    // Check if optimization service is available
+    let OptimizationEngine;
+    try {
+      OptimizationEngine = require('../services/optimizationEngine');
+    } catch (moduleError) {
+      console.warn('OptimizationEngine service not available, returning mock optimization result');
+      
+      // Return mock optimization result
+      const mockResult = {
+        optimization: {
+          expectedReturn: 0.12,
+          volatility: 0.18,
+          sharpeRatio: 0.67,
+          weights: {}
+        },
+        rebalancing: [],
+        insights: [
+          {
+            type: 'info',
+            title: 'Optimization Service Unavailable',
+            message: 'Portfolio optimization service is currently being set up. Mock results shown.',
+            impact: 'Please try again later for detailed optimization recommendations.'
+          }
+        ],
+        metadata: {
+          universeSize: 10,
+          analysisDate: new Date().toISOString()
+        }
+      };
+      
+      return res.json({
+        success: true,
+        data: mockResult,
+        timestamp: new Date().toISOString(),
+        note: 'Optimization service temporarily unavailable - showing mock results'
+      });
+    }
+    
     const optimizer = new OptimizationEngine();
     
     const result = await optimizer.runOptimization({
@@ -1689,7 +1728,44 @@ router.get('/optimization/recommendations', async (req, res) => {
       }
     }
     
-    const OptimizationEngine = require('../services/optimizationEngine');
+    // Check if optimization service is available
+    let OptimizationEngine;
+    try {
+      OptimizationEngine = require('../services/optimizationEngine');
+    } catch (moduleError) {
+      console.warn('OptimizationEngine service not available, returning mock recommendations');
+      
+      // Return mock recommendations
+      const mockRecommendations = {
+        primaryRecommendation: {
+          type: 'info',
+          title: 'Optimization Service Unavailable',
+          message: 'Portfolio optimization service is currently being set up.',
+          impact: 'Mock recommendations shown based on general portfolio guidelines.'
+        },
+        riskScore: currentPortfolio ? Math.min(100, Math.max(10, 75 - (currentPortfolio.positions.length * 2))) : 65,
+        diversificationScore: currentPortfolio ? Math.min(100, (currentPortfolio.positions.length / 15) * 100) : 45,
+        expectedImprovement: {
+          sharpeRatio: 0.15,
+          volatilityReduction: 0.03,
+          returnIncrease: 0.02
+        },
+        topActions: [
+          { action: 'Add diversification across sectors', priority: 'High' },
+          { action: 'Consider international exposure', priority: 'Medium' },
+          { action: 'Review position sizing', priority: 'Medium' }
+        ],
+        timeToRebalance: 'Review Recommended'
+      };
+      
+      return res.json({
+        success: true,
+        data: mockRecommendations,
+        timestamp: new Date().toISOString(),
+        note: 'Optimization service temporarily unavailable - showing mock recommendations'
+      });
+    }
+    
     const optimizer = new OptimizationEngine();
     
     // Run quick optimization with default parameters
