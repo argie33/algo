@@ -915,32 +915,83 @@ router.get('/performance', async (req, res) => {
       });
     }
 
-    // If user authenticated, try real query
+    // If user authenticated, try live API data first, then fallback to database
     if (userId) {
-      console.log(`📊 [${requestId}] Querying portfolio data for user: ${userId}`);
+      console.log(`📊 [${requestId}] Getting portfolio performance for user: ${userId}`);
+      
+      // Try to get live performance data from broker API
+      let livePerformanceData = null;
       try {
-        const portfolioQuery = `
-          SELECT 
-            DATE(updated_at) as date,
-            SUM(market_value) as portfolio_value,
-            SUM(unrealized_pl) as total_pnl
-          FROM portfolio_holdings 
-          WHERE user_id = $1 AND quantity > 0
-          GROUP BY DATE(updated_at)
-          ORDER BY DATE(updated_at) DESC
-          LIMIT 50
-        `;
+        const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
         
-        const result = await query(portfolioQuery, [userId], 8000); // 8 second timeout
-        console.log(`✅ [${requestId}] Portfolio query completed, found ${result.rows.length} records`);
-        
-        if (result.rows.length > 0) {
-          const performanceData = result.rows.map(row => ({
-            date: row.date,
-            portfolioValue: parseFloat(row.portfolio_value || 0),
-            totalPnL: parseFloat(row.total_pnl || 0),
-            dailyReturn: 0
-          }));
+        if (credentials) {
+          console.log(`📡 [${requestId}] Fetching live performance data from Alpaca...`);
+          const alpaca = new AlpacaService(
+            credentials.apiKey,
+            credentials.apiSecret,
+            credentials.isSandbox
+          );
+          
+          // Get portfolio history for performance calculation
+          const account = await alpaca.getAccount();
+          const portfolioHistory = await alpaca.getPortfolioHistory({
+            period: timeframe,
+            timeframe: '1Day'
+          });
+          
+          if (portfolioHistory && portfolioHistory.equity) {
+            livePerformanceData = portfolioHistory.equity.map((equity, index) => ({
+              date: portfolioHistory.timestamp[index] ? 
+                new Date(portfolioHistory.timestamp[index] * 1000).toISOString().split('T')[0] : 
+                new Date().toISOString().split('T')[0],
+              portfolioValue: parseFloat(equity || 0),
+              totalPnL: index > 0 ? 
+                parseFloat(equity - portfolioHistory.equity[0]) : 0,
+              dailyReturn: index > 0 ? 
+                ((equity - portfolioHistory.equity[index - 1]) / portfolioHistory.equity[index - 1]) * 100 : 0
+            }));
+            
+            console.log(`✅ [${requestId}] Retrieved ${livePerformanceData.length} days of live performance data`);
+          }
+        }
+      } catch (apiError) {
+        console.warn(`⚠️ [${requestId}] API performance fetch failed:`, apiError.message);
+      }
+      
+      // Use live data if available, otherwise query database
+      let performanceData = livePerformanceData;
+      if (!performanceData) {
+        console.log(`📊 [${requestId}] Falling back to database query...`);
+        try {
+          const portfolioQuery = `
+            SELECT 
+              DATE(updated_at) as date,
+              SUM(market_value) as portfolio_value,
+              SUM(unrealized_pl) as total_pnl
+            FROM portfolio_holdings 
+            WHERE user_id = $1 AND quantity > 0
+            GROUP BY DATE(updated_at)
+            ORDER BY DATE(updated_at) DESC
+            LIMIT 50
+          `;
+          
+          const result = await query(portfolioQuery, [userId], 8000);
+          console.log(`✅ [${requestId}] Portfolio query completed, found ${result.rows.length} records`);
+          
+          if (result.rows.length > 0) {
+            performanceData = result.rows.map(row => ({
+              date: row.date,
+              portfolioValue: parseFloat(row.portfolio_value || 0),
+              totalPnL: parseFloat(row.total_pnl || 0),
+              dailyReturn: 0
+            }));
+          }
+        } catch (dbError) {
+          console.error(`❌ [${requestId}] Database query failed:`, dbError.message);
+        }
+      }
+      
+      if (performanceData && performanceData.length > 0) {
           
           const metrics = {
             totalReturn: performanceData[0]?.totalPnL || 0,
@@ -1494,6 +1545,76 @@ router.get('/optimization/recommendations', async (req, res) => {
   
   try {
     console.log(`Getting optimization recommendations for user ${userId}`);
+    
+    // Get current portfolio from live API to base recommendations on
+    let currentPortfolio = null;
+    try {
+      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      
+      if (credentials) {
+        console.log('📡 Fetching current portfolio for optimization analysis...');
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        
+        const [positions, account] = await Promise.all([
+          alpaca.getPositions(),
+          alpaca.getAccount()
+        ]);
+        
+        currentPortfolio = {
+          totalValue: parseFloat(account.portfolio_value || account.equity || 0),
+          cashBalance: parseFloat(account.cash || account.buying_power || 0),
+          positions: positions.map(pos => ({
+            symbol: pos.symbol,
+            quantity: parseFloat(pos.qty),
+            marketValue: parseFloat(pos.market_value || 0),
+            weight: 0, // Will calculate below
+            unrealizedPL: parseFloat(pos.unrealized_pl || 0),
+            unrealizedPLPercent: parseFloat(pos.unrealized_plpc || 0) * 100
+          }))
+        };
+        
+        // Calculate position weights
+        if (currentPortfolio.totalValue > 0) {
+          currentPortfolio.positions.forEach(pos => {
+            pos.weight = (pos.marketValue / currentPortfolio.totalValue) * 100;
+          });
+        }
+        
+        console.log(`✅ Retrieved portfolio: $${currentPortfolio.totalValue.toFixed(2)} with ${currentPortfolio.positions.length} positions`);
+      }
+    } catch (apiError) {
+      console.warn('Failed to fetch live portfolio for optimization:', apiError.message);
+      // Fall back to database
+      try {
+        const result = await query(`
+          SELECT symbol, quantity, market_value, unrealized_pl, unrealized_plpc
+          FROM portfolio_holdings 
+          WHERE user_id = $1 AND quantity > 0
+        `, [userId]);
+        
+        if (result.rows.length > 0) {
+          const totalValue = result.rows.reduce((sum, row) => sum + parseFloat(row.market_value || 0), 0);
+          currentPortfolio = {
+            totalValue: totalValue,
+            cashBalance: 0, // Unknown from holdings
+            positions: result.rows.map(row => ({
+              symbol: row.symbol,
+              quantity: parseFloat(row.quantity || 0),
+              marketValue: parseFloat(row.market_value || 0),
+              weight: totalValue > 0 ? (parseFloat(row.market_value) / totalValue) * 100 : 0,
+              unrealizedPL: parseFloat(row.unrealized_pl || 0),
+              unrealizedPLPercent: parseFloat(row.unrealized_plpc || 0)
+            }))
+          };
+        }
+      } catch (dbError) {
+        console.warn('Database fallback also failed:', dbError.message);
+      }
+    }
     
     const OptimizationEngine = require('../services/optimizationEngine');
     const optimizer = new OptimizationEngine();
