@@ -90,7 +90,7 @@ import {
   AutoAwesome,
   Psychology
 } from '@mui/icons-material';
-import { getApiConfig } from '../services/api';
+import { getApiConfig, getPortfolioData, getPortfolioOptimizationData, getRebalancingRecommendations } from '../services/api';
 
 // Modern Portfolio Theory calculations
 const calculatePortfolioMetrics = (weights, returns, covariance) => {
@@ -295,17 +295,45 @@ const PortfolioOptimization = () => {
   const initializePortfolio = async () => {
     setLoading(true);
     try {
-      // Simulate current portfolio
-      const currentWeights = [0.15, 0.12, 0.10, 0.08, 0.06, 0.07, 0.12, 0.10, 0.10, 0.10];
-      const { returns, covariance } = generateMockData(symbols);
+      console.log('🔄 Loading real portfolio data for optimization...');
+      
+      // Try to get real portfolio data first
+      let currentWeights = [0.15, 0.12, 0.10, 0.08, 0.06, 0.07, 0.12, 0.10, 0.10, 0.10];
+      let portfolioSymbols = symbols;
+      let totalValue = 250000;
+      
+      try {
+        const portfolioData = await getPortfolioData();
+        if (portfolioData?.holdings && portfolioData.holdings.length > 0) {
+          console.log('✅ Using real portfolio data for optimization');
+          
+          // Extract symbols and weights from real portfolio
+          portfolioSymbols = portfolioData.holdings.map(h => h.symbol);
+          const portfolioTotalValue = portfolioData.holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+          
+          if (portfolioTotalValue > 0) {
+            currentWeights = portfolioData.holdings.map(h => (h.marketValue || 0) / portfolioTotalValue);
+            totalValue = portfolioTotalValue;
+          }
+          
+          console.log('📊 Real portfolio:', { symbols: portfolioSymbols, totalValue });
+        } else {
+          console.log('📋 No real portfolio data, using demo data');
+        }
+      } catch (apiError) {
+        console.warn('⚠️ Portfolio API failed, using demo data:', apiError.message);
+      }
+      
+      // Generate analysis data (use mock for now, could be enhanced with real market data)
+      const { returns, covariance } = generateMockData(portfolioSymbols);
       
       const currentMetrics = calculatePortfolioMetrics(currentWeights, returns, covariance);
       
       setCurrentPortfolio({
-        symbols: symbols,
+        symbols: portfolioSymbols,
         weights: currentWeights,
         metrics: currentMetrics,
-        totalValue: 250000,
+        totalValue: totalValue,
         returns: returns,
         covariance: covariance
       });
@@ -343,6 +371,18 @@ const PortfolioOptimization = () => {
           }
         ]
       });
+      
+      // Try to load real optimization recommendations
+      try {
+        console.log('🎯 Loading optimization recommendations...');
+        const recommendations = await getRebalancingRecommendations();
+        if (recommendations?.success && recommendations?.data) {
+          console.log('✅ Real optimization recommendations loaded');
+          // Could update optimizationResults with real recommendations
+        }
+      } catch (optimError) {
+        console.warn('⚠️ Optimization recommendations failed:', optimError.message);
+      }
       
     } catch (err) {
       setError('Failed to initialize portfolio data');
