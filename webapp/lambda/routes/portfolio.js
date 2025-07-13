@@ -1454,23 +1454,9 @@ router.post('/import/:broker', async (req, res) => {
           const debugResult = await query(`SELECT id, provider, user_id, is_active, created_at FROM user_api_keys WHERE user_id = $1`, [userId]);
           console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
           
-          // If no keys found for exact user ID, check for similar dev user IDs 
-          if (debugResult.rows.length === 0 && userId.startsWith('dev-user-')) {
-            console.log(`🔍 [IMPORT DEBUG] No keys for exact user ID, checking for other dev users...`);
-            const devUsersResult = await query(`SELECT DISTINCT user_id, COUNT(*) as key_count FROM user_api_keys WHERE user_id LIKE 'dev-user-%' GROUP BY user_id ORDER BY key_count DESC LIMIT 5`);
-            console.log(`🔍 [IMPORT DEBUG] Dev users with API keys:`, devUsersResult.rows.map(u => `${u.user_id}(${u.key_count} keys)`));
-            
-            // Try to use the first dev user with keys for the same provider
-            if (devUsersResult.rows.length > 0) {
-              const devUserWithKeys = devUsersResult.rows[0].user_id;
-              console.log(`🔑 [IMPORT DEBUG] Trying to use keys from ${devUserWithKeys} for ${broker}...`);
-              if (apiKeyService.isEnabled) {
-                credentials = await apiKeyService.getDecryptedApiKey(devUserWithKeys, broker);
-                if (credentials) {
-                  console.log(`✅ [IMPORT DEBUG] Successfully retrieved keys from ${devUserWithKeys}`);
-                }
-              }
-            }
+          // Only use API keys that belong to the exact authenticated user ID
+          if (debugResult.rows.length === 0) {
+            console.log(`🔍 [IMPORT DEBUG] No API keys found for user ${userId}. User must add API key in Settings.`);
           } else {
             // Additional debug: Check for similar user IDs
             const allUsersResult = await query(`SELECT DISTINCT user_id, COUNT(*) as key_count FROM user_api_keys GROUP BY user_id ORDER BY key_count DESC LIMIT 10`);
@@ -1480,20 +1466,6 @@ router.post('/import/:broker', async (req, res) => {
             const alpacaKeysResult = await query(`SELECT user_id, provider, is_active, created_at FROM user_api_keys WHERE provider = 'alpaca' ORDER BY created_at DESC LIMIT 5`);
             console.log(`🔍 [IMPORT DEBUG] Recent alpaca keys:`, alpacaKeysResult.rows.map(k => `${k.user_id}/${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
             
-            // Development fallback: If real user has no keys, try to use any available dev key for the same provider
-            if (debugResult.rows.length === 0 && alpacaKeysResult.rows.length > 0) {
-              console.log(`🔧 [IMPORT DEBUG] Real user ${userId} has no keys, trying development fallback...`);
-              const availableKey = alpacaKeysResult.rows.find(k => k.is_active);
-              if (availableKey) {
-                console.log(`🔧 [IMPORT DEBUG] Attempting to use key from ${availableKey.user_id} for current user`);
-                if (apiKeyService.isEnabled) {
-                  credentials = await apiKeyService.getDecryptedApiKey(availableKey.user_id, broker);
-                  if (credentials) {
-                    console.log(`✅ [IMPORT DEBUG] Successfully retrieved development key for real user`);
-                  }
-                }
-              }
-            }
           }
         } catch (debugError) {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
@@ -1553,54 +1525,8 @@ router.post('/import/:broker', async (req, res) => {
                     } catch (base64Error) {
                       console.log(`❌ [IMPORT FALLBACK] Base64 decode failed:`, base64Error.message);
                       
-                      // For development mode, allow using stored keys from any dev user
-                      if (userId.startsWith('dev-user-')) {
-                        console.log(`🔧 [IMPORT FALLBACK] Development mode - checking for any dev user with ${broker} keys`);
-                        try {
-                          const anyDevKeyResult = await query(`
-                            SELECT 
-                              id, provider, encrypted_api_key, encrypted_api_secret, user_salt, is_sandbox
-                            FROM user_api_keys 
-                            WHERE provider = $1 AND user_id LIKE 'dev-user-%' AND is_active = true
-                            ORDER BY created_at DESC LIMIT 1
-                          `, [broker]);
-                          
-                          if (anyDevKeyResult.rows.length > 0) {
-                            const devKey = anyDevKeyResult.rows[0];
-                            console.log(`🔧 [IMPORT FALLBACK] Found dev key from user, attempting decode...`);
-                            
-                            try {
-                              const devDecoded = Buffer.from(devKey.encrypted_api_key, 'base64').toString('utf8');
-                              const devParts = devDecoded.split(':');
-                              if (devParts.length === 2 && devParts[0] === devKey.user_salt) {
-                                apiKey = devParts[1];
-                                console.log(`✅ [IMPORT FALLBACK] Successfully using dev API key`);
-                                
-                                // Update the keyData to reflect the dev user's data
-                                keyData.id = devKey.id;
-                                keyData.is_sandbox = devKey.is_sandbox;
-                                
-                                if (devKey.encrypted_api_secret) {
-                                  try {
-                                    const devSecretDecoded = Buffer.from(devKey.encrypted_api_secret, 'base64').toString('utf8');
-                                    const devSecretParts = devSecretDecoded.split(':');
-                                    if (devSecretParts.length === 2 && devSecretParts[0] === devKey.user_salt) {
-                                      apiSecret = devSecretParts[1];
-                                      console.log(`✅ [IMPORT FALLBACK] Successfully using dev API secret`);
-                                    }
-                                  } catch (devSecretError) {
-                                    console.log(`⚠️ [IMPORT FALLBACK] Could not decode dev API secret`);
-                                  }
-                                }
-                              }
-                            } catch (devDecodeError) {
-                              console.log(`❌ [IMPORT FALLBACK] Failed to decode dev user key:`, devDecodeError.message);
-                            }
-                          }
-                        } catch (devQueryError) {
-                          console.log(`❌ [IMPORT FALLBACK] Failed to query for dev user keys:`, devQueryError.message);
-                        }
-                      }
+                      // API key decryption failed - no fallback allowed for data integrity
+                      console.log(`❌ [IMPORT] API key decryption failed for user ${userId}, provider ${broker}`);
                     }
                     
                     if (apiKey) {
