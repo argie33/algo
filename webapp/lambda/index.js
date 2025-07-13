@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-07-12 - Fixed CORS X-Session-ID header deployment - Deploy v4
+// Updated: 2025-07-13 - EMERGENCY CORS FIX - Multiple layers + diagnostics - Deploy v5
 
 const serverless = require('serverless-http');
 const express = require('express');
@@ -54,6 +54,30 @@ const app = express();
 
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
+
+// EMERGENCY CORS FIX - Set headers immediately on ALL requests
+app.use((req, res, next) => {
+  console.log(`🆘 EMERGENCY CORS: ${req.method} ${req.path} from origin: ${req.headers.origin}`);
+  
+  // Set CORS headers immediately and aggressively
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
+  
+  console.log(`🆘 EMERGENCY CORS HEADERS SET for ${req.method} ${req.path}`);
+  
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === 'OPTIONS') {
+    console.log(`🆘 EMERGENCY OPTIONS preflight handled for ${req.path}`);
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 // Enhanced security middleware for enterprise production deployment
 app.use(helmet({
@@ -285,22 +309,44 @@ app.use((req, res, next) => {
 
 // Emergency health check endpoint - responds immediately without any processing
 app.get('/health', (req, res) => {
+  console.log(`🏥 HEALTH CHECK from origin: ${req.headers.origin}`);
+  
+  // Force CORS headers again for safety
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+  
+  console.log(`🏥 HEALTH CHECK CORS headers set, sending response`);
+  
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    version: '1.0.0'
+    version: '1.0.0',
+    cors_test: 'Headers should be present',
+    origin: req.headers.origin || 'no-origin'
   });
 });
 
 app.get('/api/health', (req, res) => {
+  console.log(`🏥 API HEALTH CHECK from origin: ${req.headers.origin}`);
+  
+  // Force CORS headers again for safety
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+  
+  console.log(`🏥 API HEALTH CHECK CORS headers set, sending response`);
+  
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    version: '1.0.0'
+    version: '1.0.0',
+    cors_test: 'Headers should be present',
+    origin: req.headers.origin || 'no-origin'
   });
 });
 
@@ -312,6 +358,65 @@ app.get('/api', (req, res) => {
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     version: '1.0.0'
+  });
+});
+
+// CORS diagnostic endpoint
+app.get('/cors-test', (req, res) => {
+  console.log(`🔬 CORS TEST from origin: ${req.headers.origin}`);
+  console.log(`🔬 Headers:`, req.headers);
+  
+  // Set every possible CORS header
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
+  
+  console.log(`🔬 CORS TEST headers set, response headers:`, res.getHeaders());
+  
+  res.json({
+    message: 'CORS test endpoint',
+    origin: req.headers.origin || 'no-origin',
+    method: req.method,
+    path: req.path,
+    headers_received: req.headers,
+    cors_headers_set: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/cors-test', (req, res) => {
+  console.log(`🔬 API CORS TEST from origin: ${req.headers.origin}`);
+  console.log(`🔬 Headers:`, req.headers);
+  
+  // Set every possible CORS header
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
+  
+  console.log(`🔬 API CORS TEST headers set, response headers:`, res.getHeaders());
+  
+  res.json({
+    message: 'API CORS test endpoint',
+    origin: req.headers.origin || 'no-origin',
+    method: req.method,
+    path: req.path,
+    headers_received: req.headers,
+    cors_headers_set: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma'
+    },
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -599,6 +704,7 @@ const serverlessHandler = serverless(app, {
 // Wrap the serverless handler to ensure CORS headers on ALL responses
 module.exports.handler = async (event, context) => {
   console.log(`🔍 Lambda handler entry: ${event.httpMethod} ${event.path || event.rawPath}`);
+  console.log(`🔍 Event details:`, JSON.stringify(event, null, 2));
   console.log(`🔍 Lambda context:`, {
     requestId: context.awsRequestId,
     remainingTime: context.getRemainingTimeInMillis(),
