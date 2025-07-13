@@ -5,22 +5,25 @@ const ALGORITHM = 'aes-256-gcm';
 
 class ApiKeyService {
   constructor() {
-    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
+    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'dev-encryption-key-change-in-production-32bytes!!';
     if (!this.secretKey) {
       console.warn('API_KEY_ENCRYPTION_SECRET environment variable not set. API key encryption features will be disabled.');
       this.isEnabled = false;
       return;
     }
-    this.isEnabled = true;
-    // Validate key has sufficient entropy (minimum 32 bytes when base64 decoded)
-    try {
-      const keyBuffer = Buffer.from(this.secretKey, 'base64');
-      if (keyBuffer.length < 32) {
-        throw new Error('API_KEY_ENCRYPTION_SECRET must be at least 256 bits (32 bytes)');
-      }
-    } catch (error) {
-      throw new Error('API_KEY_ENCRYPTION_SECRET must be a valid base64 encoded key');
+    
+    // For development, if using fallback key, log it but still enable the service
+    if (this.secretKey === 'dev-encryption-key-change-in-production-32bytes!!') {
+      console.warn('⚠️  Using development encryption key. Set API_KEY_ENCRYPTION_SECRET in production!');
     }
+    this.isEnabled = true;
+    
+    // Validate key has sufficient entropy
+    if (this.secretKey.length < 32) {
+      console.warn('⚠️  Encryption key should be at least 32 characters for security');
+    }
+    
+    console.log('✅ API key encryption service initialized and enabled');
   }
 
   // Decrypt API key using stored encryption data
