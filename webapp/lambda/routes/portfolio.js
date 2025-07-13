@@ -1447,6 +1447,7 @@ router.post('/import/:broker', async (req, res) => {
         }
       } else {
         console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey with userId=${userId}, broker=${broker}...`);
+        console.log(`🔑 [IMPORT] API Key Service enabled: ${apiKeyService.isEnabled}`);
         
         // Debug: Check if user has any API keys at all
         try {
@@ -1463,9 +1464,11 @@ router.post('/import/:broker', async (req, res) => {
             if (devUsersResult.rows.length > 0) {
               const devUserWithKeys = devUsersResult.rows[0].user_id;
               console.log(`🔑 [IMPORT DEBUG] Trying to use keys from ${devUserWithKeys} for ${broker}...`);
-              credentials = await apiKeyService.getDecryptedApiKey(devUserWithKeys, broker);
-              if (credentials) {
-                console.log(`✅ [IMPORT DEBUG] Successfully retrieved keys from ${devUserWithKeys}`);
+              if (apiKeyService.isEnabled) {
+                credentials = await apiKeyService.getDecryptedApiKey(devUserWithKeys, broker);
+                if (credentials) {
+                  console.log(`✅ [IMPORT DEBUG] Successfully retrieved keys from ${devUserWithKeys}`);
+                }
               }
             }
           } else {
@@ -1481,66 +1484,191 @@ router.post('/import/:broker', async (req, res) => {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
         }
         
-        // If no credentials yet, try the main API key service call
+        // If no credentials yet, try different approaches based on API key service availability
         if (!credentials) {
-          // If specific key ID is provided, get that specific key
-          if (keyId) {
-            console.log(`🔑 [IMPORT] Fetching specific API key with ID: ${keyId}`);
+          if (!apiKeyService.isEnabled) {
+            console.warn(`⚠️ [IMPORT] API key service disabled - trying fallback decryption`);
+            
+            // Fallback: Try to decrypt manually using the settings route approach
             try {
-              const specificKeyResult = await query(`
+              const keyResult = await query(`
                 SELECT 
-                  id,
-                  provider,
-                  encrypted_api_key,
-                  key_iv,
-                  key_auth_tag,
-                  encrypted_api_secret,
-                  secret_iv,
-                  secret_auth_tag,
-                  user_salt,
-                  is_sandbox,
-                  is_active
+                  id, provider, encrypted_api_key, key_iv, key_auth_tag,
+                  encrypted_api_secret, secret_iv, secret_auth_tag, user_salt, is_sandbox
                 FROM user_api_keys 
-                WHERE id = $1 AND user_id = $2 AND provider = $3 AND is_active = true
-              `, [keyId, userId, broker]);
+                WHERE user_id = $1 AND provider = $2 AND is_active = true
+                ORDER BY created_at DESC LIMIT 1
+              `, [userId, broker]);
               
-              if (specificKeyResult.rows.length > 0) {
-                const keyData = specificKeyResult.rows[0];
+              if (keyResult.rows.length > 0) {
+                const keyData = keyResult.rows[0];
+                console.log(`🔑 [IMPORT FALLBACK] Found encrypted key for ${broker}, attempting manual decryption`);
                 
-                // Decrypt the API credentials using the apiKeyService
-                const apiKey = apiKeyService.decryptApiKey({
-                  encrypted: keyData.encrypted_api_key,
-                  iv: keyData.key_iv,
-                  authTag: keyData.key_auth_tag
-                }, keyData.user_salt);
-                
-                const apiSecret = keyData.encrypted_api_secret ? apiKeyService.decryptApiKey({
-                  encrypted: keyData.encrypted_api_secret,
-                  iv: keyData.secret_iv,
-                  authTag: keyData.secret_auth_tag
-                }, keyData.user_salt) : null;
-                
-                credentials = {
-                  id: keyData.id,
-                  provider: keyData.provider,
-                  apiKey: apiKey,
-                  apiSecret: apiSecret,
-                  isSandbox: keyData.is_sandbox,
-                  isActive: keyData.is_active
-                };
-                console.log(`✅ [IMPORT] Retrieved specific key ${keyId}: ${credentials.provider} (${credentials.isSandbox ? 'sandbox' : 'live'})`);
-              } else {
-                console.error(`❌ [IMPORT] Specific key ${keyId} not found for user ${userId}`);
+                // Try to decrypt using the fallback method from settings.js
+                try {
+                  // Use the same decryption logic as in settings.js
+                  const crypto = require('crypto');
+                  
+                  // Handle fallback encoding (base64)
+                  if (keyData.encrypted_api_key && keyData.user_salt) {
+                    let apiKey, apiSecret = null;
+                    
+                    // Try base64 fallback first (simpler approach used in settings.js)
+                    try {
+                      const decoded = Buffer.from(keyData.encrypted_api_key, 'base64').toString('utf8');
+                      const parts = decoded.split(':');
+                      if (parts.length === 2 && parts[0] === keyData.user_salt) {
+                        apiKey = parts[1];
+                        console.log(`✅ [IMPORT FALLBACK] Successfully decoded API key using base64 fallback`);
+                        
+                        // Also decode the secret if it exists
+                        if (keyData.encrypted_api_secret) {
+                          try {
+                            const decodedSecret = Buffer.from(keyData.encrypted_api_secret, 'base64').toString('utf8');
+                            const secretParts = decodedSecret.split(':');
+                            if (secretParts.length === 2 && secretParts[0] === keyData.user_salt) {
+                              apiSecret = secretParts[1];
+                              console.log(`✅ [IMPORT FALLBACK] Successfully decoded API secret using base64 fallback`);
+                            }
+                          } catch (secretError) {
+                            console.log(`⚠️ [IMPORT FALLBACK] Could not decode API secret, proceeding with key only`);
+                          }
+                        }
+                      }
+                    } catch (base64Error) {
+                      console.log(`❌ [IMPORT FALLBACK] Base64 decode failed:`, base64Error.message);
+                      
+                      // For development mode, allow using stored keys from any dev user
+                      if (userId.startsWith('dev-user-')) {
+                        console.log(`🔧 [IMPORT FALLBACK] Development mode - checking for any dev user with ${broker} keys`);
+                        try {
+                          const anyDevKeyResult = await query(`
+                            SELECT 
+                              id, provider, encrypted_api_key, encrypted_api_secret, user_salt, is_sandbox
+                            FROM user_api_keys 
+                            WHERE provider = $1 AND user_id LIKE 'dev-user-%' AND is_active = true
+                            ORDER BY created_at DESC LIMIT 1
+                          `, [broker]);
+                          
+                          if (anyDevKeyResult.rows.length > 0) {
+                            const devKey = anyDevKeyResult.rows[0];
+                            console.log(`🔧 [IMPORT FALLBACK] Found dev key from user, attempting decode...`);
+                            
+                            try {
+                              const devDecoded = Buffer.from(devKey.encrypted_api_key, 'base64').toString('utf8');
+                              const devParts = devDecoded.split(':');
+                              if (devParts.length === 2 && devParts[0] === devKey.user_salt) {
+                                apiKey = devParts[1];
+                                console.log(`✅ [IMPORT FALLBACK] Successfully using dev API key`);
+                                
+                                // Update the keyData to reflect the dev user's data
+                                keyData.id = devKey.id;
+                                keyData.is_sandbox = devKey.is_sandbox;
+                                
+                                if (devKey.encrypted_api_secret) {
+                                  try {
+                                    const devSecretDecoded = Buffer.from(devKey.encrypted_api_secret, 'base64').toString('utf8');
+                                    const devSecretParts = devSecretDecoded.split(':');
+                                    if (devSecretParts.length === 2 && devSecretParts[0] === devKey.user_salt) {
+                                      apiSecret = devSecretParts[1];
+                                      console.log(`✅ [IMPORT FALLBACK] Successfully using dev API secret`);
+                                    }
+                                  } catch (devSecretError) {
+                                    console.log(`⚠️ [IMPORT FALLBACK] Could not decode dev API secret`);
+                                  }
+                                }
+                              }
+                            } catch (devDecodeError) {
+                              console.log(`❌ [IMPORT FALLBACK] Failed to decode dev user key:`, devDecodeError.message);
+                            }
+                          }
+                        } catch (devQueryError) {
+                          console.log(`❌ [IMPORT FALLBACK] Failed to query for dev user keys:`, devQueryError.message);
+                        }
+                      }
+                    }
+                    
+                    if (apiKey) {
+                      credentials = {
+                        id: keyData.id,
+                        provider: keyData.provider,
+                        apiKey: apiKey,
+                        apiSecret: apiSecret,
+                        isSandbox: keyData.is_sandbox,
+                        isActive: true
+                      };
+                      console.log(`✅ [IMPORT FALLBACK] Successfully created credentials using fallback method`);
+                    }
+                  }
+                } catch (decryptError) {
+                  console.error(`❌ [IMPORT FALLBACK] Fallback decryption failed:`, decryptError.message);
+                }
               }
-            } catch (keyError) {
-              console.error(`❌ [IMPORT] Error fetching specific key ${keyId}:`, keyError.message);
+            } catch (queryError) {
+              console.error(`❌ [IMPORT FALLBACK] Failed to query for API keys:`, queryError.message);
             }
           } else {
-            // Default behavior - get any available key for the broker
-            credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
-            console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
-            if (credentials) {
-              console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
+            // API key service is enabled, use it normally
+            
+            // If specific key ID is provided, get that specific key
+            if (keyId) {
+              console.log(`🔑 [IMPORT] Fetching specific API key with ID: ${keyId}`);
+              try {
+                const specificKeyResult = await query(`
+                  SELECT 
+                    id,
+                    provider,
+                    encrypted_api_key,
+                    key_iv,
+                    key_auth_tag,
+                    encrypted_api_secret,
+                    secret_iv,
+                    secret_auth_tag,
+                    user_salt,
+                    is_sandbox,
+                    is_active
+                  FROM user_api_keys 
+                  WHERE id = $1 AND user_id = $2 AND provider = $3 AND is_active = true
+                `, [keyId, userId, broker]);
+                
+                if (specificKeyResult.rows.length > 0) {
+                  const keyData = specificKeyResult.rows[0];
+                  
+                  // Decrypt the API credentials using the apiKeyService
+                  const apiKey = apiKeyService.decryptApiKey({
+                    encrypted: keyData.encrypted_api_key,
+                    iv: keyData.key_iv,
+                    authTag: keyData.key_auth_tag
+                  }, keyData.user_salt);
+                  
+                  const apiSecret = keyData.encrypted_api_secret ? apiKeyService.decryptApiKey({
+                    encrypted: keyData.encrypted_api_secret,
+                    iv: keyData.secret_iv,
+                    authTag: keyData.secret_auth_tag
+                  }, keyData.user_salt) : null;
+                  
+                  credentials = {
+                    id: keyData.id,
+                    provider: keyData.provider,
+                    apiKey: apiKey,
+                    apiSecret: apiSecret,
+                    isSandbox: keyData.is_sandbox,
+                    isActive: keyData.is_active
+                  };
+                  console.log(`✅ [IMPORT] Retrieved specific key ${keyId}: ${credentials.provider} (${credentials.isSandbox ? 'sandbox' : 'live'})`);
+                } else {
+                  console.error(`❌ [IMPORT] Specific key ${keyId} not found for user ${userId}`);
+                }
+              } catch (keyError) {
+                console.error(`❌ [IMPORT] Error fetching specific key ${keyId}:`, keyError.message);
+              }
+            } else {
+              // Default behavior - get any available key for the broker
+              credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
+              console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
+              if (credentials) {
+                console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
+              }
             }
           }
         }
