@@ -67,7 +67,6 @@ function ServiceHealth() {
   const [testingInProgress, setTestingInProgress] = useState(false);
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [creatingHealthTable, setCreatingHealthTable] = useState(false);
   const [comprehensiveMode, setComprehensiveMode] = useState(true); // Default to comprehensive view
 
   // Memoize diagnosticInfo to prevent infinite re-renders
@@ -610,27 +609,7 @@ function ServiceHealth() {
     }
   };
   
-  // Create health_status table if it doesn't exist
-  const createHealthTable = async () => {
-    try {
-      setCreatingHealthTable(true);
-      console.log('🛠️ Creating health_status table...');
-      
-      const response = await api.post('/health/create-health-table', {}, {
-        timeout: 30000
-      });
-      
-      console.log('✅ Health table created:', response.data.message);
-      
-      // After creating table, update health status
-      await refreshHealthStatus();
-      
-    } catch (error) {
-      console.error('❌ Failed to create health table:', error);
-    } finally {
-      setCreatingHealthTable(false);
-    }
-  };
+  // Note: health_status table creation is handled by db-init, not runtime
 
   // Gather environment information
   useEffect(() => {
@@ -1042,18 +1021,9 @@ function ServiceHealth() {
                 <Button 
                   variant="outlined" 
                   size="small" 
-                  startIcon={<Storage />}
-                  onClick={createHealthTable}
-                  disabled={creatingHealthTable || refreshing}
-                >
-                  {creatingHealthTable ? 'Creating...' : 'Create Health Table'}
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  size="small" 
                   startIcon={<Refresh />}
                   onClick={refreshHealthStatus}
-                  disabled={refreshing || creatingHealthTable}
+                  disabled={refreshing}
                 >
                   {refreshing ? 'Updating...' : 'Update All Tables'}
                 </Button>

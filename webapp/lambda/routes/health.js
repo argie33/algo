@@ -600,51 +600,6 @@ async function getComprehensiveDbHealth() {
 }
 
 // Create health_status table if it doesn't exist (for storing health data)
-router.post('/create-health-table', async (req, res) => {
-  try {
-    console.log('🛠️ Creating health_status table if it does not exist...');
-    
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS health_status (
-        table_name VARCHAR(255) PRIMARY KEY,
-        record_count BIGINT DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'unknown',
-        last_updated TIMESTAMP WITH TIME ZONE,
-        last_checked TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        critical_table BOOLEAN DEFAULT false,
-        table_category VARCHAR(100),
-        error_message TEXT,
-        missing_data_count BIGINT DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_health_status_category ON health_status(table_category);
-      CREATE INDEX IF NOT EXISTS idx_health_status_status ON health_status(status);
-      CREATE INDEX IF NOT EXISTS idx_health_status_critical ON health_status(critical_table);
-    `;
-    
-    await query(createTableSQL, [], 10000);
-    
-    console.log('✅ health_status table created successfully');
-    
-    res.json({
-      status: 'success',
-      message: 'health_status table created successfully',
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to create health_status table:', error);
-    res.status(500).json({
-      status: 'error',
-      error: 'Failed to create health_status table',
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// REMOVED: Other table creation endpoints - tables should be created by loader scripts or db-init
+// REMOVED: Table creation endpoints - tables should be created by db-init infrastructure
 
 module.exports = router;
