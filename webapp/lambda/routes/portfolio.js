@@ -295,7 +295,7 @@ router.get('/holdings', async (req, res) => {
         // Check if database is available (don't fail on health check)
         if (!req.dbError) {
           
-          // Query real portfolio holdings with company profile data
+          // Query real portfolio holdings with symbols data
           const holdingsQuery = `
             SELECT 
               ph.symbol,
@@ -307,12 +307,12 @@ router.get('/holdings', async (req, res) => {
               ph.unrealized_plpc as gain_loss_percent,
               ph.side,
               ph.updated_at,
-              COALESCE(cp.name, ph.symbol || ' Inc.') as company,
-              COALESCE(cp.sector, 'Technology') as sector,
-              COALESCE(cp.exchange, 'NASDAQ') as exchange,
-              cp.industry
+              COALESCE(s.name, ph.symbol || ' Inc.') as company,
+              COALESCE(s.sector, 'Technology') as sector,
+              'NASDAQ' as exchange,
+              COALESCE(s.industry, 'Technology') as industry
             FROM portfolio_holdings ph
-            LEFT JOIN company_profile cp ON ph.symbol = cp.ticker  
+            LEFT JOIN symbols s ON ph.symbol = s.symbol  
             WHERE ph.user_id = $1 AND ph.quantity > 0
             ORDER BY ph.market_value DESC
           `;

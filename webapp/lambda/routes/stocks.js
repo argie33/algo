@@ -38,10 +38,10 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    // Add sector filter (on cp.sector)
+    // Add sector filter (on s.sector)
     if (sector && sector.trim() !== '') {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND s.sector = $${paramCount}`;
       params.push(sector);
     }
 
@@ -81,28 +81,28 @@ router.get('/', async (req, res) => {
         ss.secondary_symbol,
         ss.test_issue,
         
-        -- Company profile data from loadinfo
-        cp.short_name,
-        cp.long_name,
-        cp.display_name,
-        cp.quote_type,
-        cp.sector,
-        cp.sector_disp,
-        cp.industry,
-        cp.industry_disp,
-        cp.business_summary,
-        cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
-        cp.country,
-        cp.phone_number,
-        cp.currency,
-        cp.market,
-        cp.full_exchange_name,
+        -- Symbols data from loadinfo
+        s.short_name,
+        s.long_name,
+        s.display_name,
+        s.quote_type,
+        s.sector,
+        s.sector_disp,
+        s.industry,
+        s.industry_disp,
+        s.business_summary,
+        s.employee_count,
+        s.website_url,
+        s.ir_website_url,
+        s.address1,
+        s.city,
+        s.state,
+        s.postal_code,
+        s.country,
+        s.phone_number,
+        s.currency,
+        s.market,
+        s.full_exchange_name,
         
         -- Market data from loadinfo
         md.current_price,
@@ -182,7 +182,7 @@ router.get('/', async (req, res) => {
         COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
@@ -486,7 +486,7 @@ router.get('/', async (req, res) => {
           'overall_risk'
         ],
         dataSources: [
-          'stock_symbols', 'company_profile', 'market_data', 'key_metrics',
+          'stock_symbols', 'symbols', 'market_data', 'key_metrics',
           'analyst_estimates', 'governance_scores', 'leadership_team'
         ],
         comprehensiveData: {
@@ -1005,10 +1005,10 @@ router.get('/filters/sectors', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    // Add sector filter (on cp.sector)
+    // Add sector filter (on s.sector)
     if (sector && sector.trim() !== '') {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND s.sector = $${paramCount}`;
       params.push(sector);
     }
 
@@ -1048,28 +1048,28 @@ router.get('/filters/sectors', async (req, res) => {
         ss.secondary_symbol,
         ss.test_issue,
         
-        -- Company profile data from loadinfo
-        cp.short_name,
-        cp.long_name,
-        cp.display_name,
-        cp.quote_type,
-        cp.sector,
-        cp.sector_disp,
-        cp.industry,
-        cp.industry_disp,
-        cp.business_summary,
-        cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
-        cp.country,
-        cp.phone_number,
-        cp.currency,
-        cp.market,
-        cp.full_exchange_name,
+        -- Symbols data from loadinfo
+        s.short_name,
+        s.long_name,
+        s.display_name,
+        s.quote_type,
+        s.sector,
+        s.sector_disp,
+        s.industry,
+        s.industry_disp,
+        s.business_summary,
+        s.employee_count,
+        s.website_url,
+        s.ir_website_url,
+        s.address1,
+        s.city,
+        s.state,
+        s.postal_code,
+        s.country,
+        s.phone_number,
+        s.currency,
+        s.market,
+        s.full_exchange_name,
         
         -- Market data from loadinfo
         md.current_price,
@@ -1149,7 +1149,7 @@ router.get('/filters/sectors', async (req, res) => {
         COALESCE(lt_count.executive_count, 0) as leadership_count
         
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN analyst_estimates ae ON ss.symbol = ae.ticker
@@ -1170,7 +1170,7 @@ router.get('/filters/sectors', async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN symbols s ON ss.symbol = s.symbol
       ${whereClause}
     `;
 
@@ -1435,7 +1435,7 @@ router.get('/filters/sectors', async (req, res) => {
       res.status(503).json({ 
         success: false,
         error: 'Database tables not ready',
-        message: 'Required tables (stock_symbols, company_profile) have not been created yet. Please run the data loading workflows.',
+        message: 'Required tables (stock_symbols, symbols) have not been created yet. Please run the data loading workflows.',
         details: error.message,
         data: [], 
         errorCode: error.code,
@@ -1625,14 +1625,14 @@ router.get('/sectors', async (req, res) => {
       // Fallback to basic stock_symbols table
       sectorsQuery = `
         SELECT 
-          COALESCE(cp.sector, 'Unknown') as sector, 
+          COALESCE(s.sector, 'Unknown') as sector, 
           COUNT(*) as count,
-          AVG(cp.market_cap) as avg_market_cap,
-          AVG(cp.trailing_pe) as avg_pe_ratio
+          AVG(s.market_cap) as avg_market_cap,
+          AVG(s.trailing_pe) as avg_pe_ratio
         FROM stock_symbols ss
-        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+        LEFT JOIN symbols s ON ss.symbol = s.symbol
         WHERE ss.is_active = TRUE 
-        GROUP BY cp.sector
+        GROUP BY s.sector
         HAVING COUNT(*) > 0
         ORDER BY count DESC
       `;
@@ -1719,16 +1719,16 @@ router.get('/screen/stats', async (req, res) => {
     } catch (enhancedError) {
       console.log('Enhanced stats query failed, trying basic query:', enhancedError.message);
       
-      // Try basic query with stock_symbols and company_profile
+      // Try basic query with stock_symbols and symbols
       statsQuery = `
         SELECT 
           COUNT(*) as total_stocks,
-          MIN(cp.market_cap) as min_market_cap,
-          MAX(cp.market_cap) as max_market_cap,
-          MIN(cp.trailing_pe) as min_pe_ratio,
-          MAX(cp.trailing_pe) as max_pe_ratio,
-          MIN(cp.price_to_book) as min_pb_ratio,
-          MAX(cp.price_to_book) as max_pb_ratio,
+          MIN(s.market_cap) as min_market_cap,
+          MAX(s.market_cap) as max_market_cap,
+          MIN(s.trailing_pe) as min_pe_ratio,
+          MAX(s.trailing_pe) as max_pe_ratio,
+          MIN(s.price_to_book) as min_pb_ratio,
+          MAX(s.price_to_book) as max_pb_ratio,
           -50 as min_roe,
           100 as max_roe,
           -50 as min_revenue_growth,
@@ -1736,7 +1736,7 @@ router.get('/screen/stats', async (req, res) => {
           1 as min_analyst_rating,
           5 as max_analyst_rating
         FROM stock_symbols ss
-        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
+        LEFT JOIN symbols s ON ss.symbol = s.symbol
         WHERE ss.is_active = TRUE
       `;
       
