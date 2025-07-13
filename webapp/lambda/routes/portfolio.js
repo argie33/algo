@@ -47,79 +47,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Debug endpoint for API key troubleshooting (before auth middleware)
-router.get('/debug/api-keys', async (req, res) => {
-  try {
-    console.log('🔍 [DEBUG] API keys debug endpoint called');
-    console.log('🔍 [DEBUG] Headers:', Object.keys(req.headers));
-    console.log('🔍 [DEBUG] Authorization header present:', !!req.headers.authorization);
-    
-    // Try to extract user ID from header manually
-    let userId = 'unknown';
-    if (req.headers.authorization) {
-      try {
-        const token = req.headers.authorization.replace('Bearer ', '');
-        // In development, the token might be 'demo-token' or contain user info
-        if (token === 'demo-token') {
-          userId = 'dev-user-55f38a86';
-        } else {
-          // Try to decode if it's a JWT (basic decode without verification for debug)
-          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-          userId = payload.sub || payload.userId || payload.user_id || 'unknown';
-        }
-      } catch (e) {
-        console.log('🔍 [DEBUG] Could not decode token:', e.message);
-      }
-    }
-    
-    console.log(`🔍 [DEBUG] Extracted user ID: ${userId}`);
-    
-    // Check API keys in database
-    const allKeysResult = await query(`
-      SELECT user_id, provider, is_active, is_sandbox, created_at, last_used
-      FROM user_api_keys 
-      ORDER BY created_at DESC 
-      LIMIT 20
-    `);
-    
-    const userKeysResult = await query(`
-      SELECT provider, is_active, is_sandbox, created_at, last_used
-      FROM user_api_keys 
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-    `, [userId]);
-    
-    res.json({
-      success: true,
-      debug: {
-        extractedUserId: userId,
-        authHeaderPresent: !!req.headers.authorization,
-        userApiKeys: userKeysResult.rows,
-        userApiKeyCount: userKeysResult.rows.length,
-        allRecentKeys: allKeysResult.rows.map(k => ({ 
-          user_id: k.user_id, 
-          provider: k.provider, 
-          active: k.is_active,
-          sandbox: k.is_sandbox,
-          created: k.created_at
-        })),
-        apiKeyServiceEnabled: apiKeyService.isEnabled,
-        hasEncryptionSecret: !!process.env.API_KEY_ENCRYPTION_SECRET
-      }
-    });
-    
-  } catch (error) {
-    console.error('🔍 [DEBUG] Error in debug endpoint:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      debug: {
-        apiKeyServiceEnabled: apiKeyService.isEnabled,
-        hasEncryptionSecret: !!process.env.API_KEY_ENCRYPTION_SECRET
-      }
-    });
-  }
-});
+// Debug endpoint removed - require proper authentication only
 
 // Apply authentication middleware to all other portfolio routes
 router.use(authenticateToken);
@@ -976,38 +904,14 @@ router.get('/analytics', async (req, res) => {
       timeframe: req.query.timeframe
     });
 
-    // Return mock data as final fallback
-    console.log('📋 All data sources failed, returning mock analytics...');
-    res.json({
-      success: true,
-      data: {
-        performance: {
-          totalReturn: 15.3,
-          totalReturnPercent: 15.3,
-          annualizedReturn: 12.1,
-          volatility: 18.7,
-          sharpeRatio: 1.2,
-          maxDrawdown: -8.4,
-          winRate: 65.2,
-          numTrades: 0,
-          avgWin: 0,
-          avgLoss: 0,
-          profitFactor: 0
-        },
-        timeframe: timeframe,
-        dataPoints: [],
-        benchmarkComparison: {
-          portfolioReturn: 15.3,
-          spyReturn: 12.8,
-          alpha: 2.5,
-          beta: 1.1,
-          rSquared: 0.85
-        }
-      },
+    // No fallback data - return proper error
+    console.error('❌ All data sources failed, returning error');
+    return res.status(404).json({
+      success: false,
+      error: 'Portfolio data not available',
+      message: 'No portfolio data found. Please import your portfolio data from your broker first.',
       timestamp: new Date().toISOString(),
-      dataSource: 'mock',
-      error: 'Portfolio data temporarily unavailable',
-      message: 'Displaying sample analytics. Please ensure your broker API is configured or import portfolio data.'
+      dataSource: 'none'
     });
   }
 });
@@ -1421,31 +1325,22 @@ router.post('/import/:broker', async (req, res) => {
     console.log(`🔑 [IMPORT] User ID: ${userId}, Broker: ${broker}`);
     let credentials;
     try {
-      // First check if API key service is enabled
+      // Check if API key service is enabled
       console.log(`🔑 [IMPORT] API key service enabled: ${apiKeyService.isEnabled}`);
       
       if (!apiKeyService.isEnabled) {
-        console.warn(`⚠️ [IMPORT] API key service disabled - using development fallback`);
-        // In development, use environment variables as fallback
-        const devApiKey = process.env[`${broker.toUpperCase()}_API_KEY`];
-        const devApiSecret = process.env[`${broker.toUpperCase()}_API_SECRET`];
-        
-        console.log(`🔑 [IMPORT] Dev API key exists: ${!!devApiKey}, Dev secret exists: ${!!devApiSecret}`);
-        
-        if (devApiKey && devApiSecret) {
-          credentials = {
-            id: 'dev-key-' + broker,
-            provider: broker,
-            apiKey: devApiKey,
-            apiSecret: devApiSecret,
-            isSandbox: true, // Default to sandbox for dev keys unless explicitly set
-            isActive: true
-          };
-          console.log(`✅ [IMPORT] Using development API keys for ${broker}`);
-        } else {
-          console.error(`❌ [IMPORT] No development API keys found for ${broker}`);
-        }
-      } else {
+        console.error(`❌ [IMPORT] API key service is disabled. Cannot retrieve API keys.`);
+        return res.status(500).json({
+          success: false,
+          error: 'API key service disabled',
+          message: 'API key encryption service is not properly configured. Please contact support.',
+          debug: {
+            userId: userId,
+            broker: broker,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
         console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey with userId=${userId}, broker=${broker}...`);
         console.log(`🔑 [IMPORT] API Key Service enabled: ${apiKeyService.isEnabled}`);
         
@@ -1471,91 +1366,14 @@ router.post('/import/:broker', async (req, res) => {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
         }
         
-        // If no credentials yet, try different approaches based on API key service availability
-        if (!credentials) {
-          if (!apiKeyService.isEnabled) {
-            console.warn(`⚠️ [IMPORT] API key service disabled - trying fallback decryption`);
-            
-            // Fallback: Try to decrypt manually using the settings route approach
-            try {
-              const keyResult = await query(`
-                SELECT 
-                  id, provider, encrypted_api_key, key_iv, key_auth_tag,
-                  encrypted_api_secret, secret_iv, secret_auth_tag, user_salt, is_sandbox
-                FROM user_api_keys 
-                WHERE user_id = $1 AND provider = $2 AND is_active = true
-                ORDER BY created_at DESC LIMIT 1
-              `, [userId, broker]);
-              
-              if (keyResult.rows.length > 0) {
-                const keyData = keyResult.rows[0];
-                console.log(`🔑 [IMPORT FALLBACK] Found encrypted key for ${broker}, attempting manual decryption`);
-                
-                // Try to decrypt using the fallback method from settings.js
-                try {
-                  // Use the same decryption logic as in settings.js
-                  const crypto = require('crypto');
-                  
-                  // Handle fallback encoding (base64)
-                  if (keyData.encrypted_api_key && keyData.user_salt) {
-                    let apiKey, apiSecret = null;
-                    
-                    // Try base64 fallback first (simpler approach used in settings.js)
-                    try {
-                      const decoded = Buffer.from(keyData.encrypted_api_key, 'base64').toString('utf8');
-                      const parts = decoded.split(':');
-                      if (parts.length === 2 && parts[0] === keyData.user_salt) {
-                        apiKey = parts[1];
-                        console.log(`✅ [IMPORT FALLBACK] Successfully decoded API key using base64 fallback`);
-                        
-                        // Also decode the secret if it exists
-                        if (keyData.encrypted_api_secret) {
-                          try {
-                            const decodedSecret = Buffer.from(keyData.encrypted_api_secret, 'base64').toString('utf8');
-                            const secretParts = decodedSecret.split(':');
-                            if (secretParts.length === 2 && secretParts[0] === keyData.user_salt) {
-                              apiSecret = secretParts[1];
-                              console.log(`✅ [IMPORT FALLBACK] Successfully decoded API secret using base64 fallback`);
-                            }
-                          } catch (secretError) {
-                            console.log(`⚠️ [IMPORT FALLBACK] Could not decode API secret, proceeding with key only`);
-                          }
-                        }
-                      }
-                    } catch (base64Error) {
-                      console.log(`❌ [IMPORT FALLBACK] Base64 decode failed:`, base64Error.message);
-                      
-                      // API key decryption failed - no fallback allowed for data integrity
-                      console.log(`❌ [IMPORT] API key decryption failed for user ${userId}, provider ${broker}`);
-                    }
-                    
-                    if (apiKey) {
-                      credentials = {
-                        id: keyData.id,
-                        provider: keyData.provider,
-                        apiKey: apiKey,
-                        apiSecret: apiSecret,
-                        isSandbox: keyData.is_sandbox,
-                        isActive: true
-                      };
-                      console.log(`✅ [IMPORT FALLBACK] Successfully created credentials using fallback method`);
-                    }
-                  }
-                } catch (decryptError) {
-                  console.error(`❌ [IMPORT FALLBACK] Fallback decryption failed:`, decryptError.message);
-                }
-              }
-            } catch (queryError) {
-              console.error(`❌ [IMPORT FALLBACK] Failed to query for API keys:`, queryError.message);
-            }
-          } else {
-            // API key service is enabled, use it normally
-            
-            // If specific key ID is provided, get that specific key
-            if (keyId) {
-              console.log(`🔑 [IMPORT] Fetching specific API key with ID: ${keyId}`);
-              try {
-                const specificKeyResult = await query(`
+        // Use API key service only - no fallbacks
+        console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey with userId=${userId}, broker=${broker}...`);
+        
+        // If specific key ID is provided, get that specific key
+        if (keyId) {
+          console.log(`🔑 [IMPORT] Fetching specific API key with ID: ${keyId}`);
+          try {
+            const specificKeyResult = await query(`
                   SELECT 
                     id,
                     provider,
@@ -1603,17 +1421,14 @@ router.post('/import/:broker', async (req, res) => {
               } catch (keyError) {
                 console.error(`❌ [IMPORT] Error fetching specific key ${keyId}:`, keyError.message);
               }
-            } else {
-              // Default behavior - get any available key for the broker
-              credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
-              console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
-              if (credentials) {
-                console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
-              }
-            }
+        } else {
+          // Default behavior - get any available key for the broker
+          credentials = await apiKeyService.getDecryptedApiKey(userId, broker);
+          console.log(`🔑 [IMPORT] API key service returned credentials:`, !!credentials);
+          if (credentials) {
+            console.log(`🔑 [IMPORT] Credentials provider: ${credentials.provider}, sandbox: ${credentials.isSandbox}`);
           }
         }
-      }
     } catch (error) {
       console.error(`❌ [IMPORT] Error fetching API key for ${broker}:`, error.message);
       console.error(`❌ [IMPORT] Error stack:`, error.stack);
@@ -2189,36 +2004,13 @@ router.get('/optimization/recommendations', async (req, res) => {
     try {
       OptimizationEngine = require('../services/optimizationEngine');
     } catch (moduleError) {
-      console.warn('OptimizationEngine service not available, returning mock recommendations');
+      console.error('❌ OptimizationEngine service not available:', moduleError.message);
       
-      // Return mock recommendations
-      const mockRecommendations = {
-        primaryRecommendation: {
-          type: 'info',
-          title: 'Optimization Service Unavailable',
-          message: 'Portfolio optimization service is currently being set up.',
-          impact: 'Mock recommendations shown based on general portfolio guidelines.'
-        },
-        riskScore: currentPortfolio ? Math.min(100, Math.max(10, 75 - (currentPortfolio.positions.length * 2))) : 65,
-        diversificationScore: currentPortfolio ? Math.min(100, (currentPortfolio.positions.length / 15) * 100) : 45,
-        expectedImprovement: {
-          sharpeRatio: 0.15,
-          volatilityReduction: 0.03,
-          returnIncrease: 0.02
-        },
-        topActions: [
-          { action: 'Add diversification across sectors', priority: 'High' },
-          { action: 'Consider international exposure', priority: 'Medium' },
-          { action: 'Review position sizing', priority: 'Medium' }
-        ],
-        timeToRebalance: 'Review Recommended'
-      };
-      
-      return res.json({
-        success: true,
-        data: mockRecommendations,
-        timestamp: new Date().toISOString(),
-        note: 'Optimization service temporarily unavailable - showing mock recommendations'
+      return res.status(503).json({
+        success: false,
+        error: 'Optimization service unavailable',
+        message: 'Portfolio optimization service is currently not available. Please try again later.',
+        timestamp: new Date().toISOString()
       });
     }
     

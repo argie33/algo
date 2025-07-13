@@ -120,27 +120,7 @@ const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
-    // Handle development tokens with user info
-    if (token && token.startsWith('dev-access-')) {
-      console.log('🛠️  Development token detected');
-      
-      // Format: dev-access-{username}-{timestamp}
-      const parts = token.split('-');
-      if (parts.length >= 3) {
-        const extractedUsername = parts[2];
-        const uniqueUserId = `dev-${extractedUsername}`;
-        const userEmail = `${extractedUsername}@example.com`;
-        
-        req.user = {
-          sub: uniqueUserId,
-          email: userEmail,
-          username: extractedUsername,
-          role: 'user'
-        };
-        console.log('👤 Development user authenticated:', req.user);
-        return next();
-      }
-    }
+    // No development tokens allowed - require real Cognito authentication only
 
     // Get verifier (will load config if needed)
     console.log('🔍 Getting JWT verifier...');
@@ -249,21 +229,7 @@ const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    // Handle development tokens
-    if (token && token.startsWith('dev-access-')) {
-      const parts = token.split('-');
-      if (parts.length >= 3) {
-        const extractedUsername = parts[2];
-        req.user = {
-          sub: `dev-${extractedUsername}`,
-          email: `${extractedUsername}@example.com`,
-          username: extractedUsername,
-          role: 'user',
-          groups: []
-        };
-        return next();
-      }
-    }
+    // No development tokens allowed - require real Cognito authentication only
 
     // Get verifier
     const jwtVerifier = await getVerifier();
