@@ -618,6 +618,60 @@ jobs:
               echo "✅ Image $REVENUE_EST_TAG already exists"
             fi
           fi
+          
+          # Check if feargreed image exists, build if missing
+          FEARGREED_TAG=$(grep '^FearGreedImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$FEARGREED_TAG" ]; then
+            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$FEARGREED_TAG" >/dev/null 2>&1; then
+              echo "🔨 Building feargreed image with tags: $FEARGREED_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadfeargreed \
+                -t "$URI:$FEARGREED_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed feargreed image"
+            else
+              echo "✅ Image $FEARGREED_TAG already exists"
+            fi
+          fi
+          
+          # Check if naaim image exists, build if missing
+          NAAIM_TAG=$(grep '^NaaimImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$NAAIM_TAG" ]; then
+            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$NAAIM_TAG" >/dev/null 2>&1; then
+              echo "🔨 Building naaim image with tags: $NAAIM_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadnaaim \
+                -t "$URI:$NAAIM_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed naaim image"
+            else
+              echo "✅ Image $NAAIM_TAG already exists"
+            fi
+          fi
+          
+          # Check if aaiidata image exists, build if missing
+          AAIIDATA_TAG=$(grep '^AaiiDataImageTag=' tags.env | cut -d= -f2- || echo "")
+          if [ -n "$AAIIDATA_TAG" ]; then
+            if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$AAIIDATA_TAG" >/dev/null 2>&1; then
+              echo "🔨 Building aaiidata image with tags: $AAIIDATA_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.loadaaiidata \
+                -t "$URI:$AAIIDATA_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed aaiidata image"
+            else
+              echo "✅ Image $AAIIDATA_TAG already exists"
+            fi
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
