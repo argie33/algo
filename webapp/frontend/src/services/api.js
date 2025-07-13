@@ -598,8 +598,13 @@ const retryRequest = async (error) => {
 api.interceptors.request.use(
   (config) => {
     // Remove any double /api/api with robust type checking
-    if (config.url && typeof config.url === 'string' && config.url.startsWith('/api/api')) {
-      config.url = config.url.replace('/api/api', '/api');
+    try {
+      if (config.url && typeof config.url === 'string' && config.url.includes('/api/api')) {
+        config.url = config.url.replace('/api/api', '/api');
+      }
+    } catch (error) {
+      console.warn('URL processing error:', error);
+      // Continue with original URL if processing fails
     }
     
     // Add authentication token if available
