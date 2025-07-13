@@ -162,18 +162,36 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Enhanced CORS middleware for API Gateway compatibility
+// Aggressive CORS middleware - set headers on EVERY response
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
   console.log(`🌐 CORS middleware - Method: ${req.method}, Origin: ${origin}, Path: ${req.path}`);
   
-  // Always set CORS headers for API Gateway compatibility
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+  // Set CORS headers immediately and aggressively
+  res.header('Access-Control-Allow-Origin', '*'); // Allow all origins
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
+  
+  // Override res.json and res.send to ensure CORS headers are always set
+  const originalJson = res.json;
+  res.json = function(body) {
+    this.header('Access-Control-Allow-Origin', '*');
+    this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+    this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+    return originalJson.call(this, body);
+  };
+  
+  const originalSend = res.send;
+  res.send = function(body) {
+    this.header('Access-Control-Allow-Origin', '*');
+    this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+    this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+    return originalSend.call(this, body);
+  };
   
   // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
@@ -208,12 +226,12 @@ app.use((req, res, next) => {
       console.error(`🕐 [${requestId}] GLOBAL TIMEOUT after ${duration}ms for ${req.method} ${req.path}`);
       console.error(`🕐 [${requestId}] Memory usage:`, process.memoryUsage());
       
-      // Ensure CORS headers are set
-      const origin = req.headers.origin;
-      res.header('Access-Control-Allow-Origin', origin || '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
+      // Ensure CORS headers are set aggressively
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
       res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
       
       // Send a diagnostic response
       res.status(500).json({
@@ -229,7 +247,7 @@ app.use((req, res, next) => {
         timestamp: new Date().toISOString()
       });
     }
-  }, 25000); // 25 second global timeout (Lambda max is 30s)
+  }, 5000); // 5 second global timeout to prevent any timeouts
   
   // Enhanced response logging
   const originalSend = res.send;
@@ -296,6 +314,7 @@ app.get('/api', (req, res) => {
     version: '1.0.0'
   });
 });
+
 
 // Request parsing with size limits
 app.use(express.json({ limit: '2mb' }));
