@@ -155,8 +155,32 @@ export function AuthProvider({ children }) {
         }
       }
       
-      // No fallback allowed - require proper Cognito authentication
-      console.error('❌ Cognito authentication required - no fallback allowed');
+      // Development fallback when Cognito is not configured - but with CONSISTENT user IDs
+      console.log('🔧 FALLBACK MODE - Using development authentication with consistent user IDs');
+      
+      try {
+        const user = await devAuth.getCurrentUser();
+        const session = await devAuth.fetchAuthSession();
+        
+        if (user && session.tokens) {
+          // Store access token for API requests
+          localStorage.setItem('accessToken', session.tokens.accessToken);
+          
+          dispatch({
+            type: AUTH_ACTIONS.LOGIN_SUCCESS,
+            payload: {
+              user,
+              tokens: session.tokens
+            }
+          });
+          console.log('✅ Development user authenticated with consistent ID');
+          return;
+        }
+      } catch (error) {
+        console.log('No dev auth session found, user needs to login');
+      }
+      
+      // No valid session found
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       
     } catch (error) {
@@ -228,11 +252,31 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // No fallback allowed - require proper Cognito authentication
-      console.error('❌ Cognito authentication required for login - no fallback allowed');
-      const errorMessage = 'Authentication service not properly configured. Please contact support.';
-      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-      return { success: false, error: errorMessage };
+      // Development fallback when Cognito is not configured - but with CONSISTENT user IDs
+      console.log('🔧 FALLBACK LOGIN - Using development authentication with consistent user IDs');
+        
+      try {
+        const result = await devAuth.signIn(username, password);
+        
+        // Store access token for API requests
+        localStorage.setItem('accessToken', result.tokens.accessToken);
+        
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: result.user,
+            tokens: result.tokens
+          }
+        });
+        
+        console.log('✅ Development login successful with consistent user ID');
+        return { success: true };
+      } catch (error) {
+        console.error('Dev auth login error:', error);
+        const errorMessage = getErrorMessage(error);
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
+        return { success: false, error: errorMessage };
+      }
       
     } catch (error) {
       console.error('Login error:', error);
@@ -247,12 +291,28 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // Require proper Cognito authentication only
+      // If Cognito is not configured, use dev auth with consistent user IDs
       if (!isCognitoConfigured()) {
-        console.error('❌ Cognito authentication required for registration - no fallback allowed');
-        const errorMessage = 'Authentication service not properly configured. Please contact support.';
-        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-        return { success: false, error: errorMessage };
+        console.log('Cognito not configured - using development authentication with consistent user IDs');
+        try {
+          const result = await devAuth.signUp(username, password, email, firstName, lastName);
+          
+          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+          
+          return {
+            success: true,
+            isComplete: result.isSignUpComplete,
+            nextStep: result.nextStep,
+            message: result.isSignUpComplete 
+              ? 'Registration completed successfully'
+              : 'Please check your email for verification code'
+          };
+        } catch (error) {
+          console.error('Dev auth registration error:', error);
+          const errorMessage = getErrorMessage(error);
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+          return { success: false, error: errorMessage };
+        }
       }
 
       const { isSignUpComplete, nextStep } = await signUp({

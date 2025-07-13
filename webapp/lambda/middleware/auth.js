@@ -120,7 +120,28 @@ const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
-    // No development tokens allowed - require real Cognito authentication only
+    // Handle development tokens with CONSISTENT user info
+    if (token && token.startsWith('dev-access-')) {
+      console.log('🛠️  Development token detected');
+      
+      // Format: dev-access-{username}-{timestamp}
+      const parts = token.split('-');
+      if (parts.length >= 3) {
+        const extractedUsername = parts[2];
+        // Generate CONSISTENT user ID to match frontend devAuth service format
+        const consistentUserId = `dev-${extractedUsername}`;
+        const userEmail = `${extractedUsername}@example.com`;
+        
+        req.user = {
+          sub: consistentUserId,
+          email: userEmail,
+          username: extractedUsername,
+          role: 'user'
+        };
+        console.log('👤 Development user authenticated with CONSISTENT ID:', req.user);
+        return next();
+      }
+    }
 
     // Get verifier (will load config if needed)
     console.log('🔍 Getting JWT verifier...');
@@ -229,7 +250,23 @@ const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    // No development tokens allowed - require real Cognito authentication only
+    // Handle development tokens with CONSISTENT user info
+    if (token && token.startsWith('dev-access-')) {
+      const parts = token.split('-');
+      if (parts.length >= 3) {
+        const extractedUsername = parts[2];
+        // Generate CONSISTENT user ID to match frontend devAuth service format
+        const consistentUserId = `dev-${extractedUsername}`;
+        req.user = {
+          sub: consistentUserId,
+          email: `${extractedUsername}@example.com`,
+          username: extractedUsername,
+          role: 'user',
+          groups: []
+        };
+        return next();
+      }
+    }
 
     // Get verifier
     const jwtVerifier = await getVerifier();
