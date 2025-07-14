@@ -1,6 +1,15 @@
 const express = require('express');
 const { CognitoIdentityProviderClient, InitiateAuthCommand, RespondToAuthChallengeCommand, SignUpCommand, ConfirmSignUpCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const { authenticateToken } = require('../middleware/auth');
+const { 
+  createValidationMiddleware, 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention,
+  sanitizers,
+  validationSchemas
+} = require('../middleware/validation');
+const validator = require('validator');
 
 const router = express.Router();
 
@@ -9,17 +18,149 @@ const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || 'us-east-1'
 });
 
-// User login
-router.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({
-        error: 'Missing credentials',
-        message: 'Username and password are required'
-      });
+// Authentication-specific validation schemas
+const authValidationSchemas = {
+  login: {
+    username: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+      validator: (value) => {
+        // Allow email format or username format
+        return validator.isEmail(value) || /^[a-zA-Z0-9_.-]{3,50}$/.test(value);
+      },
+      errorMessage: 'Username must be a valid email or 3-50 character alphanumeric username'
+    },
+    password: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 256 }),
+      validator: (value) => value.length >= 8 && value.length <= 256,
+      errorMessage: 'Password must be between 8 and 256 characters'
     }
+  },
+
+  signup: {
+    username: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, escapeHTML: true }),
+      validator: (value) => /^[a-zA-Z0-9_.-]{3,50}$/.test(value),
+      errorMessage: 'Username must be 3-50 characters, alphanumeric with underscore, dot, or dash'
+    },
+    email: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.email,
+      validator: validator.isEmail,
+      errorMessage: 'Invalid email format'
+    },
+    password: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 256 }),
+      validator: (value) => {
+        // Strong password requirements
+        return value.length >= 8 && 
+               /[A-Z]/.test(value) && 
+               /[a-z]/.test(value) && 
+               /[0-9]/.test(value) && 
+               /[^A-Za-z0-9]/.test(value);
+      },
+      errorMessage: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+    },
+    phone: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isMobilePhone(value, 'any'),
+      errorMessage: 'Invalid phone number format'
+    }
+  },
+
+  challenge: {
+    challengeName: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+      validator: (value) => ['SMS_MFA', 'SOFTWARE_TOKEN_MFA', 'NEW_PASSWORD_REQUIRED', 'MFA_SETUP'].includes(value),
+      errorMessage: 'Invalid challenge name'
+    },
+    session: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 2048 }),
+      validator: (value) => value.length > 10,
+      errorMessage: 'Invalid session token'
+    }
+  },
+
+  confirmSignup: {
+    username: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+      validator: (value) => validator.isEmail(value) || /^[a-zA-Z0-9_.-]{3,50}$/.test(value),
+      errorMessage: 'Username must be a valid email or alphanumeric username'
+    },
+    confirmationCode: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { alphaNumOnly: true, maxLength: 10 }),
+      validator: (value) => /^[0-9]{6}$/.test(value),
+      errorMessage: 'Confirmation code must be 6 digits'
+    }
+  },
+
+  forgotPassword: {
+    username: {
+      required: true,
+      type: 'string', 
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+      validator: (value) => validator.isEmail(value) || /^[a-zA-Z0-9_.-]{3,50}$/.test(value),
+      errorMessage: 'Username must be a valid email or alphanumeric username'
+    }
+  },
+
+  confirmForgotPassword: {
+    username: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+      validator: (value) => validator.isEmail(value) || /^[a-zA-Z0-9_.-]{3,50}$/.test(value),
+      errorMessage: 'Username must be a valid email or alphanumeric username'
+    },
+    confirmationCode: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { alphaNumOnly: true, maxLength: 10 }),
+      validator: (value) => /^[0-9]{6}$/.test(value),
+      errorMessage: 'Confirmation code must be 6 digits'
+    },
+    newPassword: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 256 }),
+      validator: (value) => {
+        return value.length >= 8 && 
+               /[A-Z]/.test(value) && 
+               /[a-z]/.test(value) && 
+               /[0-9]/.test(value) && 
+               /[^A-Za-z0-9]/.test(value);
+      },
+      errorMessage: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+    }
+  }
+};
+
+// Apply security middleware to all auth routes
+router.use(sqlInjectionPrevention);
+router.use(xssPrevention);
+router.use(rateLimitConfigs.auth);
+
+// User login
+router.post('/login', createValidationMiddleware(authValidationSchemas.login), async (req, res) => {
+  try {
+    const { username, password } = req.validated;
 
     const command = new InitiateAuthCommand({
       AuthFlow: 'USER_PASSWORD_AUTH',
@@ -75,9 +216,10 @@ router.post('/login', async (req, res) => {
 });
 
 // Handle auth challenges (MFA, password reset, etc.)
-router.post('/challenge', async (req, res) => {
+router.post('/challenge', createValidationMiddleware(authValidationSchemas.challenge), async (req, res) => {
   try {
-    const { challengeName, challengeResponses, session } = req.body;
+    const { challengeName, session } = req.validated;
+    const { challengeResponses } = req.body;
 
     const command = new RespondToAuthChallengeCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,
@@ -115,17 +257,11 @@ router.post('/challenge', async (req, res) => {
   }
 });
 
-// User registration
-router.post('/register', async (req, res) => {
+// User registration  
+router.post('/register', createValidationMiddleware(authValidationSchemas.signup), async (req, res) => {
   try {
-    const { username, password, email, firstName, lastName } = req.body;
-
-    if (!username || !password || !email) {
-      return res.status(400).json({
-        error: 'Missing required fields',
-        message: 'Username, password, and email are required'
-      });
-    }
+    const { username, password, email } = req.validated;
+    const { firstName, lastName } = req.body;
 
     const command = new SignUpCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,
@@ -171,16 +307,9 @@ router.post('/register', async (req, res) => {
 });
 
 // Confirm user registration
-router.post('/confirm', async (req, res) => {
+router.post('/confirm', createValidationMiddleware(authValidationSchemas.confirmSignup), async (req, res) => {
   try {
-    const { username, confirmationCode } = req.body;
-
-    if (!username || !confirmationCode) {
-      return res.status(400).json({
-        error: 'Missing parameters',
-        message: 'Username and confirmation code are required'
-      });
-    }
+    const { username, confirmationCode } = req.validated;
 
     const command = new ConfirmSignUpCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,
@@ -212,16 +341,9 @@ router.post('/confirm', async (req, res) => {
 });
 
 // Forgot password
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', createValidationMiddleware(authValidationSchemas.forgotPassword), async (req, res) => {
   try {
-    const { username } = req.body;
-
-    if (!username) {
-      return res.status(400).json({
-        error: 'Missing username',
-        message: 'Username is required'
-      });
-    }
+    const { username } = req.validated;
 
     const command = new ForgotPasswordCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,
@@ -245,16 +367,9 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // Confirm forgot password
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', createValidationMiddleware(authValidationSchemas.confirmForgotPassword), async (req, res) => {
   try {
-    const { username, confirmationCode, newPassword } = req.body;
-
-    if (!username || !confirmationCode || !newPassword) {
-      return res.status(400).json({
-        error: 'Missing parameters',
-        message: 'Username, confirmation code, and new password are required'
-      });
-    }
+    const { username, confirmationCode, newPassword } = req.validated;
 
     const command = new ConfirmForgotPasswordCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,

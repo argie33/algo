@@ -1,7 +1,99 @@
 const express = require('express');
-const { query } = require('../utils/database');
+const { query, safeQuery, tablesExist } = require('../utils/database');
+const { 
+  createValidationMiddleware, 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention,
+  sanitizers
+} = require('../middleware/validation');
+const validator = require('validator');
 
 const router = express.Router();
+
+// Technical analysis validation schemas
+const technicalValidationSchemas = {
+  technicalData: {
+    timeframe: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, alphaNumOnly: true }),
+      validator: (value) => ['daily', 'weekly', 'monthly'].includes(value),
+      errorMessage: 'Timeframe must be one of: daily, weekly, monthly'
+    },
+    page: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 10000, defaultValue: 1 }),
+      validator: (value) => value >= 1 && value <= 10000,
+      errorMessage: 'Page must be between 1 and 10,000'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 200, defaultValue: 50 }),
+      validator: (value) => value >= 1 && value <= 200,
+      errorMessage: 'Limit must be between 1 and 200'
+    },
+    symbol: {
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    start_date: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'Start date must be in YYYY-MM-DD format'
+    },
+    end_date: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'End date must be in YYYY-MM-DD format'
+    },
+    rsi_min: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, max: 100 }),
+      validator: (value) => !value || (value >= 0 && value <= 100),
+      errorMessage: 'RSI minimum must be between 0 and 100'
+    },
+    rsi_max: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, max: 100 }),
+      validator: (value) => !value || (value >= 0 && value <= 100),
+      errorMessage: 'RSI maximum must be between 0 and 100'
+    },
+    macd_min: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: -1000, max: 1000 }),
+      validator: (value) => !value || (value >= -1000 && value <= 1000),
+      errorMessage: 'MACD minimum must be between -1000 and 1000'
+    },
+    macd_max: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: -1000, max: 1000 }),
+      validator: (value) => !value || (value >= -1000 && value <= 1000),
+      errorMessage: 'MACD maximum must be between -1000 and 1000'
+    },
+    sma_min: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, max: 100000 }),
+      validator: (value) => !value || (value >= 0 && value <= 100000),
+      errorMessage: 'SMA minimum must be between 0 and 100,000'
+    },
+    sma_max: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, max: 100000 }),
+      validator: (value) => !value || (value >= 0 && value <= 100000),
+      errorMessage: 'SMA maximum must be between 0 and 100,000'
+    }
+  }
+};
+
+// Apply security middleware to all technical routes
+router.use(sqlInjectionPrevention);
+router.use(xssPrevention);
+router.use(rateLimitConfigs.api);
 
 // Basic ping endpoint
 router.get('/ping', (req, res) => {
@@ -13,19 +105,12 @@ router.get('/ping', (req, res) => {
 });
 
 // Main technical data endpoint - timeframe-based (daily, weekly, monthly)
-router.get('/:timeframe', async (req, res) => {
-  const { timeframe } = req.params;
-  const { page = 1, limit = 50, symbol, start_date, end_date, rsi_min, rsi_max, macd_min, macd_max, sma_min, sma_max } = req.query;
-
-  // Validate timeframe
-  const validTimeframes = ['daily', 'weekly', 'monthly'];
-  if (!validTimeframes.includes(timeframe)) {
-    return res.status(400).json({ error: 'Invalid timeframe. Use daily, weekly, or monthly.' });
-  }
-
+router.get('/:timeframe', createValidationMiddleware(technicalValidationSchemas.technicalData), async (req, res) => {
   try {
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const maxLimit = Math.min(parseInt(limit), 200);
+    const { timeframe, page, limit, symbol, start_date, end_date, rsi_min, rsi_max, macd_min, macd_max, sma_min, sma_max } = req.validated;
+    
+    const offset = (page - 1) * limit;
+    console.log(`📊 Technical data request: ${timeframe}, page ${page}, limit ${limit}`);
 
     // Build WHERE clause
     let whereClause = 'WHERE 1=1';
@@ -52,63 +137,57 @@ router.get('/:timeframe', async (req, res) => {
       paramIndex++;
     }
 
-    // Technical indicator filters
-    if (rsi_min !== undefined && rsi_min !== '') {
+    // Technical indicator filters (using validated and sanitized values)
+    if (rsi_min !== undefined && rsi_min !== null) {
       whereClause += ` AND rsi >= $${paramIndex}`;
-      params.push(parseFloat(rsi_min));
+      params.push(rsi_min);
       paramIndex++;
     }
 
-    if (rsi_max !== undefined && rsi_max !== '') {
+    if (rsi_max !== undefined && rsi_max !== null) {
       whereClause += ` AND rsi <= $${paramIndex}`;
-      params.push(parseFloat(rsi_max));
+      params.push(rsi_max);
       paramIndex++;
     }
 
-    if (macd_min !== undefined && macd_min !== '') {
+    if (macd_min !== undefined && macd_min !== null) {
       whereClause += ` AND macd >= $${paramIndex}`;
-      params.push(parseFloat(macd_min));
+      params.push(macd_min);
       paramIndex++;
     }
 
-    if (macd_max !== undefined && macd_max !== '') {
+    if (macd_max !== undefined && macd_max !== null) {
       whereClause += ` AND macd <= $${paramIndex}`;
-      params.push(parseFloat(macd_max));
+      params.push(macd_max);
       paramIndex++;
     }
 
-    if (sma_min !== undefined && sma_min !== '') {
+    if (sma_min !== undefined && sma_min !== null) {
       whereClause += ` AND sma_20 >= $${paramIndex}`;
-      params.push(parseFloat(sma_min));
+      params.push(sma_min);
       paramIndex++;
     }
 
-    if (sma_max !== undefined && sma_max !== '') {
+    if (sma_max !== undefined && sma_max !== null) {
       whereClause += ` AND sma_20 <= $${paramIndex}`;
-      params.push(parseFloat(sma_max));
+      params.push(sma_max);
       paramIndex++;
     }
 
     // Determine table name based on timeframe
     const tableName = `technical_data_${timeframe}`;
 
-    // Check if table exists
-    const tableExists = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = $1
-      );
-    `, [tableName]);
-
-    if (!tableExists.rows[0].exists) {
+    // Check if table exists using enhanced table checking
+    const tableStatusCheck = await tablesExist([tableName]);
+    
+    if (!tableStatusCheck[tableName]) {
       console.log(`Technical data table for ${timeframe} timeframe not found, returning empty data`);
       return res.json({
         success: true,
         data: [],
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: page,
+          limit: limit,
           total: 0,
           totalPages: 0,
           hasNext: false,
