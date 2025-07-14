@@ -1,5 +1,6 @@
 const express = require('express');
 const { healthCheck, query } = require('../utils/database');
+const apiKeyService = require('../utils/apiKeyService');
 
 const router = express.Router();
 
@@ -200,6 +201,43 @@ router.get('/debug/tables', async (req, res) => {
     console.error('Tables list failed:', error);
     res.status(500).json({
       status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// API services health check - tests API key service and related functionality
+router.get('/api-services', async (req, res) => {
+  try {
+    const services = {
+      apiKeyService: await checkApiKeyServiceHealth(),
+      database: await checkDatabaseTablesForApiKeys(),
+      secrets: await checkSecretsManagerHealth()
+    };
+    
+    const allHealthy = Object.values(services).every(service => service.status === 'healthy');
+    
+    res.status(allHealthy ? 200 : 503).json({
+      status: allHealthy ? 'healthy' : 'degraded',
+      healthy: allHealthy,
+      service: 'API Services Health',
+      timestamp: new Date().toISOString(),
+      services,
+      summary: {
+        total_services: Object.keys(services).length,
+        healthy_services: Object.values(services).filter(s => s.status === 'healthy').length,
+        degraded_services: Object.values(services).filter(s => s.status === 'degraded').length,
+        failed_services: Object.values(services).filter(s => s.status === 'failed').length
+      }
+    });
+    
+  } catch (error) {
+    console.error('API services health check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      healthy: false,
+      service: 'API Services Health',
       error: error.message,
       timestamp: new Date().toISOString()
     });
@@ -601,5 +639,130 @@ async function getComprehensiveDbHealth() {
 
 // Create health_status table if it doesn't exist (for storing health data)
 // REMOVED: Table creation endpoints - tables should be created by db-init infrastructure
+
+// API Service Health Check Functions
+async function checkApiKeyServiceHealth() {
+  try {
+    // Check if API key service is initialized and enabled
+    await apiKeyService.ensureInitialized();
+    
+    return {
+      status: 'healthy',
+      enabled: apiKeyService.isEnabled,
+      message: 'API key service is initialized and enabled',
+      features: {
+        encryption: apiKeyService.isEnabled,
+        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN
+      }
+    };
+  } catch (error) {
+    return {
+      status: 'failed',
+      enabled: false,
+      error: error.message,
+      message: 'API key service is not available',
+      features: {
+        encryption: false,
+        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN
+      }
+    };
+  }
+}
+
+async function checkDatabaseTablesForApiKeys() {
+  try {
+    const requiredTables = [
+      'user_api_keys',
+      'portfolio_holdings', 
+      'portfolio_metadata',
+      'portfolio_data_refresh_requests'
+    ];
+    
+    const tableStatus = {};
+    
+    for (const table of requiredTables) {
+      try {
+        const result = await query(`SELECT COUNT(*) as count FROM ${table} LIMIT 1`);
+        tableStatus[table] = {
+          exists: true,
+          status: 'healthy',
+          count: parseInt(result.rows[0].count)
+        };
+      } catch (error) {
+        if (error.message.includes('does not exist')) {
+          tableStatus[table] = {
+            exists: false,
+            status: 'missing',
+            error: 'Table does not exist'
+          };
+        } else {
+          tableStatus[table] = {
+            exists: true,
+            status: 'error',
+            error: error.message
+          };
+        }
+      }
+    }
+    
+    const allHealthy = Object.values(tableStatus).every(t => t.status === 'healthy');
+    
+    return {
+      status: allHealthy ? 'healthy' : 'degraded',
+      tables: tableStatus,
+      summary: {
+        total_tables: requiredTables.length,
+        healthy_tables: Object.values(tableStatus).filter(t => t.status === 'healthy').length,
+        missing_tables: Object.values(tableStatus).filter(t => t.status === 'missing').length,
+        error_tables: Object.values(tableStatus).filter(t => t.status === 'error').length
+      }
+    };
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: error.message,
+      message: 'Failed to check database tables'
+    };
+  }
+}
+
+async function checkSecretsManagerHealth() {
+  try {
+    const secretArn = process.env.API_KEY_ENCRYPTION_SECRET_ARN;
+    
+    if (!secretArn) {
+      return {
+        status: 'degraded',
+        message: 'API_KEY_ENCRYPTION_SECRET_ARN not configured',
+        configured: false
+      };
+    }
+    
+    // Try to load the secret (this will test both permissions and secret existence)
+    try {
+      await apiKeyService.ensureInitialized();
+      return {
+        status: 'healthy',
+        message: 'Secrets Manager access is working',
+        configured: true,
+        secretArn: secretArn.substring(0, 50) + '...' // Truncate for security
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        message: 'Cannot access encryption secret',
+        configured: true,
+        error: error.message,
+        secretArn: secretArn.substring(0, 50) + '...'
+      };
+    }
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: error.message,
+      message: 'Secrets Manager health check failed'
+    };
+  }
+}
 
 module.exports = router;
