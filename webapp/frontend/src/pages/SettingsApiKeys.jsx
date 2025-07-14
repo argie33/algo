@@ -123,14 +123,27 @@ const SettingsApiKeys = () => {
       const response = await getApiKeys();
       setApiKeys(response?.apiKeys || []);
       
-      // Check if there's a database issue note
-      if (response?.note && response.note.includes('Database connectivity issue')) {
+      // Handle new error structure with guidance
+      if (response?.setupRequired || response?.encryptionEnabled === false) {
+        // Clear previous errors and show setup guidance
+        setError(null);
+        console.log('API Key service setup required:', response);
+      } else if (response?.note && response.note.includes('Database connectivity issue')) {
         setError(`API keys may not be visible due to database connectivity issues. ${response.note}`);
       } else if (response?.note) {
         console.warn('API Keys note:', response.note);
       }
     } catch (err) {
-      setError('Failed to fetch API keys');
+      // Handle enhanced error structure
+      if (err.response?.data?.setupRequired) {
+        console.log('Setup required error:', err.response.data);
+        setError(null); // Clear error to show guidance instead
+      } else if (err.response?.data?.guidance) {
+        const guidance = err.response.data.guidance;
+        setError(`${guidance.title}: ${guidance.description}`);
+      } else {
+        setError(err.response?.data?.message || 'Failed to fetch API keys');
+      }
       console.error('API keys fetch error:', err);
     } finally {
       setLoading(false);
