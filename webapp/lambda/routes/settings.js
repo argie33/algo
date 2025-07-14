@@ -377,22 +377,36 @@ router.post('/api-keys', async (req, res) => {
   // Check if encryption service is available
   if (!apiKeyService.isEnabled) {
     console.error(`❌ [${requestId}] API Key encryption service is disabled`);
-    return res.status(503).json({
+    
+    // Instead of 503, return 422 (Unprocessable Entity) with guidance
+    return res.status(422).json({
       success: false,
       error: 'API key encryption service unavailable',
-      message: 'The encryption service is being initialized. Please try again in a few moments or use demo data.',
+      message: 'API key storage is currently unavailable. The encryption service needs to be configured.',
       setupRequired: true,
+      readOnlyMode: true,
       guidance: {
-        status: 'service_initializing',
-        title: 'Encryption Service Initializing',
-        description: 'The API key encryption service is being set up. This usually takes a few minutes.',
+        status: 'encryption_service_unavailable',
+        title: 'API Key Storage Unavailable',
+        description: 'The encryption service for secure API key storage is not configured or accessible.',
+        technicalDetails: {
+          secretConfigured: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
+          serviceInitialized: false,
+          timestamp: new Date().toISOString()
+        },
         actions: [
-          'Try again in 2-3 minutes',
-          'Use demo data in the meantime',
-          'Contact support if this persists'
+          'Contact administrator to configure encryption service',
+          'Use manual portfolio tracking in the meantime',
+          'Check deployment status and CloudFormation stacks'
         ]
       },
-      encryptionEnabled: false
+      capabilities: {
+        canViewPortfolio: false,
+        canAddApiKeys: false,
+        canViewMarketData: true,
+        canUseDemoData: true,
+        encryptionEnabled: false
+      }
     });
   }
   
