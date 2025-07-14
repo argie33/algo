@@ -153,6 +153,9 @@ function ServiceHealth() {
           return errorResult;
         }
         
+        console.log('✅ Database health data received:', response.data);
+        console.log('📊 Database status:', response.data.database?.status);
+        console.log('📋 Tables found:', Object.keys(response.data.database?.tables || {}).length);
         setDbHealth(response.data);
         return response.data;
     } catch (error) {
@@ -1042,6 +1045,21 @@ function ServiceHealth() {
               </Box>
             </AccordionSummary>
             <AccordionDetails>
+              {/* Debug info */}
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Debug: dbHealth={!!dbHealth ? 'exists' : 'null'}, 
+                  safeDbHealth={!!safeDbHealth ? 'exists' : 'empty'}, 
+                  dbLoading={dbLoading.toString()}, 
+                  dbError={!!dbError ? 'exists' : 'null'}
+                </Typography>
+                {safeDbHealth && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Data keys: {Object.keys(safeDbHealth).join(', ')}
+                  </Typography>
+                )}
+              </Alert>
+              
               {dbLoading && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                   <CircularProgress size={24} />
@@ -1060,6 +1078,7 @@ function ServiceHealth() {
 
               {safeDbHealth && (
                 <Box>
+                  {console.log('🔍 Rendering safeDbHealth:', safeDbHealth)}
                   <Box sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>Database Status:</Typography>
                     <Typography variant="body2">Status: {safeDbHealth.database?.status || 'Unknown'}</Typography>
