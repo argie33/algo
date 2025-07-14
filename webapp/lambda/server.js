@@ -36,13 +36,10 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(helmet());
-// Dynamic CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000', 
-  'http://127.0.0.1:3000'
-];
+// Dynamic CORS configuration - AWS-first approach
+const allowedOrigins = [];
 
-// Add API Gateway URL if available
+// Add API Gateway URL if available (primary)
 if (process.env.API_GATEWAY_URL) {
   allowedOrigins.push(process.env.API_GATEWAY_URL);
 }
@@ -51,6 +48,12 @@ if (process.env.API_GATEWAY_URL) {
 if (process.env.CORS_ALLOWED_ORIGINS) {
   const customOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim());
   allowedOrigins.push(...customOrigins);
+}
+
+// Development fallback only if no AWS URLs configured
+if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+  console.warn('⚠️ No AWS URLs configured - adding localhost fallback for development');
+  allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
 }
 
 app.use(cors({
@@ -163,8 +166,8 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Mock endpoints for development
-if (process.env.NODE_ENV !== 'production') {
+// Mock endpoints for development - only if no AWS resources configured
+if (process.env.NODE_ENV !== 'production' && !process.env.API_GATEWAY_URL && !process.env.DATABASE_URL) {
   app.get('/api/stocks', (req, res) => {
     res.json({
       success: true,

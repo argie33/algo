@@ -86,10 +86,11 @@ export function configureAmplify() {
     });
     
     if (!isCognitoConfigured()) {
-      console.warn('⚠️  Cognito not configured - using dummy values for development');
-      console.warn('App will work but authentication will be disabled');
+      console.error('❌ Cognito REQUIRED - AWS deployment must have valid Cognito configuration');
+      console.error('Authentication is required for all functionality');
+      throw new Error('Cognito configuration required for AWS deployment');
     } else {
-      console.log('✅ Cognito configured with real values');
+      console.log('✅ Cognito configured with real AWS values');
     }
     
     Amplify.configure(amplifyConfig);
@@ -97,7 +98,11 @@ export function configureAmplify() {
     return true;
   } catch (error) {
     console.error('❌ Failed to configure Amplify:', error);
-    console.warn('⚠️  Continuing without Amplify - authentication will be disabled');
+    // Don't allow app to continue without proper AWS authentication
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      throw error; // Fail fast on AWS deployment
+    }
+    console.warn('⚠️  Development mode fallback - authentication disabled');
     return false;
   }
 }

@@ -44,8 +44,9 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_DOWNLOAD_RETRIES = 3
-RETRY_DELAY = 1.0  # seconds between download retries
+MAX_DOWNLOAD_RETRIES = 5  
+RETRY_DELAY = 3.0  # seconds between download retries
+BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
 # -------------------------------
 # AAII Sentiment columns
@@ -81,7 +82,7 @@ def get_aaii_sentiment_data():
     Downloads the AAII sentiment survey Excel file and extracts historical data.
     Returns a DataFrame with the columns: Date, Bullish, Neutral, and Bearish.
     """
-    logging.info(f"Downloading AAII sentiment survey Excel file from: {AAII_EXCEL_URL}")
+    logging.info(f"🔄 Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
     
     # Custom headers to mimic a browser request for an Excel file
     headers = {
@@ -101,14 +102,23 @@ def get_aaii_sentiment_data():
             
             # Check the content-type header for debugging
             content_type = response.headers.get("Content-Type", "")
-            logging.info(f"Content-Type returned: {content_type}")
+            content_length = response.headers.get("Content-Length", "unknown")
+            logging.info(f"✅ Response received - Content-Type: {content_type}, Content-Length: {content_length}")
             
             # If the response looks like HTML rather than an Excel file, raise an error
             if "html" in content_type.lower():
+                logging.error(f"❌ Server returned HTML instead of Excel file")
+                logging.error(f"❌ Response preview: {response.content[:500]}")
                 raise ValueError("Server returned HTML instead of an Excel file. Check the URL or headers.")
+            
+            # Validate file size
+            if len(response.content) < 1000:  # Excel files should be larger than 1KB
+                logging.error(f"❌ Response too small ({len(response.content)} bytes) - likely not an Excel file")
+                raise ValueError(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
             
             # Load the Excel file from the downloaded bytes using xlrd
             excel_data = BytesIO(response.content)
+            logging.info("📊 Attempting to parse Excel file...")
             df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
             
             # Remove extra whitespace from column names
@@ -116,12 +126,17 @@ def get_aaii_sentiment_data():
             
             # We need at least these columns; adjust if necessary
             required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
-            for col in required_cols:
-                if col not in df.columns:
-                    raise ValueError(f"Expected column '{col}' not found. Found columns: {df.columns.tolist()}")
+            logging.info(f"📋 Found columns: {df.columns.tolist()}")
+            
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_cols:
+                logging.error(f"❌ Missing required columns: {missing_cols}")
+                logging.error(f"❌ Available columns: {df.columns.tolist()}")
+                raise ValueError(f"Expected columns {missing_cols} not found. Found columns: {df.columns.tolist()}")
             
             # Select only the required columns
             df = df[required_cols]
+            logging.info(f"✅ Selected {len(df)} rows with required columns")
             
             # Clean percentage columns: remove "%" and convert to numeric
             for col in ["Bullish", "Neutral", "Bearish"]:
@@ -141,10 +156,17 @@ def get_aaii_sentiment_data():
             return df
             
         except Exception as e:
-            logging.warning(f"Download attempt {attempt} failed: {e}")
+            logging.error(f"❌ Download attempt {attempt} failed: {e}")
+            logging.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
             if attempt < MAX_DOWNLOAD_RETRIES:
-                time.sleep(RETRY_DELAY)
+                retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
+                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
+                time.sleep(retry_delay)
             else:
+                logging.error(f"❌ CRITICAL: Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts")
+                logging.error(f"❌ Final error: {e}")
                 raise Exception(f"Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
 # -------------------------------
@@ -193,49 +215,59 @@ def load_sentiment_data(cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
-    log_mem("startup")
+    try:
+        logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+        log_mem("startup")
 
-    # Connect to DB
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Connect to DB
+        logging.info("🔌 Loading database configuration...")
+        cfg = get_db_config()
+        logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        conn = psycopg2.connect(
+            host=cfg["host"], port=cfg["port"],
+            user=cfg["user"], password=cfg["password"],
+            dbname=cfg["dbname"]
+        )
+        logging.info("✅ Database connection established")
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate aaii_sentiment table
-    logging.info("Recreating aaii_sentiment table...")
-    cur.execute("DROP TABLE IF EXISTS aaii_sentiment;")
-    cur.execute("""
-        CREATE TABLE aaii_sentiment (
-            id          SERIAL PRIMARY KEY,
-            date        DATE         NOT NULL UNIQUE,
-            bullish     DOUBLE PRECISION,
-            neutral     DOUBLE PRECISION,
-            bearish     DOUBLE PRECISION,
-            fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
+        # Recreate aaii_sentiment table
+        logging.info("Recreating aaii_sentiment table...")
+        cur.execute("DROP TABLE IF EXISTS aaii_sentiment;")
+        cur.execute("""
+            CREATE TABLE aaii_sentiment (
+                id          SERIAL PRIMARY KEY,
+                date        DATE         NOT NULL UNIQUE,
+                bullish     DOUBLE PRECISION,
+                neutral     DOUBLE PRECISION,
+                bearish     DOUBLE PRECISION,
+                fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
 
-    # Load sentiment data
-    total, inserted, failed = load_sentiment_data(cur, conn)
+        # Load sentiment data
+        total, inserted, failed = load_sentiment_data(cur, conn)
 
-    # Record last run
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
 
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"AAII Sentiment — total: {total}, inserted: {inserted}, failed: {len(failed)}")
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"AAII Sentiment — total: {total}, inserted: {inserted}, failed: {len(failed)}")
 
-    cur.close()
-    conn.close()
-    logging.info("All done.") 
+        cur.close()
+        conn.close()
+        logging.info("All done.")
+    except Exception as e:
+        logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        sys.exit(1) 

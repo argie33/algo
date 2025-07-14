@@ -1,6 +1,7 @@
 const express = require('express');
 const { query, initializeDatabase } = require('../utils/database');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
+const { validateUserAuthentication } = require('../utils/userApiKeyHelper');
 
 const router = express.Router();
 
@@ -241,17 +242,17 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         }
 
         // Use the existing portfolio API integration
-        const apiKeyService = require('../utils/apiKeyService');
+        const { getUserApiKey } = require('../utils/userApiKeyHelper');
         const AlpacaService = require('../utils/alpacaService');
         
         try {
             // Try to get real broker data first
             console.log('🔑 Retrieving API credentials for Alpaca...');
-            const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+            const credentials = await getUserApiKey(userId, 'alpaca');
             
-            if (apiKey && apiKey.api_key && apiKey.api_secret) {
+            if (credentials) {
                 console.log('✅ Valid Alpaca credentials found, fetching real portfolio data...');
-                const alpaca = new AlpacaService(apiKey.api_key, apiKey.api_secret, apiKey.is_sandbox);
+                const alpaca = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
                 
                 // Get real portfolio data
                 const [positions, account] = await Promise.all([
@@ -376,11 +377,11 @@ router.get('/performance', authenticateToken, async (req, res) => {
         try {
             // Try to get real broker performance data
             console.log('🔑 Retrieving API credentials for Alpaca...');
-            const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+            const credentials = await getUserApiKey(userId, 'alpaca');
             
-            if (apiKey && apiKey.api_key && apiKey.api_secret) {
+            if (credentials) {
                 console.log('✅ Valid Alpaca credentials found, fetching real performance data...');
-                const alpaca = new AlpacaService(apiKey.api_key, apiKey.api_secret, apiKey.is_sandbox);
+                const alpaca = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
                 
                 // Get portfolio history and account data
                 const [portfolioHistory, account] = await Promise.all([

@@ -1,7 +1,7 @@
 const express = require('express');
 const { query, healthCheck, initializeDatabase } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
-const apiKeyService = require('../utils/apiKeyService');
+const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
 const crypto = require('crypto');
 
@@ -52,81 +52,9 @@ router.get('/', async (req, res) => {
 // Apply authentication middleware to all other portfolio routes
 router.use(authenticateToken);
 
-// Utility function to get user's API key for a specific broker
-async function getUserApiKey(userId, broker) {
-  console.log(`🔑 Fetching API key for user ${userId} and broker ${broker}`);
-  
-  try {
-    const result = await query(`
-      SELECT 
-        id,
-        encrypted_api_key,
-        key_iv,
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox,
-        is_active
-      FROM user_api_keys 
-      WHERE user_id = $1 AND provider = $2 AND is_active = true
-      ORDER BY created_at DESC
-      LIMIT 1
-    `, [userId, broker]);
-    
-    if (result.rows.length === 0) {
-      console.log(`❌ No API key found for user ${userId} and broker ${broker}`);
-      return null;
-    }
-    
-    const apiKeyData = result.rows[0];
-    console.log(`✅ Found API key for ${broker} (sandbox: ${apiKeyData.is_sandbox})`);
-    
-    // Decrypt the API key (you'd implement decryption here)
-    // For now, return the encrypted data structure
-    return {
-      id: apiKeyData.id,
-      broker: broker,
-      isSandbox: apiKeyData.is_sandbox,
-      encryptedData: {
-        apiKey: apiKeyData.encrypted_api_key,
-        apiSecret: apiKeyData.encrypted_api_secret,
-        keyIv: apiKeyData.key_iv,
-        keyAuthTag: apiKeyData.key_auth_tag,
-        secretIv: apiKeyData.secret_iv,
-        secretAuthTag: apiKeyData.secret_auth_tag,
-        userSalt: apiKeyData.user_salt
-      }
-    };
-    
-  } catch (error) {
-    console.error(`❌ Error fetching API key for ${broker}:`, error);
-    throw error;
-  }
-}
+// Using standardized getUserApiKey from userApiKeyHelper instead
 
-// Utility function to decrypt API key
-function decryptApiKey(encryptedData, userSalt) {
-  const ALGORITHM = 'aes-256-gcm';
-  const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
-  
-  try {
-    const key = crypto.scryptSync(secretKey, userSalt, 32);
-    const iv = Buffer.from(encryptedData.keyIv, 'hex');
-    const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
-    decipher.setAAD(Buffer.from(userSalt));
-    decipher.setAuthTag(Buffer.from(encryptedData.keyAuthTag, 'hex'));
-    
-    let decrypted = decipher.update(encryptedData.apiKey, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
-  } catch (error) {
-    console.error('❌ API key decryption failed:', error);
-    throw new Error('Failed to decrypt API key');
-  }
-}
+// Using standardized getUserApiKey from userApiKeyHelper for decryption
 
 // Broker API integration functions
 async function fetchAlpacaPortfolio(apiKey, isSandbox) {
@@ -231,7 +159,7 @@ async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) 
 router.get('/holdings', async (req, res) => {
   try {
     const { accountType = 'paper' } = req.query;
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     
     console.log(`🔍 Portfolio holdings endpoint called`);
     console.log(`👤 User ID: ${userId}`);
@@ -290,10 +218,17 @@ router.get('/holdings', async (req, res) => {
       
       // If no stored data, try to get fresh data from broker API
       console.log(`📡 [HOLDINGS] No stored data found, fetching fresh data from broker API`);
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
-      if (credentials && credentials.isSandbox === isSandbox) {
-        console.log(`🔑 [HOLDINGS] Using API key: ${credentials.provider} (${credentials.isSandbox ? 'sandbox' : 'live'})`);
+      if (!credentials) {
+        console.log(`❌ [HOLDINGS] No API credentials found for user ${userId} and broker alpaca`);
+        return sendApiKeyError(res, 'alpaca', userId, new Error('No API credentials found'));
+      }
+      
+      console.log(`🔑 [HOLDINGS] Found credentials: isSandbox=${credentials.isSandbox}, requested=${isSandbox}`);
+      
+      if (credentials.isSandbox === isSandbox) {
+        console.log(`🔑 [HOLDINGS] Using API key: alpaca (${credentials.isSandbox ? 'sandbox' : 'live'})`);
         const alpaca = new AlpacaService(
           credentials.apiKey,
           credentials.apiSecret,
@@ -523,17 +458,8 @@ router.get('/account', async (req, res) => {
     const { accountType = 'paper' } = req.query;
     console.log(`Portfolio account info endpoint called for account type: ${accountType}`);
     
-    // Check if user is authenticated
-    const isAuthenticated = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-    let userId = null;
-    
-    if (isAuthenticated) {
-      try {
-        userId = 'demo-user-123'; // Replace with actual JWT decode
-      } catch (error) {
-        console.log('Token parsing failed, treating as unauthenticated');
-      }
-    }
+    const userId = validateUserAuthentication(req);
+    console.log(`👤 User ID: ${userId}`);
 
     // If authenticated, try to get real data
     if (userId) {
@@ -994,16 +920,9 @@ router.get('/performance', async (req, res) => {
     const { timeframe = '1Y' } = req.query;
     console.log(`📈 [${requestId}] Timeframe requested: ${timeframe}`);
     
-    // Check authentication
-    const isAuthenticated = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-    console.log(`🔐 [${requestId}] Authentication check: ${isAuthenticated}`);
-    console.log(`🔐 [${requestId}] Auth header: ${req.headers.authorization ? 'present' : 'missing'}`);
-    
-    let userId = null;
-    if (isAuthenticated) {
-      userId = req.user?.sub || 'demo-user-123';
-      console.log(`👤 [${requestId}] User ID: ${userId}`);
-    }
+    // Validate user authentication
+    const userId = validateUserAuthentication(req);
+    console.log(`👤 [${requestId}] User ID: ${userId}`);
 
     // Test database with minimal query first
     console.log(`🔍 [${requestId}] Testing database with SELECT 1...`);

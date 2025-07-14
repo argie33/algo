@@ -3,8 +3,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query, transaction } = require('../utils/database');
 const TradeAnalyticsService = require('../services/tradeAnalyticsService');
-const { decrypt } = require('../utils/secrets');
-const apiKeyService = require('../utils/apiKeyService');
+const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
 
 // Initialize trade analytics service
@@ -21,7 +20,7 @@ let tradeAnalyticsService;
  */
 router.get('/import/status', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub; // Fixed: use req.user.sub instead of req.user.id
+    const userId = validateUserAuthentication(req); // Fixed: use req.user.sub instead of req.user.id
     console.log('Getting trade import status for user:', userId);
     
     try {
@@ -98,40 +97,20 @@ router.get('/import/status', authenticateToken, async (req, res) => {
  */
 router.post('/import/alpaca', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { startDate, endDate, forceRefresh = false } = req.body;
     
-    // Database queries will use the query function directly
+    console.log(`🔄 [TRADES] Import requested for user: ${userId}`);
     
-    // Get user's Alpaca API keys
-    const apiKeyResult = await query(`
-      SELECT * FROM user_api_keys 
-      WHERE user_id = $1 AND provider = 'alpaca' AND is_active = true
-      ORDER BY created_at DESC
-      LIMIT 1
-    `, [userId]);
-
-    if (apiKeyResult.rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No active Alpaca API keys found. Please add your Alpaca API keys in Settings.'
-      });
-    }
-
-    const apiKeyRow = apiKeyResult.rows[0];
+    // Get user's Alpaca API credentials using standardized helper
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
-    // Decrypt API credentials
-    let apiKey, apiSecret;
-    try {
-      apiKey = decrypt(apiKeyRow.encrypted_api_key, apiKeyRow.key_iv, apiKeyRow.key_auth_tag, apiKeyRow.user_salt);
-      apiSecret = decrypt(apiKeyRow.encrypted_api_secret, apiKeyRow.secret_iv, apiKeyRow.secret_auth_tag, apiKeyRow.user_salt);
-    } catch (decryptError) {
-      console.error('Error decrypting API keys:', decryptError);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to decrypt API keys. Please re-enter your API keys in Settings.'
-      });
+    if (!credentials) {
+      return sendApiKeyError(res, 'alpaca', userId, 'No active Alpaca API keys found');
     }
+    
+    console.log(`✅ [TRADES] Found Alpaca credentials (sandbox: ${credentials.isSandbox})`);
+    const { apiKey, apiSecret } = credentials;
 
     // Check if import is already in progress
     const configResult = await query(`
@@ -156,7 +135,7 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
       userId, 
       apiKey, 
       apiSecret, 
-      apiKeyRow.is_sandbox, 
+      credentials.isSandbox, 
       startDate, 
       endDate
     );
@@ -182,7 +161,7 @@ router.post('/import/alpaca', authenticateToken, async (req, res) => {
  */
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     // Database queries will use the query function directly
     
     if (!tradeAnalyticsService) {
@@ -211,7 +190,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
  */
 router.get('/positions', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { status = 'all', limit = 50, offset = 0 } = req.query;
     // Database queries will use the query function directly
     
@@ -277,7 +256,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
  */
 router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const positionId = parseInt(req.params.positionId);
     // Database queries will use the query function directly
     
@@ -346,7 +325,7 @@ router.get('/analytics/:positionId', authenticateToken, async (req, res) => {
  */
 router.get('/insights', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { limit = 10 } = req.query;
     // Database queries will use the query function directly
     
@@ -379,7 +358,7 @@ router.get('/insights', authenticateToken, async (req, res) => {
  */
 router.get('/performance', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { timeframe = '3M' } = req.query;
     // Database queries will use the query function directly
     
@@ -631,7 +610,7 @@ router.get('/history', authenticateToken, async (req, res) => {
  */
 router.get('/analytics/overview', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub; 
+    const userId = validateUserAuthentication(req); 
     const { timeframe = '3M' } = req.query;
     
     console.log(`📊 Trade analytics requested for user ${userId}, timeframe: ${timeframe}`);
@@ -931,7 +910,7 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
  */
 router.get('/export', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { format = 'csv', startDate, endDate } = req.query;
     // Database queries will use the query function directly
     
@@ -1031,7 +1010,7 @@ router.get('/export', authenticateToken, async (req, res) => {
  */
 router.delete('/data', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { confirm } = req.body;
     
     if (confirm !== 'DELETE_ALL_TRADE_DATA') {

@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
-import { isCognitoConfigured, getCognitoConfig } from '../config/amplify';
-import devAuth from '../services/devAuth';
 
 // Initial auth state
 const initialState = {
@@ -50,12 +48,6 @@ function authReducer(state, action) {
         error: action.payload
       };
     case AUTH_ACTIONS.LOGOUT:
-      // Clear stored tokens
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('authToken');
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('authToken');
-      
       return {
         ...state,
         user: null,
@@ -101,121 +93,17 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
-      // Check if Cognito is configured, if not use dev auth
-      let cognitoConfigured = false;
+      // COGNITO ONLY - No more development auth fallbacks
+      console.log('🚀 Using AWS Cognito authentication ONLY');
+      
       try {
-        cognitoConfigured = isCognitoConfigured();
-      } catch (error) {
-        console.warn('⚠️ Error checking Cognito configuration:', error);
-      }
-      
-      const isProductionBuild = import.meta.env.PROD;
-      console.log('🔍 Cognito configured:', cognitoConfigured, 'Production:', isProductionBuild);
-      
-      // Use Cognito when properly configured (production or development)
-      if (cognitoConfigured) {
-        console.log('🚀 Using AWS Cognito authentication');
+        // Get current authenticated user
+        const user = await getCurrentUser();
         
-        try {
-          // Get current authenticated user
-          const user = await getCurrentUser();
-          
-          // Get current session with tokens
-          const session = await fetchAuthSession();
-          
-          if (user && session.tokens) {
-            const tokens = {
-              accessToken: session.tokens.accessToken.toString(),
-              idToken: session.tokens.idToken?.toString(),
-              refreshToken: session.tokens.refreshToken?.toString()
-            };
-            
-            // Store access token for API requests
-            localStorage.setItem('accessToken', tokens.accessToken);
-            
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: {
-                user: {
-                  username: user.username,
-                  userId: user.userId,
-                  email: user.signInDetails?.loginId || user.username,
-                  firstName: user.userAttributes?.given_name || '',
-                  lastName: user.userAttributes?.family_name || '',
-                  signInDetails: user.signInDetails
-                },
-                tokens
-              }
-            });
-            console.log('✅ User authenticated with Cognito');
-            return;
-          }
-        } catch (error) {
-          console.log('No Cognito session found:', error);
-        }
-      }
-      
-      // Use development authentication for local development (will be replaced by Cognito in AWS)
-      console.log('🔧 Using development authentication - will use real Cognito in AWS');
-      
-      try {
-        const user = await devAuth.getCurrentUser();
-        const session = await devAuth.fetchAuthSession();
+        // Get current session with tokens
+        const session = await fetchAuthSession();
         
         if (user && session.tokens) {
-          // Store access token for API requests
-          localStorage.setItem('accessToken', session.tokens.accessToken);
-          
-          dispatch({
-            type: AUTH_ACTIONS.LOGIN_SUCCESS,
-            payload: {
-              user,
-              tokens: session.tokens
-            }
-          });
-          console.log('✅ Development user authenticated (backend compatible)');
-          return;
-        }
-      } catch (error) {
-        console.log('No dev auth session found, user needs to login');
-      }
-      
-      // No valid session found
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      
-    } catch (error) {
-      console.log('Authentication check failed:', error);
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-    }
-  };
-
-  const login = async (username, password) => {
-    try {
-      dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
-      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-
-      const isProductionBuild = import.meta.env.PROD;
-      let cognitoConfigured = false;
-      try {
-        cognitoConfigured = isCognitoConfigured();
-      } catch (error) {
-        console.warn('⚠️ Error checking Cognito configuration in login:', error);
-      }
-
-      // Use Cognito when properly configured (production or development)
-      if (cognitoConfigured) {
-        console.log('🚀 COGNITO LOGIN - Using AWS Cognito');
-        
-        const { isSignedIn, nextStep } = await signIn({
-          username,
-          password
-        });
-
-        if (isSignedIn) {
-          // Get user and session after successful sign in
-          const user = await getCurrentUser();
-          const session = await fetchAuthSession();
-          
           const tokens = {
             accessToken: session.tokens.accessToken.toString(),
             idToken: session.tokens.idToken?.toString(),
@@ -239,50 +127,50 @@ export function AuthProvider({ children }) {
               tokens
             }
           });
-          
-          console.log('✅ Production login successful');
-          return { success: true };
-        } else {
-          // Handle additional steps (MFA, password change, etc.)
-          return { 
-            success: false, 
-            nextStep: nextStep,
-            message: 'Additional authentication step required'
-          };
+          console.log('✅ User authenticated with Cognito');
+          return;
         }
-      }
-
-      // Development authentication for local development (will use real Cognito in AWS)
-      console.log('🔧 DEVELOPMENT LOGIN - Using local dev auth (real Cognito in AWS)');
-        
-      try {
-        const result = await devAuth.signIn(username, password);
-        
-        // Store access token for API requests
-        localStorage.setItem('accessToken', result.tokens.accessToken);
-        
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: result.user,
-            tokens: result.tokens
-          }
-        });
-        
-        console.log('✅ Development login successful (backend compatible)');
-        return { success: true };
       } catch (error) {
-        console.error('Dev auth login error:', error);
-        const errorMessage = getErrorMessage(error);
-        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-        return { success: false, error: errorMessage };
+        console.log('No Cognito session found:', error);
       }
       
+      // No valid session found
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } catch (error) {
-      console.error('Login error:', error);
-      const errorMessage = getErrorMessage(error);
-      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-      return { success: false, error: errorMessage };
+      console.error('Error checking auth state:', error);
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+    }
+  };
+
+  const login = async (username, password) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
+      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+
+      console.log('🔐 Signing in with Cognito...');
+      const { isSignedIn, nextStep } = await signIn({ username, password });
+
+      if (isSignedIn) {
+        await checkAuthState(); // This will update the state with user info
+        return { success: true };
+      } else if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
+        return { 
+          success: false, 
+          nextStep: 'CONFIRM_SIGN_UP',
+          message: 'Please confirm your account with the verification code sent to your email.'
+        };
+      } else {
+        return { 
+          success: false, 
+          message: 'Additional steps required for sign in.'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+      return { success: false, message: error.message };
     }
   };
 
@@ -291,31 +179,8 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // Use development authentication for local development (will use real Cognito in AWS)
-      if (!isCognitoConfigured()) {
-        console.log('🔧 DEVELOPMENT REGISTER - Using local dev auth (real Cognito in AWS)');
-        try {
-          const result = await devAuth.signUp(username, password, email, firstName, lastName);
-          
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          
-          return {
-            success: true,
-            isComplete: result.isSignUpComplete,
-            nextStep: result.nextStep,
-            message: result.isSignUpComplete 
-              ? 'Registration completed successfully'
-              : 'Please check your email for verification code'
-          };
-        } catch (error) {
-          console.error('Dev auth registration error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
-      }
-
-      const { isSignUpComplete, nextStep } = await signUp({
+      console.log('📝 Registering with Cognito...');
+      const { isSignUpComplete, userId, nextStep } = await signUp({
         username,
         password,
         options: {
@@ -327,246 +192,105 @@ export function AuthProvider({ children }) {
         }
       });
 
-      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-      return {
-        success: true,
-        isComplete: isSignUpComplete,
-        nextStep: nextStep,
-        message: isSignUpComplete 
-          ? 'Registration completed successfully'
-          : 'Please check your email for verification code'
-      };
+      if (isSignUpComplete) {
+        return { success: true, message: 'Registration successful!' };
+      } else if (nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
+        return { 
+          success: false, 
+          nextStep: 'CONFIRM_SIGN_UP',
+          message: 'Please check your email for a verification code.'
+        };
+      } else {
+        return { 
+          success: false, 
+          message: 'Additional steps required for registration.'
+        };
+      }
     } catch (error) {
-      console.error('Registration error:', error);
-      const errorMessage = getErrorMessage(error);
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      return { success: false, error: errorMessage };
+      console.error('❌ Registration error:', error);
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: error.message });
+      return { success: false, message: error.message };
     }
   };
 
   const confirmRegistration = async (username, confirmationCode) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
-      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
-        try {
-          const result = await devAuth.confirmSignUp(username, confirmationCode);
-          
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          
-          return {
-            success: true,
-            isComplete: result.isSignUpComplete,
-            message: 'Account confirmed successfully. You can now sign in.'
-          };
-        } catch (error) {
-          console.error('Dev auth confirmation error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
-      }
-
-      const { isSignUpComplete } = await confirmSignUp({
+      
+      console.log('✅ Confirming registration...');
+      const { isSignUpComplete, nextStep } = await confirmSignUp({
         username,
         confirmationCode
       });
 
-      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-      return {
-        success: true,
-        isComplete: isSignUpComplete,
-        message: 'Account confirmed successfully. You can now sign in.'
-      };
+      if (isSignUpComplete) {
+        return { success: true, message: 'Account confirmed successfully!' };
+      } else {
+        return { 
+          success: false, 
+          message: 'Additional steps required.'
+        };
+      }
     } catch (error) {
-      console.error('Confirmation error:', error);
-      const errorMessage = getErrorMessage(error);
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      return { success: false, error: errorMessage };
+      console.error('❌ Confirmation error:', error);
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: error.message });
+      return { success: false, message: error.message };
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
     }
   };
 
   const logout = async () => {
     try {
-      // Clear ALL tokens from storage including any Cognito tokens
+      console.log('🚪 Signing out...');
+      await signOut();
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('idToken');
-      localStorage.removeItem('authToken');
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('authToken');
-      
-      // Clear development auth storage
-      localStorage.removeItem('dev_session');
-      localStorage.removeItem('dev_users');
-      localStorage.removeItem('dev_pending');
-      
-      // Clear any Cognito storage
-      localStorage.removeItem('amplify-signin-with-hostedUI');
-      localStorage.removeItem('amplify-redirected-from-hosted-ui');
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('amplify-') || key.startsWith('CognitoIdentityServiceProvider.')) {
-          localStorage.removeItem(key);
-        }
-      });
-      
-      // Use appropriate logout method based on authentication type
-      if (!isCognitoConfigured()) {
-        console.log('🔧 DEVELOPMENT LOGOUT - Using local dev auth (real Cognito in AWS)');
-        await devAuth.signOut();
-      } else {
-        console.log('🚀 Using AWS Cognito logout');
-        await signOut();
-      }
-      
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: true };
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
       // Even if logout fails, clear local state
+      localStorage.removeItem('accessToken');
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      return { success: false, error: getErrorMessage(error) };
+      return { success: false, message: error.message };
     }
   };
 
-  const forgotPassword = async (username) => {
+  const resetPasswordRequest = async (username) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
-      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
-        try {
-          const result = await devAuth.resetPassword(username);
-          
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          
-          return {
-            success: true,
-            nextStep: result.nextStep,
-            message: 'Password reset code sent to your email'
-          };
-        } catch (error) {
-          console.error('Dev auth password reset error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
-      }
-
-      // Additional check to prevent undefined domain issues
-      const cognitoConfig = getCognitoConfig();
-      if (!cognitoConfig.domain || 
-          cognitoConfig.domain === 'undefined' || 
-          cognitoConfig.domain === '' ||
-          cognitoConfig.domain === null ||
-          cognitoConfig.userPoolId.includes('FALLBACK') ||
-          cognitoConfig.userPoolClientId.includes('fallback')) {
-        console.warn('Cognito domain not configured or using fallback values - using development authentication');
-        try {
-          const result = await devAuth.resetPassword(username);
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          return {
-            success: true,
-            nextStep: result.nextStep,
-            message: 'Password reset code sent to your email (development mode)'
-          };
-        } catch (error) {
-          console.error('Dev auth password reset error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
-      }
-
+      
+      console.log('🔄 Requesting password reset...');
       const output = await resetPassword({ username });
       
-      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-      return {
-        success: true,
-        nextStep: output.nextStep,
-        message: 'Password reset code sent to your email'
+      return { 
+        success: true, 
+        message: 'Password reset code sent to your email.',
+        nextStep: output.nextStep
       };
     } catch (error) {
-      console.error('Forgot password error:', error);
-      const errorMessage = getErrorMessage(error);
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      return { success: false, error: errorMessage };
+      console.error('❌ Password reset error:', error);
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: error.message });
+      return { success: false, message: error.message };
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
     }
   };
 
-  const confirmForgotPassword = async (username, confirmationCode, newPassword) => {
+  const confirmPasswordReset = async (username, confirmationCode, newPassword) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
-      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log('Cognito not configured - using development authentication');
-        try {
-          await devAuth.confirmResetPassword(username, confirmationCode, newPassword);
-          
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          
-          return {
-            success: true,
-            message: 'Password reset successfully. You can now sign in with your new password.'
-          };
-        } catch (error) {
-          console.error('Dev auth confirm password reset error:', error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
-      }
-
-      await confirmResetPassword({
-        username,
-        confirmationCode,
-        newPassword
-      });
-
+      
+      console.log('🔄 Confirming password reset...');
+      await confirmResetPassword({ username, confirmationCode, newPassword });
+      
+      return { success: true, message: 'Password reset successfully!' };
+    } catch (error) {
+      console.error('❌ Password reset confirmation error:', error);
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: error.message });
+      return { success: false, message: error.message };
+    } finally {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-      return {
-        success: true,
-        message: 'Password reset successfully. You can now sign in with your new password.'
-      };
-    } catch (error) {
-      console.error('Confirm password reset error:', error);
-      const errorMessage = getErrorMessage(error);
-      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  const refreshSession = async () => {
-    try {
-      const session = await fetchAuthSession({ forceRefresh: true });
-      
-      if (session.tokens) {
-        dispatch({
-          type: AUTH_ACTIONS.UPDATE_TOKENS,
-          payload: {
-            accessToken: session.tokens.accessToken.toString(),
-            idToken: session.tokens.idToken?.toString(),
-            refreshToken: session.tokens.refreshToken?.toString()
-          }
-        });
-        return { success: true };
-      }
-      
-      return { success: false, error: 'No valid tokens' };
-    } catch (error) {
-      console.error('Session refresh error:', error);
-      return { success: false, error: getErrorMessage(error) };
     }
   };
 
@@ -574,36 +298,41 @@ export function AuthProvider({ children }) {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   };
 
-  // Helper function to get user-friendly error messages
-  const getErrorMessage = (error) => {
-    if (error.name === 'NotAuthorizedException') {
-      return 'Invalid username or password';
+  const refreshTokens = async () => {
+    try {
+      const session = await fetchAuthSession();
+      if (session.tokens) {
+        const tokens = {
+          accessToken: session.tokens.accessToken.toString(),
+          idToken: session.tokens.idToken?.toString(),
+          refreshToken: session.tokens.refreshToken?.toString()
+        };
+        
+        localStorage.setItem('accessToken', tokens.accessToken);
+        dispatch({ type: AUTH_ACTIONS.UPDATE_TOKENS, payload: tokens });
+        return tokens;
+      }
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
+      await logout();
+      throw error;
     }
-    if (error.name === 'UserNotConfirmedException') {
-      return 'Please confirm your account before signing in';
-    }
-    if (error.name === 'UsernameExistsException') {
-      return 'Username already exists';
-    }
-    if (error.name === 'CodeMismatchException') {
-      return 'Invalid verification code';
-    }
-    if (error.name === 'ExpiredCodeException') {
-      return 'Verification code has expired';
-    }
-    return error.message || 'An unexpected error occurred';
   };
 
   const value = {
-    ...state,
+    user: state.user,
+    isAuthenticated: state.isAuthenticated,
+    isLoading: state.isLoading,
+    error: state.error,
+    tokens: state.tokens,
     login,
     register,
     confirmRegistration,
     logout,
-    forgotPassword,
-    confirmForgotPassword,
-    refreshSession,
+    resetPasswordRequest,
+    confirmPasswordReset,
     clearError,
+    refreshTokens,
     checkAuthState
   };
 
@@ -614,10 +343,10 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook to use auth context
+// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

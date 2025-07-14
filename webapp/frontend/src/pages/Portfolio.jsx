@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Portfolio page - fully integrated with real broker API keys for live data
-// Updated: 2025-07-12 - Enhanced real-time integration with broker API credentials
+// Updated: 2025-07-14 - Enhanced real-time integration with HFT system and WebSocket live data
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys, getApiConfig, testApiConnection } from '../services/api';
+import { useLivePortfolioData } from '../hooks/useLivePortfolioData';
 import {
   Box,
   Container,
@@ -397,6 +398,19 @@ const Portfolio = () => {
     factorConstraints: true
   });
 
+  // Live data integration with HFT system
+  const {
+    portfolioData: livePortfolioData,
+    setPortfolioData: setLivePortfolioData,
+    isLiveConnected,
+    liveDataError,
+    lastUpdate: liveLastUpdate,
+    metrics: liveMetrics,
+    refreshData: refreshLiveData,
+    toggleLiveData,
+    isSubscribed: isLiveSubscribed
+  } = useLivePortfolioData(user?.sub, accountInfo?.apiKeyId, portfolioData);
+
   // ALL HOOKS MUST BE DECLARED AT THE TOP TO FIX REACT ERROR #310
   // Advanced portfolio metrics calculations
   const portfolioMetrics = useMemo(() => {
@@ -660,7 +674,47 @@ const Portfolio = () => {
       }
     } catch (error) {
       console.error('❌ Error loading portfolio:', error);
-      setError(error.message || 'Failed to load portfolio data');
+      
+      // Create detailed error message based on error type
+      let errorMessage = 'Failed to load portfolio data';
+      let errorDetails = '';
+      let errorType = 'portfolio_load_error';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'Network connection error';
+        errorDetails = 'Unable to connect to the portfolio service. Please check your internet connection and try again.';
+        errorType = 'network_error';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Request timeout';
+        errorDetails = 'The portfolio service is taking too long to respond. This may indicate heavy load or service issues.';
+        errorType = 'timeout_error';
+      } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        errorMessage = 'Authentication error';
+        errorDetails = 'Your session has expired or you do not have permission to access this portfolio data. Please log in again.';
+        errorType = 'auth_error';
+      } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+        errorMessage = 'Access denied';
+        errorDetails = 'You do not have permission to access this portfolio data. Please check your API key settings.';
+        errorType = 'permission_error';
+      } else if (error.message.includes('500')) {
+        errorMessage = 'Server error';
+        errorDetails = 'The portfolio service encountered an internal error. Please try again later or contact support.';
+        errorType = 'server_error';
+      } else if (error.message.includes('API key')) {
+        errorMessage = 'API key issue';
+        errorDetails = 'There is a problem with your broker API key. Please check your settings and ensure your API key is valid and active.';
+        errorType = 'api_key_error';
+      } else {
+        errorDetails = `Error: ${error.message}`;
+      }
+      
+      setError({ 
+        message: errorMessage, 
+        details: errorDetails,
+        timestamp: new Date().toISOString(),
+        type: errorType,
+        originalError: error.message
+      });
       
       // Fallback to mock data if real data fails
       if (dataSource !== 'mock') {
@@ -907,6 +961,11 @@ const Portfolio = () => {
     setLastRefresh(new Date());
     if (isAuthenticated && user) {
       loadPortfolioData();
+      
+      // Also refresh live data if connected
+      if (isLiveConnected) {
+        refreshLiveData();
+      }
     }
   };
 
@@ -1582,8 +1641,17 @@ const Portfolio = () => {
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="400px">
           <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="h6">Failed to Load Portfolio Data</Typography>
-            <Typography variant="body2">{String(error)}</Typography>
+            <Typography variant="h6">
+              {typeof error === 'object' && error.message ? error.message : 'Failed to Load Portfolio Data'}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {typeof error === 'object' && error.details ? error.details : String(error)}
+            </Typography>
+            {typeof error === 'object' && error.timestamp && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                Error occurred at: {new Date(error.timestamp).toLocaleString()}
+              </Typography>
+            )}
           </Alert>
           <Button 
             variant="contained" 
@@ -1658,6 +1726,24 @@ const Portfolio = () => {
               }
               variant="outlined"
             />
+            {isLiveConnected && (
+              <Chip 
+                size="small" 
+                label={`Live Data ${liveLastUpdate ? `(${liveLastUpdate.toLocaleTimeString()})` : ''}`}
+                color="success"
+                variant="filled"
+                icon={<CloudSync />}
+              />
+            )}
+            {liveDataError && (
+              <Chip 
+                size="small" 
+                label="Live Data Error"
+                color="error"
+                variant="filled"
+                icon={<Warning />}
+              />
+            )}
             {accountInfo && (
               <Typography variant="caption" color="text.secondary">
                 Balance: {formatCurrency(accountInfo.balance)} • 
@@ -1780,6 +1866,21 @@ const Portfolio = () => {
               color={autoRefresh ? "primary" : "default"}
             >
               <Refresh />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title={`Live Data: ${isLiveConnected ? 'CONNECTED' : 'DISCONNECTED'}`}>
+            <IconButton 
+              onClick={toggleLiveData}
+              color={isLiveConnected ? "success" : "default"}
+            >
+              <Badge 
+                variant="dot" 
+                color={isLiveConnected ? "success" : "error"}
+                invisible={!isLiveSubscribed}
+              >
+                <CloudSync />
+              </Badge>
             </IconButton>
           </Tooltip>
           

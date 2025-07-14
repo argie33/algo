@@ -210,6 +210,15 @@ class LiveDataService extends EventEmitter {
         case 'market_data':
           this.handleMarketData(data);
           break;
+        case 'portfolio_update':
+          this.handlePortfolioUpdate(data);
+          break;
+        case 'portfolio_holdings':
+          this.handlePortfolioHoldings(data);
+          break;
+        case 'position_update':
+          this.handlePositionUpdate(data);
+          break;
         case 'pong':
           this.handlePong(data);
           break;
@@ -256,6 +265,48 @@ class LiveDataService extends EventEmitter {
     this.emit('subscribed', data);
   }
 
+  handlePortfolioUpdate(data) {
+    const { userId, apiKeyId, portfolio } = data;
+    console.log('📊 Portfolio update received:', portfolio);
+    
+    // Emit to specific portfolio subscription
+    this.emit(`portfolio:${userId}:${apiKeyId}`, {
+      type: 'portfolio_update',
+      data: portfolio
+    });
+    
+    // Emit to general portfolio listeners
+    this.emit('portfolioUpdate', { userId, apiKeyId, portfolio });
+  }
+
+  handlePortfolioHoldings(data) {
+    const { userId, apiKeyId, holdings } = data;
+    console.log('📊 Portfolio holdings received:', holdings);
+    
+    // Emit to specific portfolio subscription
+    this.emit(`portfolio:${userId}:${apiKeyId}`, {
+      type: 'holdings_update',
+      data: holdings
+    });
+    
+    // Emit to general portfolio listeners
+    this.emit('portfolioHoldings', { userId, apiKeyId, holdings });
+  }
+
+  handlePositionUpdate(data) {
+    const { userId, apiKeyId, position } = data;
+    console.log('📊 Position update received:', position);
+    
+    // Emit to specific portfolio subscription
+    this.emit(`portfolio:${userId}:${apiKeyId}`, {
+      type: 'position_update',
+      data: position
+    });
+    
+    // Emit to general portfolio listeners
+    this.emit('positionUpdate', { userId, apiKeyId, position });
+  }
+
   // Subscription Management
   subscribe(symbols, channel = 'market_data') {
     if (!Array.isArray(symbols)) {
@@ -268,6 +319,60 @@ class LiveDataService extends EventEmitter {
       action: 'subscribe',
       channel: channel,
       symbols: symbols
+    };
+    
+    this.sendMessage(message);
+    return this;
+  }
+
+  // Portfolio-specific subscription
+  subscribeToPortfolio(userId, apiKeyId, callback) {
+    const subscriptionKey = `portfolio:${userId}:${apiKeyId}`;
+    
+    if (this.subscriptions.has(subscriptionKey)) {
+      console.log('📊 Already subscribed to portfolio live data');
+      return this;
+    }
+
+    console.log('📊 Subscribing to portfolio live data...');
+    
+    // Add to subscriptions and set up callback
+    this.subscriptions.add(subscriptionKey);
+    this.on(`portfolio:${userId}:${apiKeyId}`, callback);
+    
+    const message = {
+      action: 'subscribe',
+      channel: 'portfolio',
+      userId: userId,
+      apiKeyId: apiKeyId,
+      subscriptionKey: subscriptionKey
+    };
+    
+    this.sendMessage(message);
+    return this;
+  }
+
+  // Unsubscribe from portfolio
+  unsubscribeFromPortfolio(userId, apiKeyId) {
+    const subscriptionKey = `portfolio:${userId}:${apiKeyId}`;
+    
+    if (!this.subscriptions.has(subscriptionKey)) {
+      console.log('📊 Not subscribed to portfolio live data');
+      return this;
+    }
+
+    console.log('📊 Unsubscribing from portfolio live data...');
+    
+    // Remove from subscriptions and callbacks
+    this.subscriptions.delete(subscriptionKey);
+    this.removeAllListeners(`portfolio:${userId}:${apiKeyId}`);
+    
+    const message = {
+      action: 'unsubscribe',
+      channel: 'portfolio',
+      userId: userId,
+      apiKeyId: apiKeyId,
+      subscriptionKey: subscriptionKey
     };
     
     this.sendMessage(message);

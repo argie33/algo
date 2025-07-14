@@ -3,7 +3,7 @@ const router = express.Router();
 const { query } = require('../utils/database');
 const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 const { authenticateToken } = require('../middleware/auth');
-const apiKeyService = require('../utils/apiKeyService');
+const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
 const RiskCalculator = require('../utils/riskCalculator');
 const SignalEngine = require('../utils/signalEngine');
@@ -1249,7 +1249,7 @@ router.get('/market-timing', async (req, res) => {
 // Place order
 router.post('/orders', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const {
       symbol,
       quantity,
@@ -1306,12 +1306,9 @@ router.post('/orders', async (req, res) => {
     }
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found. Please configure them in settings.'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1441,7 +1438,7 @@ router.post('/orders', async (req, res) => {
 // Get user's orders
 router.get('/orders', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const {
       status,
       symbol,
@@ -1507,7 +1504,7 @@ router.get('/orders', async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
 
     // Get live status from Alpaca for recent orders
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (credentials) {
       const alpaca = new AlpacaService(
         credentials.apiKey,
@@ -1568,7 +1565,7 @@ router.get('/orders', async (req, res) => {
 // Get specific order
 router.get('/orders/:orderId', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { orderId } = req.params;
 
     // Get from database
@@ -1592,7 +1589,7 @@ router.get('/orders/:orderId', async (req, res) => {
     const order = orderResult.rows[0];
 
     // Get live status from Alpaca
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (credentials) {
       const alpaca = new AlpacaService(
         credentials.apiKey,
@@ -1631,7 +1628,7 @@ router.get('/orders/:orderId', async (req, res) => {
 // Cancel order
 router.delete('/orders/:orderId', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { orderId } = req.params;
 
     // Verify order belongs to user
@@ -1658,12 +1655,9 @@ router.delete('/orders/:orderId', async (req, res) => {
     }
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1700,16 +1694,13 @@ router.delete('/orders/:orderId', async (req, res) => {
 // Get positions
 router.get('/positions', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.query;
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1781,17 +1772,14 @@ router.get('/positions', async (req, res) => {
 // Close position
 router.delete('/positions/:symbol', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.params;
     const { percentage = 100 } = req.body;
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1830,15 +1818,12 @@ router.delete('/positions/:symbol', async (req, res) => {
 // Get account info
 router.get('/account', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1884,16 +1869,13 @@ router.get('/account', async (req, res) => {
 // Get market hours
 router.get('/market/hours', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { date } = req.query;
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1923,16 +1905,13 @@ router.get('/market/hours', async (req, res) => {
 // Get real-time quotes
 router.get('/quotes/:symbol', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.params;
 
     // Get user's API credentials
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(400).json({
-        success: false,
-        error: 'Alpaca API credentials not found'
-      });
+      return sendApiKeyError(res, 'alpaca', userId, 'Alpaca API credentials not found');
     }
 
     const alpaca = new AlpacaService(
@@ -1989,7 +1968,7 @@ router.get('/quotes/:symbol', async (req, res) => {
 // Generate trading signals
 router.post('/signals/generate', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbols, signalTypes = ['technical', 'fundamental'] } = req.body;
 
     if (!symbols || symbols.length === 0) {
@@ -2039,7 +2018,7 @@ router.post('/signals/generate', async (req, res) => {
 // Calculate position sizing
 router.post('/position-sizing', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const {
       symbol,
       entryPrice,
@@ -2058,7 +2037,7 @@ router.post('/position-sizing', async (req, res) => {
     // Get account value if not provided
     let totalAccountValue = accountValue;
     if (!totalAccountValue) {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       if (credentials) {
         const alpaca = new AlpacaService(
           credentials.apiKey,

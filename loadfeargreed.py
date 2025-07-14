@@ -44,8 +44,9 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BROWSER_RETRIES = 3
-RETRY_DELAY = 2.0  # seconds between browser retries
+MAX_BROWSER_RETRIES = 5
+RETRY_DELAY = 5.0  # seconds between browser retries
+BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
 # -------------------------------
 # Fear & Greed columns
@@ -89,29 +90,52 @@ async def get_fear_greed_data():
     Scrapes the CNN Fear & Greed index data using a headless browser.
     Returns a list of dictionaries with date, index_value, and rating.
     """
-    logging.info(f"Scraping Fear & Greed data from: {FEAR_GREED_URL}")
+    logging.info(f"🔄 Starting Fear & Greed data scraping from: {FEAR_GREED_URL}")
     
     browser = None
     for attempt in range(1, MAX_BROWSER_RETRIES + 1):
         try:
-            logging.info(f"Browser attempt {attempt}/{MAX_BROWSER_RETRIES}")
+            logging.info(f"🌐 Browser attempt {attempt}/{MAX_BROWSER_RETRIES}")
             
-            # Launch browser with appropriate arguments for containerized environment
+            # Launch browser with comprehensive arguments for containerized environment
+            browser_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--no-first-run",
+                "--no-zygote",
+                "--disable-gpu",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--disable-web-security",
+                "--disable-features=VizDisplayCompositor",
+                "--memory-pressure-off",
+                "--max_old_space_size=4096",
+                "--disable-background-networking",
+                "--disable-default-apps",
+                "--disable-extensions",
+                "--disable-sync",
+                "--disable-translate",
+                "--hide-scrollbars",
+                "--metrics-recording-only",
+                "--mute-audio",
+                "--no-default-browser-check",
+                "--no-pings",
+                "--password-store=basic",
+                "--use-mock-keychain",
+                "--disable-blink-features=AutomationControlled"
+            ]
+            
+            logging.info(f"🚀 Launching browser with {len(browser_args)} arguments")
             browser = await launch(
                 executablePath='/usr/bin/chromium',
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--no-first-run",
-                    "--no-zygote",
-                    "--disable-gpu",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-renderer-backgrounding"
-                ],
-                headless=True
+                args=browser_args,
+                headless=True,
+                timeout=60000,  # 60 second timeout
+                ignoreHTTPSErrors=True,
+                defaultViewport={'width': 1280, 'height': 720}
             )
             
             page = await browser.newPage()
@@ -146,17 +170,25 @@ async def get_fear_greed_data():
             return data_array
             
         except Exception as e:
-            logging.warning(f"Browser attempt {attempt} failed: {e}")
+            logging.error(f"❌ Browser attempt {attempt} failed: {e}")
+            logging.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
             if browser:
                 try:
                     await browser.close()
-                except:
-                    pass
+                    logging.info("🔄 Browser closed successfully")
+                except Exception as close_error:
+                    logging.error(f"❌ Failed to close browser: {close_error}")
                 browser = None
             
             if attempt < MAX_BROWSER_RETRIES:
-                time.sleep(RETRY_DELAY)
+                retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
+                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_BROWSER_RETRIES})")
+                await asyncio.sleep(retry_delay)  # Use async sleep
             else:
+                logging.error(f"❌ CRITICAL: Failed to scrape Fear & Greed data after {MAX_BROWSER_RETRIES} attempts")
+                logging.error(f"❌ Final error: {e}")
                 raise Exception(f"Failed to scrape Fear & Greed data after {MAX_BROWSER_RETRIES} attempts: {e}")
 
 # -------------------------------
@@ -220,15 +252,19 @@ async def load_fear_greed_data(cur, conn):
 # Entrypoint
 # -------------------------------
 async def main():
+    logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
     # Connect to DB
+    logging.info("🔌 Loading database configuration...")
     cfg = get_db_config()
+    logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
+    logging.info("✅ Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -275,4 +311,10 @@ async def main():
     logging.info("All done.")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        sys.exit(1) 
