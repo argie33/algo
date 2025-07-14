@@ -1,31 +1,48 @@
 {
   "summary": {
-    "passed": 1,
-    "failed": 5,
-    "totalTime": 6131,
-    "timestamp": "2025-07-14T18:34:07.033Z"
+    "passed": 4,
+    "failed": 2,
+    "totalTime": 1765,
+    "timestamp": "2025-07-14T19:25:50.837Z"
   },
   "infrastructure": {
     "secretsStatus": {
-      "message": "Internal server error"
+      "secretsStatus": {
+        "initialized": true,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "usingTempEncryption": true,
+        "usingTempJwt": false,
+        "cachedSecrets": 1
+      },
+      "environment": {
+        "hasApiKeySecret": true,
+        "hasJwtSecret": false,
+        "hasDbSecret": true,
+        "region": "us-east-1"
+      },
+      "timestamp": "2025-07-14T19:25:49.940Z"
     },
     "dbStatus": {
-      "message": "Internal server error"
+      "error": "Authentication required",
+      "message": "Access token is missing from Authorization header"
     },
     "apiKeyStatus": {
-      "message": "Internal server error"
+      "error": "Authentication failed",
+      "message": "Could not verify authentication token"
     }
   },
   "tests": [
     {
       "name": "Health Endpoint",
-      "passed": false,
+      "passed": true,
       "details": {
-        "statusCode": 502,
-        "responseTime": "measured"
+        "statusCode": 200,
+        "responseTime": "measured",
+        "status": "healthy"
       },
-      "error": "Expected 200 with healthy status, got 502",
-      "timestamp": "2025-07-14T18:34:03.112Z"
+      "error": null,
+      "timestamp": "2025-07-14T19:25:49.432Z"
     },
     {
       "name": "CORS Configuration",
@@ -36,44 +53,55 @@
         "allowMethods": "GET,POST,PUT,DELETE,OPTIONS"
       },
       "error": null,
-      "timestamp": "2025-07-14T18:34:03.316Z"
+      "timestamp": "2025-07-14T19:25:49.748Z"
     },
     {
       "name": "Secrets Status Endpoint",
-      "passed": false,
-      "details": {
-        "statusCode": 502
+      "passed": {
+        "initialized": true,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "usingTempEncryption": true,
+        "usingTempJwt": false,
+        "cachedSecrets": 1
       },
-      "error": "Expected 200 with secrets status, got 502",
-      "timestamp": "2025-07-14T18:34:04.182Z"
+      "details": {
+        "statusCode": 200,
+        "hasApiKeySecret": true,
+        "hasJwtSecret": false,
+        "secretsInitialized": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:25:49.954Z"
     },
     {
       "name": "API Keys Endpoint - Unauthorized",
-      "passed": false,
+      "passed": true,
       "details": {
-        "statusCode": 502
+        "statusCode": 401,
+        "error": "Authentication required"
       },
-      "error": "Expected 401 Unauthorized, got 502",
-      "timestamp": "2025-07-14T18:34:05.243Z"
+      "error": null,
+      "timestamp": "2025-07-14T19:25:50.280Z"
     },
     {
       "name": "API Keys Endpoint - No Encryption",
       "passed": false,
       "details": {
-        "statusCode": 502,
-        "message": "Internal server error"
+        "statusCode": 401,
+        "message": "Could not verify authentication token"
       },
-      "error": "Expected graceful degradation, got 502",
-      "timestamp": "2025-07-14T18:34:06.167Z"
+      "error": "Expected graceful degradation, got 401",
+      "timestamp": "2025-07-14T19:25:50.514Z"
     },
     {
       "name": "Database Connectivity",
       "passed": false,
       "details": {
-        "statusCode": 502
+        "statusCode": 401
       },
-      "error": "Database connectivity test failed: 502",
-      "timestamp": "2025-07-14T18:34:07.030Z"
+      "error": "Database connectivity test failed: 401",
+      "timestamp": "2025-07-14T19:25:50.836Z"
     }
   ]
 }
