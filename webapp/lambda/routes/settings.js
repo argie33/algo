@@ -98,26 +98,39 @@ const require2FA = async (req, res, next) => {
   }
 };
 
-// Encryption utilities - using simple but secure AES-256-CBC
-const ALGORITHM = 'aes-256-cbc';
+// Use apiKeyService for consistent encryption across the application
+const apiKeyService = require('../utils/apiKeyService');
 
 function encryptApiKey(apiKey, userSalt) {
   try {
-    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
+    if (!apiKeyService.isEnabled) {
+      console.warn('API key service disabled, using fallback base64 encoding');
+      const combined = `${userSalt}:${apiKey}`;
+      const encoded = Buffer.from(combined).toString('base64');
+      return {
+        encrypted: encoded,
+        iv: '',
+        authTag: '',
+        fallback: true
+      };
+    }
+
+    // Use the same encryption as apiKeyService (AES-256-GCM)
+    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'dev-encryption-key-change-in-production-32bytes!!';
     const key = crypto.scryptSync(secretKey, userSalt, 32);
     const iv = crypto.randomBytes(16);
     
-    // Use AES-256-CBC which is well supported across Node.js versions
-    const cipher = crypto.createCipher(ALGORITHM, key);
+    const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
+    cipher.setAAD(Buffer.from(userSalt));
     
     let encrypted = cipher.update(apiKey, 'utf8', 'hex');
     encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
     
     return {
       encrypted: encrypted,
       iv: iv.toString('hex'),
-      authTag: '', // Not used in CBC mode
-      algorithm: ALGORITHM
+      authTag: authTag.toString('hex')
     };
   } catch (error) {
     console.error('Encryption error:', error);
@@ -145,16 +158,8 @@ function decryptApiKey(encryptedData, userSalt) {
       throw new Error('Salt mismatch in fallback decryption');
     }
     
-    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'default-encryption-key-change-in-production';
-    const key = crypto.scryptSync(secretKey, userSalt, 32);
-    
-    // Use AES-256-CBC for decryption
-    const decipher = crypto.createDecipher(ALGORITHM, key);
-    
-    let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
+    // Use the same decryption as apiKeyService (AES-256-GCM)
+    return apiKeyService.decryptApiKey(encryptedData, userSalt);
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt API key');
