@@ -371,7 +371,6 @@ router.get('/performance', authenticateToken, async (req, res) => {
         }
 
         // Use the existing portfolio API integration
-        const apiKeyService = require('../utils/apiKeyService');
         const AlpacaService = require('../utils/alpacaService');
         
         try {

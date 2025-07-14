@@ -4078,4 +4078,137 @@ export const deleteHolding = async (holdingId) => {
   }
 };
 
+// Data Loader Status Functions for ServiceHealth page
+export const getNaaimData = async () => {
+  console.log('📊 [API] Fetching NAAIM data status...');
+  
+  try {
+    const response = await api.get('/data/naaim');
+    console.log('📊 [API] NAAIM data response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data || [],
+      count: response.data.count || 0,
+      lastUpdated: response.data.lastUpdated,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] NAAIM data error:', error);
+    const errorMessage = handleApiError(error, 'get NAAIM data');
+    return { 
+      success: false, 
+      data: [],
+      count: 0,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const getFearGreedData = async () => {
+  console.log('😨 [API] Fetching Fear & Greed index data...');
+  
+  try {
+    const response = await api.get('/data/fear-greed');
+    console.log('😨 [API] Fear & Greed data response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data || [],
+      count: response.data.count || 0,
+      lastUpdated: response.data.lastUpdated,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Fear & Greed data error:', error);
+    const errorMessage = handleApiError(error, 'get Fear & Greed data');
+    return { 
+      success: false, 
+      data: [],
+      count: 0,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const getAaiiData = async () => {
+  console.log('📈 [API] Fetching AAII sentiment data...');
+  
+  try {
+    const response = await api.get('/data/aaii');
+    console.log('📈 [API] AAII data response:', response.data);
+    
+    return {
+      success: true,
+      data: response.data.data || [],
+      count: response.data.count || 0,
+      lastUpdated: response.data.lastUpdated,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] AAII data error:', error);
+    const errorMessage = handleApiError(error, 'get AAII sentiment data');
+    return { 
+      success: false, 
+      data: [],
+      count: 0,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const getDataLoaderStatus = async () => {
+  console.log('⚙️ [API] Fetching data loader status...');
+  
+  try {
+    const response = await api.get('/data/status');
+    console.log('⚙️ [API] Data loader status response:', response.data);
+    
+    return {
+      success: true,
+      loaders: response.data.data || [],
+      summary: response.data.summary || {},
+      lastUpdated: response.data.lastUpdated,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('❌ [API] Data loader status error:', error);
+    const errorMessage = handleApiError(error, 'get data loader status');
+    return { 
+      success: false, 
+      loaders: [],
+      summary: {},
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+export const triggerDataLoader = async (loaderName) => {
+  console.log(`🚀 [API] Triggering data loader: ${loaderName}`);
+  
+  try {
+    const response = await api.post(`/data/trigger/${loaderName}`);
+    console.log(`🚀 [API] Trigger ${loaderName} response:`, response.data);
+    
+    return {
+      success: true,
+      message: response.data.message,
+      taskId: response.data.taskId,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error(`❌ [API] Trigger ${loaderName} error:`, error);
+    const errorMessage = handleApiError(error, `trigger ${loaderName} data loader`);
+    return { 
+      success: false, 
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
 

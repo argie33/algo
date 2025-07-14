@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const apiKeyService = require('../utils/apiKeyService');
+const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
 
 const router = express.Router();
@@ -32,8 +32,10 @@ router.use(authenticateToken);
 // Get real-time quotes for multiple symbols
 router.get('/quotes', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbols } = req.query;
+    
+    console.log(`📊 [MARKET-DATA] Quotes request for user ${userId}, symbols: ${symbols}`);
     
     if (!symbols) {
       return res.status(400).json({
@@ -43,7 +45,7 @@ router.get('/quotes', async (req, res) => {
     }
 
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -83,12 +85,12 @@ router.get('/quotes', async (req, res) => {
 // Get historical bars for a symbol
 router.get('/bars/:symbol', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.params;
     const { timeframe = '1Day', start, end, limit = 100 } = req.query;
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -135,12 +137,12 @@ router.get('/bars/:symbol', async (req, res) => {
 // Get latest trade for a symbol
 router.get('/trades/:symbol', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.params;
     const { limit = 10 } = req.query;
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -179,11 +181,11 @@ router.get('/trades/:symbol', async (req, res) => {
 // Get market calendar
 router.get('/calendar', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { start, end } = req.query;
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -234,7 +236,7 @@ router.get('/status', async (req, res) => {
     
     try {
       // Try to get user's API key
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials && credentials.apiKey && credentials.apiSecret) {
         console.log('✅ Valid API credentials found, fetching real market status...');
@@ -295,11 +297,11 @@ router.get('/status', async (req, res) => {
 // Get asset information
 router.get('/assets/:symbol', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { symbol } = req.params;
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -338,11 +340,11 @@ router.get('/assets/:symbol', async (req, res) => {
 // Get all tradeable assets
 router.get('/assets', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     const { status = 'active', asset_class = 'us_equity' } = req.query;
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({
@@ -384,10 +386,10 @@ router.get('/assets', async (req, res) => {
 // Get websocket configuration for real-time data
 router.get('/websocket-config', async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = validateUserAuthentication(req);
     
     // Get user's API key
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
       return res.status(404).json({

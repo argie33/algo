@@ -1845,8 +1845,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: aaiidata-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1899,8 +1899,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: feargreeddata-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1956,8 +1956,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: naaimdata-loader
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "256"
+      Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE

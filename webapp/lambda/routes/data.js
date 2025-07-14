@@ -823,4 +823,262 @@ router.get('/financial-metrics', async (req, res) => {
   }
 });
 
+// NAAIM data endpoint for ServiceHealth monitoring
+router.get('/naaim', async (req, res) => {
+  try {
+    console.log('📊 [DATA] NAAIM data request received');
+    
+    const naaimQuery = `
+      SELECT 
+        date,
+        naaim_number_mean,
+        bearish,
+        quart1,
+        quart2,
+        quart3,
+        bullish,
+        deviation,
+        fetched_at
+      FROM naaim
+      ORDER BY date DESC
+      LIMIT 100
+    `;
+    
+    const countQuery = `SELECT COUNT(*) as total FROM naaim`;
+    const lastUpdatedQuery = `SELECT MAX(fetched_at) as last_updated FROM naaim`;
+    
+    const [dataResult, countResult, lastUpdatedResult] = await Promise.all([
+      query(naaimQuery),
+      query(countQuery),
+      query(lastUpdatedQuery)
+    ]);
+    
+    console.log(`📊 [DATA] NAAIM query returned ${dataResult.rows.length} records`);
+    
+    res.json({
+      success: true,
+      data: dataResult.rows,
+      count: parseInt(countResult.rows[0]?.total || 0),
+      lastUpdated: lastUpdatedResult.rows[0]?.last_updated,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [DATA] NAAIM error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch NAAIM data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Fear & Greed index endpoint for ServiceHealth monitoring  
+router.get('/fear-greed', async (req, res) => {
+  try {
+    console.log('😨 [DATA] Fear & Greed data request received');
+    
+    const fearGreedQuery = `
+      SELECT 
+        date,
+        index_value,
+        rating,
+        fetched_at
+      FROM fear_greed_index
+      ORDER BY date DESC
+      LIMIT 100
+    `;
+    
+    const countQuery = `SELECT COUNT(*) as total FROM fear_greed_index`;
+    const lastUpdatedQuery = `SELECT MAX(fetched_at) as last_updated FROM fear_greed_index`;
+    
+    const [dataResult, countResult, lastUpdatedResult] = await Promise.all([
+      query(fearGreedQuery),
+      query(countQuery),
+      query(lastUpdatedQuery)
+    ]);
+    
+    console.log(`😨 [DATA] Fear & Greed query returned ${dataResult.rows.length} records`);
+    
+    res.json({
+      success: true,
+      data: dataResult.rows,
+      count: parseInt(countResult.rows[0]?.total || 0),
+      lastUpdated: lastUpdatedResult.rows[0]?.last_updated,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [DATA] Fear & Greed error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch Fear & Greed data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// AAII sentiment data endpoint for ServiceHealth monitoring
+router.get('/aaii', async (req, res) => {
+  try {
+    console.log('📈 [DATA] AAII sentiment data request received');
+    
+    const aaiiQuery = `
+      SELECT 
+        date,
+        bullish,
+        neutral,
+        bearish,
+        fetched_at
+      FROM aaii_sentiment
+      ORDER BY date DESC
+      LIMIT 100
+    `;
+    
+    const countQuery = `SELECT COUNT(*) as total FROM aaii_sentiment`;
+    const lastUpdatedQuery = `SELECT MAX(fetched_at) as last_updated FROM aaii_sentiment`;
+    
+    const [dataResult, countResult, lastUpdatedResult] = await Promise.all([
+      query(aaiiQuery),
+      query(countQuery),
+      query(lastUpdatedQuery)
+    ]);
+    
+    console.log(`📈 [DATA] AAII sentiment query returned ${dataResult.rows.length} records`);
+    
+    res.json({
+      success: true,
+      data: dataResult.rows,
+      count: parseInt(countResult.rows[0]?.total || 0),
+      lastUpdated: lastUpdatedResult.rows[0]?.last_updated,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [DATA] AAII sentiment error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch AAII sentiment data',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Data loader status endpoint for monitoring ECS tasks
+router.get('/status', async (req, res) => {
+  try {
+    console.log('⚙️ [DATA] Data loader status request received');
+    
+    // Check last_updated table for loader status
+    const statusQuery = `
+      SELECT 
+        script_name,
+        last_run,
+        EXTRACT(EPOCH FROM (NOW() - last_run)) / 3600 as hours_since_last_run
+      FROM last_updated
+      ORDER BY last_run DESC
+    `;
+    
+    // Check table record counts for data freshness
+    const tablesQuery = `
+      SELECT 
+        'naaim' as table_name,
+        COUNT(*) as record_count,
+        MAX(fetched_at) as last_updated
+      FROM naaim
+      UNION ALL
+      SELECT 
+        'aaii_sentiment' as table_name,
+        COUNT(*) as record_count,
+        MAX(fetched_at) as last_updated
+      FROM aaii_sentiment
+      UNION ALL
+      SELECT 
+        'fear_greed_index' as table_name,
+        COUNT(*) as record_count,
+        MAX(fetched_at) as last_updated
+      FROM fear_greed_index
+    `;
+    
+    const [statusResult, tablesResult] = await Promise.all([
+      query(statusQuery),
+      query(tablesQuery)
+    ]);
+    
+    console.log(`⚙️ [DATA] Status query returned ${statusResult.rows.length} loaders`);
+    
+    // Calculate summary statistics
+    const summary = {
+      totalLoaders: statusResult.rows.length,
+      healthyLoaders: statusResult.rows.filter(l => l.hours_since_last_run < 24).length,
+      staleLoaders: statusResult.rows.filter(l => l.hours_since_last_run >= 24).length,
+      totalRecords: tablesResult.rows.reduce((sum, t) => sum + parseInt(t.record_count || 0), 0)
+    };
+    
+    res.json({
+      success: true,
+      data: statusResult.rows,
+      tables: tablesResult.rows,
+      summary,
+      lastUpdated: new Date().toISOString(),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [DATA] Status error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch data loader status',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Data loader trigger endpoint (placeholder for ECS task triggering)
+router.post('/trigger/:loaderName', async (req, res) => {
+  try {
+    const { loaderName } = req.params;
+    console.log(`🚀 [DATA] Trigger request for loader: ${loaderName}`);
+    
+    // Validate loader name
+    const validLoaders = ['naaim', 'aaii', 'feargreed', 'stocksymbols', 'loadinfo'];
+    if (!validLoaders.includes(loaderName)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid loader name. Valid loaders: ${validLoaders.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // In a full implementation, this would trigger the ECS task
+    // For now, return a placeholder response
+    const taskId = `task-${loaderName}-${Date.now()}`;
+    
+    console.log(`🚀 [DATA] Would trigger ECS task for ${loaderName} with ID: ${taskId}`);
+    
+    res.json({
+      success: true,
+      message: `Data loader ${loaderName} trigger initiated`,
+      taskId,
+      loader: loaderName,
+      status: 'triggered',
+      timestamp: new Date().toISOString(),
+      note: 'This is a placeholder. In production, this would trigger the actual ECS task.'
+    });
+    
+  } catch (error) {
+    console.error(`❌ [DATA] Trigger error for ${req.params.loaderName}:`, error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to trigger data loader',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

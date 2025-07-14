@@ -431,17 +431,16 @@ router.get('/history', authenticateToken, async (req, res) => {
     }
 
     // Use real broker API integration
-    const apiKeyService = require('../utils/apiKeyService');
     const AlpacaService = require('../utils/alpacaService');
     
     try {
       // Try to get real broker trade data
       console.log('🔑 Retrieving API credentials for Alpaca...');
-      const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
-      if (apiKey && apiKey.api_key && apiKey.api_secret) {
+      if (credentials && credentials.apiKey && credentials.apiSecret) {
         console.log('✅ Valid Alpaca credentials found, fetching real trade history...');
-        const alpaca = new AlpacaService(apiKey.api_key, apiKey.api_secret, apiKey.is_sandbox);
+        const alpaca = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
         
         // Get orders and activities from Alpaca
         const [orders, portfolioHistory] = await Promise.all([
@@ -645,17 +644,7 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
           if (keyData.provider === 'alpaca') {
             try {
               // Get live activities/trades from Alpaca
-              let credentials;
-              if (apiKeyService.isEnabled) {
-                credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
-              } else {
-                // Fallback for development
-                credentials = {
-                  apiKey: process.env.ALPACA_API_KEY,
-                  apiSecret: process.env.ALPACA_API_SECRET,
-                  isSandbox: true
-                };
-              }
+              const credentials = await getUserApiKey(userId, 'alpaca');
               
               if (credentials) {
                 const alpaca = new AlpacaService(
