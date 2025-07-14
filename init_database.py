@@ -77,7 +77,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS user_api_keys (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id VARCHAR(255) NOT NULL,
             provider VARCHAR(50) NOT NULL,
             encrypted_api_key TEXT NOT NULL,
             key_iv VARCHAR(32) NOT NULL,
@@ -100,7 +100,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS portfolio_metadata (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id VARCHAR(255) NOT NULL,
             api_key_id INTEGER,
             total_equity DECIMAL(15, 2),
             total_market_value DECIMAL(15, 2),
@@ -118,7 +118,7 @@ def create_all_tables(cursor, conn):
         """
         CREATE TABLE IF NOT EXISTS portfolio_holdings (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id VARCHAR(255) NOT NULL,
             api_key_id INTEGER,
             symbol VARCHAR(20) NOT NULL,
             quantity DECIMAL(20, 8) NOT NULL,
@@ -175,7 +175,7 @@ def create_all_tables(cursor, conn):
         # User preferences tables for settings endpoints
         """
         CREATE TABLE IF NOT EXISTS user_notification_preferences (
-            user_id INTEGER PRIMARY KEY,
+            user_id VARCHAR(255) PRIMARY KEY,
             email_notifications BOOLEAN DEFAULT TRUE,
             push_notifications BOOLEAN DEFAULT TRUE,
             price_alerts BOOLEAN DEFAULT TRUE,
@@ -189,7 +189,7 @@ def create_all_tables(cursor, conn):
         
         """
         CREATE TABLE IF NOT EXISTS user_theme_preferences (
-            user_id INTEGER PRIMARY KEY,
+            user_id VARCHAR(255) PRIMARY KEY,
             dark_mode BOOLEAN DEFAULT FALSE,
             primary_color VARCHAR(20) DEFAULT '#1976d2',
             chart_style VARCHAR(20) DEFAULT 'candlestick',
