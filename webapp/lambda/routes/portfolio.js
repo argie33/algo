@@ -1264,23 +1264,36 @@ router.post('/import/:broker', async (req, res) => {
         console.log(`🔑 [IMPORT] Calling apiKeyService.getDecryptedApiKey with userId=${userId}, broker=${broker}...`);
         console.log(`🔑 [IMPORT] API Key Service enabled: ${apiKeyService.isEnabled}`);
         
-        // Debug: Check if user has any API keys at all
+        // Enhanced debug: Check if user has any API keys at all
         try {
           const debugResult = await query(`SELECT id, provider, user_id, is_active, created_at FROM user_api_keys WHERE user_id = $1`, [userId]);
-          console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+          console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `ID:${k.id} ${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+          
+          // If specific keyId requested, check if it exists
+          if (keyId) {
+            const specificKeyCheck = await query(`SELECT id, provider, user_id, is_active FROM user_api_keys WHERE id = $1`, [keyId]);
+            console.log(`🔍 [IMPORT DEBUG] KeyId ${keyId} check: found=${specificKeyCheck.rows.length > 0}`);
+            if (specificKeyCheck.rows.length > 0) {
+              const key = specificKeyCheck.rows[0];
+              console.log(`🔍 [IMPORT DEBUG] KeyId ${keyId} details: user_id=${key.user_id}, provider=${key.provider}, active=${key.is_active}`);
+              console.log(`🔍 [IMPORT DEBUG] User ID match: ${key.user_id === userId} (${key.user_id} vs ${userId})`);
+              console.log(`🔍 [IMPORT DEBUG] Provider match: ${key.provider === broker} (${key.provider} vs ${broker})`);
+            } else {
+              console.log(`❌ [IMPORT DEBUG] KeyId ${keyId} does not exist in database`);
+            }
+          }
           
           // Only use API keys that belong to the exact authenticated user ID
           if (debugResult.rows.length === 0) {
             console.log(`🔍 [IMPORT DEBUG] No API keys found for user ${userId}. User must add API key in Settings.`);
+            
+            // Check if there are ANY API keys in the system
+            const totalKeysResult = await query(`SELECT COUNT(*) as total FROM user_api_keys`);
+            console.log(`🔍 [IMPORT DEBUG] Total API keys in system: ${totalKeysResult.rows[0]?.total || 0}`);
           } else {
-            // Additional debug: Check for similar user IDs
-            const allUsersResult = await query(`SELECT DISTINCT user_id, COUNT(*) as key_count FROM user_api_keys GROUP BY user_id ORDER BY key_count DESC LIMIT 10`);
-            console.log(`🔍 [IMPORT DEBUG] All users with API keys:`, allUsersResult.rows.map(u => `${u.user_id}(${u.key_count} keys)`));
-            
-            // Check for alpaca keys specifically
-            const alpacaKeysResult = await query(`SELECT user_id, provider, is_active, created_at FROM user_api_keys WHERE provider = 'alpaca' ORDER BY created_at DESC LIMIT 5`);
-            console.log(`🔍 [IMPORT DEBUG] Recent alpaca keys:`, alpacaKeysResult.rows.map(k => `${k.user_id}/${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
-            
+            // Check for alpaca keys specifically for this user
+            const userAlpacaKeys = debugResult.rows.filter(k => k.provider === broker);
+            console.log(`🔍 [IMPORT DEBUG] User has ${userAlpacaKeys.length} ${broker} keys:`, userAlpacaKeys.map(k => `ID:${k.id}(${k.is_active ? 'active' : 'inactive'})`));
           }
         } catch (debugError) {
           console.log(`🔍 [IMPORT DEBUG] Failed to query user API keys:`, debugError.message);
