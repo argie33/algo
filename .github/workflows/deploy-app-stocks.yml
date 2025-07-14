@@ -381,6 +381,7 @@ jobs:
           echo "${PARAM}=$TAG" > build_tag_${{ matrix.loader }}.txt
 
       - uses: actions/upload-artifact@v4
+        if: ${{ matrix.loader != 'none' }}
         with:
           name: build-tags-${{ matrix.loader }}
           path: build_tag_${{ matrix.loader }}.txt
