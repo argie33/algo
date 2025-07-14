@@ -1,10 +1,109 @@
 const express = require('express');
-const { query } = require('../utils/database');
+const { query, safeQuery, tablesExist } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const PatternDetector = require('../utils/patternDetector');
 const WatchlistAlerts = require('../utils/watchlistAlerts');
+const { 
+  createValidationMiddleware, 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention,
+  sanitizers
+} = require('../middleware/validation');
+const validator = require('validator');
 
 const router = express.Router();
+
+// Pattern recognition validation schemas
+const patternValidationSchemas = {
+  patternScan: {
+    symbol: {
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, alphaNumOnly: false }),
+      validator: (value) => !value || ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'].includes(value),
+      errorMessage: 'Timeframe must be one of: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M'
+    },
+    category: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+      validator: (value) => !value || ['reversal', 'continuation', 'breakout', 'momentum', 'volume'].includes(value),
+      errorMessage: 'Category must be one of: reversal, continuation, breakout, momentum, volume'
+    },
+    min_confidence: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, max: 1, defaultValue: 0.60 }),
+      validator: (value) => !value || (value >= 0 && value <= 1),
+      errorMessage: 'Minimum confidence must be between 0 and 1'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 200, defaultValue: 50 }),
+      validator: (value) => !value || (value >= 1 && value <= 200),
+      errorMessage: 'Limit must be between 1 and 200'
+    }
+  },
+
+  patternAnalysis: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    pattern_type: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+      validator: (value) => !value || ['head_and_shoulders', 'double_top', 'double_bottom', 'triangle', 'flag', 'wedge'].includes(value),
+      errorMessage: 'Pattern type must be a valid technical pattern'
+    },
+    start_date: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'Start date must be in YYYY-MM-DD format'
+    },
+    end_date: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'End date must be in YYYY-MM-DD format'
+    }
+  },
+
+  performanceAnalysis: {
+    pattern_type: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+      validator: (value) => !value || ['head_and_shoulders', 'double_top', 'double_bottom', 'triangle', 'flag', 'wedge'].includes(value),
+      errorMessage: 'Pattern type must be a valid technical pattern'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, alphaNumOnly: false }),
+      validator: (value) => !value || ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'].includes(value),
+      errorMessage: 'Timeframe must be valid'
+    },
+    min_samples: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 10, max: 10000, defaultValue: 50 }),
+      validator: (value) => !value || (value >= 10 && value <= 10000),
+      errorMessage: 'Minimum samples must be between 10 and 10,000'
+    }
+  }
+};
+
+// Apply authentication and security middleware to pattern routes
+router.use(authenticateToken);
+router.use(sqlInjectionPrevention);
+router.use(xssPrevention);
+router.use(rateLimitConfigs.api);
 
 // Root patterns endpoint for health checks
 router.get('/', (req, res) => {
@@ -41,51 +140,51 @@ patternDetector.startRealTimeMonitoring();
  * GET /api/patterns/scan
  * Scan for patterns in real-time
  */
-router.get('/scan', async (req, res) => {
+router.get('/scan', createValidationMiddleware(patternValidationSchemas.patternScan), async (req, res) => {
   try {
     const { 
       symbol, 
-      timeframe = '1d', 
+      timeframe, 
       category,
-      min_confidence = 0.60,
-      limit = 50 
-    } = req.query;
+      min_confidence,
+      limit 
+    } = req.validated;
+
+    console.log(`🔍 Pattern scan request: symbol=${symbol}, timeframe=${timeframe}, confidence>=${min_confidence}`);
 
     let whereClause = 'WHERE dp.status = $1';
     let params = ['active'];
     let paramIndex = 2;
 
-    // Add symbol filter
+    // Add validated symbol filter
     if (symbol) {
       whereClause += ` AND dp.symbol = $${paramIndex}`;
-      params.push(symbol.toUpperCase());
+      params.push(symbol);
       paramIndex++;
     }
 
-    // Add timeframe filter
+    // Add validated timeframe filter
     if (timeframe) {
       whereClause += ` AND dp.timeframe = $${paramIndex}`;
       params.push(timeframe);
       paramIndex++;
     }
 
-    // Add category filter
+    // Add validated category filter
     if (category) {
       whereClause += ` AND pt.category = $${paramIndex}`;
       params.push(category);
       paramIndex++;
     }
 
-    // Add confidence filter
+    // Add validated confidence filter
     whereClause += ` AND dp.confidence_score >= $${paramIndex}`;
-    params.push(parseFloat(min_confidence));
+    params.push(min_confidence);
     paramIndex++;
 
-    // Add limit
+    // Add limit with validated value
     whereClause += ` ORDER BY dp.detected_at DESC LIMIT $${paramIndex}`;
-    params.push(parseInt(limit));
-    params.push(parseFloat(min_confidence));
-    paramIndex++;
+    params.push(limit);
 
     const result = await query(`
       SELECT 
