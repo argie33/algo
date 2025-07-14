@@ -208,15 +208,24 @@ Resources:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: RDSAccess
+        - PolicyName: ApplicationSecrets
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # Database and RDS access
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
-                  - secretsmanager:GetSecretValue
                 Resource: '*'
+              # Secrets Manager access for all application secrets
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-db-secrets-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-app-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*-stocks-*'
 
   ## 13) ECS Task Definition
   ECSTaskDefinition:
@@ -237,16 +246,33 @@ Resources:
             - ContainerPort: 3000
               Protocol: tcp
           Environment:
+            # Standardized Environment Variables
             - Name: NODE_ENV
               Value: production
-            - Name: DB_HOST
+            # Standardized Database Variables (consistent with Lambda templates)
+            - Name: DB_ENDPOINT
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
               Value: '5432'
             - Name: DB_NAME
               Value: stocks_data
+            # AWS Configuration
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            # API Key Encryption (required for settings functionality)
+            - Name: API_KEY_ENCRYPTION_SECRET_ARN
+              Value: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+            # JWT Secret for authentication
+            - Name: JWT_SECRET_ARN
+              Value: !ImportValue StocksApp-JwtSecretArn
+            # Cognito Configuration (if available)
+            - Name: COGNITO_USER_POOL_ID
+              Value: !ImportValue StocksApp-UserPoolId
+            - Name: COGNITO_CLIENT_ID
+              Value: !ImportValue StocksApp-UserPoolClientId
           Secrets:
-            - Name: DB_PASSWORD
+            # Database credentials from Secrets Manager
+            - Name: DB_SECRET_ARN
               ValueFrom: !ImportValue StocksApp-SecretArn
           LogConfiguration:
             LogDriver: awslogs
