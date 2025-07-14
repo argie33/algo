@@ -8,16 +8,19 @@ class ApiKeyService {
     this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
     if (!this.secretKey) {
       console.error('❌ CRITICAL: API_KEY_ENCRYPTION_SECRET environment variable is required for secure operation');
-      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable is required. Set a secure 32+ character key.');
+      console.error('⚠️  API Key service will be disabled - encryption/decryption not available');
+      this.isEnabled = false;
+      this.secretKey = null;
+    } else {
+      this.isEnabled = true;
+      
+      // Validate key has sufficient entropy
+      if (this.secretKey.length < 32) {
+        console.warn('⚠️  Encryption key should be at least 32 characters for security');
+      }
+      
+      console.log('✅ API key encryption service initialized and enabled');
     }
-    this.isEnabled = true;
-    
-    // Validate key has sufficient entropy
-    if (this.secretKey.length < 32) {
-      console.warn('⚠️  Encryption key should be at least 32 characters for security');
-    }
-    
-    console.log('✅ API key encryption service initialized and enabled');
   }
 
   // Decrypt API key using stored encryption data

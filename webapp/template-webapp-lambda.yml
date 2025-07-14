@@ -24,6 +24,12 @@ Parameters:
   CognitoClientId:
     Type: String
     Description: Cognito App Client ID for authentication
+    
+  ApiKeyEncryptionSecret:
+    Type: String
+    Description: Secret key for API key encryption (minimum 32 characters)
+    NoEcho: true
+    MinLength: 32
 
 Globals:
   Function:
@@ -38,6 +44,7 @@ Globals:
         WEBAPP_AWS_REGION: !Ref AWS::Region
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         COGNITO_CLIENT_ID: !Ref CognitoClientId
+        API_KEY_ENCRYPTION_SECRET: !Ref ApiKeyEncryptionSecret
 
 Resources:
   # API Lambda Function

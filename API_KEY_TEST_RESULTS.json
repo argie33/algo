@@ -1,0 +1,79 @@
+{
+  "summary": {
+    "passed": 1,
+    "failed": 5,
+    "totalTime": 6131,
+    "timestamp": "2025-07-14T18:34:07.033Z"
+  },
+  "infrastructure": {
+    "secretsStatus": {
+      "message": "Internal server error"
+    },
+    "dbStatus": {
+      "message": "Internal server error"
+    },
+    "apiKeyStatus": {
+      "message": "Internal server error"
+    }
+  },
+  "tests": [
+    {
+      "name": "Health Endpoint",
+      "passed": false,
+      "details": {
+        "statusCode": 502,
+        "responseTime": "measured"
+      },
+      "error": "Expected 200 with healthy status, got 502",
+      "timestamp": "2025-07-14T18:34:03.112Z"
+    },
+    {
+      "name": "CORS Configuration",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "allowOrigin": "*",
+        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T18:34:03.316Z"
+    },
+    {
+      "name": "Secrets Status Endpoint",
+      "passed": false,
+      "details": {
+        "statusCode": 502
+      },
+      "error": "Expected 200 with secrets status, got 502",
+      "timestamp": "2025-07-14T18:34:04.182Z"
+    },
+    {
+      "name": "API Keys Endpoint - Unauthorized",
+      "passed": false,
+      "details": {
+        "statusCode": 502
+      },
+      "error": "Expected 401 Unauthorized, got 502",
+      "timestamp": "2025-07-14T18:34:05.243Z"
+    },
+    {
+      "name": "API Keys Endpoint - No Encryption",
+      "passed": false,
+      "details": {
+        "statusCode": 502,
+        "message": "Internal server error"
+      },
+      "error": "Expected graceful degradation, got 502",
+      "timestamp": "2025-07-14T18:34:06.167Z"
+    },
+    {
+      "name": "Database Connectivity",
+      "passed": false,
+      "details": {
+        "statusCode": 502
+      },
+      "error": "Database connectivity test failed: 502",
+      "timestamp": "2025-07-14T18:34:07.030Z"
+    }
+  ]
+}
