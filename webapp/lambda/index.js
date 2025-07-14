@@ -337,48 +337,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Emergency health check endpoint - responds immediately without any processing
-app.get('/health', (req, res) => {
-  console.log(`🏥 HEALTH CHECK from origin: ${req.headers.origin}`);
-  
-  // Force CORS headers again for safety
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
-  
-  console.log(`🏥 HEALTH CHECK CORS headers set, sending response`);
-  
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    version: '10.1.0',
-    cors_test: 'Headers should be present',
-    origin: req.headers.origin || 'no-origin'
-  });
-});
-
-app.get('/api/health', (req, res) => {
-  console.log(`🏥 API HEALTH CHECK from origin: ${req.headers.origin}`);
-  
-  // Force CORS headers again for safety
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
-  
-  console.log(`🏥 API HEALTH CHECK CORS headers set, sending response`);
-  
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    version: '10.1.0',
-    cors_test: 'Headers should be present',
-    origin: req.headers.origin || 'no-origin'
-  });
-});
+// Removed emergency health endpoints - use proper health router instead
+// The health router provides comprehensive database health checks
 
 app.get('/api', (req, res) => {
   res.json({
