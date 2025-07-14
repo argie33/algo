@@ -63,6 +63,7 @@ import EconomicIndicatorsWidget from '../components/EconomicIndicatorsWidget';
 import dataCache from '../services/dataCache';
 import MarketStatusBar from '../components/MarketStatusBar';
 import RealTimePriceWidget from '../components/RealTimePriceWidget';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -752,6 +753,15 @@ const Dashboard = () => {
       <MarketStatusBar />
       
       <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* API Key Status */}
+        <Box sx={{ mb: 3 }}>
+          <ApiKeyStatusIndicator 
+            showSetupDialog={true}
+            onStatusChange={(status) => {
+              console.log('Dashboard - API Key Status:', status);
+            }}
+          />
+        </Box>
         {/* Award-Winning Header */}
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
         <Box>

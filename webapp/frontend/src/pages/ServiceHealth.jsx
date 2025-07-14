@@ -39,6 +39,9 @@ import {
   ToggleOn
 } from '@mui/icons-material';
 
+// Import components
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
+
 // Import API functions
 import {
   healthCheck,
@@ -730,6 +733,16 @@ function ServiceHealth() {
         <Typography variant="subtitle1" color="textSecondary">
           Monitor system status, API health, and data integrity
         </Typography>
+      </Box>
+
+      {/* API Key Status Integration */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Service Health - API Key Status:', status);
+          }}
+        />
       </Box>
 
       {/* Overall Status */}

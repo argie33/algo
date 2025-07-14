@@ -116,6 +116,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { formatPercentage, formatNumber, formatCurrency } from '../utils/formatters';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 // Animation keyframes
 const pulse = keyframes`
@@ -1233,6 +1234,16 @@ const TradingSignals = () => {
 
   return (
     <Container maxWidth="xl">
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Trading Signals - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" fontWeight={700} gutterBottom>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

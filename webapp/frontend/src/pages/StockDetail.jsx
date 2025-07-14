@@ -47,6 +47,7 @@ import {
 } from 'recharts'
 import api from '../services/api'
 import { formatCurrency, formatPercentage as formatPercent, formatNumber } from '../utils/formatters'
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator'
 
 // Use centralized error logging (logger will be defined in component)
 
@@ -215,6 +216,17 @@ function StockDetail() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          compact={true}
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Stock Detail - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       {/* Header Section */}
       <Box mb={4}>
         <Box display="flex" alignItems="center" gap={2} mb={2}>

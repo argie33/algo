@@ -72,6 +72,7 @@ import {
 } from 'recharts';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 import api from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -225,6 +226,16 @@ const RealTimeDashboard = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Real-Time Dashboard - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       {/* Header */}
       <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
         <Box>
