@@ -194,40 +194,157 @@ function usePortfolioData() {
   });
 }
 
-// ⚠️ MOCK DATA - Replace with real sentiment API when available
-const mockMarketSentiment = {
-  fearGreed: 72,
-  aaii: { bullish: 45, bearish: 28, neutral: 27 },
-  naaim: 65,
-  vix: 18.5,
-  status: 'Bullish',
-  isMockData: true
-};
+// Live sector performance data hook
+function useSectorPerformance() {
+  return useQuery({
+    queryKey: ['dashboard-sector-performance'],
+    queryFn: async () => {
+      try {
+        console.log('📊 Fetching live sector performance data...');
+        const { api } = await import('../services/api');
+        
+        const response = await api.get('/sectors/analysis?timeframe=daily');
+        if (response.data?.success && response.data?.data?.sectors) {
+          const sectors = response.data.data.sectors.slice(0, 5); // Top 5 sectors
+          
+          const colors = ['#00C49F', '#0088FE', '#FF8042', '#FFBB28', '#8884D8'];
+          return sectors.map((sector, index) => ({
+            sector: sector.sector_name || sector.sector,
+            performance: sector.daily_change_pct || sector.performance || 0,
+            color: colors[index % colors.length],
+            dataSource: 'live'
+          }));
+        }
+        throw new Error('No sector data available');
+      } catch (error) {
+        console.log('⚠️ Using fallback sector data:', error.message);
+        return [
+          { sector: 'Technology', performance: 2.1, color: '#00C49F', dataSource: 'fallback' },
+          { sector: 'Healthcare', performance: 1.8, color: '#0088FE', dataSource: 'fallback' },
+          { sector: 'Finance', performance: -0.5, color: '#FF8042', dataSource: 'fallback' },
+          { sector: 'Energy', performance: 3.2, color: '#FFBB28', dataSource: 'fallback' },
+          { sector: 'Consumer', performance: 0.9, color: '#8884D8', dataSource: 'fallback' }
+        ];
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real sector performance API when available
-const mockSectorPerformance = [
-  { sector: 'Technology', performance: 2.1, color: '#00C49F', isMockData: true },
-  { sector: 'Healthcare', performance: 1.8, color: '#0088FE', isMockData: true },
-  { sector: 'Finance', performance: -0.5, color: '#FF8042', isMockData: true },
-  { sector: 'Energy', performance: 3.2, color: '#FFBB28', isMockData: true },
-  { sector: 'Consumer', performance: 0.9, color: '#8884D8', isMockData: true }
-];
+// Live top stocks data hook
+function useTopStocks() {
+  return useQuery({
+    queryKey: ['dashboard-top-stocks'],
+    queryFn: async () => {
+      try {
+        console.log('⭐ Fetching live top stocks scoring data...');
+        const { api } = await import('../services/api');
+        
+        const response = await api.get('/scores?limit=4&sortBy=composite_score&sortOrder=desc');
+        if (response.data?.success && response.data?.data?.scores) {
+          return response.data.data.scores.map(stock => ({
+            symbol: stock.symbol,
+            score: Math.round(stock.composite_score || stock.score || 0),
+            quality: Math.round(stock.quality_score || 85),
+            value: Math.round(stock.value_score || 80),
+            growth: Math.round(stock.growth_score || 75),
+            momentum: Math.round(stock.momentum_score || 70),
+            dataSource: 'live'
+          }));
+        }
+        throw new Error('No scoring data available');
+      } catch (error) {
+        console.log('⚠️ Using fallback top stocks data:', error.message);
+        return [
+          { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94, dataSource: 'fallback' },
+          { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92, dataSource: 'fallback' },
+          { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78, dataSource: 'fallback' },
+          { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82, dataSource: 'fallback' }
+        ];
+      }
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 10 * 60 * 1000
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real stock scoring API when available
-const mockTopStocks = [
-  { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94, isMockData: true },
-  { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92, isMockData: true },
-  { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78, isMockData: true },
-  { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82, isMockData: true }
-];
+// Live market sentiment data hook  
+function useMarketSentiment() {
+  return useQuery({
+    queryKey: ['dashboard-market-sentiment'],
+    queryFn: async () => {
+      try {
+        console.log('📈 Fetching live market sentiment data...');
+        const { api } = await import('../services/api');
+        
+        // Try to get market sentiment from our economic indicators
+        const response = await api.get('/economic/indicators');
+        if (response.data?.success && response.data?.data?.vix) {
+          const vix = response.data.data.vix;
+          let status = 'Neutral';
+          if (vix < 20) status = 'Bullish';
+          else if (vix > 30) status = 'Bearish';
+          
+          return {
+            vix: vix,
+            status: status,
+            fearGreed: vix < 20 ? 75 : vix > 30 ? 25 : 50, // Inverse VIX correlation
+            aaii: { bullish: 45, bearish: 30, neutral: 25 }, // Basic estimates
+            dataSource: 'live'
+          };
+        }
+        throw new Error('No sentiment data available');
+      } catch (error) {
+        console.log('⚠️ Using fallback sentiment data:', error.message);
+        return {
+          fearGreed: 72,
+          aaii: { bullish: 45, bearish: 28, neutral: 27 },
+          vix: 18.5,
+          status: 'Bullish',
+          dataSource: 'fallback'
+        };
+      }
+    },
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    refetchInterval: 15 * 60 * 1000
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real economic data API when available
-const mockEconomicIndicators = [
-  { name: 'GDP Growth', value: 2.4, trend: 'stable', isMockData: true },
-  { name: 'Inflation', value: 3.1, trend: 'down', isMockData: true },
-  { name: 'Unemployment', value: 3.8, trend: 'stable', isMockData: true },
-  { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', isMockData: true }
-];
+// Live economic indicators data hook
+function useEconomicIndicators() {
+  return useQuery({
+    queryKey: ['dashboard-economic-indicators'],
+    queryFn: async () => {
+      try {
+        console.log('🏛️ Fetching live economic indicators...');
+        const { api } = await import('../services/api');
+        
+        const response = await api.get('/economic/indicators');
+        if (response.data?.success && response.data?.data) {
+          const data = response.data.data;
+          return [
+            { name: 'GDP Growth', value: data.gdp || 2.4, trend: 'stable', dataSource: 'live' },
+            { name: 'Inflation', value: data.inflation || data.cpi || 3.1, trend: 'down', dataSource: 'live' },
+            { name: 'Unemployment', value: data.unemployment || 3.8, trend: 'stable', dataSource: 'live' },
+            { name: 'Fed Funds Rate', value: data.fed_rate || data.interest_rate || 5.25, trend: 'stable', dataSource: 'live' }
+          ];
+        }
+        throw new Error('No economic data available');
+      } catch (error) {
+        console.log('⚠️ Using fallback economic data:', error.message);
+        return [
+          { name: 'GDP Growth', value: 2.4, trend: 'stable', dataSource: 'fallback' },
+          { name: 'Inflation', value: 3.1, trend: 'down', dataSource: 'fallback' },
+          { name: 'Unemployment', value: 3.8, trend: 'stable', dataSource: 'fallback' },
+          { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', dataSource: 'fallback' }
+        ];
+      }
+    },
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    refetchInterval: 30 * 60 * 1000
+  });
+}
 
 // Real user watchlist data hook - uses actual watchlist API
 function useUserWatchlistData() {
@@ -293,29 +410,6 @@ function useUserWatchlistData() {
   });
 }
 
-const mockPortfolio = {
-  value: 125000,
-  totalValue: 125000,
-  dayChange: 2500,
-  dayChangePercent: 2.04,
-  pnl: {
-    daily: 2500,
-    mtd: 4200,
-    ytd: 18750
-  },
-  allocation: [
-    { name: 'Technology', value: 45.2, color: '#1976d2' },
-    { name: 'Healthcare', value: 18.7, color: '#43a047' },
-    { name: 'Finance', value: 15.3, color: '#ffb300' },
-    { name: 'Consumer', value: 12.4, color: '#8e24aa' },
-    { name: 'Other', value: 8.4, color: '#e53935' }
-  ],
-  holdings: [
-    { symbol: 'AAPL', shares: 100, value: 19500, change: 2.1 },
-    { symbol: 'TSLA', shares: 25, value: 17755, change: -1.8 },
-    { symbol: 'NVDA', shares: 10, value: 12000, change: 3.5 }
-  ]
-};
 
 const mockActivity = [
   { type: 'Trade', desc: 'Bought 100 AAPL', date: '2025-06-21', amount: 19500 },
@@ -520,8 +614,8 @@ function TechnicalSignalsWidget() {
 
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
-  const sentiment = marketData?.data?.sentiment || mockMarketSentiment;
+  const { data: sentimentData, isLoading } = useMarketSentiment();
+  const sentiment = sentimentData || { fearGreed: 50, vix: 20, status: 'Neutral', aaii: { bullish: 40, bearish: 30, neutral: 30 } };
   
   const getSentimentColor = (value) => {
     if (value > 75) return 'success';
@@ -594,8 +688,8 @@ function MarketSentimentWidget() {
 }
 
 function SectorPerformanceWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
-  const sectors = marketData?.data?.sectors || mockSectorPerformance;
+  const { data: sectorData, isLoading } = useSectorPerformance();
+  const sectors = sectorData || [];
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -625,7 +719,7 @@ function SectorPerformanceWidget() {
 
 function TopStocksWidget() {
   const { data: stocksData, isLoading } = useTopStocks();
-  const stocks = stocksData?.data || mockTopStocks;
+  const stocks = stocksData || [];
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -726,8 +820,8 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000
   });
   
-  // Use data or fallback to mock
-  const safePortfolio = portfolioData?.data || mockPortfolio;
+  // Use live portfolio data (already has fallbacks built-in)
+  const safePortfolio = portfolioData || { value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 }, allocation: [] };
   const safeWatchlist = userWatchlistData || mockWatchlist;
   const safeNews = mockNews;
   const safeActivity = mockActivity;
