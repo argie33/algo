@@ -476,28 +476,6 @@ function useMarketOverview() {
   });
 }
 
-function useTopStocks() {
-  return useQuery({
-    queryKey: ['top-stocks'],
-    queryFn: async () => {
-      return dataCache.get('/api/scores', { limit: 10, sortBy: 'composite_score', sortOrder: 'desc' }, {
-        cacheType: 'marketData',
-        fetchFunction: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`);
-            if (!res.ok) throw new Error('Failed to fetch top stocks');
-            return res.json();
-          } catch (err) {
-            console.error('Top stocks API failed:', err);
-            throw new Error('Stock scoring data unavailable - check API connection');
-          }
-        }
-      });
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    refetchInterval: 60 * 60 * 1000 // 1 hour refresh
-  });
-}
 
 function useUser() {
   const { data, isLoading, error } = useQuery({
