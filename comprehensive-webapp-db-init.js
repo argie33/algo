@@ -535,6 +535,18 @@ CREATE TABLE IF NOT EXISTS portfolio_metadata (
     UNIQUE(user_id, api_key_id)
 );
 
+-- Portfolio Data Refresh Requests (for tracking portfolio data refresh operations)
+CREATE TABLE IF NOT EXISTS portfolio_data_refresh_requests (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    symbols JSONB NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'in_progress', 'completed', 'failed'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT,
+    UNIQUE(user_id)
+);
+
 -- Portfolios table (for risk management)
 CREATE TABLE IF NOT EXISTS portfolios (
     id SERIAL PRIMARY KEY,
@@ -1567,6 +1579,8 @@ CREATE INDEX IF NOT EXISTS idx_technicals_daily_symbol_date ON technicals_daily(
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol);
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_data_refresh_requests_user_id ON portfolio_data_refresh_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_data_refresh_requests_status ON portfolio_data_refresh_requests(status);
 
 -- Watchlist indexes
 CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists(user_id);
@@ -1683,6 +1697,7 @@ INSERT INTO health_status (table_name, table_category, critical_table, expected_
 ('user_api_keys', 'webapp', true, '1 hour'),
 ('portfolio_holdings', 'webapp', true, '1 hour'),
 ('portfolio_metadata', 'webapp', true, '1 hour'),
+('portfolio_data_refresh_requests', 'webapp', false, '1 hour'),
 ('trading_alerts', 'webapp', false, '1 hour'),
 ('watchlists', 'webapp', false, '1 hour'),
 ('watchlist_items', 'webapp', false, '1 hour'),
