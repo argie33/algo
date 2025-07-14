@@ -134,6 +134,7 @@ import {
   NotificationsNone
 } from '@mui/icons-material';
 import { formatCurrency, formatPercentage, formatNumber, validateChartData, formatChartPercentage } from '../utils/formatters';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Enhanced mock data with realistic portfolio metrics
@@ -1693,6 +1694,16 @@ const Portfolio = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       {/* Portfolio Header */}
       <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
         <Box>

@@ -12,6 +12,7 @@ import {
   Paper
 } from '@mui/material';
 import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 const PortfolioPerformanceDebug = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -96,6 +97,17 @@ const PortfolioPerformanceDebug = () => {
 
   return (
     <Container maxWidth="xl">
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          compact={true}
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Performance Debug - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       <Typography variant="h4" gutterBottom>
         Portfolio Performance (Debug Version)
       </Typography>

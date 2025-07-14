@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, CircularProgress, Alert, Card, CardContent, Button } from '@mui/material';
+import { Container, Typography, CircularProgress, Alert, Card, CardContent, Button, Box } from '@mui/material';
 import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 const PortfolioPerformanceSimple = () => {
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,17 @@ const PortfolioPerformanceSimple = () => {
 
   return (
     <Container maxWidth="md">
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          compact={true}
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Performance Simple - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       <Typography variant="h4" gutterBottom>
         Portfolio Performance (Simple Debug Version)
       </Typography>
