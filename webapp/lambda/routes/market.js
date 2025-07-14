@@ -611,6 +611,10 @@ router.get('/sentiment/history', async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     console.log(`Fetching sentiment history for ${days} days`);
+    
+    const sentimentIndicators = {};
+    
+    try {
       const naaimQuery = `
         SELECT 
           COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
