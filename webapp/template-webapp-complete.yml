@@ -46,6 +46,8 @@ Globals:
         WEBAPP_AWS_REGION: !Ref AWS::Region
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         COGNITO_CLIENT_ID: !Ref CognitoClientId
+        API_KEY_ENCRYPTION_SECRET_ARN: !Ref ApiKeyEncryptionSecret
+        JWT_SECRET_ARN: !Ref JwtSecret
 
 Resources:
   # S3 Bucket for Frontend
@@ -94,6 +96,44 @@ Resources:
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
+
+  # API Key Encryption Secret
+  ApiKeyEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-stocks-app-api-key-encryption'
+      Description: 'AES-256-GCM encryption key for broker API key storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption"}'
+        GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FinancialDashboard
+        - Key: Purpose
+          Value: api-key-encryption
+
+  # JWT Secret for authentication
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-stocks-app-jwt-secret'
+      Description: 'JWT signing key for authentication'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing"}'
+        GenerateStringKey: 'JWT_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FinancialDashboard
+        - Key: Purpose
+          Value: jwt-signing
 
   # CloudFront Distribution
   CloudFrontDistribution:
@@ -238,6 +278,18 @@ Outputs:
     Value: !GetAtt ApiFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  ApiKeyEncryptionSecretArn:
+    Description: ARN of the API Key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKeyEncryptionSecretArn'
+
+  JwtSecretArn:
+    Description: ARN of the JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-JwtSecretArn'
 
   DeploymentInstructions:
     Description: Deployment instructions
