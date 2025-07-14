@@ -397,9 +397,19 @@ def prepare_db():
     """)
     logging.info("Table 'technical_data_daily' ready.")
     
+    # Check for priority symbols from portfolio refresh
+    priority_symbols = os.environ.get('PRIORITY_SYMBOLS', '').strip()
+    trigger_source = os.environ.get('TRIGGER_SOURCE', '').strip()
+    
+    if priority_symbols and trigger_source == 'portfolio_refresh':
+        symbols = [s.strip() for s in priority_symbols.split(',') if s.strip()]
+        logging.info(f"🎯 PORTFOLIO REFRESH MODE: Processing {len(symbols)} priority symbols: {symbols}")
+        return symbols
+    
+    # Default behavior: get all symbols
     cursor.execute("SELECT symbol FROM stock_symbols;")
     symbols = [r[0] for r in cursor.fetchall()]
-    logging.info(f"Found {len(symbols)} symbols.")
+    logging.info(f"📊 FULL MODE: Found {len(symbols)} symbols from stock_symbols table.")
     
     cursor.close()
     conn.close()

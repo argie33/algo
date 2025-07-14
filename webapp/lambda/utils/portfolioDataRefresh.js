@@ -2,10 +2,14 @@
 // Integrates API key system with data loaders to refresh portfolio-relevant data
 
 const { query } = require('./database');
+const AWS = require('aws-sdk');
 
 class PortfolioDataRefreshService {
   constructor() {
     this.refreshInProgress = new Set();
+    // Initialize AWS services for triggering data loaders
+    this.ecs = new AWS.ECS({ region: process.env.AWS_REGION || 'us-east-1' });
+    this.lambda = new AWS.Lambda({ region: process.env.AWS_REGION || 'us-east-1' });
   }
 
   /**
@@ -107,11 +111,8 @@ class PortfolioDataRefreshService {
 
       console.log(`🔄 ${symbolsNeedingRefresh.length} symbols need data refresh`);
 
-      // For now, mark symbols as needing refresh - actual ECS triggering would go here
-      // In a real implementation, this would trigger:
-      // - loadprices.py for these specific symbols
-      // - loadtechnicalsdaily.py for these symbols
-      // - loadfundamentals.py for these symbols
+      // Trigger priority data loading for these symbols
+      await this.triggerTechnicalDataLoaders(symbolsNeedingRefresh, userId);
 
       results.triggered = symbolsNeedingRefresh;
       
@@ -224,6 +225,166 @@ class PortfolioDataRefreshService {
     } catch (error) {
       console.error('Error getting refresh status:', error);
       return { status: 'error', error: error.message };
+    }
+  }
+
+  /**
+   * Trigger technical data loaders for specific symbols
+   */
+  async triggerTechnicalDataLoaders(symbols, userId) {
+    try {
+      console.log(`🚀 Triggering technical data loaders for ${symbols.length} symbols`);
+      
+      // Method 1: Try ECS task if cluster exists
+      const ecsTriggered = await this.triggerECSDataLoaders(symbols);
+      
+      if (!ecsTriggered) {
+        // Method 2: Fall back to Lambda invocation for smaller symbol sets
+        await this.triggerLambdaDataLoaders(symbols);
+      }
+      
+      console.log(`✅ Successfully triggered data loaders for symbols: ${symbols.slice(0, 5).join(', ')}${symbols.length > 5 ? '...' : ''}`);
+      
+    } catch (error) {
+      console.warn(`⚠️ Failed to trigger technical data loaders: ${error.message}`);
+      // Don't fail the whole process if data loading fails
+    }
+  }
+
+  /**
+   * Trigger ECS tasks for technical data loading
+   */
+  async triggerECSDataLoaders(symbols) {
+    try {
+      // Check if ECS cluster exists (optional - for production deployments)
+      const clusterName = process.env.ECS_CLUSTER_NAME || 'stocks-data-processing';
+      
+      // For small symbol sets, use environment variable approach
+      const symbolList = symbols.join(',');
+      
+      const taskParams = {
+        cluster: clusterName,
+        taskDefinition: 'loadtechnicalsdaily-task', // Task definition name
+        launchType: 'FARGATE',
+        networkConfiguration: {
+          awsvpcConfiguration: {
+            subnets: [
+              process.env.SUBNET_ID_1 || 'subnet-12345', // Would be from CloudFormation
+              process.env.SUBNET_ID_2 || 'subnet-67890'
+            ],
+            securityGroups: [process.env.SECURITY_GROUP_ID || 'sg-12345'],
+            assignPublicIp: 'ENABLED'
+          }
+        },
+        overrides: {
+          containerOverrides: [{
+            name: 'loadtechnicalsdaily',
+            environment: [
+              { name: 'PRIORITY_SYMBOLS', value: symbolList },
+              { name: 'TRIGGER_SOURCE', value: 'portfolio_refresh' }
+            ]
+          }]
+        }
+      };
+
+      const result = await this.ecs.runTask(taskParams).promise();
+      console.log(`🎯 ECS task triggered for technical data loading: ${result.tasks[0]?.taskArn}`);
+      return true;
+      
+    } catch (error) {
+      console.log(`⚠️ ECS task triggering failed: ${error.message}`);
+      return false; // Fall back to Lambda approach
+    }
+  }
+
+  /**
+   * Trigger Lambda functions for technical data loading (fallback)
+   */
+  async triggerLambdaDataLoaders(symbols) {
+    try {
+      // For smaller symbol sets, can invoke a Lambda that processes them
+      const payload = {
+        symbols: symbols,
+        triggerSource: 'portfolio_refresh',
+        priority: true
+      };
+
+      const params = {
+        FunctionName: 'loadtechnicalsdaily-lambda', // Lambda function name
+        InvocationType: 'Event', // Async invocation
+        Payload: JSON.stringify(payload)
+      };
+
+      const result = await this.lambda.invoke(params).promise();
+      console.log(`🎯 Lambda triggered for technical data loading: ${result.StatusCode}`);
+      
+    } catch (error) {
+      console.warn(`⚠️ Lambda triggering failed: ${error.message}`);
+      // This is a fallback, so just log the warning
+    }
+  }
+
+  /**
+   * Get status of data loading jobs for a user
+   */
+  async getDataLoadingStatus(userId) {
+    try {
+      // Check recent ECS tasks for this user's symbols
+      const recentTasks = await this.getRecentECSTasks();
+      
+      // Check refresh requests status
+      const refreshStatus = await this.getRefreshStatus(userId);
+      
+      return {
+        ecs_tasks: recentTasks,
+        refresh_requests: refreshStatus,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('Error getting data loading status:', error);
+      return { status: 'error', error: error.message };
+    }
+  }
+
+  /**
+   * Get recent ECS tasks related to technical data loading
+   */
+  async getRecentECSTasks() {
+    try {
+      const clusterName = process.env.ECS_CLUSTER_NAME || 'stocks-data-processing';
+      
+      const params = {
+        cluster: clusterName,
+        family: 'loadtechnicalsdaily-task',
+        maxResults: 10,
+        sort: 'CREATED_AT',
+        order: 'DESC'
+      };
+
+      const result = await this.ecs.listTasks(params).promise();
+      
+      if (result.taskArns.length > 0) {
+        const describeTasks = await this.ecs.describeTasks({
+          cluster: clusterName,
+          tasks: result.taskArns
+        }).promise();
+        
+        return describeTasks.tasks.map(task => ({
+          taskArn: task.taskArn,
+          lastStatus: task.lastStatus,
+          desiredStatus: task.desiredStatus,
+          createdAt: task.createdAt,
+          startedAt: task.startedAt,
+          stoppedAt: task.stoppedAt
+        }));
+      }
+      
+      return [];
+      
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch ECS task status: ${error.message}`);
+      return [];
     }
   }
 

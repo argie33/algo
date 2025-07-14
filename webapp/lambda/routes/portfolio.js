@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
+const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -970,6 +971,78 @@ router.post('/setup', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to create portfolio database tables',
+      details: error.message
+    });
+  }
+});
+
+// Portfolio data loading status endpoint
+router.get('/data-loading-status', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    console.log(`🔄 Data loading status request for user: ${userId}`);
+    
+    // Get comprehensive data loading status
+    const status = await portfolioDataRefreshService.getDataLoadingStatus(userId);
+    
+    res.json({
+      success: true,
+      data: status,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error getting data loading status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get data loading status',
+      details: error.message
+    });
+  }
+});
+
+// Manual trigger for portfolio data refresh
+router.post('/trigger-data-refresh', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User authentication required'
+      });
+    }
+
+    const { provider, symbols } = req.body;
+    console.log(`🚀 Manual data refresh trigger for user: ${userId}`);
+    
+    // Trigger portfolio data refresh
+    const result = await portfolioDataRefreshService.triggerPortfolioDataRefresh(
+      userId, 
+      provider || 'manual', 
+      symbols || []
+    );
+    
+    res.json({
+      success: true,
+      data: result,
+      message: 'Portfolio data refresh triggered successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error triggering data refresh:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to trigger data refresh',
       details: error.message
     });
   }
