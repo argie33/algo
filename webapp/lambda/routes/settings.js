@@ -68,21 +68,33 @@ const require2FA = async (req, res, next) => {
       });
     }
     
-    // Verify the MFA code
-    const speakeasy = require('speakeasy');
-    const verified = speakeasy.totp.verify({
-      secret: user.two_factor_secret,
-      encoding: 'base32',
-      token: mfaCode,
-      window: 2
-    });
+    // Verify the MFA code with error handling
+    let verified;
+    try {
+      const speakeasy = require('speakeasy');
+      verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: 'base32',
+        token: mfaCode,
+        window: 2
+      });
+    } catch (verifyError) {
+      console.error('❌ MFA verification library error:', verifyError);
+      return res.status(500).json({
+        success: false,
+        error: 'MFA verification service error',
+        message: 'Unable to verify MFA code due to service error',
+        timestamp: new Date().toISOString()
+      });
+    }
     
     if (!verified) {
       return res.status(401).json({
         success: false,
         error: 'Invalid MFA code',
         requiresMFA: true,
-        message: 'The provided MFA code is invalid. Please try again.'
+        message: 'The provided MFA code is invalid. Please try again.',
+        timestamp: new Date().toISOString()
       });
     }
     
@@ -461,16 +473,40 @@ router.post('/api-keys', async (req, res) => {
 
   try {
     console.log(`🧂 [${requestId}] Generating user salt after ${Date.now() - startTime}ms...`);
-    // Generate user-specific salt
-    const userSalt = crypto.randomBytes(16).toString('hex');
-    console.log(`✅ [${requestId}] Salt generated after ${Date.now() - startTime}ms`);
+    // Generate user-specific salt with error handling
+    let userSalt;
+    try {
+      userSalt = crypto.randomBytes(16).toString('hex');
+      console.log(`✅ [${requestId}] Salt generated after ${Date.now() - startTime}ms`);
+    } catch (cryptoError) {
+      console.error(`❌ [${requestId}] Failed to generate user salt:`, cryptoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Cryptographic operation failed',
+        message: 'Unable to generate secure salt for API key encryption',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     console.log(`🔐 [${requestId}] Encrypting API credentials after ${Date.now() - startTime}ms...`);
-    // Encrypt API credentials
-    const encryptionStart = Date.now();
-    const encryptedApiKey = encryptApiKey(apiKey, userSalt);
-    const encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
-    console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
+    // Encrypt API credentials with error handling
+    let encryptedApiKey, encryptedApiSecret;
+    try {
+      const encryptionStart = Date.now();
+      encryptedApiKey = encryptApiKey(apiKey, userSalt);
+      encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
+      console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
+    } catch (encryptError) {
+      console.error(`❌ [${requestId}] Failed to encrypt API credentials:`, encryptError);
+      return res.status(500).json({
+        success: false,
+        error: 'Encryption failed',
+        message: 'Unable to securely encrypt API credentials',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     console.log(`💾 [${requestId}] Attempting database insert after ${Date.now() - startTime}ms...`);
     // Insert into database
@@ -1422,11 +1458,21 @@ router.post('/two-factor/verify', async (req, res) => {
       });
     }
     
-    // Generate recovery codes
+    // Generate recovery codes with error handling
     const crypto = require('crypto');
-    const recoveryCodes = [];
-    for (let i = 0; i < 10; i++) {
-      recoveryCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    let recoveryCodes = [];
+    try {
+      for (let i = 0; i < 10; i++) {
+        recoveryCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+      }
+    } catch (cryptoError) {
+      console.error('❌ Failed to generate recovery codes:', cryptoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate recovery codes',
+        message: 'Unable to generate secure recovery codes',
+        timestamp: new Date().toISOString()
+      });
     }
     
     // Enable 2FA and store recovery codes
@@ -1521,10 +1567,20 @@ router.get('/recovery-codes', async (req, res) => {
   const userId = req.user.sub;
   
   try {
-    // Generate recovery codes
-    const codes = [];
-    for (let i = 0; i < 10; i++) {
-      codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    // Generate recovery codes with error handling
+    let codes = [];
+    try {
+      for (let i = 0; i < 10; i++) {
+        codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+      }
+    } catch (cryptoError) {
+      console.error('❌ Failed to generate new recovery codes:', cryptoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate recovery codes',
+        message: 'Unable to generate secure recovery codes',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Hash and store recovery codes
