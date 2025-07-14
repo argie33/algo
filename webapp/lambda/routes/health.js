@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
       service: 'Financial Dashboard API',
       timestamp: new Date().toISOString(),
       environment: process.env.ENVIRONMENT || 'dev',
-      database: dbHealth,
+      database: dbHealth.database, // Fix: Remove double nesting
       api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
       memory: process.memoryUsage(),
       uptime: process.uptime()
