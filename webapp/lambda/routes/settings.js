@@ -1588,7 +1588,7 @@ router.post('/debug/fix-schema', async (req, res) => {
       try {
         await client.query(`
           CREATE TABLE IF NOT EXISTS user_notification_preferences (
-            user_id INTEGER PRIMARY KEY,
+            user_id VARCHAR(255) PRIMARY KEY,
             email_notifications BOOLEAN DEFAULT TRUE,
             push_notifications BOOLEAN DEFAULT TRUE,
             price_alerts BOOLEAN DEFAULT TRUE,
@@ -1607,7 +1607,7 @@ router.post('/debug/fix-schema', async (req, res) => {
       try {
         await client.query(`
           CREATE TABLE IF NOT EXISTS user_theme_preferences (
-            user_id INTEGER PRIMARY KEY,
+            user_id VARCHAR(255) PRIMARY KEY,
             dark_mode BOOLEAN DEFAULT FALSE,
             primary_color VARCHAR(20) DEFAULT '#1976d2',
             chart_style VARCHAR(20) DEFAULT 'candlestick',
