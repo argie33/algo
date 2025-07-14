@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - weekly loader update v12 - test workflow execution after filter fix
+# Trigger deploy-app-stocks workflow test - weekly loader update v13 - API key encryption secret added to Lambda environment
 import sys
 import time
 import logging

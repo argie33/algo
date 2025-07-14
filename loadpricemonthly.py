@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - monthly loader update v12 - test workflow execution after filter fix
+# Trigger deploy-app-stocks workflow test - monthly loader update v13 - API key encryption secret added to Lambda environment
 import sys
 import time
 import logging

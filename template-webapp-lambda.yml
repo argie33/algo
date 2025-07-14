@@ -187,6 +187,8 @@ Resources:
           DB_CONNECT_TIMEOUT: '30000'
           DB_POOL_MAX: '3'
           DB_POOL_IDLE_TIMEOUT: '30000'
+          # API key encryption secret
+          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
       Events:
         ApiProxy:
           Type: Api
@@ -249,7 +251,9 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
-                Resource: !Ref DatabaseSecretArn
+                Resource: 
+                  - !Ref DatabaseSecretArn
+                  - !ImportValue StocksApp-ApiKeyEncryptionSecretArn
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances

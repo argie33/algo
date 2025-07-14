@@ -25,11 +25,7 @@ Parameters:
     Type: String
     Description: Cognito App Client ID for authentication
     
-  ApiKeyEncryptionSecret:
-    Type: String
-    Description: Secret key for API key encryption (minimum 32 characters)
-    NoEcho: true
-    MinLength: 32
+# Removed ApiKeyEncryptionSecret parameter - now imported from StocksApp stack
 
 Globals:
   Function:
@@ -44,7 +40,7 @@ Globals:
         WEBAPP_AWS_REGION: !Ref AWS::Region
         COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
         COGNITO_CLIENT_ID: !Ref CognitoClientId
-        API_KEY_ENCRYPTION_SECRET: !Ref ApiKeyEncryptionSecret
+        API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
 
 Resources:
   # API Lambda Function
