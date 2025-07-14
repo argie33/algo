@@ -21,15 +21,21 @@ const REQUIRED_ENV_VARS = [
     sensitive: false
   },
   {
+    name: 'COGNITO_SECRET_ARN',
+    description: 'ARN of the Secrets Manager secret containing Cognito configuration',
+    required: false,
+    sensitive: true
+  },
+  {
     name: 'COGNITO_USER_POOL_ID',
     description: 'Cognito User Pool ID for authentication',
-    required: true,
+    required: false,
     sensitive: false
   },
   {
     name: 'COGNITO_CLIENT_ID',
     description: 'Cognito App Client ID for authentication',
-    required: true,
+    required: false,
     sensitive: false
   },
   {

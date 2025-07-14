@@ -111,44 +111,85 @@ async function getVerifier() {
 
 // Authentication middleware
 const authenticateToken = async (req, res, next) => {
+  const startTime = Date.now();
+  const requestId = req.headers['x-request-id'] || 'unknown';
+  
   try {
-    console.log('🔐 Authentication middleware called');
-    console.log('🌍 Environment:', process.env.NODE_ENV);
-    console.log('⚙️  SKIP_AUTH:', process.env.SKIP_AUTH);
+    console.log(`🔐 [${requestId}] Authentication middleware called for ${req.method} ${req.path}`);
+    console.log(`🌍 [${requestId}] Environment:`, {
+      NODE_ENV: process.env.NODE_ENV,
+      SKIP_AUTH: process.env.SKIP_AUTH,
+      hasUserPoolId: !!process.env.COGNITO_USER_POOL_ID,
+      hasClientId: !!process.env.COGNITO_CLIENT_ID,
+      hasSecretArn: !!process.env.COGNITO_SECRET_ARN
+    });
+    
+    // Check for demo/development bypass
+    if (process.env.SKIP_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+      console.log(`⚠️ [${requestId}] BYPASSING authentication in development mode`);
+      req.user = {
+        sub: 'dev-user-123',
+        email: 'dev@example.com',
+        username: 'dev-user',
+        role: 'admin',
+        groups: ['developers']
+      };
+      return next();
+    }
     
     // Check for demo/development tokens first
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
-    // REMOVED: Development token handling - using Cognito only
+    console.log(`🎫 [${requestId}] Authorization header present:`, !!authHeader);
+    console.log(`🎫 [${requestId}] Token extracted:`, !!token);
 
     // Get verifier (will load config if needed)
-    console.log('🔍 Getting JWT verifier...');
+    console.log(`🔍 [${requestId}] Getting JWT verifier...`);
     const jwtVerifier = await getVerifier();
 
-    // If no verifier is available, authentication is required
+    // If no verifier is available, check if we should allow in development
     if (!jwtVerifier) {
-      console.error('❌ JWT verifier not available - authentication required');
+      console.error(`❌ [${requestId}] JWT verifier not available`);
+      console.error(`❌ [${requestId}] Config status:`, {
+        cognitoConfigLoaded: !!cognitoConfig,
+        userPoolId: process.env.COGNITO_USER_POOL_ID ? 'SET' : 'MISSING',
+        clientId: process.env.COGNITO_CLIENT_ID ? 'SET' : 'MISSING',
+        secretArn: process.env.COGNITO_SECRET_ARN ? 'SET' : 'MISSING'
+      });
+      
       return res.status(503).json({
         error: 'Authentication service unavailable',
-        message: 'Unable to verify authentication tokens. Please try again later.'
+        message: 'Unable to verify authentication tokens. Please check Cognito configuration.',
+        details: process.env.NODE_ENV === 'development' ? {
+          requestId,
+          configStatus: {
+            userPoolId: !!process.env.COGNITO_USER_POOL_ID,
+            clientId: !!process.env.COGNITO_CLIENT_ID,
+            secretArn: !!process.env.COGNITO_SECRET_ARN
+          }
+        } : undefined
       });
     }
 
-    console.log('🎫 Checking authorization header...');
     // Token already extracted above
     if (!token) {
-      console.error('❌ No token found in Authorization header');
+      console.error(`❌ [${requestId}] No token found in Authorization header`);
       return res.status(401).json({
         error: 'Authentication required',
-        message: 'Access token is missing from Authorization header'
+        message: 'Access token is missing from Authorization header',
+        details: {
+          requestId,
+          authHeaderPresent: !!authHeader,
+          expectedFormat: 'Bearer <token>'
+        }
       });
     }
 
-    console.log('✅ Token found, verifying...');
+    console.log(`✅ [${requestId}] Token found, verifying with Cognito...`);
     // Verify the JWT token
     const payload = await jwtVerifier.verify(token);
-    console.log('🎯 Token verified successfully');
+    console.log(`🎯 [${requestId}] Token verified successfully`);
     
     // Add user information to request
     req.user = {
@@ -159,7 +200,8 @@ const authenticateToken = async (req, res, next) => {
       groups: payload['cognito:groups'] || []
     };
 
-    console.log('👤 User authenticated:', {
+    const duration = Date.now() - startTime;
+    console.log(`👤 [${requestId}] User authenticated in ${duration}ms:`, {
       sub: req.user.sub,
       email: req.user.email,
       username: req.user.username,
@@ -168,29 +210,60 @@ const authenticateToken = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('❌ Authentication error:', error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ [${requestId}] Authentication error after ${duration}ms:`, {
+      name: error.name,
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
     
     // Handle specific JWT errors
     if (error.name === 'TokenExpiredError') {
-      console.error('🕐 Token expired');
+      console.error(`🕐 [${requestId}] Token expired`);
       return res.status(401).json({
         error: 'Token expired',
-        message: 'Your session has expired. Please log in again.'
+        message: 'Your session has expired. Please log in again.',
+        details: { requestId, errorType: 'TOKEN_EXPIRED' }
       });
     }
     
     if (error.name === 'JsonWebTokenError') {
-      console.error('🚫 Invalid token');
+      console.error(`🚫 [${requestId}] Invalid token format`);
       return res.status(401).json({
         error: 'Invalid token',
-        message: 'The provided token is invalid.'
+        message: 'The provided token is invalid.',
+        details: { requestId, errorType: 'TOKEN_INVALID' }
       });
     }
 
-    console.error('🔥 Generic authentication failure');
+    if (error.name === 'JwtVerifyError') {
+      console.error(`🚫 [${requestId}] JWT verification failed:`, error.message);
+      return res.status(401).json({
+        error: 'Token verification failed',
+        message: 'Unable to verify the provided token.',
+        details: { requestId, errorType: 'JWT_VERIFY_ERROR' }
+      });
+    }
+
+    // Handle network/service errors
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      console.error(`🌐 [${requestId}] Network error during token verification`);
+      return res.status(503).json({
+        error: 'Authentication service unavailable',
+        message: 'Unable to connect to authentication service.',
+        details: { requestId, errorType: 'NETWORK_ERROR' }
+      });
+    }
+
+    console.error(`🔥 [${requestId}] Generic authentication failure:`, error);
     return res.status(401).json({
       error: 'Authentication failed',
-      message: 'Could not verify authentication token'
+      message: 'Could not verify authentication token',
+      details: { 
+        requestId, 
+        errorType: 'UNKNOWN_ERROR',
+        errorName: error.name
+      }
     });
   }
 };

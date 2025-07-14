@@ -46,7 +46,7 @@ async function getUserApiKey(userId, broker, keyId = null) {
     
     console.log(`🔍 [API-KEY] User has ${debugResult.rows.length} total API keys`);
     if (debugResult.rows.length > 0) {
-      console.log(`🔍 [API-KEY] Available keys: ${debugResult.rows.length} keys found for ${provider || 'all providers'}`);
+      console.log(`🔍 [API-KEY] Available keys: ${debugResult.rows.length} keys found for ${broker || 'all brokers'}`);
     } else {
       console.log(`🔍 [API-KEY] No API keys found for user`);
       
@@ -86,18 +86,24 @@ async function getUserApiKey(userId, broker, keyId = null) {
       const keyData = specificKeyResult.rows[0];
       console.log(`✅ [API-KEY] Found specific key: ${broker} (sandbox: ${keyData.is_sandbox})`);
       
-      // Decrypt the credentials
-      const apiKey = apiKeyService.decryptApiKey({
-        encrypted: keyData.encrypted_api_key,
-        iv: keyData.key_iv,
-        authTag: keyData.key_auth_tag
-      }, keyData.user_salt);
-      
-      const apiSecret = keyData.encrypted_api_secret ? apiKeyService.decryptApiKey({
-        encrypted: keyData.encrypted_api_secret,
-        iv: keyData.secret_iv,
-        authTag: keyData.secret_auth_tag
-      }, keyData.user_salt) : null;
+      // Decrypt the credentials with proper async handling and error handling
+      let apiKey, apiSecret;
+      try {
+        apiKey = await apiKeyService.decryptApiKey({
+          encrypted: keyData.encrypted_api_key,
+          iv: keyData.key_iv,
+          authTag: keyData.key_auth_tag
+        }, keyData.user_salt);
+        
+        apiSecret = keyData.encrypted_api_secret ? await apiKeyService.decryptApiKey({
+          encrypted: keyData.encrypted_api_secret,
+          iv: keyData.secret_iv,
+          authTag: keyData.secret_auth_tag
+        }, keyData.user_salt) : null;
+      } catch (decryptError) {
+        console.error(`❌ [API-KEY] Failed to decrypt credentials for key ${keyId}:`, decryptError);
+        return null;
+      }
       
       return {
         id: keyData.id,

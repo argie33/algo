@@ -30,24 +30,45 @@ let settingsRoutes, patternsRoutes, sectorsRoutes, watchlistRoutes, aiAssistantR
 let tradesRoutes, cryptoRoutes, screenerRoutes, dashboardRoutes, alertsRoutes;
 let commoditiesRoutes, economicRoutes;
 
-// Safe route loading function
+// Safe route loading function with improved error handling
 const safeRequire = (path, name) => {
   try {
     const route = require(path);
-    console.log(`✅ Loaded ${name} route`);
+    console.log(`✅ Loaded ${name} route successfully`);
+    
+    // Validate that the route is actually an Express router
+    if (!route || typeof route !== 'function') {
+      throw new Error(`Route ${name} does not export a valid Express router`);
+    }
+    
     return route;
   } catch (error) {
-    console.error(`⚠️ Failed to load ${name} route:`, error.message);
-    // Return a placeholder router
+    console.error(`❌ Failed to load ${name} route:`, {
+      message: error.message,
+      stack: error.stack,
+      path: path
+    });
+    
+    // Return a placeholder router with detailed error information
     const express = require('express');
     const placeholder = express.Router();
+    
     placeholder.use('*', (req, res) => {
+      console.error(`🚨 Request to failed route ${name}: ${req.method} ${req.path}`);
       res.status(503).json({
         error: 'Service temporarily unavailable',
-        message: `${name} service is being loaded`,
-        timestamp: new Date().toISOString()
+        message: `${name} service failed to load`,
+        details: process.env.NODE_ENV === 'development' ? {
+          errorMessage: error.message,
+          routePath: path,
+          requestPath: req.path,
+          method: req.method
+        } : undefined,
+        timestamp: new Date().toISOString(),
+        retryAfter: 30
       });
     });
+    
     return placeholder;
   }
 };
@@ -178,8 +199,14 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// Additional security headers for financial applications
+// HTTPS enforcement and additional security headers for financial applications
 app.use((req, res, next) => {
+  // Force HTTPS in production (behind ALB/CloudFront)
+  if (process.env.NODE_ENV === 'production' && req.header('X-Forwarded-Proto') !== 'https') {
+    console.log(`🔒 Redirecting HTTP to HTTPS: ${req.method} ${req.url}`);
+    return res.redirect(301, `https://${req.header('host')}${req.url}`);
+  }
+  
   // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
   
@@ -189,7 +216,7 @@ app.use((req, res, next) => {
   // Enable XSS protection
   res.setHeader('X-XSS-Protection', '1; mode=block');
   
-  // Strict transport security
+  // Strict transport security (HSTS)
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   
   // Referrer policy
@@ -200,12 +227,29 @@ app.use((req, res, next) => {
     'geolocation=(), microphone=(), camera=(), payment=(), usb=(), ' +
     'screen-wake-lock=(), web-share=(), gyroscope=(), magnetometer=()');
   
-  // Cache control for sensitive financial data
-  if (req.path.includes('/portfolio') || req.path.includes('/trading')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+  // DNS prefetch control for privacy
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  
+  // Disable client-side caching for API responses
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
+  // Extra security for financial data endpoints
+  if (req.path.includes('/portfolio') || req.path.includes('/trading') || req.path.includes('/api-key')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, private');
+    res.setHeader('Surrogate-Control', 'no-store');
+    res.setHeader('X-Download-Options', 'noopen');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
   }
+  
+  // Server identification obfuscation
+  res.removeHeader('X-Powered-By');
+  res.setHeader('Server', 'Financial-API');
+  
+  // Cross-origin policy for financial security
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   
   // API rate limiting headers
   res.setHeader('X-RateLimit-Limit', '1000');

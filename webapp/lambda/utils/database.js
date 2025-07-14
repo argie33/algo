@@ -110,6 +110,23 @@ async function initializeDatabase() {
         pool = new Pool(poolConfig);
         console.log(`✅ Pool created in ${Date.now() - poolStart}ms`);
 
+        // Add pool event listeners for monitoring
+        pool.on('connect', () => {
+            console.log('🔗 Pool: New client connected');
+        });
+
+        pool.on('acquire', () => {
+            console.log('📤 Pool: Client acquired from pool');
+        });
+
+        pool.on('remove', () => {
+            console.log('🗑️ Pool: Client removed from pool');
+        });
+
+        pool.on('error', (err) => {
+            console.error('💥 Pool error:', err.message);
+        });
+
         // Test connection with shorter timeout and simpler query
         console.log('🧪 Testing database connection...');
         const testStart = Date.now();
@@ -161,6 +178,28 @@ function getPool() {
         throw new Error('Database not initialized. Call initializeDatabase() first.');
     }
     return pool;
+}
+
+/**
+ * Get detailed pool status for monitoring
+ */
+function getPoolStatus() {
+    if (!pool) {
+        return {
+            initialized: false,
+            error: 'Pool not initialized'
+        };
+    }
+    
+    return {
+        initialized: dbInitialized,
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount,
+        max: pool.options.max,
+        connectionTimeoutMillis: pool.options.connectionTimeoutMillis,
+        idleTimeoutMillis: pool.options.idleTimeoutMillis
+    };
 }
 
 /**
@@ -295,6 +334,7 @@ async function closeDatabase() {
 module.exports = {
     initializeDatabase,
     getPool,
+    getPoolStatus,
     query,
     transaction,
     closeDatabase,
