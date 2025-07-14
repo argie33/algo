@@ -1,6 +1,6 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v10 - enhanced technical indicators processing
-# Updated 2025-07-14: Optimized technical indicators calculation and deployment pipeline
+# Daily technicals loader - deployment test v11 - trigger database initialization
+# Updated 2025-07-14: Optimized technical indicators calculation and trigger comprehensive database schema deployment
 import sys
 import time
 import logging
