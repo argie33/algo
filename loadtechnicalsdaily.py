@@ -1,6 +1,6 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v9 - force Docker rebuild for missing ECR image
-# Updated 2025-07-12: Fixed workflow issues, comprehensive error handling and memory optimization
+# Daily technicals loader - deployment test v10 - enhanced technical indicators processing
+# Updated 2025-07-14: Optimized technical indicators calculation and deployment pipeline
 import sys
 import time
 import logging
