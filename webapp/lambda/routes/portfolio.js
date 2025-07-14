@@ -8,18 +8,75 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
-// Portfolio overview endpoint (root) - does not require authentication for health check
+// Apply authentication middleware to ALL portfolio routes
+router.use(authenticateToken);
+
+// Portfolio overview endpoint (root) - requires authentication and provides portfolio summary
 router.get('/', async (req, res) => {
   try {
-    console.log('Portfolio overview endpoint called');
+    console.log('📊 Portfolio overview request received for user:', req.user?.sub);
+    const userId = req.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User authentication required' });
+    }
+
+    // Get user's portfolio summary from database
+    const holdingsQuery = `
+      SELECT 
+        COUNT(*) as total_positions,
+        SUM(market_value) as total_market_value,
+        SUM(unrealized_pl) as total_unrealized_pl,
+        AVG(unrealized_plpc) as avg_unrealized_plpc
+      FROM portfolio_holdings 
+      WHERE user_id = $1
+    `;
     
-    // Return overview for health checks
+    const metadataQuery = `
+      SELECT 
+        account_type,
+        last_sync,
+        total_equity
+      FROM portfolio_metadata 
+      WHERE user_id = $1
+      ORDER BY last_sync DESC
+      LIMIT 1
+    `;
+
+    const [holdingsResult, metadataResult] = await Promise.all([
+      query(holdingsQuery, [userId]),
+      query(metadataQuery, [userId])
+    ]);
+
+    const summary = holdingsResult.rows[0] || {
+      total_positions: 0,
+      total_market_value: 0,
+      total_unrealized_pl: 0,
+      avg_unrealized_plpc: 0
+    };
+
+    const metadata = metadataResult.rows[0] || {
+      account_type: 'not_connected',
+      last_sync: null,
+      total_equity: 0
+    };
+
     res.json({
       success: true,
       data: {
-        system: 'Portfolio Management API',
-        version: '1.0.0',
-        status: 'operational',
+        user_id: userId,
+        portfolio_summary: {
+          total_positions: parseInt(summary.total_positions),
+          total_market_value: parseFloat(summary.total_market_value) || 0,
+          total_unrealized_pl: parseFloat(summary.total_unrealized_pl) || 0,
+          avg_unrealized_plpc: parseFloat(summary.avg_unrealized_plpc) || 0,
+          total_equity: parseFloat(metadata.total_equity) || 0
+        },
+        account_info: {
+          account_type: metadata.account_type,
+          last_sync: metadata.last_sync,
+          is_connected: metadata.account_type !== 'not_connected'
+        },
         available_endpoints: [
           '/portfolio/holdings - Portfolio holdings data',
           '/portfolio/performance - Performance metrics and charts',
@@ -27,31 +84,18 @@ router.get('/', async (req, res) => {
           '/portfolio/allocations - Asset allocation breakdown',
           '/portfolio/import - Import portfolio data from brokers'
         ],
-        features: [
-          'Real-time portfolio tracking via broker API integration',
-          'Performance analytics',
-          'Risk assessment',
-          'Asset allocation analysis',
-          'Multi-broker integration'
-        ],
-        last_updated: new Date().toISOString()
-      },
-      status: 'operational',
-      timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
-    console.error('Error in portfolio overview:', error);
+    console.error('❌ Portfolio overview error:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch portfolio overview' 
+      error: 'Failed to fetch portfolio overview',
+      details: error.message
     });
   }
 });
-
-// Debug endpoint removed - require proper authentication only
-
-// Apply authentication middleware to all other portfolio routes
-router.use(authenticateToken);
 
 // Using standardized getUserApiKey from userApiKeyHelper instead
 
