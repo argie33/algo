@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# Daily technicals loader - deployment test v12 - trigger workflow update
+# Daily technicals loader - deployment test v13 - trigger workflow with fixed secrets
 # Updated 2025-07-14: Optimized technical indicators calculation and database schema deployment
 import sys
 import time
