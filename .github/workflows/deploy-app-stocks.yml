@@ -825,49 +825,14 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch Task Definition ARN with retry
+      - name: Fetch Task Definition ARN
         id: td
         run: |
-          echo "🔍 Fetching StockSymbols task definition ARN with retry logic..."
-          
-          for attempt in {1..15}; do
-            echo "📡 Attempt $attempt/15: Fetching task definition ARN..."
-            
-            ARN=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
-              --output text 2>/dev/null || echo "")
-            
-            # Check if we got a valid ARN
-            if [ -n "$ARN" ] && [ "$ARN" != "None" ] && [ "$ARN" != "null" ] && [[ "$ARN" =~ ^arn:aws:ecs: ]]; then
-              echo "✅ Successfully fetched task definition ARN: $ARN"
-              
-              # Verify the task definition actually exists and is active
-              echo "🔍 Verifying task definition exists and is active..."
-              if aws ecs describe-task-definition --task-definition "$ARN" >/dev/null 2>&1; then
-                echo "✅ Task definition is ready and accessible"
-                echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-                break
-              else
-                echo "⚠️ Task definition ARN found but not yet accessible in ECS"
-              fi
-            else
-              echo "⚠️ Task definition ARN not ready yet (got: '$ARN')"
-            fi
-            
-            if [ $attempt -eq 15 ]; then
-              echo "❌ Failed to fetch valid task definition ARN after 15 attempts"
-              echo "🔍 Debugging CloudFormation stack outputs..."
-              aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query 'Stacks[0].Outputs' \
-                --output table || echo "Failed to describe stack"
-              exit 1
-            fi
-            
-            echo "⏳ Waiting 20 seconds before retry..."
-            sleep 20
-          done
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='StockSymbolsTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets
         id: infra
@@ -1471,49 +1436,14 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch Task Definition ARN with retry
+      - name: Fetch Task Definition ARN
         id: td
         run: |
-          echo "🔍 Fetching TechnicalsDailyTaskDefArn with retry logic..."
-          
-          for attempt in {1..15}; do
-            echo "📡 Attempt $attempt/15: Fetching task definition ARN..."
-            
-            ARN=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
-              --output text 2>/dev/null || echo "")
-            
-            # Check if we got a valid ARN
-            if [ -n "$ARN" ] && [ "$ARN" != "None" ] && [ "$ARN" != "null" ] && [[ "$ARN" =~ ^arn:aws:ecs: ]]; then
-              echo "✅ Successfully fetched task definition ARN: $ARN"
-              
-              # Verify the task definition actually exists and is active
-              echo "🔍 Verifying task definition exists and is active..."
-              if aws ecs describe-task-definition --task-definition "$ARN" >/dev/null 2>&1; then
-                echo "✅ Task definition is ready and accessible"
-                echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-                break
-              else
-                echo "⚠️ Task definition ARN found but not yet accessible in ECS"
-              fi
-            else
-              echo "⚠️ Task definition ARN not ready yet (got: '$ARN')"
-            fi
-            
-            if [ $attempt -eq 15 ]; then
-              echo "❌ Failed to fetch valid task definition ARN after 15 attempts"
-              echo "🔍 Debugging CloudFormation stack outputs..."
-              aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query 'Stacks[0].Outputs' \
-                --output table || echo "Failed to describe stack"
-              exit 1
-            fi
-            
-            echo "⏳ Waiting 20 seconds before retry..."
-            sleep 20
-          done
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='TechnicalsDailyTaskDefArn'].OutputValue" \
+            --output text)
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets
         id: infra
@@ -2728,49 +2658,21 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Fetch Task Definition ARN with retry
+      - name: Fetch Task Definition ARN
         id: td
         run: |
-          echo "🔍 Fetching FearGreedTaskDefArn with retry logic..."
-          
-          for attempt in {1..15}; do
-            echo "📡 Attempt $attempt/15: Fetching task definition ARN..."
-            
-            ARN=$(aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?OutputKey=='FearGreedTaskDefArn'].OutputValue" \
-              --output text 2>/dev/null || echo "")
-            
-            # Check if we got a valid ARN
-            if [ -n "$ARN" ] && [ "$ARN" != "None" ] && [ "$ARN" != "null" ] && [[ "$ARN" =~ ^arn:aws:ecs: ]]; then
-              echo "✅ Successfully fetched task definition ARN: $ARN"
-              
-              # Verify the task definition actually exists and is active
-              echo "🔍 Verifying task definition exists and is active..."
-              if aws ecs describe-task-definition --task-definition "$ARN" >/dev/null 2>&1; then
-                echo "✅ Task definition is ready and accessible"
-                echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
-                break
-              else
-                echo "⚠️ Task definition ARN found but not yet accessible in ECS"
-              fi
-            else
-              echo "⚠️ Task definition ARN not ready yet (got: '$ARN')"
-            fi
-            
-            if [ $attempt -eq 15 ]; then
-              echo "❌ Failed to fetch valid task definition ARN after 15 attempts"
-              echo "🔍 Debugging CloudFormation stack outputs..."
-              aws cloudformation describe-stacks \
-                --stack-name stocks-ecs-tasks-stack \
-                --query 'Stacks[0].Outputs' \
-                --output table || echo "Failed to describe stack"
-              exit 1
-            fi
-            
-            echo "⏳ Waiting 20 seconds before retry..."
-            sleep 20
-          done
+          ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='FearGreedTaskDefArn'].OutputValue" \
+            --output text)
+          echo "🔍 Retrieved ARN: $ARN"
+          if [ -z "$ARN" ] || [ "$ARN" = "None" ] || [ "$ARN" = "null" ]; then
+            echo "❌ Task Definition ARN is empty or null"
+            echo "Available outputs from stack:"
+            aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack --query "Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}" --output table
+            exit 1
+          fi
+          echo "TASK_DEF_ARN=$ARN" >> $GITHUB_OUTPUT
 
       - name: Fetch cluster ARN & subnets & SG
         id: infra
