@@ -107,7 +107,7 @@ Resources:
         SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption"}'
         GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
         PasswordLength: 64
-        ExcludeCharacters: '"@/\`'
+        ExcludeCharacters: '@/\`'
       Tags:
         - Key: 'Project'
           Value: 'financial-dashboard'
@@ -127,7 +127,7 @@ Resources:
         SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing"}'
         GenerateStringKey: 'JWT_SECRET'
         PasswordLength: 64
-        ExcludeCharacters: '"@/\`'
+        ExcludeCharacters: '@/\`'
       Tags:
         - Key: 'Project'
           Value: 'financial-dashboard'
