@@ -5,16 +5,10 @@ const ALGORITHM = 'aes-256-gcm';
 
 class ApiKeyService {
   constructor() {
-    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'dev-encryption-key-change-in-production-32bytes!!';
+    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
     if (!this.secretKey) {
-      console.warn('API_KEY_ENCRYPTION_SECRET environment variable not set. API key encryption features will be disabled.');
-      this.isEnabled = false;
-      return;
-    }
-    
-    // For development, if using fallback key, log it but still enable the service
-    if (this.secretKey === 'dev-encryption-key-change-in-production-32bytes!!') {
-      console.warn('⚠️  Using development encryption key. Set API_KEY_ENCRYPTION_SECRET in production!');
+      console.error('❌ CRITICAL: API_KEY_ENCRYPTION_SECRET environment variable is required for secure operation');
+      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable is required. Set a secure 32+ character key.');
     }
     this.isEnabled = true;
     

@@ -104,19 +104,15 @@ const apiKeyService = require('../utils/apiKeyService');
 function encryptApiKey(apiKey, userSalt) {
   try {
     if (!apiKeyService.isEnabled) {
-      console.warn('API key service disabled, using fallback base64 encoding');
-      const combined = `${userSalt}:${apiKey}`;
-      const encoded = Buffer.from(combined).toString('base64');
-      return {
-        encrypted: encoded,
-        iv: '',
-        authTag: '',
-        fallback: true
-      };
+      console.error('❌ CRITICAL: API key service is disabled. Cannot securely encrypt API keys.');
+      throw new Error('API key encryption service is not available. Check API_KEY_ENCRYPTION_SECRET configuration.');
     }
 
     // Use the same encryption as apiKeyService (AES-256-GCM)
-    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET || 'dev-encryption-key-change-in-production-32bytes!!';
+    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
+    if (!secretKey) {
+      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable is required');
+    }
     const key = crypto.scryptSync(secretKey, userSalt, 32);
     const iv = crypto.randomBytes(16);
     
@@ -133,32 +129,14 @@ function encryptApiKey(apiKey, userSalt) {
       authTag: authTag.toString('hex')
     };
   } catch (error) {
-    console.error('Encryption error:', error);
-    // Fallback to simple base64 encoding
-    const combined = `${userSalt}:${apiKey}`;
-    const encoded = Buffer.from(combined).toString('base64');
-    return {
-      encrypted: encoded,
-      iv: '',
-      authTag: '',
-      fallback: true
-    };
+    console.error('❌ CRITICAL: Encryption failed:', error);
+    throw new Error('Failed to encrypt API key. Check encryption service configuration.');
   }
 }
 
 function decryptApiKey(encryptedData, userSalt) {
   try {
-    // Handle fallback encoding
-    if (encryptedData.fallback) {
-      const decoded = Buffer.from(encryptedData.encrypted, 'base64').toString('utf8');
-      const [salt, apiKey] = decoded.split(':');
-      if (salt === userSalt) {
-        return apiKey;
-      }
-      throw new Error('Salt mismatch in fallback decryption');
-    }
-    
-    // Use the same decryption as apiKeyService (AES-256-GCM)
+    // Only support proper AES-256-GCM encryption
     return apiKeyService.decryptApiKey(encryptedData, userSalt);
   } catch (error) {
     console.error('Decryption error:', error);

@@ -44,13 +44,11 @@ async function getUserApiKey(userId, broker, keyId = null) {
       WHERE user_id = $1
     `, [userId]);
     
-    console.log(`🔍 [API-KEY] User ${userId} has ${debugResult.rows.length} total API keys`);
+    console.log(`🔍 [API-KEY] User has ${debugResult.rows.length} total API keys`);
     if (debugResult.rows.length > 0) {
-      console.log(`🔍 [API-KEY] Available keys:`, debugResult.rows.map(k => 
-        `${k.provider}(ID:${k.id}, active:${k.is_active}, sandbox:${k.is_sandbox})`
-      ));
+      console.log(`🔍 [API-KEY] Available keys: ${debugResult.rows.length} keys found for ${provider || 'all providers'}`);
     } else {
-      console.log(`🔍 [API-KEY] No API keys found for user ${userId}`);
+      console.log(`🔍 [API-KEY] No API keys found for user`);
       
       // Additional debug: Show all users with API keys to help troubleshoot
       const allUsersResult = await query(`
@@ -144,7 +142,7 @@ function validateUserAuthentication(req) {
     throw new Error('User ID not found in authentication token');
   }
   
-  console.log(`👤 [AUTH] Validated user: ${userId} (${req.user.email || req.user.username || 'no-email'})`);
+  console.log(`👤 [AUTH] Validated user: ${userId}`);
   return userId;
 }
 

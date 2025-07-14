@@ -87,23 +87,37 @@ const app = express();
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
 
-// EMERGENCY CORS FIX - Set headers immediately on ALL requests
+// Secure CORS Configuration
 app.use((req, res, next) => {
-  console.log(`🆘 EMERGENCY CORS: ${req.method} ${req.path} from origin: ${req.headers.origin}`);
+  const origin = req.headers.origin;
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
   
-  // Set CORS headers immediately and aggressively
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  // Default allowed origins for development
+  const defaultAllowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://your-domain.com'  // Replace with actual production domain
+  ];
+  
+  const finalAllowedOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultAllowedOrigins;
+  
+  // Only allow requests from specific origins
+  if (origin && finalAllowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // Allow requests without origin (like from Postman, curl, etc.) in development
+    if (process.env.NODE_ENV !== 'production') {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
-  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
-  console.log(`🆘 EMERGENCY CORS HEADERS SET for ${req.method} ${req.path}`);
-  
-  // Handle preflight OPTIONS requests immediately
+  // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
-    console.log(`🆘 EMERGENCY OPTIONS preflight handled for ${req.path}`);
     res.status(200).end();
     return;
   }
