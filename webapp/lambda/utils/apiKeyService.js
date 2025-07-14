@@ -1,17 +1,81 @@
 const crypto = require('crypto');
 const { query } = require('./database');
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
 const ALGORITHM = 'aes-256-gcm';
 
+// Configure AWS SDK for Secrets Manager
+const secretsManager = new SecretsManagerClient({
+  region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'
+});
+
+// Cache for loaded secrets
+let encryptionSecretCache = null;
+
+/**
+ * Load encryption secret from AWS Secrets Manager
+ */
+async function loadEncryptionSecret() {
+  if (encryptionSecretCache) {
+    return encryptionSecretCache;
+  }
+
+  try {
+    const secretArn = process.env.API_KEY_ENCRYPTION_SECRET_ARN;
+    if (!secretArn) {
+      console.error('❌ API_KEY_ENCRYPTION_SECRET_ARN environment variable not set');
+      return null;
+    }
+
+    console.log('🔐 Loading API key encryption secret from AWS Secrets Manager...');
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
+    const response = await secretsManager.send(command);
+    
+    if (!response.SecretString) {
+      throw new Error('Secret value is empty');
+    }
+
+    const secretData = JSON.parse(response.SecretString);
+    const encryptionKey = secretData.API_KEY_ENCRYPTION_SECRET;
+    
+    if (!encryptionKey) {
+      throw new Error('API_KEY_ENCRYPTION_SECRET not found in secret data');
+    }
+
+    encryptionSecretCache = encryptionKey;
+    console.log('✅ API key encryption secret loaded successfully');
+    return encryptionKey;
+    
+  } catch (error) {
+    console.error('❌ Failed to load encryption secret:', error);
+    return null;
+  }
+}
+
 class ApiKeyService {
   constructor() {
-    this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
-    if (!this.secretKey) {
-      console.error('❌ CRITICAL: API_KEY_ENCRYPTION_SECRET environment variable is required for secure operation');
-      console.error('⚠️  API Key service will be disabled - encryption/decryption not available');
-      this.isEnabled = false;
-      this.secretKey = null;
-    } else {
+    this.secretKey = null;
+    this.isEnabled = false;
+    this.initPromise = this.initialize();
+  }
+
+  async initialize() {
+    try {
+      // Try to load from environment first (for local dev)
+      this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
+      
+      // If not found, load from Secrets Manager
+      if (!this.secretKey) {
+        this.secretKey = await loadEncryptionSecret();
+      }
+
+      if (!this.secretKey) {
+        console.error('❌ CRITICAL: No encryption secret available');
+        console.error('⚠️  API Key service will be disabled - encryption/decryption not available');
+        this.isEnabled = false;
+        return;
+      }
+
       this.isEnabled = true;
       
       // Validate key has sufficient entropy
@@ -20,14 +84,22 @@ class ApiKeyService {
       }
       
       console.log('✅ API key encryption service initialized and enabled');
+    } catch (error) {
+      console.error('❌ Failed to initialize API key service:', error);
+      this.isEnabled = false;
+    }
+  }
+
+  async ensureInitialized() {
+    await this.initPromise;
+    if (!this.isEnabled) {
+      throw new Error('API key encryption service is not available');
     }
   }
 
   // Decrypt API key using stored encryption data
-  decryptApiKey(encryptedData, userSalt) {
-    if (!this.isEnabled) {
-      throw new Error('API key encryption service is not available');
-    }
+  async decryptApiKey(encryptedData, userSalt) {
+    await this.ensureInitialized();
     try {
       const key = crypto.scryptSync(this.secretKey, userSalt, 32);
       const iv = Buffer.from(encryptedData.iv, 'hex');
@@ -47,10 +119,7 @@ class ApiKeyService {
 
   // Get decrypted API credentials for a user and provider
   async getDecryptedApiKey(userId, provider) {
-    if (!this.isEnabled) {
-      console.warn('API key service disabled - returning null');
-      return null;
-    }
+    await this.ensureInitialized();
     try {
       console.log(`🔍 [API KEY SERVICE] Querying for userId=${userId}, provider=${provider}`);
       const result = await query(`
@@ -82,7 +151,7 @@ class ApiKeyService {
       const keyData = result.rows[0];
       
       // Decrypt API key
-      const apiKey = this.decryptApiKey({
+      const apiKey = await this.decryptApiKey({
         encrypted: keyData.encrypted_api_key,
         iv: keyData.key_iv,
         authTag: keyData.key_auth_tag
@@ -91,7 +160,7 @@ class ApiKeyService {
       // Decrypt API secret if it exists
       let apiSecret = null;
       if (keyData.encrypted_api_secret) {
-        apiSecret = this.decryptApiKey({
+        apiSecret = await this.decryptApiKey({
           encrypted: keyData.encrypted_api_secret,
           iv: keyData.secret_iv,
           authTag: keyData.secret_auth_tag
