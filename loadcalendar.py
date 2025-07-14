@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v2.4 - trigger loader with fixed Dockerfile
-# Updated 2025-07-13: Fixed Dockerfile base image to use bullseye instead of buster
-# TRIGGER DEPLOY: loadcalendar update with working Docker build
+# Load calendar data - trigger v2.5 - trigger loader with optimized calendar processing
+# Updated 2025-07-14: Enhanced calendar data processing with improved error handling
+# TRIGGER DEPLOY: loadcalendar update with enhanced processing pipeline
 import sys
 import time
 import logging
