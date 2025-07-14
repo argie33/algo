@@ -151,11 +151,8 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const portfolio = await this.client.getPortfolioHistory({
-        period: period,
-        timeframe: timeframe,
-        extended_hours: true
-      });
+      const response = await this.api.get(`/v2/account/portfolio/history?period=${period}&timeframe=${timeframe}&extended_hours=true`);
+      const portfolio = response.data;
 
       if (!portfolio.timestamp || !portfolio.equity) {
         return [];
@@ -264,10 +261,12 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const activities = await this.client.getActivities({
+      const params = new URLSearchParams({
         activity_types: activityTypes || 'FILL',
         page_size: pageSize
       });
+      const response = await this.api.get(`/v2/account/activities?${params}`);
+      const activities = response.data;
 
       return activities.map(activity => ({
         id: activity.id,
@@ -293,10 +292,11 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const calendar = await this.client.getCalendar({
-        start: start,
-        end: end
-      });
+      const params = new URLSearchParams();
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
+      const response = await this.api.get(`/v2/calendar?${params}`);
+      const calendar = response.data;
 
       return calendar.map(day => ({
         date: day.date,
@@ -318,7 +318,8 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const clock = await this.client.getClock();
+      const response = await this.api.get('/v2/clock');
+      const clock = response.data;
       
       return {
         timestamp: clock.timestamp,
@@ -341,7 +342,8 @@ class AlpacaService {
       this.checkRateLimit();
       
       // Simple test - try to get account info
-      const account = await this.client.getAccount();
+      const response = await this.api.get('/v2/account');
+      const account = response.data;
       
       return {
         valid: true,
@@ -367,7 +369,8 @@ class AlpacaService {
     try {
       this.checkRateLimit();
       
-      const asset = await this.client.getAsset(symbol);
+      const response = await this.api.get(`/v2/assets/${symbol}`);
+      const asset = response.data;
       
       return {
         id: asset.id,

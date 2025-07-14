@@ -160,3 +160,24 @@ def lambda_handler(event, context):
         "failed": f,
         "peak_rss_mb": peak
     }
+
+# Add main function for ECS task execution
+def main():
+    """Main function for ECS task execution"""
+    try:
+        result = lambda_handler(None, None)
+        if result and result.get("total", 0) >= 0:
+            logging.info("✅ Task completed successfully")
+            sys.exit(0)
+        else:
+            logging.error("❌ Task failed or returned invalid result")
+            sys.exit(1)
+    except Exception as e:
+        logging.error(f"❌ Unhandled error: {e}")
+        import traceback
+        logging.error(f"Stack trace: {traceback.format_exc()}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+EOF < /dev/null

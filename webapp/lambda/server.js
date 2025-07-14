@@ -30,6 +30,7 @@ const patternRoutes = require('./routes/patterns');
 const scoreRoutes = require('./routes/scores');
 const backtestRoutes = require('./routes/backtest');
 const settingsRoutes = require('./routes/settings');
+const tradesRoutes = require('./routes/trades');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -96,7 +97,8 @@ app.use('/api/sentiment', sentimentRoutes);
 app.use('/api/patterns', patternRoutes);
 app.use('/api/scores', scoreRoutes);
 app.use('/api/backtest', backtestRoutes);
-app.use('/api/user', settingsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/trades', tradesRoutes);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

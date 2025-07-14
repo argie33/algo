@@ -381,7 +381,7 @@ const SettingsApiKeys = () => {
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={key.isSandbox ? 'Sandbox' : 'Live'} 
+                          label={key.isSandbox ? 'Paper' : 'Live'} 
                           color={key.isSandbox ? 'warning' : 'success'}
                           size="small"
                         />
@@ -567,12 +567,12 @@ const SettingsApiKeys = () => {
                   onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
                 />
               }
-              label="Sandbox Environment"
+              label="Paper Trading Environment"
             />
 
             <Alert severity="info">
               <Typography variant="body2">
-                Start with sandbox/paper trading to test the connection safely. 
+                Start with paper trading to test the connection safely. 
                 Your API keys will be encrypted before storage.
               </Typography>
             </Alert>
@@ -611,7 +611,7 @@ const SettingsApiKeys = () => {
                   onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
                 />
               }
-              label="Sandbox Environment"
+              label="Paper Trading Environment"
             />
           </Box>
         </DialogContent>

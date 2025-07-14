@@ -28,7 +28,9 @@ export const formatPercentage = (value, decimals = 2) => {
   const num = parseFloat(value)
   if (isNaN(num)) return 'N/A'
   
-  return numeral(num / 100).format(`0.${'0'.repeat(decimals)}%`)
+  // If value is already a percentage (0-100), don't divide by 100
+  const percentValue = num > 1 ? num : num * 100
+  return numeral(percentValue / 100).format(`0.${'0'.repeat(decimals)}%`)
 }
 
 // Format large numbers with abbreviations
@@ -149,6 +151,28 @@ export const getMarketCapCategory = (marketCap) => {
   if (cap >= 50e6) return 'Micro Cap'
   return 'Nano Cap'
 }
+
+// Chart data validation utility
+export const validateChartData = (data, requiredFields = []) => {
+  if (!Array.isArray(data)) return [];
+  
+  return data.filter(item => {
+    if (!item || typeof item !== 'object') return false;
+    
+    return requiredFields.every(field => {
+      const value = item[field];
+      return value !== null && value !== undefined && !isNaN(parseFloat(value));
+    });
+  });
+};
+
+// Safe percentage formatter for charts
+export const formatChartPercentage = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '0%';
+  const safeValue = parseFloat(value);
+  const percentValue = safeValue > 1 ? safeValue : safeValue * 100;
+  return `${percentValue.toFixed(0)}%`;
+};
 
 // Get financial health score based on key metrics
 export const getFinancialHealthScore = (metrics) => {

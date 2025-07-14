@@ -92,7 +92,7 @@ def create_all_tables(cursor, conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_used TIMESTAMP,
-            UNIQUE(user_id, provider)
+            UNIQUE(user_id, provider, is_sandbox)
         )
         """,
         

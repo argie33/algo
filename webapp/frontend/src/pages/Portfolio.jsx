@@ -133,7 +133,7 @@ import {
   GetApp,
   NotificationsNone
 } from '@mui/icons-material';
-import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
+import { formatCurrency, formatPercentage, formatNumber, validateChartData, formatChartPercentage } from '../utils/formatters';
 
 // ⚠️ MOCK DATA - Replace with real API when available
 // Enhanced mock data with realistic portfolio metrics
@@ -2292,19 +2292,28 @@ const Portfolio = () => {
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={portfolioData?.sectorAllocation || []}
+                          data={validateChartData(portfolioData?.sectorAllocation || [], ['value', 'name'])}
                           cx="50%"
                           cy="50%"
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }) => {
+                            const safeName = name || 'Unknown';
+                            const safePercent = formatChartPercentage(percent);
+                            return `${safeName} ${safePercent}`;
+                          }}
                         >
                           {(portfolioData?.sectorAllocation || []).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <RechartsTooltip formatter={(value) => [formatPercentage(value), 'Allocation']} />
+                        <RechartsTooltip formatter={(value) => {
+                          if (value === null || value === undefined || isNaN(value)) {
+                            return ['N/A', 'Allocation'];
+                          }
+                          return [formatChartPercentage(value), 'Allocation'];
+                        }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
