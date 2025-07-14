@@ -2,6 +2,7 @@ const express = require('express');
 const { query, healthCheck, initializeDatabase } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
+const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const crypto = require('crypto');
 
