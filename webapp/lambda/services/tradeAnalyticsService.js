@@ -84,10 +84,10 @@ class TradeAnalyticsService {
     let errors = 0;
 
     try {
-      await db.query('BEGIN');
+      await query('BEGIN');
 
       // Get API key ID for reference
-      const apiKeyResult = await db.query(
+      const apiKeyResult = await query(
         'SELECT id FROM user_api_keys WHERE user_id = $1 AND provider = $2',
         [userId, broker]
       );
@@ -121,7 +121,7 @@ class TradeAnalyticsService {
           };
 
           // Insert or update trade execution
-          const result = await db.query(`
+          const result = await query(`
             INSERT INTO trade_executions (
               user_id, api_key_id, broker, trade_id, order_id, symbol, asset_class, security_type,
               side, quantity, price, commission, fees, execution_time, settlement_date,
@@ -154,7 +154,7 @@ class TradeAnalyticsService {
         }
       }
 
-      await db.query('COMMIT');
+      await query('COMMIT');
 
       return {
         imported,
@@ -164,7 +164,7 @@ class TradeAnalyticsService {
       };
 
     } catch (error) {
-      await db.query('ROLLBACK');
+      await query('ROLLBACK');
       throw error;
     }
   }
@@ -176,10 +176,10 @@ class TradeAnalyticsService {
     // Database queries will use the query function directly
     
     try {
-      await db.query('BEGIN');
+      await query('BEGIN');
 
       // Get all executions for user, ordered by time
-      const executions = await db.query(`
+      const executions = await query(`
         SELECT * FROM trade_executions 
         WHERE user_id = $1 
         ORDER BY symbol, execution_time
@@ -238,7 +238,7 @@ class TradeAnalyticsService {
           const holdingPeriod = (new Date(lastExecution.execution_time) - new Date(firstExecution.execution_time)) / (1000 * 60 * 60 * 24);
           
           // Insert closed position
-          await db.query(`
+          await query(`
             INSERT INTO position_history (
               user_id, symbol, asset_class, opened_at, closed_at, side, total_quantity,
               avg_entry_price, avg_exit_price, gross_pnl, net_pnl, total_commissions, total_fees,
@@ -276,7 +276,7 @@ class TradeAnalyticsService {
         if (pos.currentQuantity > 0) {
           const firstExecution = pos.executions[0];
           
-          await db.query(`
+          await query(`
             INSERT INTO position_history (
               user_id, symbol, asset_class, opened_at, side, total_quantity,
               avg_entry_price, status
@@ -293,7 +293,7 @@ class TradeAnalyticsService {
         }
       }
 
-      await db.query('COMMIT');
+      await query('COMMIT');
 
       return {
         positionsCreated,
@@ -302,7 +302,7 @@ class TradeAnalyticsService {
       };
 
     } catch (error) {
-      await db.query('ROLLBACK');
+      await query('ROLLBACK');
       throw error;
     }
   }
@@ -315,7 +315,7 @@ class TradeAnalyticsService {
     
     try {
       // Get closed positions that need analytics
-      const positions = await db.query(`
+      const positions = await query(`
         SELECT p.*, cp.sector, cp.industry, cp.market_cap
         FROM position_history p
         LEFT JOIN company_profile cp ON p.symbol = cp.ticker
@@ -332,7 +332,7 @@ class TradeAnalyticsService {
         const analytics = await this.calculatePositionAnalytics(position);
         
         // Insert analytics
-        await db.query(`
+        await query(`
           INSERT INTO trade_analytics (
             position_id, user_id, entry_signal_quality, entry_timing_score,
             exit_signal_quality, exit_timing_score, risk_reward_ratio,
@@ -424,7 +424,7 @@ class TradeAnalyticsService {
     // Database queries will use the query function directly
     
     try {
-      await db.query(`
+      await query(`
         INSERT INTO broker_api_configs (
           user_id, broker, is_paper_trading, is_active, last_sync_status,
           last_sync_error, last_import_date
@@ -455,12 +455,12 @@ class TradeAnalyticsService {
     
     try {
       // Get portfolio summary
-      const portfolioResult = await db.query(`
+      const portfolioResult = await query(`
         SELECT * FROM portfolio_summary WHERE user_id = $1
       `, [userId]);
 
       // Get recent trades with analytics
-      const recentTrades = await db.query(`
+      const recentTrades = await query(`
         SELECT * FROM recent_trades 
         WHERE user_id = $1 
         ORDER BY opened_at DESC 
@@ -468,7 +468,7 @@ class TradeAnalyticsService {
       `, [userId]);
 
       // Get performance attribution
-      const performanceAttribution = await db.query(`
+      const performanceAttribution = await query(`
         SELECT * FROM performance_attribution 
         WHERE user_id = $1 
         ORDER BY closed_at DESC 
@@ -495,7 +495,7 @@ class TradeAnalyticsService {
     // Database queries will use the query function directly
     
     try {
-      const result = await db.query(`
+      const result = await query(`
         SELECT * FROM trade_insights 
         WHERE user_id = $1 
         ORDER BY created_at DESC 
