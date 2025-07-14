@@ -3188,4 +3188,4 @@ jobs:
             echo "❌ analyst upgrade/downgrade failed with exit code $EXIT"
             exit $EXIT
           fi
-          echo "✅ Quality metrics calculation completed successfully"
+          echo "✅ Analyst upgrade/downgrade loading completed successfully"
