@@ -8,6 +8,7 @@
  * 2. Which tables are populated by successful loaders
  * 3. Status of key loaders like symbols and loadinfo
  * 4. System readiness for portfolio import functionality
+ * 5. API key authentication workflow validation
  */
 
 const https = require('https');
