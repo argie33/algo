@@ -58,7 +58,7 @@ class LiveDataService extends EventEmitter {
     
     // Configuration
     this.config = {
-      wsUrl: process.env.REACT_APP_WS_URL || 'wss://your-websocket-api.execute-api.us-east-1.amazonaws.com/dev',
+      wsUrl: process.env.REACT_APP_WS_URL || null, // Disable WebSocket if no URL configured
       heartbeatInterval: 30000, // 30 seconds
       connectionTimeout: 10000,  // 10 seconds
       messageTimeout: 5000,      // 5 seconds
@@ -82,8 +82,8 @@ class LiveDataService extends EventEmitter {
       connectionStartTime: null
     };
     
-    // Auto-connect if configured
-    if (process.env.REACT_APP_AUTO_CONNECT_WS !== 'false') {
+    // Auto-connect if configured and WebSocket URL is available
+    if (process.env.REACT_APP_AUTO_CONNECT_WS !== 'false' && this.config.wsUrl) {
       this.connect();
     }
   }
@@ -91,6 +91,12 @@ class LiveDataService extends EventEmitter {
   // Connection Management
   async connect(userId = 'anonymous') {
     if (this.connecting || this.connected) {
+      return;
+    }
+
+    // Check if WebSocket URL is configured
+    if (!this.config.wsUrl) {
+      console.warn('⚠️ WebSocket URL not configured. Live data service disabled.');
       return;
     }
 
