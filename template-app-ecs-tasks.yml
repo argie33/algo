@@ -62,6 +62,9 @@ Parameters:
   CalendarImageTag:
     Type: String
     Description: "Tag for calendar loader image"
+  AnalystUpgradeDowngradeImageTag:
+    Type: String
+    Description: "Tag for analyst upgrade/downgrade loader image"
   LatestPriceDailyImageTag:
     Type: String
     Description: "Tag for latestpricedaily loader image"
@@ -1008,6 +1011,43 @@ Resources:
           SecurityGroups:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
+
+  ########################################
+  # Analyst upgrade/downgrade loader     #
+  ########################################
+  AnalystUpgradeDowngradeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: analyst-upgradedowngrade-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: analyst-upgradedowngrade-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AnalystUpgradeDowngradeImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AnalystUpgradeDowngradeLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ecs
+
+  AnalystUpgradeDowngradeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/analyst-upgradedowngrade
+      RetentionInDays: 14
 
   ########################################
   # Findata loader                       #
@@ -3256,3 +3296,9 @@ Outputs:
     Value: !Ref PatternRecognitionTaskDefinition
     Export:
       Name: PatternRecognitionTaskDefArn
+
+  AnalystUpgradeDowngradeTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for analyst upgrade/downgrade loader
+    Value: !Ref AnalystUpgradeDowngradeTaskDefinition
+    Export:
+      Name: AnalystUpgradeDowngradeTaskDefArn

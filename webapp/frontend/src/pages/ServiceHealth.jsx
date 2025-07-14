@@ -211,8 +211,10 @@ function ServiceHealth() {
     }
   };
 
-
-
+  // Run database health check on component mount
+  useEffect(() => {
+    refetchDb();
+  }, []);
 
   // Early return if component has error
   if (componentError) {
@@ -795,7 +797,9 @@ function ServiceHealth() {
                  dbError ? 'Error' : 
                  safeDbHealth?.database?.status === 'connected' ? 'Connected' :
                  safeDbHealth?.database?.status === 'disconnected' ? 'Disconnected' : 
+                 safeDbHealth?.status === 'healthy' ? 'Healthy' :
                  safeDbHealth?.error ? 'Error' :
+                 dbHealth === null ? 'Not checked' :
                  'Unknown'}
               </Typography>
               {dbError && (
@@ -814,6 +818,16 @@ function ServiceHealth() {
                   </Typography>
                 </Alert>
               )}
+              <Button 
+                variant="outlined" 
+                size="small" 
+                startIcon={<Refresh />}
+                onClick={refetchDb}
+                sx={{ mt: 1 }}
+                disabled={dbLoading}
+              >
+                {dbLoading ? 'Checking...' : 'Check Database'}
+              </Button>
             </CardContent>
           </Card>
         </Grid>
@@ -1079,16 +1093,20 @@ function ServiceHealth() {
               {safeDbHealth && (
                 <Box>
                   {console.log('🔍 Rendering safeDbHealth:', safeDbHealth)}
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>Database Status:</Typography>
-                    <Typography variant="body2">Status: {safeDbHealth.database?.status || 'Unknown'}</Typography>
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      🗄️ Database Status: {safeDbHealth.database?.status === 'connected' ? 'Connected & Healthy' : safeDbHealth.database?.status || 'Unknown'}
+                    </Typography>
                     {safeDbHealth.database?.currentTime && (
-                      <Typography variant="body2">Current Time: {new Date(safeDbHealth.database.currentTime).toLocaleString()}</Typography>
+                      <Typography variant="body2">📅 Server Time: {new Date(safeDbHealth.database.currentTime).toLocaleString()}</Typography>
                     )}
                     {safeDbHealth.database?.postgresVersion && (
-                      <Typography variant="body2">PostgreSQL Version: {safeDbHealth.database.postgresVersion}</Typography>
+                      <Typography variant="body2">⚙️ PostgreSQL: {safeDbHealth.database.postgresVersion}</Typography>
                     )}
-                  </Box>
+                    {safeDbHealth.database?.note && (
+                      <Typography variant="body2">📋 {safeDbHealth.database.note}</Typography>
+                    )}
+                  </Alert>
 
                   {/* Backend error/message display */}
                   {safeDbHealth.error || safeDbHealth.message || safeDbHealth.details ? (
@@ -1134,9 +1152,10 @@ function ServiceHealth() {
 
                   {/* Summary Statistics */}
                   {safeDbHealth.database?.summary && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>Summary:</Typography>
-                      <Grid container spacing={1}>
+                    <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
+                      <CardContent sx={{ py: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>📊 Database Tables Summary:</Typography>
+                        <Grid container spacing={1}>
                         <Grid item xs={6} sm={3}>
                           <Typography variant="body2" color="text.secondary">
                             Total Tables: {safeDbHealth.database.summary.total_tables}
@@ -1178,7 +1197,8 @@ function ServiceHealth() {
                           </Typography>
                         </Grid>
                       </Grid>
-                    </Box>
+                      </CardContent>
+                    </Card>
                   )}
 
                   {/* Detailed Table List */}
