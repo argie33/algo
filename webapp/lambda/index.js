@@ -116,6 +116,7 @@ app.use((req, res, next) => {
   const defaultAllowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
+    'https://d1zb7knau41vl9.cloudfront.net',  // Production CloudFront domain
     'https://your-domain.com'  // Replace with actual production domain
   ];
   
