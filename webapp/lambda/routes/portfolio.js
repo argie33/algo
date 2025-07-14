@@ -1471,13 +1471,13 @@ router.post('/import/:broker', async (req, res) => {
                   const keyData = specificKeyResult.rows[0];
                   
                   // Decrypt the API credentials using the apiKeyService
-                  const apiKey = apiKeyService.decryptApiKey({
+                  const apiKey = await apiKeyService.decryptApiKey({
                     encrypted: keyData.encrypted_api_key,
                     iv: keyData.key_iv,
                     authTag: keyData.key_auth_tag
                   }, keyData.user_salt);
                   
-                  const apiSecret = keyData.encrypted_api_secret ? apiKeyService.decryptApiKey({
+                  const apiSecret = keyData.encrypted_api_secret ? await apiKeyService.decryptApiKey({
                     encrypted: keyData.encrypted_api_secret,
                     iv: keyData.secret_iv,
                     authTag: keyData.secret_auth_tag

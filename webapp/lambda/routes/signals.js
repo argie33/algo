@@ -1,5 +1,5 @@
 const express = require('express');
-const { query } = require('../utils/database');
+const { query, safeQuery, tablesExist } = require('../utils/database');
 
 const router = express.Router();
 
@@ -36,13 +36,42 @@ router.get('/buy', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
-    // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
+    // Validate timeframe with safe table name mapping
+    const validTimeframes = {
+      'daily': 'buy_sell_daily',
+      'weekly': 'buy_sell_weekly', 
+      'monthly': 'buy_sell_monthly'
+    };
+    
+    if (!validTimeframes[timeframe]) {
       return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
     }
 
-    const tableName = `buy_sell_${timeframe}`;
+    const tableName = validTimeframes[timeframe];
+    
+    // Check if required tables exist before querying
+    const requiredTables = [tableName, 'symbols'];
+    const optionalTables = ['market_data', 'key_metrics'];
+    
+    try {
+      const tableStatus = await tablesExist([...requiredTables, ...optionalTables]);
+      
+      if (!tableStatus[tableName]) {
+        return res.status(404).json({
+          error: 'Data not available',
+          message: `${timeframe} signals data is not currently available`,
+          details: `Table ${tableName} not found`
+        });
+      }
+      
+      console.log(`📊 Table availability for ${timeframe} signals:`, tableStatus);
+    } catch (tableCheckError) {
+      console.error('Error checking table availability:', tableCheckError);
+      return res.status(500).json({
+        error: 'Database configuration error',
+        message: 'Unable to verify data availability'
+      });
+    }
     
     const buySignalsQuery = `
       SELECT 
@@ -56,12 +85,12 @@ router.get('/buy', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN symbols s ON bs.symbol = s.ticker
+      LEFT JOIN symbols s ON bs.symbol = s.symbol
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) > 0
+        AND bs.signal IN ('Buy', 'Strong Buy', 'BUY', 'STRONG_BUY', '1', '2')
       ORDER BY bs.symbol ASC, bs.signal DESC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -71,7 +100,7 @@ router.get('/buy', async (req, res) => {
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) > 0
+        AND bs.signal IN ('Buy', 'Strong Buy', 'BUY', 'STRONG_BUY', '1', '2')
     `;
 
     const [signalsResult, countResult] = await Promise.all([
@@ -114,13 +143,18 @@ router.get('/sell', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
-    // Validate timeframe
-    const validTimeframes = ['daily', 'weekly', 'monthly'];
-    if (!validTimeframes.includes(timeframe)) {
+    // Validate timeframe with safe table name mapping
+    const validTimeframes = {
+      'daily': 'buy_sell_daily',
+      'weekly': 'buy_sell_weekly', 
+      'monthly': 'buy_sell_monthly'
+    };
+    
+    if (!validTimeframes[timeframe]) {
       return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly' });
     }
 
-    const tableName = `buy_sell_${timeframe}`;
+    const tableName = validTimeframes[timeframe];
     
     const sellSignalsQuery = `
       SELECT 
@@ -134,12 +168,12 @@ router.get('/sell', async (req, res) => {
         km.trailing_pe,
         km.dividend_yield
       FROM ${tableName} bs
-      JOIN symbols s ON bs.symbol = s.ticker
+      LEFT JOIN symbols s ON bs.symbol = s.symbol
       LEFT JOIN market_data md ON bs.symbol = md.ticker
       LEFT JOIN key_metrics km ON bs.symbol = km.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) < 0
+        AND bs.signal IN ('Sell', 'Strong Sell', 'SELL', 'STRONG_SELL', '-1', '-2')
       ORDER BY bs.symbol ASC, bs.signal ASC, bs.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -149,7 +183,7 @@ router.get('/sell', async (req, res) => {
       FROM ${tableName} bs
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
-        AND CAST(bs.signal AS NUMERIC) < 0
+        AND bs.signal IN ('Sell', 'Strong Sell', 'SELL', 'STRONG_SELL', '-1', '-2')
     `;
 
     const [signalsResult, countResult] = await Promise.all([

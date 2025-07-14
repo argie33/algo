@@ -320,6 +320,79 @@ async function healthCheck() {
 }
 
 /**
+ * Check if a table exists in the database
+ */
+async function tableExists(tableName) {
+    try {
+        if (!dbInitialized || !pool) {
+            await initializeDatabase();
+        }
+        const result = await query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = $1
+            )
+        `, [tableName]);
+        
+        return result.rows[0].exists;
+    } catch (error) {
+        console.error(`Error checking if table ${tableName} exists:`, error);
+        return false;
+    }
+}
+
+/**
+ * Check if multiple tables exist
+ */
+async function tablesExist(tableNames) {
+    try {
+        if (!dbInitialized || !pool) {
+            await initializeDatabase();
+        }
+        const result = await query(`
+            SELECT table_name, 
+                   EXISTS (
+                       SELECT FROM information_schema.tables 
+                       WHERE table_schema = 'public' 
+                       AND table_name = t.table_name
+                   ) as exists
+            FROM unnest($1::text[]) AS t(table_name)
+        `, [tableNames]);
+        
+        const existsMap = {};
+        result.rows.forEach(row => {
+            existsMap[row.table_name] = row.exists;
+        });
+        
+        return existsMap;
+    } catch (error) {
+        console.error('Error checking if tables exist:', error);
+        const fallbackMap = {};
+        tableNames.forEach(name => {
+            fallbackMap[name] = false;
+        });
+        return fallbackMap;
+    }
+}
+
+/**
+ * Safe query that checks table existence first
+ */
+async function safeQuery(text, params = [], requiredTables = []) {
+    if (requiredTables.length > 0) {
+        const tableExistenceMap = await tablesExist(requiredTables);
+        const missingTables = requiredTables.filter(table => !tableExistenceMap[table]);
+        
+        if (missingTables.length > 0) {
+            throw new Error(`Required tables not found: ${missingTables.join(', ')}`);
+        }
+    }
+    
+    return await query(text, params);
+}
+
+/**
  * Close database connections
  */
 async function closeDatabase() {
@@ -336,6 +409,9 @@ module.exports = {
     getPool,
     getPoolStatus,
     query,
+    safeQuery,
+    tableExists,
+    tablesExist,
     transaction,
     closeDatabase,
     healthCheck
