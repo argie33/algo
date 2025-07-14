@@ -91,6 +91,7 @@ import {
   Psychology
 } from '@mui/icons-material';
 import { getApiConfig, getPortfolioData, getPortfolioOptimizationData, getRebalancingRecommendations } from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 // Modern Portfolio Theory calculations
 const calculatePortfolioMetrics = (weights, returns, covariance) => {
@@ -505,6 +506,16 @@ const PortfolioOptimization = () => {
           <Chip label="Risk Parity Available" color="info" size="small" variant="outlined" />
           <Chip label="Real-time Rebalancing" color="warning" size="small" variant="outlined" />
         </Box>
+      </Box>
+
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Optimization - API Key Status:', status);
+          }}
+        />
       </Box>
 
       {error && (

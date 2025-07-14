@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { query } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 
 const router = express.Router();
 
@@ -492,6 +493,17 @@ router.post('/api-keys', async (req, res) => {
     ], 15000); // 15 second timeout for insert
     
     console.log(`✅ [${requestId}] Database insert completed after ${Date.now() - insertStart}ms`);
+    
+    // Trigger portfolio data refresh for this user's portfolio symbols
+    console.log(`🔄 [${requestId}] Triggering portfolio data refresh after ${Date.now() - startTime}ms...`);
+    try {
+      const refreshResult = await portfolioDataRefreshService.triggerPortfolioDataRefresh(userId, provider);
+      console.log(`✅ [${requestId}] Portfolio data refresh result:`, refreshResult.status);
+    } catch (refreshError) {
+      console.warn(`⚠️ [${requestId}] Portfolio data refresh failed (non-critical):`, refreshError.message);
+      // Don't fail the API key creation if refresh fails
+    }
+    
     console.log(`✅ [${requestId}] Total request time: ${Date.now() - startTime}ms`);
 
     res.json({

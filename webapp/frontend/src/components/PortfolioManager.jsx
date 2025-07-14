@@ -47,6 +47,7 @@ import {
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
+import ApiKeyStatusIndicator from './ApiKeyStatusIndicator';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -279,6 +280,17 @@ const PortfolioManager = () => {
 
   return (
     <Box>
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          compact={true}
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Manager - API Key Status:', status);
+          }}
+        />
+      </Box>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
