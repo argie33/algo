@@ -68,6 +68,7 @@ import {
   StarBorder
 } from '@mui/icons-material';
 import { getPortfolioPerformance, getPortfolioAnalytics, getBenchmarkData } from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 const PortfolioPerformance = () => {
   const { user } = useAuth();
@@ -303,6 +304,16 @@ const PortfolioPerformance = () => {
         <Typography variant="body1" color="text.secondary">
           Comprehensive performance analytics with attribution analysis
         </Typography>
+      </Box>
+
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Performance - API Key Status:', status);
+          }}
+        />
       </Box>
 
       {error && (

@@ -61,6 +61,7 @@ import {
   FilterList
 } from '@mui/icons-material';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker } from '../services/api';
+import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 const PortfolioHoldings = () => {
   const { user } = useAuth();
@@ -331,6 +332,16 @@ const PortfolioHoldings = () => {
         <Typography variant="body1" color="text.secondary">
           Track and manage your investment holdings
         </Typography>
+      </Box>
+
+      {/* API Key Status */}
+      <Box sx={{ mb: 3 }}>
+        <ApiKeyStatusIndicator 
+          showSetupDialog={true}
+          onStatusChange={(status) => {
+            console.log('Portfolio Holdings - API Key Status:', status);
+          }}
+        />
       </Box>
 
       {error && (
