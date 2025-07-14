@@ -2,7 +2,10 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-07-13 - 502 ERROR FIX - v10.1 - DEPLOY NOW
+// Updated: 2025-07-14 - 503 ERROR FIX with Centralized Secrets Management - v11.0 - DEPLOY NOW
+
+// Load secrets from AWS Secrets Manager BEFORE anything else
+const secretsLoader = require('./utils/secretsLoader');
 
 const serverless = require('serverless-http');
 const express = require('express');
@@ -10,6 +13,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { initializeDatabase } = require('./utils/database');
+const environmentValidator = require('./utils/environmentValidator');
 // const errorHandler = require('./middleware/errorHandler');
 // const { 
 //   rateLimitConfigs, 
@@ -82,6 +86,22 @@ commoditiesRoutes = safeRequire('./routes/commodities', 'Commodities');
 economicRoutes = safeRequire('./routes/economic', 'Economic');
 console.log('✅ Route loading completed');
 
+// Validate environment variables
+console.log('🔍 Validating environment variables...');
+const envValidation = environmentValidator.validateEnvironment();
+if (!envValidation.isValid) {
+  console.error('❌ Environment validation failed - some services may not work correctly');
+  envValidation.missingRequired.forEach(result => {
+    console.error(`   - ${result.name}: ${result.error}`);
+  });
+} else {
+  console.log('✅ Environment validation passed');
+}
+
+// Initialize secrets before creating the app
+let secretsInitialized = false;
+
+// Initialize the Express app
 const app = express();
 
 // Trust proxy when running behind API Gateway/CloudFront
@@ -537,6 +557,37 @@ app.use(async (req, res, next) => {
   }
   
   next(); // Always proceed
+});
+
+// Secrets initialization middleware - runs before routes
+app.use(async (req, res, next) => {
+  if (!secretsInitialized) {
+    console.log('🔐 Initializing secrets for first request...');
+    try {
+      await secretsLoader.loadAllSecrets();
+      secretsInitialized = true;
+      console.log('✅ Secrets initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize secrets:', error.message);
+      // Continue with fallback secrets
+    }
+  }
+  next();
+});
+
+// Debug endpoint for secrets status
+app.get('/debug/secrets-status', (req, res) => {
+  const status = secretsLoader.getStatus();
+  res.json({
+    secretsStatus: status,
+    environment: {
+      hasApiKeySecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
+      hasJwtSecret: !!process.env.JWT_SECRET,
+      hasDbSecret: !!process.env.DB_SECRET_ARN,
+      region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Routes (note: API Gateway handles the /api prefix)

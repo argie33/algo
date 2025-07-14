@@ -217,6 +217,28 @@ router.get('/api-keys', async (req, res) => {
     'user-agent': req.headers['user-agent']
   });
   
+  // Check if encryption service is available
+  if (!apiKeyService.isEnabled) {
+    console.warn('⚠️  API Key encryption service is disabled - returning setup guidance');
+    return res.json({
+      success: true,
+      apiKeys: [],
+      setupRequired: true,
+      message: 'API key service is initializing. You can still use demo data while we configure the encryption service.',
+      guidance: {
+        status: 'setup_required',
+        title: 'API Key Service Setup Required',
+        description: 'The API key encryption service needs to be configured by the administrator.',
+        actions: [
+          'Use demo data for now',
+          'Contact administrator to configure encryption service',
+          'Check back in a few minutes'
+        ]
+      },
+      encryptionEnabled: false
+    });
+  }
+  
   // Check if user is authenticated
   if (!req.user) {
     console.error('❌ No user object in request - authentication failed');
@@ -350,6 +372,28 @@ router.post('/api-keys', async (req, res) => {
   
   console.log(`🔐 [${requestId}] POST /api-keys - Starting API key creation`);
   console.log(`🔐 [${requestId}] Memory at start:`, process.memoryUsage());
+  
+  // Check if encryption service is available
+  if (!apiKeyService.isEnabled) {
+    console.error(`❌ [${requestId}] API Key encryption service is disabled`);
+    return res.status(503).json({
+      success: false,
+      error: 'API key encryption service unavailable',
+      message: 'The encryption service is being initialized. Please try again in a few moments or use demo data.',
+      setupRequired: true,
+      guidance: {
+        status: 'service_initializing',
+        title: 'Encryption Service Initializing',
+        description: 'The API key encryption service is being set up. This usually takes a few minutes.',
+        actions: [
+          'Try again in 2-3 minutes',
+          'Use demo data in the meantime',
+          'Contact support if this persists'
+        ]
+      },
+      encryptionEnabled: false
+    });
+  }
   
   const userId = req.user?.sub;
   const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
