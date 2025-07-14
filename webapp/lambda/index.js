@@ -14,13 +14,13 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { initializeDatabase } = require('./utils/database');
 const environmentValidator = require('./utils/environmentValidator');
-// const errorHandler = require('./middleware/errorHandler');
-// const { 
-//   rateLimitConfigs, 
-//   sqlInjectionPrevention, 
-//   xssPrevention, 
-//   requestSizeLimit 
-// } = require('./middleware/validation');
+const errorHandler = require('./middleware/errorHandler');
+const { 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention, 
+  requestSizeLimit 
+} = require('./middleware/validation');
 
 // Import routes with safe loading to prevent 502 errors
 let stockRoutes, scoresRoutes, metricsRoutes, healthRoutes, marketRoutes, marketDataRoutes;
@@ -450,13 +450,23 @@ app.get('/api/cors-test', (req, res) => {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-// Security validation middleware (temporarily disabled for Lambda startup)
-// app.use(requestSizeLimit('2mb'));
-// app.use(sqlInjectionPrevention);
-// app.use(xssPrevention);
+// Security validation middleware - ENABLED for production security
+app.use(requestSizeLimit('2mb'));
+app.use(sqlInjectionPrevention);
+app.use(xssPrevention);
 
-// Rate limiting for authentication endpoints (temporarily disabled for Lambda startup)
-// app.use('/auth', rateLimitConfigs.auth);
+// Rate limiting for authentication endpoints - ENABLED for production security
+app.use('/auth', rateLimitConfigs.auth);
+app.use('/api/auth', rateLimitConfigs.auth);
+
+// Rate limiting for trading endpoints - higher frequency allowed
+app.use('/trading', rateLimitConfigs.trading);
+app.use('/api/trading', rateLimitConfigs.trading);
+app.use('/portfolio', rateLimitConfigs.trading);
+app.use('/api/portfolio', rateLimitConfigs.trading);
+
+// Rate limiting for API endpoints - general protection
+app.use('/api', rateLimitConfigs.api);
 
 // Logging (simplified for Lambda)
 const nodeEnv = process.env.NODE_ENV || 'production';
@@ -738,22 +748,8 @@ app.use('*', (req, res) => {
   });
 });
 
-// Error handling middleware (should be last)
-app.use((err, req, res, next) => {
-  console.error('Error occurred:', err.message);
-  
-  // CRITICAL: Set CORS headers immediately
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
-  
-  res.status(500).json({ 
-    success: false,
-    error: 'Internal Server Error',
-    message: err.message,
-    timestamp: new Date().toISOString()
-  });
-});
+// Error handling middleware (should be last) - Use proper error handler
+app.use(errorHandler);
 
 // Simplified Lambda handler to fix 502 errors
 module.exports.handler = serverless(app, {

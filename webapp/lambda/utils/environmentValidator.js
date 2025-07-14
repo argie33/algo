@@ -3,10 +3,9 @@
 
 const REQUIRED_ENV_VARS = [
   {
-    name: 'API_KEY_ENCRYPTION_SECRET',
-    description: 'Secret key for API key encryption (minimum 32 characters)',
+    name: 'API_KEY_ENCRYPTION_SECRET_ARN',
+    description: 'ARN of the Secrets Manager secret containing API key encryption secret',
     required: true,
-    minLength: 32,
     sensitive: true
   },
   {
@@ -122,6 +121,7 @@ class EnvironmentValidator {
           result.warning = `${envVar.name} format may be invalid`;
         }
         break;
+      case 'API_KEY_ENCRYPTION_SECRET_ARN':
       case 'DB_SECRET_ARN':
         if (!value.includes('arn:aws:secretsmanager:')) {
           result.warning = `${envVar.name} does not appear to be a valid Secrets Manager ARN`;

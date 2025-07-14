@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { createValidationMiddleware, validationSchemas, sanitizers } = require('../middleware/validation');
 
 const router = express.Router();
 
@@ -12,20 +13,56 @@ router.get('/ping', (req, res) => {
   });
 });
 
+// Validation schema for stocks list endpoint
+const stocksListValidation = createValidationMiddleware({
+  ...validationSchemas.pagination,
+  search: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+    validator: (value) => !value || value.length <= 100,
+    errorMessage: 'Search query must be 100 characters or less'
+  },
+  sector: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+    validator: (value) => !value || /^[a-zA-Z\s&-]{1,50}$/.test(value),
+    errorMessage: 'Sector must be valid sector name'
+  },
+  exchange: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }).toUpperCase(),
+    validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+    errorMessage: 'Exchange must be valid exchange code'
+  },
+  sortBy: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
+    validator: (value) => !value || ['symbol', 'ticker', 'name', 'exchange', 'market_category'].includes(value),
+    errorMessage: 'Invalid sort field'
+  },
+  sortOrder: {
+    type: 'string',
+    sanitizer: (value) => sanitizers.string(value, { maxLength: 4 }).toLowerCase(),
+    validator: (value) => !value || ['asc', 'desc'].includes(value),
+    errorMessage: 'Sort order must be asc or desc'
+  }
+});
+
 // OPTIMIZED: Main stocks endpoint with fast queries and all data visible
-router.get('/', async (req, res) => {
+router.get('/', stocksListValidation, async (req, res) => {
   try {
     console.log('OPTIMIZED Stocks main endpoint called with params:', req.query);
     console.log('Triggering workflow deploy');
     
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Increased limit
+    // Use validated and sanitized parameters from validation middleware
+    const page = req.validated.page || 1;
+    const limit = req.validated.limit || 50;
     const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const sector = req.query.sector || '';
-    const exchange = req.query.exchange || '';
-    const sortBy = req.query.sortBy || 'symbol';
-    const sortOrder = req.query.sortOrder || 'asc';
+    const search = req.validated.search || '';
+    const sector = req.validated.sector || '';
+    const exchange = req.validated.exchange || '';
+    const sortBy = req.validated.sortBy || 'symbol';
+    const sortOrder = req.validated.sortOrder || 'asc';
     
     let whereClause = 'WHERE 1=1';
     const params = [];
