@@ -48,7 +48,7 @@ import {
   Stop,
   Settings
 } from '@mui/icons-material';
-import alpacaWebSocketService from '../services/alpacaWebSocketService';
+import simpleAlpacaWebSocket from '../services/simpleAlpacaWebSocket';
 
 const AlpacaDataDashboard = () => {
   // Connection state
@@ -141,39 +141,34 @@ const AlpacaDataDashboard = () => {
     };
 
     // Subscribe to events
-    alpacaWebSocketService.on('connected', handleConnected);
-    alpacaWebSocketService.on('disconnected', handleDisconnected);
-    alpacaWebSocketService.on('connecting', handleConnecting);
-    alpacaWebSocketService.on('error', handleError);
-    alpacaWebSocketService.on('marketData', handleMarketData);
-    alpacaWebSocketService.on('subscribed', handleSubscribed);
-    alpacaWebSocketService.on('unsubscribed', handleUnsubscribed);
-    alpacaWebSocketService.on('availableFeeds', handleAvailableFeeds);
-    alpacaWebSocketService.on('subscriptionsList', handleSubscriptionsList);
+    simpleAlpacaWebSocket.on('connected', handleConnected);
+    simpleAlpacaWebSocket.on('disconnected', handleDisconnected);
+    simpleAlpacaWebSocket.on('error', handleError);
+    simpleAlpacaWebSocket.on('data', ({ type, data }) => {
+      handleMarketData({ symbol: data.symbol, dataType: type, data });
+    });
+    simpleAlpacaWebSocket.on('subscribed', handleSubscribed);
 
     // Set initial state
-    setConnectionStatus(alpacaWebSocketService.getConnectionStatus());
-    setMarketData(alpacaWebSocketService.getAllMarketData());
-    setSubscriptions(alpacaWebSocketService.getActiveSubscriptions());
+    setConnectionStatus(simpleAlpacaWebSocket.isConnected ? 'CONNECTED' : 'DISCONNECTED');
+    setMarketData(simpleAlpacaWebSocket.getAllData());
 
     // Cleanup
     return () => {
-      alpacaWebSocketService.off('connected', handleConnected);
-      alpacaWebSocketService.off('disconnected', handleDisconnected);
-      alpacaWebSocketService.off('connecting', handleConnecting);
-      alpacaWebSocketService.off('error', handleError);
-      alpacaWebSocketService.off('marketData', handleMarketData);
-      alpacaWebSocketService.off('subscribed', handleSubscribed);
-      alpacaWebSocketService.off('unsubscribed', handleUnsubscribed);
-      alpacaWebSocketService.off('availableFeeds', handleAvailableFeeds);
-      alpacaWebSocketService.off('subscriptionsList', handleSubscriptionsList);
+      simpleAlpacaWebSocket.off('connected', handleConnected);
+      simpleAlpacaWebSocket.off('disconnected', handleDisconnected);
+      simpleAlpacaWebSocket.off('error', handleError);
+      simpleAlpacaWebSocket.off('data', ({ type, data }) => {
+        handleMarketData({ symbol: data.symbol, dataType: type, data });
+      });
+      simpleAlpacaWebSocket.off('subscribed', handleSubscribed);
     };
   }, [addLog]);
 
   // Update metrics periodically
   useEffect(() => {
     const updateMetrics = () => {
-      setMetrics(alpacaWebSocketService.getMetrics());
+      setMetrics(simpleAlpacaWebSocket.getMetrics());
     };
 
     updateMetrics();
@@ -183,16 +178,17 @@ const AlpacaDataDashboard = () => {
 
   // Connection controls
   const handleConnect = () => {
-    alpacaWebSocketService.connect();
+    simpleAlpacaWebSocket.connect();
   };
 
   const handleDisconnect = () => {
-    alpacaWebSocketService.disconnect();
+    simpleAlpacaWebSocket.disconnect();
   };
 
   const refreshSubscriptions = () => {
-    if (alpacaWebSocketService.getConnectionStatus() === 'CONNECTED') {
-      alpacaWebSocketService.getSubscriptions();
+    if (simpleAlpacaWebSocket.isConnected) {
+      // simpleAlpacaWebSocket doesn't have getSubscriptions method
+      // subscriptions are managed locally
     }
   };
 
@@ -205,22 +201,20 @@ const AlpacaDataDashboard = () => {
     try {
       switch (selectedDataType) {
         case 'quotes':
-          alpacaWebSocketService.subscribeToQuotes(symbol);
+          simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'quotes', createdAt: new Date() }]);
           break;
         case 'trades':
-          alpacaWebSocketService.subscribeToTrades(symbol);
+          simpleAlpacaWebSocket.subscribeToTrades([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'trades', createdAt: new Date() }]);
           break;
         case 'bars':
-          alpacaWebSocketService.subscribeToBars(symbol, selectedFrequency);
-          break;
-        case 'news':
-          alpacaWebSocketService.subscribeToNews(symbol);
-          break;
-        case 'crypto':
-          alpacaWebSocketService.subscribeToCrypto(symbol);
+          simpleAlpacaWebSocket.subscribeToBars([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'bars', createdAt: new Date() }]);
           break;
         default:
-          alpacaWebSocketService.subscribe(symbol, selectedDataType);
+          simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: selectedDataType, createdAt: new Date() }]);
       }
       
       setNewSymbol('');
@@ -229,12 +223,14 @@ const AlpacaDataDashboard = () => {
     }
   };
 
-  const handleUnsubscribe = (subscriptionId) => {
-    alpacaWebSocketService.unsubscribe(subscriptionId);
+  const handleUnsubscribe = (index) => {
+    // Remove from local state
+    setSubscriptions(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleUnsubscribeAll = () => {
-    alpacaWebSocketService.unsubscribeAll();
+    simpleAlpacaWebSocket.unsubscribeAll();
+    setSubscriptions([]);
   };
 
   // Status helpers
@@ -293,16 +289,21 @@ const AlpacaDataDashboard = () => {
     quickSub.symbols.forEach(symbol => {
       switch (quickSub.dataType) {
         case 'quotes':
-          alpacaWebSocketService.subscribeToQuotes(symbol);
+          simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'quotes', createdAt: new Date() }]);
           break;
         case 'trades':
-          alpacaWebSocketService.subscribeToTrades(symbol);
+          simpleAlpacaWebSocket.subscribeToTrades([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'trades', createdAt: new Date() }]);
           break;
         case 'bars':
-          alpacaWebSocketService.subscribeToBars(symbol, selectedFrequency);
+          simpleAlpacaWebSocket.subscribeToBars([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'bars', createdAt: new Date() }]);
           break;
         case 'crypto':
-          alpacaWebSocketService.subscribeToCrypto(symbol);
+          // Crypto not supported in simpleAlpacaWebSocket - treat as quotes
+          simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
+          setSubscriptions(prev => [...prev, { symbol, type: 'crypto', createdAt: new Date() }]);
           break;
       }
     });
@@ -580,26 +581,22 @@ const AlpacaDataDashboard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {subscriptions.map((sub) => (
-                      <TableRow key={sub.subscriptionId}>
+                    {subscriptions.map((sub, index) => (
+                      <TableRow key={index}>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            {getDataTypeIcon(sub.dataType)}
+                            {getDataTypeIcon(sub.type)}
                             <Typography sx={{ ml: 1 }} variant="body2">
-                              {sub.dataType}
+                              {sub.type}
                             </Typography>
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {sub.symbols?.map((symbol) => (
-                              <Chip key={symbol} label={symbol} size="small" />
-                            ))}
-                          </Box>
+                          <Chip label={sub.symbol} size="small" />
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {sub.frequency || 'Real-time'}
+                            Real-time
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -610,7 +607,7 @@ const AlpacaDataDashboard = () => {
                         <TableCell align="center">
                           <IconButton
                             size="small"
-                            onClick={() => handleUnsubscribe(sub.subscriptionId)}
+                            onClick={() => handleUnsubscribe(index)}
                             color="error"
                           >
                             <Delete />
@@ -713,7 +710,11 @@ const AlpacaDataDashboard = () => {
                 </Typography>
                 <Button
                   variant="outlined"
-                  onClick={() => alpacaWebSocketService.getAvailableFeeds()}
+                  onClick={() => setAvailableFeeds({
+                    quotes: { description: 'Real-time quotes', symbols: 'All US stocks', frequency: 'Real-time' },
+                    trades: { description: 'Live trades', symbols: 'All US stocks', frequency: 'Real-time' },
+                    bars: { description: 'OHLCV bars', symbols: 'All US stocks', frequency: ['1Min', '5Min', '1Day'] }
+                  })}
                   disabled={connectionStatus !== 'CONNECTED'}
                 >
                   Load Feeds
