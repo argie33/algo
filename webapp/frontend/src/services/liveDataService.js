@@ -58,7 +58,7 @@ class LiveDataService extends EventEmitter {
     
     // Enhanced Configuration
     this.config = {
-      wsUrl: process.env.REACT_APP_WS_URL || null, // Disable WebSocket if no URL configured
+      wsUrl: import.meta.env.VITE_WS_URL || process.env.REACT_APP_WS_URL || null, // Support both Vite and React env vars
       heartbeatInterval: 30000, // 30 seconds
       connectionTimeout: 10000,  // 10 seconds
       messageTimeout: 5000,      // 5 seconds

@@ -688,6 +688,25 @@ jobs:
           else
             echo "No lint script found, skipping"
           fi
+      - name: Get WebSocket configuration
+        id: websocket_config
+        run: |
+          # Try to get WebSocket endpoint from CloudFormation exports
+          # This is optional - if WebSocket stack isn't deployed, we'll just log it
+          WS_URL=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='stocks-websocket-stack-WebSocketApiEndpoint'].Value" \
+            --output text 2>/dev/null || echo "")
+            
+          if [[ -n "$WS_URL" && "$WS_URL" != "None" ]]; then
+            echo "✅ Found WebSocket endpoint: $WS_URL"
+            echo "ws_url=$WS_URL" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No WebSocket endpoint found. Live data features will be disabled."
+            echo "To enable WebSocket features, deploy the WebSocket stack first:"
+            echo "  .github/workflows/deploy-websocket.yml"
+            echo "ws_url=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Get Cognito configuration
         id: cognito_config
         run: |
@@ -734,6 +753,7 @@ jobs:
           VITE_COGNITO_DOMAIN: ${{ steps.cognito_config.outputs.cognito_domain }}
           VITE_COGNITO_REDIRECT_SIGN_IN: ${{ steps.cognito_config.outputs.website_url }}
           VITE_COGNITO_REDIRECT_SIGN_OUT: ${{ steps.cognito_config.outputs.website_url }}
+          VITE_WS_URL: ${{ steps.websocket_config.outputs.ws_url }}
         run: |
           echo "🔧 Environment variables for build:"
           echo "API_URL: $API_URL"
@@ -775,6 +795,15 @@ jobs:
           echo "VITE_COGNITO_REDIRECT_SIGN_OUT=$VITE_COGNITO_REDIRECT_SIGN_OUT" >> .env
           echo "VITE_SERVERLESS=true" >> .env
           echo "VITE_ENVIRONMENT=production" >> .env
+          
+          # Add WebSocket URL if available
+          if [[ -n "$VITE_WS_URL" ]]; then
+            echo "VITE_WS_URL=$VITE_WS_URL" >> .env
+            echo "REACT_APP_WS_URL=$VITE_WS_URL" >> .env
+            echo "✅ Added WebSocket URL: $VITE_WS_URL"
+          else
+            echo "⚠️ WebSocket URL not available - live data features will be disabled"
+          fi
           
           echo "📝 Created .env file with:"
           cat .env

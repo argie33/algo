@@ -119,9 +119,10 @@ jobs:
 
       - name: Update frontend environment with WebSocket endpoint
         run: |
-          # Update the frontend .env file with the WebSocket endpoint
+          # Update the frontend .env file with the WebSocket endpoint (using Vite env vars)
+          echo "VITE_WS_URL=${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}" >> webapp/frontend/.env
           echo "REACT_APP_WS_URL=${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}" >> webapp/frontend/.env
-          echo "REACT_APP_AUTO_CONNECT_WS=true" >> webapp/frontend/.env
+          echo "VITE_AUTO_CONNECT_WS=true" >> webapp/frontend/.env
           echo "Updated frontend environment with WebSocket endpoint"
 
       - name: Test WebSocket endpoint
