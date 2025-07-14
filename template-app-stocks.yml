@@ -95,6 +95,47 @@ Resources:
             - '","port":"'
             - !GetAtt StocksDBInstance.Endpoint.Port
             - '","dbname":"stocks"}'
+  
+  ### 4.1) API Key Encryption Secret ###
+  ApiKeyEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub 'stocks-app-api-key-encryption-${AWS::StackName}'
+      Description: 'AES-256-GCM encryption key for broker API key storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption","created":"'
+        GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'''
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'api-key-encryption'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+
+  ### 4.2) JWT Secret ###
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub 'stocks-app-jwt-secret-${AWS::StackName}'
+      Description: 'JWT signing key for authentication'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing","created":"'
+        GenerateStringKey: 'JWT_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'''
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'jwt-signing'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+
   ### 5) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
@@ -133,7 +174,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref DBCredentialsSecret
+                Resource: 
+                  - !Ref DBCredentialsSecret
+                  - !Ref ApiKeyEncryptionSecret
+                  - !Ref JwtSecret
 
 Outputs:
   DBEndpoint:
@@ -165,6 +209,30 @@ Outputs:
     Value: !Ref DBCredentialsSecret
     Export:
       Name: StocksApp-SecretArn
+
+  ApiKeyEncryptionSecretArn:
+    Description: ARN of API key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: StocksApp-ApiKeyEncryptionSecretArn
+
+  ApiKeyEncryptionSecretName:
+    Description: Name of API key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: StocksApp-ApiKeyEncryptionSecretName
+
+  JwtSecretArn:
+    Description: ARN of JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: StocksApp-JwtSecretArn
+
+  JwtSecretName:
+    Description: Name of JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: StocksApp-JwtSecretName
 
   ClusterArn:
     Description: ARN of ECS cluster

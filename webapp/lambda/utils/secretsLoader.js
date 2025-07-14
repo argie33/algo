@@ -67,8 +67,10 @@ class SecretsLoader {
     try {
       console.log('🔐 Loading API key encryption secret...');
       
-      // Try multiple possible secret locations
+      // Try multiple possible secret locations (CloudFormation naming first)
       const possibleSecrets = [
+        'stocks-app-api-key-encryption-stocks-app-stack',
+        'stocks-app-api-key-encryption-dev',
         'stocks-app/api-key-encryption',
         'stocks/api-key-encryption',
         'financial-dashboard/encryption-key',
@@ -121,6 +123,8 @@ class SecretsLoader {
       console.log('🔐 Loading JWT secrets...');
       
       const possibleJwtSecrets = [
+        'stocks-app-jwt-secret-stocks-app-stack',
+        'stocks-app-jwt-secret-dev',
         'stocks-app/jwt-secret',
         'stocks/jwt-secret',
         'financial-dashboard/jwt-key',
