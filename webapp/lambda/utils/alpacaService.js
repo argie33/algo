@@ -28,26 +28,154 @@ class AlpacaService {
     this.dataURL = 'https://data.alpaca.markets';
     this.wsURL = 'wss://stream.data.alpaca.markets';
     
-    // Set up axios instance with auth headers
-    this.api = axios.create({
+    // Enhanced configuration with timeouts and retries
+    const axiosConfig = {
       baseURL: this.baseURL,
+      timeout: 30000, // 30 second timeout
       headers: {
         'APCA-API-KEY-ID': this.apiKey,
         'APCA-API-SECRET-KEY': this.apiSecret
+      },
+      retry: 3,
+      retryDelay: 1000,
+      validateStatus: function (status) {
+        return status >= 200 && status < 300; // Default
       }
+    };
+
+    this.api = axios.create(axiosConfig);
+    this.dataApi = axios.create({
+      ...axiosConfig,
+      baseURL: this.dataURL
     });
 
-    this.dataApi = axios.create({
-      baseURL: this.dataURL,
-      headers: {
-        'APCA-API-KEY-ID': this.apiKey,
-        'APCA-API-SECRET-KEY': this.apiSecret
-      }
-    });
+    // Add retry interceptor for both APIs
+    this.setupRetryInterceptors();
+
+    // Circuit breaker configuration
+    this.circuitBreaker = {
+      failures: 0,
+      lastFailureTime: 0,
+      isOpen: false,
+      threshold: 5, // Open circuit after 5 failures
+      timeout: 60000, // 1 minute circuit breaker timeout
+      halfOpenMaxCalls: 3
+    };
 
     this.rateLimitWindow = 60000; // 1 minute
     this.maxRequestsPerWindow = 200;
     this.requestTimes = [];
+  }
+
+  /**
+   * Setup retry interceptors for axios instances
+   */
+  setupRetryInterceptors() {
+    const retryInterceptor = (axiosInstance) => {
+      axiosInstance.interceptors.response.use(
+        (response) => response,
+        async (error) => {
+          const config = error.config;
+          
+          // Don't retry if we've exceeded max retries
+          if (!config || !config.retry || config.__retryCount >= config.retry) {
+            return Promise.reject(error);
+          }
+          
+          // Don't retry on 4xx errors (client errors)
+          if (error.response && error.response.status >= 400 && error.response.status < 500) {
+            return Promise.reject(error);
+          }
+          
+          // Increment retry count
+          config.__retryCount = config.__retryCount || 0;
+          config.__retryCount += 1;
+          
+          console.log(`🔄 Alpaca API retry ${config.__retryCount}/${config.retry} for ${config.url}`);
+          
+          // Wait before retrying with exponential backoff
+          const delay = config.retryDelay * Math.pow(2, config.__retryCount - 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          return axiosInstance(config);
+        }
+      );
+    };
+    
+    retryInterceptor(this.api);
+    retryInterceptor(this.dataApi);
+  }
+
+  /**
+   * Circuit breaker check
+   */
+  checkCircuitBreaker() {
+    const now = Date.now();
+    
+    if (this.circuitBreaker.isOpen) {
+      if (now - this.circuitBreaker.lastFailureTime > this.circuitBreaker.timeout) {
+        // Circuit breaker timeout expired, move to half-open state
+        this.circuitBreaker.isOpen = false;
+        this.circuitBreaker.failures = 0;
+        console.log('🟡 Alpaca circuit breaker moved to HALF-OPEN state');
+      } else {
+        throw new Error('Alpaca API circuit breaker is OPEN. Service temporarily unavailable.');
+      }
+    }
+  }
+
+  /**
+   * Record circuit breaker success
+   */
+  recordSuccess() {
+    if (this.circuitBreaker.failures > 0) {
+      console.log('✅ Alpaca API call successful, resetting circuit breaker');
+      this.circuitBreaker.failures = 0;
+      this.circuitBreaker.isOpen = false;
+    }
+  }
+
+  /**
+   * Record circuit breaker failure
+   */
+  recordFailure() {
+    this.circuitBreaker.failures++;
+    this.circuitBreaker.lastFailureTime = Date.now();
+    
+    if (this.circuitBreaker.failures >= this.circuitBreaker.threshold) {
+      this.circuitBreaker.isOpen = true;
+      console.error(`🔴 Alpaca circuit breaker OPENED after ${this.circuitBreaker.failures} failures`);
+    } else {
+      console.warn(`⚠️ Alpaca failure ${this.circuitBreaker.failures}/${this.circuitBreaker.threshold}`);
+    }
+  }
+
+  /**
+   * Enhanced API call wrapper with circuit breaker
+   */
+  async safeApiCall(apiCall, operationName = 'API call') {
+    try {
+      this.checkCircuitBreaker();
+      this.checkRateLimit();
+      
+      const result = await apiCall();
+      this.recordSuccess();
+      return result;
+    } catch (error) {
+      this.recordFailure();
+      
+      // Enhanced error logging
+      console.error(`❌ Alpaca ${operationName} failed:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        circuitBreakerState: this.circuitBreaker.isOpen ? 'OPEN' : 'CLOSED',
+        failures: this.circuitBreaker.failures
+      });
+      
+      throw error;
+    }
   }
 
   /**
@@ -68,12 +196,10 @@ class AlpacaService {
   }
 
   /**
-   * Get account information
+   * Get account information with enhanced error handling
    */
   async getAccount() {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const response = await this.api.get('/v2/account');
       const account = response.data;
       
@@ -82,19 +208,19 @@ class AlpacaService {
         accountId: account.id,
         status: account.status,
         currency: account.currency,
-        buyingPower: parseFloat(account.buying_power),
-        cash: parseFloat(account.cash),
-        portfolioValue: parseFloat(account.portfolio_value),
-        equity: parseFloat(account.equity),
-        lastEquity: parseFloat(account.last_equity),
-        dayTradeCount: parseInt(account.daytrade_count),
-        dayTradingBuyingPower: parseFloat(account.daytrading_buying_power),
-        regtBuyingPower: parseFloat(account.regt_buying_power),
-        initialMargin: parseFloat(account.initial_margin),
-        maintenanceMargin: parseFloat(account.maintenance_margin),
-        longMarketValue: parseFloat(account.long_market_value),
-        shortMarketValue: parseFloat(account.short_market_value),
-        multiplier: parseFloat(account.multiplier),
+        buyingPower: parseFloat(account.buying_power || 0),
+        cash: parseFloat(account.cash || 0),
+        portfolioValue: parseFloat(account.portfolio_value || 0),
+        equity: parseFloat(account.equity || 0),
+        lastEquity: parseFloat(account.last_equity || 0),
+        dayTradeCount: parseInt(account.daytrade_count || 0),
+        dayTradingBuyingPower: parseFloat(account.daytrading_buying_power || 0),
+        regtBuyingPower: parseFloat(account.regt_buying_power || 0),
+        initialMargin: parseFloat(account.initial_margin || 0),
+        maintenanceMargin: parseFloat(account.maintenance_margin || 0),
+        longMarketValue: parseFloat(account.long_market_value || 0),
+        shortMarketValue: parseFloat(account.short_market_value || 0),
+        multiplier: parseFloat(account.multiplier || 1),
         createdAt: account.created_at,
         tradingBlocked: account.trading_blocked,
         transfersBlocked: account.transfers_blocked,
@@ -102,19 +228,14 @@ class AlpacaService {
         patternDayTrader: account.pattern_day_trader,
         environment: this.isPaper ? 'paper' : 'live'
       };
-    } catch (error) {
-      console.error('Alpaca account fetch error:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch account information: ${error.response?.data?.message || error.message}`);
-    }
+    }, 'account fetch');
   }
 
   /**
-   * Get all positions
+   * Get all positions with enhanced error handling
    */
   async getPositions() {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const response = await this.api.get('/v2/positions');
       const positions = response.data;
       
@@ -138,19 +259,14 @@ class AlpacaService {
         qtyAvailable: parseFloat(position.qty_available),
         lastUpdated: new Date().toISOString()
       }));
-    } catch (error) {
-      console.error('Alpaca positions fetch error:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch positions: ${error.response?.data?.message || error.message}`);
-    }
+    }, 'positions fetch');
   }
 
   /**
-   * Get portfolio history
+   * Get portfolio history with enhanced error handling
    */
   async getPortfolioHistory(period = '1M', timeframe = '1Day') {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const response = await this.api.get(`/v2/account/portfolio/history?period=${period}&timeframe=${timeframe}&extended_hours=true`);
       const portfolio = response.data;
 
@@ -173,19 +289,14 @@ class AlpacaService {
       }
 
       return history.sort((a, b) => new Date(a.date) - new Date(b.date));
-    } catch (error) {
-      console.error('Alpaca portfolio history fetch error:', error.message);
-      throw new Error(`Failed to fetch portfolio history: ${error.message}`);
-    }
+    }, 'portfolio history fetch');
   }
 
   /**
-   * Get real-time quotes for multiple symbols
+   * Get real-time quotes for multiple symbols with enhanced error handling
    */
   async getMultiQuotes(symbols) {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const symbolsStr = symbols.join(',');
       const response = await this.dataApi.get(`/v2/stocks/quotes/latest?symbols=${symbolsStr}`);
       const quotes = response.data.quotes;
@@ -201,19 +312,14 @@ class AlpacaService {
         timeframe: 'realtime',
         exchange: quotes[symbol].ax || 'UNKNOWN'
       }));
-    } catch (error) {
-      console.error('Alpaca multi quotes fetch error:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch quotes: ${error.response?.data?.message || error.message}`);
-    }
+    }, 'multi quotes fetch');
   }
 
   /**
-   * Get historical bars for a symbol
+   * Get historical bars for a symbol with enhanced error handling
    */
   async getBars(symbol, params = {}) {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const { timeframe = '1Day', start, end, limit = 100 } = params;
       const queryParams = new URLSearchParams({
         symbols: symbol,
@@ -236,10 +342,7 @@ class AlpacaService {
         volume: bar.v,
         vwap: bar.vw || null
       }));
-    } catch (error) {
-      console.error('Alpaca bars fetch error:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch bars: ${error.response?.data?.message || error.message}`);
-    }
+    }, 'bars fetch');
   }
 
   /**
@@ -255,12 +358,10 @@ class AlpacaService {
   }
 
   /**
-   * Get recent activities (orders, fills, etc.)
+   * Get recent activities (orders, fills, etc.) with enhanced error handling
    */
   async getActivities(activityTypes = null, pageSize = 50) {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const params = new URLSearchParams({
         activity_types: activityTypes || 'FILL',
         page_size: pageSize
@@ -279,19 +380,14 @@ class AlpacaService {
         side: activity.side,
         description: activity.description || activity.activity_type
       }));
-    } catch (error) {
-      console.error('Alpaca activities fetch error:', error.message);
-      throw new Error(`Failed to fetch activities: ${error.message}`);
-    }
+    }, 'activities fetch');
   }
 
   /**
-   * Get market calendar
+   * Get market calendar with enhanced error handling
    */
   async getMarketCalendar(start = null, end = null) {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const params = new URLSearchParams();
       if (start) params.append('start', start);
       if (end) params.append('end', end);
@@ -305,19 +401,14 @@ class AlpacaService {
         sessionOpen: day.session_open,
         sessionClose: day.session_close
       }));
-    } catch (error) {
-      console.error('Alpaca calendar fetch error:', error.message);
-      throw new Error(`Failed to fetch market calendar: ${error.message}`);
-    }
+    }, 'market calendar fetch');
   }
 
   /**
-   * Get current market status
+   * Get current market status with enhanced error handling
    */
   async getMarketStatus() {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const response = await this.api.get('/v2/clock');
       const clock = response.data;
       
@@ -328,29 +419,26 @@ class AlpacaService {
         nextClose: clock.next_close,
         timezone: 'America/New_York'
       };
-    } catch (error) {
-      console.error('Alpaca market status fetch error:', error.message);
-      throw new Error(`Failed to fetch market status: ${error.message}`);
-    }
+    }, 'market status fetch');
   }
 
   /**
-   * Validate API credentials
+   * Validate API credentials with enhanced error handling
    */
   async validateCredentials() {
     try {
-      this.checkRateLimit();
-      
-      // Simple test - try to get account info
-      const response = await this.api.get('/v2/account');
-      const account = response.data;
-      
-      return {
-        valid: true,
-        accountId: account.id,
-        status: account.status,
-        environment: this.isPaper ? 'paper' : 'live'
-      };
+      return await this.safeApiCall(async () => {
+        // Simple test - try to get account info
+        const response = await this.api.get('/v2/account');
+        const account = response.data;
+        
+        return {
+          valid: true,
+          accountId: account.id,
+          status: account.status,
+          environment: this.isPaper ? 'paper' : 'live'
+        };
+      }, 'credential validation');
     } catch (error) {
       console.error('Alpaca credential validation error:', error.message);
       
@@ -363,12 +451,10 @@ class AlpacaService {
   }
 
   /**
-   * Get asset information for a symbol
+   * Get asset information for a symbol with enhanced error handling
    */
   async getAsset(symbol) {
-    try {
-      this.checkRateLimit();
-      
+    return await this.safeApiCall(async () => {
       const response = await this.api.get(`/v2/assets/${symbol}`);
       const asset = response.data;
       
@@ -385,10 +471,131 @@ class AlpacaService {
         easyToBorrow: asset.easy_to_borrow,
         fractionable: asset.fractionable
       };
-    } catch (error) {
-      console.error('Alpaca asset fetch error:', error.message);
-      throw new Error(`Failed to fetch asset information: ${error.message}`);
-    }
+    }, 'asset information fetch');
+  }
+
+  /**
+   * Place an order with enhanced error handling and validation
+   */
+  async placeOrder(orderData) {
+    return await this.safeApiCall(async () => {
+      // Validate order data
+      const requiredFields = ['symbol', 'qty', 'side', 'type', 'time_in_force'];
+      for (const field of requiredFields) {
+        if (!orderData[field]) {
+          throw new Error(`Missing required order field: ${field}`);
+        }
+      }
+
+      // Validate order side and type
+      const validSides = ['buy', 'sell'];
+      const validTypes = ['market', 'limit', 'stop', 'stop_limit'];
+      const validTimeInForce = ['day', 'gtc', 'ioc', 'fok'];
+
+      if (!validSides.includes(orderData.side.toLowerCase())) {
+        throw new Error(`Invalid order side: ${orderData.side}. Must be one of: ${validSides.join(', ')}`);
+      }
+
+      if (!validTypes.includes(orderData.type.toLowerCase())) {
+        throw new Error(`Invalid order type: ${orderData.type}. Must be one of: ${validTypes.join(', ')}`);
+      }
+
+      if (!validTimeInForce.includes(orderData.time_in_force.toLowerCase())) {
+        throw new Error(`Invalid time_in_force: ${orderData.time_in_force}. Must be one of: ${validTimeInForce.join(', ')}`);
+      }
+
+      // Prepare order payload
+      const orderPayload = {
+        symbol: orderData.symbol.toUpperCase(),
+        qty: parseFloat(orderData.qty),
+        side: orderData.side.toLowerCase(),
+        type: orderData.type.toLowerCase(),
+        time_in_force: orderData.time_in_force.toLowerCase()
+      };
+
+      // Add limit price for limit orders
+      if (orderData.type.toLowerCase().includes('limit') && orderData.limit_price) {
+        orderPayload.limit_price = parseFloat(orderData.limit_price);
+      }
+
+      // Add stop price for stop orders
+      if (orderData.type.toLowerCase().includes('stop') && orderData.stop_price) {
+        orderPayload.stop_price = parseFloat(orderData.stop_price);
+      }
+
+      console.log('📤 Placing Alpaca order:', orderPayload);
+      const response = await this.api.post('/v2/orders', orderPayload);
+      const order = response.data;
+
+      return {
+        id: order.id,
+        clientOrderId: order.client_order_id,
+        symbol: order.symbol,
+        assetId: order.asset_id,
+        assetClass: order.asset_class,
+        qty: parseFloat(order.qty),
+        filledQty: parseFloat(order.filled_qty || 0),
+        side: order.side,
+        orderType: order.order_type,
+        timeInForce: order.time_in_force,
+        limitPrice: order.limit_price ? parseFloat(order.limit_price) : null,
+        stopPrice: order.stop_price ? parseFloat(order.stop_price) : null,
+        status: order.status,
+        submittedAt: order.submitted_at,
+        filledAt: order.filled_at,
+        expiredAt: order.expired_at,
+        canceledAt: order.canceled_at,
+        failedAt: order.failed_at,
+        environment: this.isPaper ? 'paper' : 'live'
+      };
+    }, 'order placement');
+  }
+
+  /**
+   * Get orders with enhanced error handling
+   */
+  async getOrders(status = 'all', limit = 50) {
+    return await this.safeApiCall(async () => {
+      const params = new URLSearchParams({
+        status: status,
+        limit: limit.toString(),
+        direction: 'desc'
+      });
+      
+      const response = await this.api.get(`/v2/orders?${params}`);
+      const orders = response.data;
+
+      return orders.map(order => ({
+        id: order.id,
+        clientOrderId: order.client_order_id,
+        symbol: order.symbol,
+        assetId: order.asset_id,
+        qty: parseFloat(order.qty),
+        filledQty: parseFloat(order.filled_qty || 0),
+        side: order.side,
+        orderType: order.order_type,
+        timeInForce: order.time_in_force,
+        limitPrice: order.limit_price ? parseFloat(order.limit_price) : null,
+        stopPrice: order.stop_price ? parseFloat(order.stop_price) : null,
+        status: order.status,
+        submittedAt: order.submitted_at,
+        filledAt: order.filled_at,
+        expiredAt: order.expired_at,
+        canceledAt: order.canceled_at,
+        failedAt: order.failed_at,
+        environment: this.isPaper ? 'paper' : 'live'
+      }));
+    }, 'orders fetch');
+  }
+
+  /**
+   * Cancel an order with enhanced error handling
+   */
+  async cancelOrder(orderId) {
+    return await this.safeApiCall(async () => {
+      const response = await this.api.delete(`/v2/orders/${orderId}`);
+      return response.data;
+    }, 'order cancellation');
   }
 
   /**

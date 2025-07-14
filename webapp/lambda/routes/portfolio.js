@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, healthCheck, initializeDatabase } = require('../utils/database');
+const { query, healthCheck, initializeDatabase, tablesExist, safeQuery } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const apiKeyService = require('../utils/apiKeyService');
@@ -12,6 +12,61 @@ const router = express.Router();
 // Apply authentication middleware to ALL portfolio routes
 router.use(authenticateToken);
 
+// Portfolio table dependencies and fallback handling
+const PORTFOLIO_TABLES = {
+  required: ['portfolio_holdings', 'portfolio_metadata', 'user_api_keys'],
+  optional: ['symbols', 'stock_symbols', 'market_data', 'key_metrics']
+};
+
+/**
+ * Check portfolio table availability and provide fallback options
+ */
+async function checkPortfolioTableDependencies() {
+  try {
+    const allTables = [...PORTFOLIO_TABLES.required, ...PORTFOLIO_TABLES.optional];
+    const tableStatus = await tablesExist(allTables);
+    
+    const missingRequired = PORTFOLIO_TABLES.required.filter(table => !tableStatus[table]);
+    const missingOptional = PORTFOLIO_TABLES.optional.filter(table => !tableStatus[table]);
+    
+    console.log('📊 Portfolio table status check:', {
+      required: {
+        available: PORTFOLIO_TABLES.required.filter(table => tableStatus[table]),
+        missing: missingRequired
+      },
+      optional: {
+        available: PORTFOLIO_TABLES.optional.filter(table => tableStatus[table]),
+        missing: missingOptional
+      }
+    });
+    
+    return {
+      hasRequiredTables: missingRequired.length === 0,
+      missingRequired,
+      missingOptional,
+      tableStatus,
+      fallbackOptions: {
+        canUseDatabase: missingRequired.length === 0,
+        canUseBrokerAPI: true,
+        canUseMockData: true
+      }
+    };
+  } catch (error) {
+    console.error('❌ Portfolio table dependency check failed:', error);
+    return {
+      hasRequiredTables: false,
+      missingRequired: PORTFOLIO_TABLES.required,
+      missingOptional: PORTFOLIO_TABLES.optional,
+      tableStatus: {},
+      fallbackOptions: {
+        canUseDatabase: false,
+        canUseBrokerAPI: true,
+        canUseMockData: true
+      }
+    };
+  }
+}
+
 // Portfolio overview endpoint (root) - requires authentication and provides portfolio summary
 router.get('/', async (req, res) => {
   try {
@@ -22,61 +77,112 @@ router.get('/', async (req, res) => {
       return res.status(401).json({ error: 'User authentication required' });
     }
 
-    // Get user's portfolio summary from database
-    const holdingsQuery = `
-      SELECT 
-        COUNT(*) as total_positions,
-        SUM(market_value) as total_market_value,
-        SUM(unrealized_pl) as total_unrealized_pl,
-        AVG(unrealized_plpc) as avg_unrealized_plpc
-      FROM portfolio_holdings 
-      WHERE user_id = $1
-    `;
+    // Check table dependencies before attempting queries
+    const tableDeps = await checkPortfolioTableDependencies();
     
-    const metadataQuery = `
-      SELECT 
-        account_type,
-        last_sync,
-        total_equity
-      FROM portfolio_metadata 
-      WHERE user_id = $1
-      ORDER BY last_sync DESC
-      LIMIT 1
-    `;
-
-    const [holdingsResult, metadataResult] = await Promise.all([
-      query(holdingsQuery, [userId]),
-      query(metadataQuery, [userId])
-    ]);
-
-    const summary = holdingsResult.rows[0] || {
+    let summary = {
       total_positions: 0,
       total_market_value: 0,
       total_unrealized_pl: 0,
       avg_unrealized_plpc: 0
     };
-
-    const metadata = metadataResult.rows[0] || {
+    
+    let metadata = {
       account_type: 'not_connected',
       last_sync: null,
       total_equity: 0
     };
+
+    if (tableDeps.hasRequiredTables) {
+      try {
+        // Get user's portfolio summary from database
+        const holdingsQuery = `
+          SELECT 
+            COUNT(*) as total_positions,
+            COALESCE(SUM(market_value), 0) as total_market_value,
+            COALESCE(SUM(unrealized_pl), 0) as total_unrealized_pl,
+            COALESCE(AVG(unrealized_plpc), 0) as avg_unrealized_plpc
+          FROM portfolio_holdings 
+          WHERE user_id = $1
+        `;
+        
+        const metadataQuery = `
+          SELECT 
+            account_type,
+            last_sync,
+            COALESCE(total_equity, 0) as total_equity
+          FROM portfolio_metadata 
+          WHERE user_id = $1
+          ORDER BY last_sync DESC
+          LIMIT 1
+        `;
+
+        const [holdingsResult, metadataResult] = await Promise.all([
+          safeQuery(holdingsQuery, [userId], ['portfolio_holdings']),
+          safeQuery(metadataQuery, [userId], ['portfolio_metadata'])
+        ]);
+
+        if (holdingsResult.rows.length > 0) {
+          summary = holdingsResult.rows[0];
+        }
+        
+        if (metadataResult.rows.length > 0) {
+          metadata = metadataResult.rows[0];
+        }
+      } catch (dbError) {
+        console.warn('⚠️ Database query failed, using default values:', dbError.message);
+        // Continue with default values
+      }
+    } else {
+      console.warn('⚠️ Required portfolio tables missing:', tableDeps.missingRequired);
+    }
+
+    // Try to get fresh data from broker API if no database data
+    if (parseInt(summary.total_positions) === 0) {
+      try {
+        const credentials = await getUserApiKey(userId, 'alpaca');
+        if (credentials) {
+          console.log('🔄 No portfolio data in database, attempting to fetch from Alpaca API');
+          const alpaca = new AlpacaService(
+            credentials.apiKey,
+            credentials.apiSecret,
+            credentials.isSandbox
+          );
+          
+          const account = await alpaca.getAccount();
+          if (account) {
+            summary.total_market_value = account.portfolioValue || 0;
+            summary.total_equity = account.equity || 0;
+            metadata.account_type = credentials.isSandbox ? 'paper' : 'live';
+            metadata.last_sync = new Date().toISOString();
+          }
+        }
+      } catch (apiError) {
+        console.warn('⚠️ Failed to fetch from broker API:', apiError.message);
+        // Continue with existing values
+      }
+    }
 
     res.json({
       success: true,
       data: {
         user_id: userId,
         portfolio_summary: {
-          total_positions: parseInt(summary.total_positions),
+          total_positions: parseInt(summary.total_positions) || 0,
           total_market_value: parseFloat(summary.total_market_value) || 0,
           total_unrealized_pl: parseFloat(summary.total_unrealized_pl) || 0,
           avg_unrealized_plpc: parseFloat(summary.avg_unrealized_plpc) || 0,
-          total_equity: parseFloat(metadata.total_equity) || 0
+          total_equity: parseFloat(metadata.total_equity) || parseFloat(summary.total_market_value) || 0
         },
         account_info: {
           account_type: metadata.account_type,
           last_sync: metadata.last_sync,
           is_connected: metadata.account_type !== 'not_connected'
+        },
+        database_status: {
+          tables_available: tableDeps.hasRequiredTables,
+          missing_tables: tableDeps.missingRequired,
+          data_source: tableDeps.hasRequiredTables ? 'database' : 'api_fallback'
         },
         available_endpoints: [
           '/portfolio/holdings - Portfolio holdings data',
@@ -136,52 +242,63 @@ async function fetchTDAmeritradePortfolio(apiKey, isSandbox) {
   };
 }
 
-// Store portfolio data in database
+// Store portfolio data in database with table dependency checking
 async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) {
   console.log(`💾 Storing portfolio data for user ${userId}`);
   
   try {
+    // Check if required tables exist before attempting to store data
+    const tableDeps = await checkPortfolioTableDependencies();
+    
+    if (!tableDeps.hasRequiredTables) {
+      console.warn('⚠️ Cannot store portfolio data - required tables missing:', tableDeps.missingRequired);
+      throw new Error(`Required database tables not available: ${tableDeps.missingRequired.join(', ')}`);
+    }
+    
     // Clear existing portfolio data for this user and API key
-    await query(`
+    await safeQuery(`
       DELETE FROM portfolio_holdings 
       WHERE user_id = $1 AND api_key_id = $2
-    `, [userId, apiKeyId]);
+    `, [userId, apiKeyId], ['portfolio_holdings']);
     
     // Insert new portfolio holdings
     for (const position of portfolioData.positions) {
-      await query(`
+      await safeQuery(`
         INSERT INTO portfolio_holdings (
           user_id, api_key_id, symbol, quantity, avg_cost, 
           current_price, market_value, unrealized_pl, unrealized_plpc, 
-          side, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+          side, account_type, broker, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
       `, [
         userId,
         apiKeyId,
         position.symbol,
         position.quantity,
-        position.avgCost,
+        position.avgCost || position.averageEntryPrice,
         position.currentPrice,
-        position.quantity * position.currentPrice,
-        (position.currentPrice - position.avgCost) * position.quantity,
-        ((position.currentPrice - position.avgCost) / position.avgCost) * 100,
-        'long'
-      ]);
+        position.marketValue || (position.quantity * position.currentPrice),
+        position.unrealizedPL || ((position.currentPrice - (position.avgCost || position.averageEntryPrice)) * position.quantity),
+        position.unrealizedPLPercent || (((position.currentPrice - (position.avgCost || position.averageEntryPrice)) / (position.avgCost || position.averageEntryPrice)) * 100),
+        position.side || 'long',
+        accountType,
+        'alpaca'
+      ], ['portfolio_holdings']);
     }
     
     // Update portfolio metadata
-    await query(`
+    await safeQuery(`
       INSERT INTO portfolio_metadata (
         user_id, api_key_id, total_equity, total_market_value, 
         total_unrealized_pl, total_unrealized_plpc, account_type, 
-        last_sync, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW())
+        broker, last_sync, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
       ON CONFLICT (user_id, api_key_id) DO UPDATE SET
         total_equity = EXCLUDED.total_equity,
         total_market_value = EXCLUDED.total_market_value,
         total_unrealized_pl = EXCLUDED.total_unrealized_pl,
         total_unrealized_plpc = EXCLUDED.total_unrealized_plpc,
         account_type = EXCLUDED.account_type,
+        broker = EXCLUDED.broker,
         last_sync = NOW(),
         updated_at = NOW()
     `, [
@@ -191,8 +308,9 @@ async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) 
       portfolioData.totalValue,
       portfolioData.totalPnL,
       portfolioData.totalPnLPercent,
-      accountType
-    ]);
+      accountType,
+      'alpaca'
+    ], ['portfolio_metadata']);
     
     console.log(`✅ Portfolio data stored successfully`);
   } catch (error) {
@@ -211,19 +329,27 @@ router.get('/holdings', async (req, res) => {
     console.log(`👤 User ID: ${userId}`);
     console.log(`📊 Account type: ${accountType}`);
     
+    // Check table dependencies first
+    const tableDeps = await checkPortfolioTableDependencies();
+    
     // Try to get real data from database first, filtered by account type
     try {
       console.log(`🔍 [HOLDINGS] Looking for stored portfolio data for user ${userId}, account type: ${accountType}`);
       
+      if (!tableDeps.hasRequiredTables) {
+        console.warn('⚠️ [HOLDINGS] Required portfolio tables missing, skipping database query:', tableDeps.missingRequired);
+        throw new Error('Database tables not available');
+      }
+      
       // Get user's API keys filtered by account type (sandbox for paper, live for live)
       const isSandbox = accountType === 'paper';
-      const storedHoldings = await query(`
+      const storedHoldings = await safeQuery(`
         SELECT ph.*, uak.provider, uak.is_sandbox
         FROM portfolio_holdings ph
         JOIN user_api_keys uak ON ph.api_key_id = uak.id
         WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
         ORDER BY ph.market_value DESC
-      `, [userId, isSandbox]);
+      `, [userId, isSandbox], ['portfolio_holdings', 'user_api_keys']);
       
       if (storedHoldings.rows.length > 0) {
         console.log(`✅ [HOLDINGS] Found ${storedHoldings.rows.length} stored holdings for ${accountType} account`);
@@ -324,14 +450,15 @@ router.get('/holdings', async (req, res) => {
       // Fall through to database or mock data
     }
 
-    // Fallback to database query
-    if (userId) {
+    // Fallback to database query (if tables are available and no API data was fetched)
+    if (userId && tableDeps.hasRequiredTables) {
       try {
-        // Check if database is available (don't fail on health check)
-        if (!req.dbError) {
-          
           // Query real portfolio holdings with symbols data
-          const holdingsQuery = `
+          // Use stock_symbols table if symbols table is not available
+          const symbolsTable = tableDeps.tableStatus.symbols ? 'symbols' : 
+                               (tableDeps.tableStatus.stock_symbols ? 'stock_symbols' : null);
+          
+          const holdingsQuery = symbolsTable ? `
             SELECT 
               ph.symbol,
               ph.quantity as shares,
@@ -342,17 +469,36 @@ router.get('/holdings', async (req, res) => {
               ph.unrealized_plpc as gain_loss_percent,
               ph.side,
               ph.updated_at,
-              COALESCE(s.name, ph.symbol || ' Inc.') as company,
+              COALESCE(s.security_name, s.name, ph.symbol || ' Inc.') as company,
               COALESCE(s.sector, 'Technology') as sector,
-              'NASDAQ' as exchange,
+              COALESCE(ph.exchange, 'NASDAQ') as exchange,
               COALESCE(s.industry, 'Technology') as industry
             FROM portfolio_holdings ph
-            LEFT JOIN symbols s ON ph.symbol = s.symbol  
+            LEFT JOIN ${symbolsTable} s ON ph.symbol = s.symbol  
+            WHERE ph.user_id = $1 AND ph.quantity > 0
+            ORDER BY ph.market_value DESC
+          ` : `
+            SELECT 
+              ph.symbol,
+              ph.quantity as shares,
+              ph.avg_cost,
+              ph.current_price,
+              ph.market_value,
+              ph.unrealized_pl as gain_loss,
+              ph.unrealized_plpc as gain_loss_percent,
+              ph.side,
+              ph.updated_at,
+              ph.symbol || ' Inc.' as company,
+              COALESCE(ph.sector, 'Technology') as sector,
+              COALESCE(ph.exchange, 'NASDAQ') as exchange,
+              'Technology' as industry
+            FROM portfolio_holdings ph
             WHERE ph.user_id = $1 AND ph.quantity > 0
             ORDER BY ph.market_value DESC
           `;
 
-          const holdingsResult = await query(holdingsQuery, [userId]);
+          const requiredTables = symbolsTable ? ['portfolio_holdings', symbolsTable] : ['portfolio_holdings'];
+          const holdingsResult = await safeQuery(holdingsQuery, [userId], requiredTables);
           
           if (holdingsResult.rows.length > 0) {
             const holdings = holdingsResult.rows;
@@ -402,6 +548,11 @@ router.get('/holdings', async (req, res) => {
                   numPositions: holdings.length,
                   accountType: accountType
                 }
+              },
+              database_status: {
+                tables_available: tableDeps.hasRequiredTables,
+                missing_tables: tableDeps.missingRequired,
+                symbols_table_used: symbolsTable || 'none'
               },
               timestamp: new Date().toISOString(),
               dataSource: 'database'
@@ -482,6 +633,11 @@ router.get('/holdings', async (req, res) => {
           numPositions: mockHoldings.length,
           accountType: accountType
         }
+      },
+      database_status: {
+        tables_available: tableDeps ? tableDeps.hasRequiredTables : false,
+        missing_tables: tableDeps ? tableDeps.missingRequired : PORTFOLIO_TABLES.required,
+        fallback_reason: 'Using mock data - no real portfolio data available'
       },
       timestamp: new Date().toISOString(),
       dataSource: 'mock'
