@@ -150,6 +150,20 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
       console.log('🔐 Signing in with Cognito...');
+      
+      // Clear any local state first
+      localStorage.removeItem('accessToken');
+      
+      // Try to sign out first if there's already a signed in user
+      try {
+        await signOut();
+        console.log('🧹 Cleared existing session before sign in');
+        // Wait a moment for signOut to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.log('No existing session to clear:', error.message);
+      }
+      
       const { isSignedIn, nextStep } = await signIn({ username, password });
 
       if (isSignedIn) {
@@ -243,15 +257,21 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       console.log('🚪 Signing out...');
-      await signOut();
+      
+      // Clear local storage first
       localStorage.removeItem('accessToken');
+      
+      // Clear React state
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      
+      // Sign out from Cognito
+      await signOut();
+      
+      console.log('✅ Logout successful');
       return { success: true };
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // Even if logout fails, clear local state
-      localStorage.removeItem('accessToken');
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      // Even if logout fails, we've already cleared local state
       return { success: false, message: error.message };
     }
   };
@@ -331,6 +351,7 @@ export function AuthProvider({ children }) {
     logout,
     resetPasswordRequest,
     confirmPasswordReset,
+    forgotPassword: resetPasswordRequest, // Alias for Settings.jsx compatibility
     clearError,
     refreshTokens,
     checkAuthState

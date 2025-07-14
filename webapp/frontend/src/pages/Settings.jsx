@@ -219,7 +219,7 @@ const Settings = () => {
 
   const loadApiKeys = async () => {
     try {
-      const response = await fetch(`${apiUrl}/settings/api-keys`, {
+      const response = await fetch(`${apiUrl}/api/settings/api-keys`, {
         headers: {
           'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
         }
@@ -286,7 +286,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
+      const response = await fetch(`${apiUrl}/api/settings/api-keys`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -316,7 +316,7 @@ const Settings = () => {
 
   const handleDeleteApiKey = async (brokerName) => {
     try {
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys/${brokerName}`, {
+      const response = await fetch(`${apiUrl}/api/settings/api-keys/${brokerName}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`

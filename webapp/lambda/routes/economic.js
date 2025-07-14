@@ -338,4 +338,182 @@ router.get('/forecasts', async (req, res) => {
 
 // Get economic impact analysis
 router.post('/impact-analysis', async (req, res) => {
-  try {\n    const { \n      economic_event,\n      affected_sectors = [],\n      time_horizon = 90,\n      analysis_type = 'comprehensive'\n    } = req.body;\n    \n    if (!economic_event) {\n      return res.status(400).json({\n        success: false,\n        error: 'Economic event is required'\n      });\n    }\n    \n    const analysis = await economicEngine.analyzeEconomicImpact({\n      economic_event,\n      affected_sectors,\n      time_horizon,\n      analysis_type\n    });\n    \n    res.json({\n      success: true,\n      data: analysis\n    });\n  } catch (error) {\n    console.error('Error analyzing economic impact:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to analyze economic impact',\n      message: error.message\n    });\n  }\n});\n\n// Get yield curve analysis\nrouter.get('/yield-curve', async (req, res) => {\n  try {\n    const { date, analysis_type = 'current' } = req.query;\n    \n    const yieldCurve = await economicEngine.getYieldCurveAnalysis(date, analysis_type);\n    \n    res.json({\n      success: true,\n      data: yieldCurve\n    });\n  } catch (error) {\n    console.error('Error fetching yield curve:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to fetch yield curve analysis',\n      message: error.message\n    });\n  }\n});\n\n// Get inflation analysis\nrouter.get('/inflation', async (req, res) => {\n  try {\n    const { period = '5Y', components = true } = req.query;\n    \n    const inflationAnalysis = await economicEngine.getInflationAnalysis(period, components);\n    \n    res.json({\n      success: true,\n      data: inflationAnalysis\n    });\n  } catch (error) {\n    console.error('Error fetching inflation analysis:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to fetch inflation analysis',\n      message: error.message\n    });\n  }\n});\n\n// Get employment analysis\nrouter.get('/employment', async (req, res) => {\n  try {\n    const { period = '2Y', detailed = false } = req.query;\n    \n    const employmentAnalysis = await economicEngine.getEmploymentAnalysis(period, detailed);\n    \n    res.json({\n      success: true,\n      data: employmentAnalysis\n    });\n  } catch (error) {\n    console.error('Error fetching employment analysis:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to fetch employment analysis',\n      message: error.message\n    });\n  }\n});\n\n// Get GDP analysis\nrouter.get('/gdp', async (req, res) => {\n  try {\n    const { period = '5Y', components = true } = req.query;\n    \n    const gdpAnalysis = await economicEngine.getGDPAnalysis(period, components);\n    \n    res.json({\n      success: true,\n      data: gdpAnalysis\n    });\n  } catch (error) {\n    console.error('Error fetching GDP analysis:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to fetch GDP analysis',\n      message: error.message\n    });\n  }\n});\n\n// Get available economic indicators list\nrouter.get('/indicators/list', async (req, res) => {\n  try {\n    const result = await query(`\n      SELECT DISTINCT\n        indicator_id,\n        indicator_name,\n        category,\n        units,\n        frequency,\n        description,\n        source,\n        last_updated,\n        COUNT(*) as data_points\n      FROM economic_indicators\n      GROUP BY indicator_id, indicator_name, category, units, frequency, description, source, last_updated\n      ORDER BY category, indicator_name\n    `);\n    \n    const indicators = result.rows.map(row => ({\n      id: row.indicator_id,\n      name: row.indicator_name,\n      category: row.category,\n      units: row.units,\n      frequency: row.frequency,\n      description: row.description,\n      source: row.source,\n      last_updated: row.last_updated,\n      data_points: parseInt(row.data_points)\n    }));\n    \n    // Group by category\n    const categorized = {};\n    indicators.forEach(indicator => {\n      if (!categorized[indicator.category]) {\n        categorized[indicator.category] = [];\n      }\n      categorized[indicator.category].push(indicator);\n    });\n    \n    res.json({\n      success: true,\n      data: {\n        indicators,\n        categorized,\n        total_count: indicators.length\n      }\n    });\n  } catch (error) {\n    console.error('Error fetching indicators list:', error);\n    res.status(500).json({\n      success: false,\n      error: 'Failed to fetch indicators list',\n      message: error.message\n    });\n  }\n});\n\nmodule.exports = router;"
+  try {
+    const { 
+      economic_event,
+      affected_sectors = [],
+      time_horizon = 90,
+      analysis_type = 'comprehensive'
+    } = req.body;
+    
+    if (!economic_event) {
+      return res.status(400).json({
+        success: false,
+        error: 'Economic event is required'
+      });
+    }
+    
+    const analysis = await economicEngine.analyzeEconomicImpact({
+      economic_event,
+      affected_sectors,
+      time_horizon,
+      analysis_type
+    });
+    
+    res.json({
+      success: true,
+      data: analysis
+    });
+  } catch (error) {
+    console.error('Error analyzing economic impact:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze economic impact',
+      message: error.message
+    });
+  }
+});
+
+// Get yield curve analysis
+router.get('/yield-curve', async (req, res) => {
+  try {
+    const { date, analysis_type = 'current' } = req.query;
+    
+    const yieldCurve = await economicEngine.getYieldCurveAnalysis(date, analysis_type);
+    
+    res.json({
+      success: true,
+      data: yieldCurve
+    });
+  } catch (error) {
+    console.error('Error fetching yield curve:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch yield curve analysis',
+      message: error.message
+    });
+  }
+});
+
+// Get inflation analysis
+router.get('/inflation', async (req, res) => {
+  try {
+    const { period = '5Y', components = true } = req.query;
+    
+    const inflationAnalysis = await economicEngine.getInflationAnalysis(period, components);
+    
+    res.json({
+      success: true,
+      data: inflationAnalysis
+    });
+  } catch (error) {
+    console.error('Error fetching inflation analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch inflation analysis',
+      message: error.message
+    });
+  }
+});
+
+// Get employment analysis
+router.get('/employment', async (req, res) => {
+  try {
+    const { period = '2Y', detailed = false } = req.query;
+    
+    const employmentAnalysis = await economicEngine.getEmploymentAnalysis(period, detailed);
+    
+    res.json({
+      success: true,
+      data: employmentAnalysis
+    });
+  } catch (error) {
+    console.error('Error fetching employment analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch employment analysis',
+      message: error.message
+    });
+  }
+});
+
+// Get GDP analysis
+router.get('/gdp', async (req, res) => {
+  try {
+    const { period = '5Y', components = true } = req.query;
+    
+    const gdpAnalysis = await economicEngine.getGDPAnalysis(period, components);
+    
+    res.json({
+      success: true,
+      data: gdpAnalysis
+    });
+  } catch (error) {
+    console.error('Error fetching GDP analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch GDP analysis',
+      message: error.message
+    });
+  }
+});
+
+// Get available economic indicators list
+router.get('/indicators/list', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT
+        indicator_id,
+        indicator_name,
+        category,
+        units,
+        frequency,
+        description,
+        source,
+        last_updated,
+        COUNT(*) as data_points
+      FROM economic_indicators
+      GROUP BY indicator_id, indicator_name, category, units, frequency, description, source, last_updated
+      ORDER BY category, indicator_name
+    `);
+    
+    const indicators = result.rows.map(row => ({
+      id: row.indicator_id,
+      name: row.indicator_name,
+      category: row.category,
+      units: row.units,
+      frequency: row.frequency,
+      description: row.description,
+      source: row.source,
+      last_updated: row.last_updated,
+      data_points: parseInt(row.data_points)
+    }));
+    
+    // Group by category
+    const categorized = {};
+    indicators.forEach(indicator => {
+      if (!categorized[indicator.category]) {
+        categorized[indicator.category] = [];
+      }
+      categorized[indicator.category].push(indicator);
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        indicators,
+        categorized,
+        total_count: indicators.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching indicators list:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch indicators list',
+      message: error.message
+    });
+  }
+});
+
+module.exports = router;

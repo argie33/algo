@@ -867,14 +867,6 @@ router.get('/analytics', async (req, res) => {
       message: 'No portfolio data found. Please import your portfolio data from your broker first.',
       timestamp: new Date().toISOString()
     });
-  } catch (globalError) {
-    console.error('❌ Portfolio analytics global error:', globalError);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: 'An unexpected error occurred while fetching portfolio analytics',
-      timestamp: new Date().toISOString()
-    });
   }
 });
 
