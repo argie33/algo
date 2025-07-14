@@ -2,14 +2,16 @@
 // Integrates API key system with data loaders to refresh portfolio-relevant data
 
 const { query } = require('./database');
-const AWS = require('aws-sdk');
+const { ECSClient, RunTaskCommand, ListTasksCommand, DescribeTasksCommand } = require('@aws-sdk/client-ecs');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
 class PortfolioDataRefreshService {
   constructor() {
     this.refreshInProgress = new Set();
     // Initialize AWS services for triggering data loaders
-    this.ecs = new AWS.ECS({ region: process.env.AWS_REGION || 'us-east-1' });
-    this.lambda = new AWS.Lambda({ region: process.env.AWS_REGION || 'us-east-1' });
+    const region = process.env.AWS_REGION || 'us-east-1';
+    this.ecs = new ECSClient({ region });
+    this.lambda = new LambdaClient({ region });
   }
 
   /**
@@ -287,7 +289,8 @@ class PortfolioDataRefreshService {
         }
       };
 
-      const result = await this.ecs.runTask(taskParams).promise();
+      const command = new RunTaskCommand(taskParams);
+      const result = await this.ecs.send(command);
       console.log(`🎯 ECS task triggered for technical data loading: ${result.tasks[0]?.taskArn}`);
       return true;
       
@@ -315,7 +318,8 @@ class PortfolioDataRefreshService {
         Payload: JSON.stringify(payload)
       };
 
-      const result = await this.lambda.invoke(params).promise();
+      const command = new InvokeCommand(params);
+      const result = await this.lambda.send(command);
       console.log(`🎯 Lambda triggered for technical data loading: ${result.StatusCode}`);
       
     } catch (error) {
@@ -362,13 +366,15 @@ class PortfolioDataRefreshService {
         order: 'DESC'
       };
 
-      const result = await this.ecs.listTasks(params).promise();
+      const listCommand = new ListTasksCommand(params);
+      const result = await this.ecs.send(listCommand);
       
       if (result.taskArns.length > 0) {
-        const describeTasks = await this.ecs.describeTasks({
+        const describeCommand = new DescribeTasksCommand({
           cluster: clusterName,
           tasks: result.taskArns
-        }).promise();
+        });
+        const describeTasks = await this.ecs.send(describeCommand);
         
         return describeTasks.tasks.map(task => ({
           taskArn: task.taskArn,
