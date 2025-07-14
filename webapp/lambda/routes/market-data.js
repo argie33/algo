@@ -2,8 +2,126 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
+const { 
+  createValidationMiddleware, 
+  rateLimitConfigs, 
+  sqlInjectionPrevention, 
+  xssPrevention,
+  sanitizers
+} = require('../middleware/validation');
+const validator = require('validator');
 
 const router = express.Router();
+
+// Market data validation schemas
+const marketDataValidationSchemas = {
+  quotes: {
+    symbols: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => {
+        if (typeof value !== 'string') return '';
+        // Split by comma, clean each symbol, and rejoin
+        return value.split(',')
+          .map(s => sanitizers.symbol(s.trim()))
+          .filter(s => s.length > 0)
+          .slice(0, 50) // Limit to 50 symbols max
+          .join(',');
+      },
+      validator: (value) => {
+        if (!value) return false;
+        const symbols = value.split(',');
+        return symbols.length > 0 && 
+               symbols.length <= 50 && 
+               symbols.every(s => /^[A-Z]{1,10}$/.test(s.trim()));
+      },
+      errorMessage: 'Symbols must be a comma-separated list of 1-50 valid stock symbols'
+    }
+  },
+
+  bars: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
+      validator: (value) => !value || ['1Min', '5Min', '15Min', '30Min', '1Hour', '1Day', '1Week', '1Month'].includes(value),
+      errorMessage: 'Timeframe must be one of: 1Min, 5Min, 15Min, 30Min, 1Hour, 1Day, 1Week, 1Month'
+    },
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'Start date must be in ISO8601 format (YYYY-MM-DDTHH:mm:ssZ)'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'End date must be in ISO8601 format (YYYY-MM-DDTHH:mm:ssZ)'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 100 }),
+      validator: (value) => !value || (value >= 1 && value <= 1000),
+      errorMessage: 'Limit must be between 1 and 1000'
+    }
+  },
+
+  trades: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'Start date must be in ISO8601 format'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20 }),
+      validator: (value) => !value || validator.isISO8601(value),
+      errorMessage: 'End date must be in ISO8601 format'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 100 }),
+      validator: (value) => !value || (value >= 1 && value <= 1000),
+      errorMessage: 'Limit must be between 1 and 1000'
+    }
+  },
+
+  calendar: {
+    start: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'Start date must be in YYYY-MM-DD format'
+    },
+    end: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10 }),
+      validator: (value) => !value || validator.isDate(value, { format: 'YYYY-MM-DD' }),
+      errorMessage: 'End date must be in YYYY-MM-DD format'
+    }
+  }
+};
+
+// Apply security middleware to authenticated routes
+router.use('/quotes', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/bars', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/trades', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
+router.use('/calendar', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.api);
 
 // Root market-data endpoint for health checks (no auth required)
 router.get('/', (req, res) => {
@@ -30,19 +148,12 @@ router.get('/', (req, res) => {
 router.use(authenticateToken);
 
 // Get real-time quotes for multiple symbols
-router.get('/quotes', async (req, res) => {
+router.get('/quotes', createValidationMiddleware(marketDataValidationSchemas.quotes), async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { symbols } = req.query;
+    const { symbols } = req.validated;
     
     console.log(`📊 [MARKET-DATA] Quotes request for user ${userId}, symbols: ${symbols}`);
-    
-    if (!symbols) {
-      return res.status(400).json({
-        success: false,
-        error: 'Symbols parameter is required'
-      });
-    }
 
     // Get user's API key
     const credentials = await getUserApiKey(userId, 'alpaca');
@@ -62,8 +173,8 @@ router.get('/quotes', async (req, res) => {
       credentials.isSandbox
     );
 
-    // Get quotes for symbols
-    const symbolsArray = symbols.split(',').map(s => s.trim().toUpperCase());
+    // Get quotes for symbols (already validated and sanitized)
+    const symbolsArray = symbols.split(',');
     const quotes = await alpaca.getMultiQuotes(symbolsArray);
 
     res.json({
@@ -83,11 +194,10 @@ router.get('/quotes', async (req, res) => {
 });
 
 // Get historical bars for a symbol
-router.get('/bars/:symbol', async (req, res) => {
+router.get('/bars/:symbol', createValidationMiddleware(marketDataValidationSchemas.bars), async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
-    const { symbol } = req.params;
-    const { timeframe = '1Day', start, end, limit = 100 } = req.query;
+    const { symbol, timeframe, start, end, limit } = req.validated;
     
     // Get user's API key
     const credentials = await getUserApiKey(userId, 'alpaca');
