@@ -104,7 +104,7 @@ Resources:
       Name: !Sub 'stocks-app-api-key-encryption-${AWS::StackName}'
       Description: 'AES-256-GCM encryption key for broker API key storage'
       GenerateSecretString:
-        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption","created":"'
+        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption"}'
         GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
         PasswordLength: 64
         ExcludeCharacters: '"@/\`'
@@ -124,7 +124,7 @@ Resources:
       Name: !Sub 'stocks-app-jwt-secret-${AWS::StackName}'
       Description: 'JWT signing key for authentication'
       GenerateSecretString:
-        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing","created":"'
+        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing"}'
         GenerateStringKey: 'JWT_SECRET'
         PasswordLength: 64
         ExcludeCharacters: '"@/\`'
