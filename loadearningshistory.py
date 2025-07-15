@@ -1,5 +1,6 @@
 #!/usr/bin/env python3 
 # Updated for deployment verification test
+# Updated: 2025-07-15 - Trigger deployment for earnings history data
 import sys
 import time
 import logging

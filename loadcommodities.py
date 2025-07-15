@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-07-15 - Trigger deployment for commodities data
 import os
 import sys
 import json

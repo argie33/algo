@@ -8,6 +8,7 @@ This script loads comprehensive technical analysis indicators including:
 - Volatility indicators (Bollinger Bands, ATR)
 - Volume indicators (OBV, Volume Profile)
 - Trend indicators (ADX, Parabolic SAR)
+Updated: 2025-07-15 - Trigger deployment for technical analysis data
 
 Updated: 2025-07-15 - Enhanced for deployment workflow trigger
 
@@ -413,10 +414,24 @@ class TechnicalIndicatorCalculator:
         
         return result
 
-def get_price_data(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
+def get_price_data(symbol: str, period: str = "1y", lookback_days: int = 365) -> Optional[pd.DataFrame]:
     """Get price data for technical analysis"""
     try:
         ticker = yf.Ticker(symbol)
+        # Use period if provided, otherwise calculate from lookback_days
+        if period == "dynamic":
+            # Convert days to period string
+            if lookback_days >= 1000:
+                period = "max"
+            elif lookback_days >= 365:
+                period = "2y"
+            elif lookback_days >= 180:
+                period = "1y"
+            elif lookback_days >= 90:
+                period = "6mo"
+            else:
+                period = "3mo"
+        
         data = ticker.history(period=period)
         
         if data.empty:
@@ -434,11 +449,11 @@ def get_price_data(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
         logging.error(f"Error fetching price data for {symbol}: {e}")
         return None
 
-def process_symbol_technicals(symbol: str) -> Optional[Dict]:
+def process_symbol_technicals(symbol: str, lookback_days: int = 365) -> Optional[Dict]:
     """Process technical indicators for a symbol"""
     try:
-        # Get price data
-        price_data = get_price_data(symbol)
+        # Get price data with dynamic period
+        price_data = get_price_data(symbol, period="dynamic", lookback_days=lookback_days)
         if price_data is None:
             return None
         
