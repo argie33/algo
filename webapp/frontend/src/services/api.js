@@ -214,29 +214,7 @@ export const getPortfolioPerformance = async (timeframe = '1Y') => {
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio performance:', error);
-    // Return mock data for 401 auth errors or 404 (no portfolio data) until backend is deployed
-    if (error.response?.status === 401 || error.response?.status === 404) {
-      console.warn(`Portfolio performance API returned ${error.response?.status} - using mock performance data`);
-      return {
-        success: true,
-        data: {
-          performanceData: Array.from({ length: 365 }, (_, i) => ({
-            date: new Date(Date.now() - (365 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            portfolioValue: 100000 + Math.sin(i / 30) * 10000 + i * 25,
-            benchmark: 100000 + Math.sin(i / 35) * 8000 + i * 20,
-            drawdown: Math.random() * -5
-          })),
-          metrics: {
-            totalReturn: 12.5,
-            annualizedReturn: 11.2,
-            volatility: 18.7,
-            sharpeRatio: 1.45,
-            maxDrawdown: -8.2,
-            beta: 1.1
-          }
-        }
-      };
-    }
+    // No more mock data fallbacks - return real error to surface issues
     throw error;
   }
 };
@@ -247,75 +225,7 @@ export const getPortfolioAnalytics = async (timeframe = '1Y') => {
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio analytics:', error);
-    // Return mock data for 500/401/404 errors until backend is fixed
-    if (error.response?.status === 500 || error.response?.status === 401 || error.response?.status === 404) {
-      console.warn(`Portfolio analytics API returned ${error.response?.status} - using mock data`);
-      return {
-        success: true,
-        data: {
-          sectorAllocation: [
-            { sector: 'Technology', value: 45.2, color: '#1976d2' },
-            { sector: 'Healthcare', value: 18.7, color: '#43a047' },
-            { sector: 'Finance', value: 15.3, color: '#ffb300' },
-            { sector: 'Consumer', value: 12.4, color: '#8e24aa' },
-            { sector: 'Other', value: 8.4, color: '#e53935' }
-          ],
-          riskMetrics: {
-            sharpeRatio: 1.45,
-            beta: 1.1,
-            volatility: 18.7,
-            maxDrawdown: -8.2
-          }
-        },
-        analytics: {
-          totalReturn: 12.5,
-          annualizedReturn: 15.3,
-          volatility: 18.7,
-          sharpeRatio: 1.45,
-          maxDrawdown: -8.2,
-          winRate: 68.5,
-          sectorPerformance: [
-            { sector: 'Technology', return: 15.2 },
-            { sector: 'Healthcare', return: 8.7 },
-            { sector: 'Finance', return: 6.3 },
-            { sector: 'Consumer', return: 12.1 },
-            { sector: 'Energy', return: -2.4 }
-          ],
-          holdingsPerformance: [
-            { symbol: 'AAPL', return: 12.5, volatility: 22.1, rating: 'A+' },
-            { symbol: 'MSFT', return: 8.3, volatility: 18.7, rating: 'A' },
-            { symbol: 'GOOGL', return: -2.1, volatility: 25.4, rating: 'B+' },
-            { symbol: 'AMZN', return: 15.7, volatility: 28.9, rating: 'A-' },
-            { symbol: 'TSLA', return: -5.8, volatility: 45.2, rating: 'B' }
-          ]
-        },
-        attribution: {
-          sectorAttribution: [
-            { name: 'Technology', contribution: 3.2 },
-            { name: 'Healthcare', contribution: 1.8 },
-            { name: 'Finance', contribution: -0.5 },
-            { name: 'Consumer', contribution: 0.8 }
-          ],
-          stockAttribution: [
-            { symbol: 'AAPL', weight: 15.2, return: 12.5, contribution: 1.9 },
-            { symbol: 'MSFT', weight: 12.8, return: 8.3, contribution: 1.1 },
-            { symbol: 'GOOGL', weight: 10.5, return: -2.1, contribution: -0.2 },
-            { symbol: 'AMZN', weight: 8.9, return: 15.7, contribution: 1.4 },
-            { symbol: 'TSLA', weight: 7.3, return: -5.8, contribution: -0.4 }
-          ]
-        },
-        risk: {
-          beta: 1.1,
-          alpha: 2.3,
-          r_squared: 0.85,
-          standardDeviation: 18.7,
-          downside_deviation: 12.4,
-          maximum_drawdown: -8.2,
-          var_95: -2.1,
-          cvar_95: -3.8
-        }
-      };
-    }
+    // No more mock data fallbacks - return real error to surface issues
     throw error;
   }
 };
@@ -551,15 +461,7 @@ export const testApiKeyConnection = async (keyId) => {
     return response.data;
   } catch (error) {
     console.error('Error testing API key connection:', error);
-    // Return mock result for 500 errors until backend is fixed
-    if (error.response?.status === 500) {
-      console.warn('API key test endpoint not available, simulating test result');
-      return {
-        success: true,
-        status: 'pending',
-        message: 'Connection test not available (backend not deployed)'
-      };
-    }
+    // No more mock data fallbacks - return real error to surface issues
     throw error;
   }
 };
@@ -571,17 +473,7 @@ export const getWatchlists = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching watchlists:', error);
-    // Return mock data for 500/401 errors until backend is fixed
-    if (error.response?.status === 500 || error.response?.status === 401) {
-      console.warn('Watchlists API not available, using mock data');
-      return {
-        success: true,
-        data: [
-          { id: 1, name: 'My Watchlist', description: 'Primary watchlist', itemCount: 5, created: '2024-01-15' },
-          { id: 2, name: 'Tech Stocks', description: 'Technology sector watchlist', itemCount: 8, created: '2024-01-20' }
-        ]
-      };
-    }
+    // No more mock data fallbacks - return real error to surface issues
     throw error;
   }
 };
@@ -622,20 +514,7 @@ export const getWatchlistItems = async (watchlistId) => {
     return response.data;
   } catch (error) {
     console.error('Error fetching watchlist items:', error);
-    // Return mock data for 500/401 errors until backend is fixed
-    if (error.response?.status === 500 || error.response?.status === 401) {
-      console.warn('Watchlist API not available, using mock data');
-      return {
-        success: true,
-        data: {
-          items: [
-            { id: 1, symbol: 'AAPL', name: 'Apple Inc.', price: 195.89, change: 2.34, changePercent: 1.21 },
-            { id: 2, symbol: 'TSLA', name: 'Tesla Inc.', price: 711.02, change: -5.67, changePercent: -0.79 },
-            { id: 3, symbol: 'NVDA', name: 'NVIDIA Corp.', price: 1200.45, change: 15.23, changePercent: 1.29 }
-          ]
-        }
-      };
-    }
+    // No more mock data fallbacks - return real error to surface issues
     throw error;
   }
 };
