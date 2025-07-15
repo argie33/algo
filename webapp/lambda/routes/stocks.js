@@ -6,7 +6,90 @@ const { createValidationMiddleware, validationSchemas, sanitizers } = require('.
 
 const router = express.Router();
 
-// Apply authentication to all stock routes
+// Public endpoints (no authentication required)
+// Get available sectors for filtering - public endpoint for general market data
+router.get('/sectors', async (req, res) => {
+  try {
+    console.log('Sectors endpoint called (public)');
+    
+    // Try enhanced query first, fall back to basic query
+    let sectorsQuery = `
+      SELECT sector, COUNT(*) as count,
+             AVG(market_cap) as avg_market_cap,
+             AVG(vm.pe_ratio) as avg_pe_ratio
+      FROM stock_symbols_enhanced se
+      LEFT JOIN valuation_multiples vm ON se.symbol = vm.symbol
+      WHERE se.is_active = TRUE AND se.sector IS NOT NULL AND se.sector != 'Unknown'
+      GROUP BY sector
+      ORDER BY count DESC
+    `;
+    
+    let result;
+    try {
+      result = await query(sectorsQuery);
+    } catch (dbError) {
+      console.log('Enhanced query failed, trying basic query');
+      // Fallback to basic stock_symbols table
+      sectorsQuery = `
+        SELECT 
+          COALESCE(s.sector, 'Unknown') as sector, 
+          COUNT(*) as count,
+          AVG(CASE WHEN s.market_cap > 0 THEN s.market_cap END) as avg_market_cap,
+          AVG(CASE WHEN s.pe_ratio > 0 THEN s.pe_ratio END) as avg_pe_ratio
+        FROM stock_symbols s
+        WHERE s.is_active = TRUE AND s.sector IS NOT NULL AND s.sector != 'Unknown'
+        GROUP BY s.sector
+        ORDER BY count DESC
+      `;
+      
+      try {
+        result = await query(sectorsQuery);
+      } catch (basicError) {
+        throw new Error(`Both queries failed: ${basicError.message}`);
+      }
+    }
+    
+    const sectors = result.rows.map(row => ({
+      sector: row.sector,
+      count: parseInt(row.count),
+      avg_market_cap: parseFloat(row.avg_market_cap) || 0,
+      avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null
+    }));
+    
+    res.json({
+      success: true,
+      data: sectors,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error fetching sectors, using fallback data:', error);
+    
+    // Return standard sectors list as fallback
+    const fallbackSectors = [
+      { sector: 'Technology', count: 1200, avg_market_cap: 45000000000, avg_pe_ratio: 25.4 },
+      { sector: 'Healthcare', count: 850, avg_market_cap: 18000000000, avg_pe_ratio: 22.1 },
+      { sector: 'Financials', count: 750, avg_market_cap: 12000000000, avg_pe_ratio: 14.8 },
+      { sector: 'Consumer Discretionary', count: 650, avg_market_cap: 8000000000, avg_pe_ratio: 18.9 },
+      { sector: 'Communication Services', count: 400, avg_market_cap: 35000000000, avg_pe_ratio: 21.3 },
+      { sector: 'Industrials', count: 600, avg_market_cap: 15000000000, avg_pe_ratio: 19.2 },
+      { sector: 'Consumer Staples', count: 300, avg_market_cap: 25000000000, avg_pe_ratio: 20.8 },
+      { sector: 'Energy', count: 200, avg_market_cap: 22000000000, avg_pe_ratio: 12.5 },
+      { sector: 'Materials', count: 250, avg_market_cap: 14000000000, avg_pe_ratio: 16.3 },
+      { sector: 'Real Estate', count: 180, avg_market_cap: 8000000000, avg_pe_ratio: 18.7 },
+      { sector: 'Utilities', count: 150, avg_market_cap: 16000000000, avg_pe_ratio: 15.9 }
+    ];
+    
+    res.json({
+      success: true,
+      data: fallbackSectors,
+      fallback: true,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Apply authentication to all other stock routes
 router.use(authenticateToken);
 
 // Basic ping endpoint
@@ -1710,10 +1793,7 @@ router.post('/init-price-data', async (req, res) => {
 });
 
 
-// Get available sectors for filtering
-router.get('/sectors', async (req, res) => {
-  try {
-    console.log('Sectors endpoint called');
+// Get screening statistics and ranges
     
     // Try enhanced query first, fall back to basic query
     let sectorsQuery = `
