@@ -48,18 +48,5 @@
     "api"
   ],
   "author": "Financial Dashboard Team",
-  "license": "MIT",
-  "jest": {
-    "testEnvironment": "node",
-    "testMatch": [
-      "**/tests/**/*.test.js"
-    ],
-    "collectCoverageFrom": [
-      "*.js",
-      "utils/*.js",
-      "routes/*.js",
-      "middleware/*.js",
-      "!index.js"
-    ]
-  }
+  "license": "MIT"
 }

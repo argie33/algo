@@ -727,6 +727,27 @@ jobs:
               echo "✅ Image $TECHNICALSDAILY_TAG already exists"
             fi
           fi
+          
+          # Check if webapp-db-init image exists, build if missing
+          WEBAPP_DB_INIT_TAG="webapp-db-init-latest"
+          echo "🔍 WEBAPP_DB_INIT_TAG resolved to: '$WEBAPP_DB_INIT_TAG'"
+          if [ -n "$WEBAPP_DB_INIT_TAG" ] && [ -n "$URI" ]; then
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$WEBAPP_DB_INIT_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $WEBAPP_DB_INIT_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              echo "🔨 Building webapp-db-init image with tag: $WEBAPP_DB_INIT_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.webapp-db-init \
+                -t "$URI:$WEBAPP_DB_INIT_TAG" \
+                .
+              echo "✅ Successfully built and pushed webapp-db-init image"
+            else
+              echo "✅ Image $WEBAPP_DB_INIT_TAG already exists"
+            fi
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |

@@ -1,0 +1,786 @@
+# Financial Trading Platform - Test Plan
+*Version 1.0 | Updated 2025-07-15 | Comprehensive Testing Strategy*
+
+## 1. TEST OVERVIEW
+
+### 1.1 Test Strategy
+This comprehensive test plan covers all aspects of the Financial Trading Platform, ensuring institutional-grade quality and reliability. The testing approach includes unit tests, integration tests, performance tests, security tests, and end-to-end user acceptance tests.
+
+### 1.2 Testing Scope
+- **Frontend Components**: React components, hooks, contexts, services
+- **Backend APIs**: Lambda functions, route handlers, middleware
+- **Database Operations**: Schema validation, query performance, data integrity
+- **External Integrations**: Broker APIs, market data feeds, authentication
+- **Performance Systems**: Real-time data pipeline, advanced analytics, risk management
+- **Security**: Authentication, authorization, API key encryption, input validation
+- **Infrastructure**: CloudFormation templates, deployment processes, monitoring
+
+### 1.3 Test Environment Strategy
+```
+Test Environments:
+├── local/              # Local development testing
+├── dev/                # Development environment
+├── staging/            # Pre-production testing
+└── production/         # Live production monitoring
+```
+
+## 2. UNIT TESTING
+
+### 2.1 Frontend Unit Tests (React)
+
+#### 2.1.1 Component Testing Framework
+```javascript
+// Example: Portfolio component test
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Portfolio } from '../components/Portfolio';
+
+describe('Portfolio Component', () => {
+  test('renders portfolio data correctly', () => {
+    const mockPortfolio = {
+      totalValue: 100000,
+      totalPnL: 5000,
+      holdings: [
+        { symbol: 'AAPL', quantity: 10, marketValue: 1500 }
+      ]
+    };
+    
+    render(<Portfolio portfolio={mockPortfolio} />);
+    
+    expect(screen.getByText('$100,000')).toBeInTheDocument();
+    expect(screen.getByText('$5,000')).toBeInTheDocument();
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
+  });
+});
+```
+
+#### 2.1.2 Hook Testing
+```javascript
+// Example: usePortfolio hook test
+import { renderHook, act } from '@testing-library/react';
+import { usePortfolio } from '../hooks/usePortfolio';
+
+describe('usePortfolio Hook', () => {
+  test('fetches portfolio data correctly', async () => {
+    const { result } = renderHook(() => usePortfolio());
+    
+    await act(async () => {
+      await result.current.fetchPortfolio();
+    });
+    
+    expect(result.current.loading).toBe(false);
+    expect(result.current.portfolio).toBeDefined();
+  });
+});
+```
+
+### 2.2 Backend Unit Tests (Node.js)
+
+#### 2.2.1 API Route Testing
+```javascript
+// Example: Portfolio API test
+const request = require('supertest');
+const app = require('../index');
+
+describe('Portfolio API', () => {
+  test('GET /api/portfolio returns user portfolio', async () => {
+    const response = await request(app)
+      .get('/api/portfolio')
+      .set('Authorization', 'Bearer valid-jwt-token')
+      .expect(200);
+    
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toHaveProperty('totalValue');
+    expect(response.body.data).toHaveProperty('holdings');
+  });
+});
+```
+
+#### 2.2.2 Service Layer Testing
+```javascript
+// Example: AdvancedPerformanceAnalytics test
+const { AdvancedPerformanceAnalytics } = require('../utils/advancedPerformanceAnalytics');
+
+describe('AdvancedPerformanceAnalytics', () => {
+  test('calculates performance metrics correctly', async () => {
+    const analytics = new AdvancedPerformanceAnalytics(mockDb);
+    
+    const metrics = await analytics.calculatePortfolioPerformance(
+      'user123',
+      '2024-01-01',
+      '2024-12-31'
+    );
+    
+    expect(metrics.baseMetrics.totalReturn).toBeDefined();
+    expect(metrics.riskMetrics.volatility).toBeDefined();
+    expect(metrics.attributionAnalysis).toBeDefined();
+  });
+});
+```
+
+### 2.3 Database Testing
+
+#### 2.3.1 Schema Validation Tests
+```javascript
+// Example: Database schema test
+describe('Database Schema', () => {
+  test('portfolio_holdings table structure', async () => {
+    const columns = await db.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_name = 'portfolio_holdings'
+    `);
+    
+    expect(columns.rows).toContainEqual({
+      column_name: 'user_id',
+      data_type: 'character varying',
+      is_nullable: 'NO'
+    });
+  });
+});
+```
+
+#### 2.3.2 Query Performance Tests
+```javascript
+// Example: Query performance test
+describe('Query Performance', () => {
+  test('portfolio query performance within SLA', async () => {
+    const startTime = Date.now();
+    
+    const result = await db.query(`
+      SELECT * FROM portfolio_holdings 
+      WHERE user_id = $1 AND quantity > 0
+    `, ['user123']);
+    
+    const queryTime = Date.now() - startTime;
+    expect(queryTime).toBeLessThan(100); // 100ms SLA
+  });
+});
+```
+
+## 3. INTEGRATION TESTING
+
+### 3.1 API Integration Tests
+
+#### 3.1.1 Authentication Flow
+```javascript
+describe('Authentication Integration', () => {
+  test('complete authentication flow', async () => {
+    // Test login
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'test@example.com',
+        password: 'password123'
+      });
+    
+    expect(loginResponse.status).toBe(200);
+    const { accessToken } = loginResponse.body.data;
+    
+    // Test protected route with token
+    const protectedResponse = await request(app)
+      .get('/api/portfolio')
+      .set('Authorization', `Bearer ${accessToken}`);
+    
+    expect(protectedResponse.status).toBe(200);
+  });
+});
+```
+
+#### 3.1.2 External API Integration
+```javascript
+describe('Broker API Integration', () => {
+  test('Alpaca API integration', async () => {
+    const alpacaService = new AlpacaService(testApiKey, testSecret, true);
+    
+    const positions = await alpacaService.getPositions();
+    expect(positions).toBeDefined();
+    expect(Array.isArray(positions)).toBe(true);
+  });
+});
+```
+
+### 3.2 Database Integration Tests
+
+#### 3.2.1 Transaction Testing
+```javascript
+describe('Database Transactions', () => {
+  test('portfolio update transaction', async () => {
+    const userId = 'test-user';
+    const positions = [
+      { symbol: 'AAPL', quantity: 10, avgCost: 150 }
+    ];
+    
+    await db.transaction(async (client) => {
+      await client.query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
+      
+      for (const position of positions) {
+        await client.query(
+          'INSERT INTO portfolio_holdings (user_id, symbol, quantity, avg_cost) VALUES ($1, $2, $3, $4)',
+          [userId, position.symbol, position.quantity, position.avgCost]
+        );
+      }
+    });
+    
+    const result = await db.query(
+      'SELECT * FROM portfolio_holdings WHERE user_id = $1',
+      [userId]
+    );
+    
+    expect(result.rows.length).toBe(1);
+    expect(result.rows[0].symbol).toBe('AAPL');
+  });
+});
+```
+
+## 4. PERFORMANCE TESTING
+
+### 4.1 Load Testing
+
+#### 4.1.1 API Load Tests
+```javascript
+// Example: Load test configuration
+const loadTest = {
+  target: 'https://api.example.com',
+  phases: [
+    { duration: '2m', arrivalRate: 10 },  // Ramp up
+    { duration: '5m', arrivalRate: 50 },  // Sustained load
+    { duration: '2m', arrivalRate: 100 }  // Peak load
+  ],
+  scenarios: [
+    {
+      name: 'Portfolio API Load Test',
+      weight: 70,
+      flow: [
+        { post: { url: '/api/auth/login', json: { email: 'test@example.com', password: 'password' } } },
+        { get: { url: '/api/portfolio', headers: { Authorization: 'Bearer {{ accessToken }}' } } }
+      ]
+    }
+  ]
+};
+```
+
+#### 4.1.2 Database Performance Tests
+```javascript
+describe('Database Performance', () => {
+  test('concurrent portfolio queries', async () => {
+    const concurrentQueries = 100;
+    const userIds = Array.from({ length: concurrentQueries }, (_, i) => `user${i}`);
+    
+    const startTime = Date.now();
+    
+    const promises = userIds.map(userId => 
+      db.query('SELECT * FROM portfolio_holdings WHERE user_id = $1', [userId])
+    );
+    
+    await Promise.all(promises);
+    
+    const totalTime = Date.now() - startTime;
+    const avgTime = totalTime / concurrentQueries;
+    
+    expect(avgTime).toBeLessThan(50); // 50ms average per query
+  });
+});
+```
+
+### 4.2 Real-Time Data Pipeline Testing
+
+#### 4.2.1 High-Frequency Data Processing
+```javascript
+describe('Real-Time Data Pipeline', () => {
+  test('handles high-frequency market data', async () => {
+    const pipeline = new RealtimeDataPipeline();
+    const dataPoints = 10000;
+    
+    const startTime = Date.now();
+    
+    for (let i = 0; i < dataPoints; i++) {
+      pipeline.processIncomingData('quote', {
+        symbol: 'AAPL',
+        price: 150 + Math.random(),
+        timestamp: Date.now()
+      });
+    }
+    
+    const processingTime = Date.now() - startTime;
+    const throughput = dataPoints / (processingTime / 1000);
+    
+    expect(throughput).toBeGreaterThan(1000); // 1000+ messages per second
+  });
+});
+```
+
+### 4.3 Memory and Resource Testing
+
+#### 4.3.1 Memory Leak Detection
+```javascript
+describe('Memory Management', () => {
+  test('no memory leaks in portfolio processing', async () => {
+    const initialMemory = process.memoryUsage().heapUsed;
+    
+    // Process multiple portfolio updates
+    for (let i = 0; i < 1000; i++) {
+      await processPortfolioUpdate('user123', mockPortfolioData);
+    }
+    
+    // Force garbage collection
+    if (global.gc) {
+      global.gc();
+    }
+    
+    const finalMemory = process.memoryUsage().heapUsed;
+    const memoryIncrease = finalMemory - initialMemory;
+    
+    expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024); // Less than 50MB increase
+  });
+});
+```
+
+## 5. SECURITY TESTING
+
+### 5.1 Authentication Security Tests
+
+#### 5.1.1 JWT Token Security
+```javascript
+describe('JWT Security', () => {
+  test('rejects invalid tokens', async () => {
+    const response = await request(app)
+      .get('/api/portfolio')
+      .set('Authorization', 'Bearer invalid-token');
+    
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('Invalid token');
+  });
+  
+  test('rejects expired tokens', async () => {
+    const expiredToken = jwt.sign(
+      { userId: 'user123' },
+      process.env.JWT_SECRET,
+      { expiresIn: '-1h' }
+    );
+    
+    const response = await request(app)
+      .get('/api/portfolio')
+      .set('Authorization', `Bearer ${expiredToken}`);
+    
+    expect(response.status).toBe(401);
+  });
+});
+```
+
+#### 5.1.2 API Key Encryption Tests
+```javascript
+describe('API Key Security', () => {
+  test('encrypts and decrypts API keys correctly', async () => {
+    const apiKeyService = new ApiKeyService();
+    const originalKey = 'test-api-key-123';
+    const userSalt = 'user-specific-salt';
+    
+    const encrypted = await apiKeyService.encryptApiKey(originalKey, userSalt);
+    const decrypted = await apiKeyService.decryptApiKey(encrypted, userSalt);
+    
+    expect(decrypted).toBe(originalKey);
+    expect(encrypted.encrypted).not.toBe(originalKey);
+  });
+});
+```
+
+### 5.2 Input Validation Tests
+
+#### 5.2.1 SQL Injection Protection
+```javascript
+describe('SQL Injection Protection', () => {
+  test('prevents SQL injection attacks', async () => {
+    const maliciousInput = "'; DROP TABLE users; --";
+    
+    const response = await request(app)
+      .get('/api/portfolio')
+      .query({ userId: maliciousInput })
+      .set('Authorization', 'Bearer valid-token');
+    
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('Invalid input');
+  });
+});
+```
+
+#### 5.2.2 XSS Protection Tests
+```javascript
+describe('XSS Protection', () => {
+  test('sanitizes user input', async () => {
+    const xssPayload = '<script>alert("xss")</script>';
+    
+    const response = await request(app)
+      .post('/api/portfolio/note')
+      .send({ note: xssPayload })
+      .set('Authorization', 'Bearer valid-token');
+    
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('Invalid input');
+  });
+});
+```
+
+## 6. END-TO-END TESTING
+
+### 6.1 User Journey Tests
+
+#### 6.1.1 Portfolio Management Flow
+```javascript
+describe('Portfolio Management E2E', () => {
+  test('complete portfolio management workflow', async () => {
+    // 1. User login
+    await page.goto('/login');
+    await page.fill('[data-testid="email"]', 'test@example.com');
+    await page.fill('[data-testid="password"]', 'password123');
+    await page.click('[data-testid="login-button"]');
+    
+    // 2. Navigate to portfolio
+    await page.click('[data-testid="portfolio-nav"]');
+    await page.waitForSelector('[data-testid="portfolio-value"]');
+    
+    // 3. Add API key
+    await page.click('[data-testid="add-api-key"]');
+    await page.fill('[data-testid="api-key-input"]', 'test-api-key');
+    await page.click('[data-testid="save-api-key"]');
+    
+    // 4. Sync portfolio
+    await page.click('[data-testid="sync-portfolio"]');
+    await page.waitForSelector('[data-testid="portfolio-holdings"]');
+    
+    // 5. View performance analytics
+    await page.click('[data-testid="performance-tab"]');
+    await page.waitForSelector('[data-testid="performance-metrics"]');
+    
+    // Verify portfolio data is displayed
+    const portfolioValue = await page.textContent('[data-testid="portfolio-value"]');
+    expect(portfolioValue).toContain('$');
+  });
+});
+```
+
+### 6.2 Trading Workflow Tests
+
+#### 6.2.1 Order Placement Flow
+```javascript
+describe('Trading E2E', () => {
+  test('place and monitor trade order', async () => {
+    // Navigate to trading interface
+    await page.goto('/trading');
+    
+    // Place buy order
+    await page.fill('[data-testid="symbol-input"]', 'AAPL');
+    await page.fill('[data-testid="quantity-input"]', '10');
+    await page.fill('[data-testid="price-input"]', '150.00');
+    await page.click('[data-testid="buy-button"]');
+    
+    // Confirm order
+    await page.click('[data-testid="confirm-order"]');
+    
+    // Verify order appears in order history
+    await page.waitForSelector('[data-testid="order-history"]');
+    const orderRow = await page.locator('[data-testid="order-row"]').first();
+    expect(await orderRow.textContent()).toContain('AAPL');
+  });
+});
+```
+
+## 7. AUTOMATED TESTING PIPELINE
+
+### 7.1 CI/CD Integration
+
+#### 7.1.1 GitHub Actions Workflow
+```yaml
+name: Test Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:coverage
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run test:integration
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:e2e
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run test:performance
+```
+
+### 7.2 Test Reporting
+
+#### 7.2.1 Coverage Requirements
+```javascript
+// jest.config.js
+module.exports = {
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  },
+  coverageReporters: ['text', 'lcov', 'html']
+};
+```
+
+## 8. MONITORING AND ALERTING TESTS
+
+### 8.1 Health Check Tests
+
+#### 8.1.1 System Health Monitoring
+```javascript
+describe('Health Checks', () => {
+  test('database health check', async () => {
+    const response = await request(app).get('/health');
+    
+    expect(response.status).toBe(200);
+    expect(response.body.database.status).toBe('healthy');
+    expect(response.body.database.responseTime).toBeLessThan(100);
+  });
+  
+  test('external API health check', async () => {
+    const response = await request(app).get('/health/external');
+    
+    expect(response.status).toBe(200);
+    expect(response.body.alpaca.status).toBe('healthy');
+    expect(response.body.marketData.status).toBe('healthy');
+  });
+});
+```
+
+### 8.2 Performance Monitoring Tests
+
+#### 8.2.1 Metric Collection Verification
+```javascript
+describe('Performance Metrics', () => {
+  test('collects performance metrics', async () => {
+    const metrics = await getPerformanceMetrics();
+    
+    expect(metrics).toHaveProperty('responseTime');
+    expect(metrics).toHaveProperty('throughput');
+    expect(metrics).toHaveProperty('errorRate');
+    expect(metrics.responseTime).toBeLessThan(100);
+  });
+});
+```
+
+## 9. REGRESSION TESTING
+
+### 9.1 Automated Regression Suite
+
+#### 9.1.1 Critical Path Testing
+```javascript
+describe('Regression Tests', () => {
+  test('portfolio sync regression', async () => {
+    // Test all critical portfolio functionality
+    const testCases = [
+      () => testPortfolioSync(),
+      () => testPerformanceCalculation(),
+      () => testRiskAnalysis(),
+      () => testFactorAnalysis()
+    ];
+    
+    for (const testCase of testCases) {
+      await testCase();
+    }
+  });
+});
+```
+
+## 10. TEST DATA MANAGEMENT
+
+### 10.1 Test Data Strategy
+
+#### 10.1.1 Test Data Generation
+```javascript
+// Test data factory
+class TestDataFactory {
+  static createPortfolio(overrides = {}) {
+    return {
+      userId: 'test-user-123',
+      totalValue: 100000,
+      totalPnL: 5000,
+      holdings: [
+        { symbol: 'AAPL', quantity: 10, avgCost: 150, marketValue: 1500 },
+        { symbol: 'GOOGL', quantity: 5, avgCost: 2800, marketValue: 14000 }
+      ],
+      ...overrides
+    };
+  }
+  
+  static createMarketData(symbol, overrides = {}) {
+    return {
+      symbol,
+      price: 150.00,
+      bid: 149.95,
+      ask: 150.05,
+      volume: 1000000,
+      timestamp: Date.now(),
+      ...overrides
+    };
+  }
+}
+```
+
+### 10.2 Database Test Fixtures
+
+#### 10.2.1 Test Database Setup
+```javascript
+// Database test setup
+const setupTestDatabase = async () => {
+  // Create test database
+  await db.query('CREATE DATABASE test_stocks');
+  
+  // Run migrations
+  await runMigrations(testDb);
+  
+  // Insert test data
+  await testDb.query(`
+    INSERT INTO users (id, email, created_at) 
+    VALUES ('test-user-123', 'test@example.com', NOW())
+  `);
+  
+  await testDb.query(`
+    INSERT INTO portfolio_holdings (user_id, symbol, quantity, avg_cost, market_value)
+    VALUES ('test-user-123', 'AAPL', 10, 150.00, 1500.00)
+  `);
+};
+```
+
+## 11. TEST EXECUTION SCHEDULE
+
+### 11.1 Test Execution Matrix
+
+| Test Type | Frequency | Trigger | Duration | Coverage |
+|-----------|-----------|---------|----------|----------|
+| Unit Tests | Every commit | Git push | 2-5 min | 80%+ |
+| Integration Tests | Every PR | PR creation | 5-10 min | Critical paths |
+| E2E Tests | Daily | Scheduled | 15-30 min | User journeys |
+| Performance Tests | Weekly | Scheduled | 30-60 min | Load/stress |
+| Security Tests | Weekly | Scheduled | 10-20 min | OWASP Top 10 |
+| Regression Tests | Before release | Manual trigger | 60-120 min | Full suite |
+
+### 11.2 Test Environment Management
+
+#### 11.2.1 Environment Provisioning
+```bash
+# Automated test environment setup
+#!/bin/bash
+echo "Setting up test environment..."
+
+# Deploy test infrastructure
+aws cloudformation deploy \
+  --template-file template-test-env.yml \
+  --stack-name stocks-test-env \
+  --capabilities CAPABILITY_IAM
+
+# Run database migrations
+npm run db:migrate:test
+
+# Seed test data
+npm run db:seed:test
+
+# Start test services
+npm run test:services:start
+
+echo "Test environment ready"
+```
+
+## 12. QUALITY GATES
+
+### 12.1 Release Criteria
+
+#### 12.1.1 Quality Metrics
+```javascript
+const qualityGates = {
+  unitTests: {
+    coverage: 80,
+    passingRate: 100
+  },
+  integrationTests: {
+    passingRate: 100,
+    performance: {
+      responseTime: 100, // ms
+      throughput: 1000   // requests/second
+    }
+  },
+  e2eTests: {
+    passingRate: 95,
+    criticalPath: 100
+  },
+  securityTests: {
+    vulnerabilities: 0,
+    passingRate: 100
+  }
+};
+```
+
+### 12.2 Continuous Quality Monitoring
+
+#### 12.2.1 Quality Dashboard
+```javascript
+// Quality metrics collection
+const collectQualityMetrics = async () => {
+  return {
+    testResults: await getTestResults(),
+    coverage: await getCoverageReport(),
+    performance: await getPerformanceMetrics(),
+    security: await getSecurityScan(),
+    codeQuality: await getCodeQualityMetrics()
+  };
+};
+```
+
+---
+
+*This test plan ensures comprehensive coverage of all system components and provides a framework for maintaining high quality throughout the development lifecycle. All tests should be executed according to this plan to ensure system reliability and performance.*

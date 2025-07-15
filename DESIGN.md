@@ -1,5 +1,5 @@
 # Financial Trading Platform - System Design Document
-*Version 1.2 | Updated 2025-07-15 | Comprehensive Solution Audit Complete*
+*Version 1.3 | Updated 2025-07-15 | Advanced Analytics & High-Performance Systems Complete*
 
 ## 1. SYSTEM OVERVIEW
 
@@ -15,6 +15,9 @@ The Financial Trading Platform employs a cloud-native, microservices architectur
 - **Mock Data Elimination & Live Data Integration**: Completely eliminated all fallback mock data, replaced with institutional-grade error handling and live API integration
 - **Advanced Portfolio Features**: Added comprehensive factor exposures, style analysis, and risk metrics
 - **Trading Strategy Engine**: Implemented complete automated trading strategy execution system with momentum, mean reversion, breakout, and pattern recognition strategies
+- **Real-Time Data Pipeline**: High-frequency data buffering and batch processing with priority queuing, circuit breakers, and adaptive performance optimization
+- **Advanced Performance Analytics**: Comprehensive institutional-grade performance metrics with 30+ calculations including VaR, Sharpe ratio, attribution analysis
+- **Risk Management System**: Complete position sizing, portfolio optimization, and risk assessment framework
 
 ### 1.2 Core Design Principles
 - **Security First**: All design decisions prioritize security
@@ -136,6 +139,10 @@ webapp/lambda/
 │   ├── alpacaService.js       # Broker API integration
 │   └── responseFormatter.js   # Standardized responses
 └── services/                   # Business logic services
+    ├── realtimeDataPipeline.js    # High-frequency data processing
+    ├── advancedPerformanceAnalytics.js # Performance metrics calculation
+    ├── riskManager.js             # Risk assessment and management
+    └── tradingStrategyEngine.js   # Strategy execution engine
 ```
 
 ### 2.3 Data Layer
@@ -377,9 +384,134 @@ class ApiKeyService {
 - Risk-based order approval system for trading operations
 - Sanitized logging to prevent sensitive data exposure
 
-### 2.7 Real-Time Data Architecture (Redesigned)
+### 2.7 Advanced Performance Analytics System
 
-#### 2.7.1 Authenticated WebSocket Proxy Pattern
+#### 2.7.1 Performance Metrics Engine
+```javascript
+class AdvancedPerformanceAnalytics {
+  async calculatePortfolioPerformance(userId, startDate, endDate) {
+    return {
+      baseMetrics: {
+        totalReturn: number,
+        annualizedReturn: number,
+        compoundAnnualGrowthRate: number,
+        averageDailyReturn: number
+      },
+      riskMetrics: {
+        volatility: number,
+        maxDrawdown: number,
+        valueAtRisk: number,
+        expectedShortfall: number,
+        sharpeRatio: number,
+        calmarRatio: number
+      },
+      attributionAnalysis: {
+        securityAttribution: Array,
+        sectorAttribution: Array,
+        factorAttribution: Object
+      },
+      factorExposure: {
+        size: number,
+        value: number,
+        momentum: number,
+        quality: number
+      }
+    };
+  }
+}
+```
+
+**Key Features:**
+- 30+ institutional-grade performance metrics
+- Risk assessment with VaR and expected shortfall
+- Performance attribution by security and sector
+- Factor exposure analysis (size, value, momentum, quality)
+- Benchmark comparison and alpha generation
+- Comprehensive reporting with automated recommendations
+
+#### 2.7.2 Risk Management Framework
+```javascript
+class RiskManager {
+  calculatePositionSize(symbol, portfolioValue, riskLevel, volatility) {
+    // Kelly Criterion-based position sizing
+    const kellyFraction = this.calculateKellyFraction(symbol);
+    const volatilityAdjustment = this.calculateVolatilityAdjustment(volatility);
+    const correlationAdjustment = this.calculateCorrelationAdjustment(symbol);
+    
+    return {
+      recommendedSize: number,
+      maxSize: number,
+      reasoning: string,
+      riskScore: number
+    };
+  }
+
+  assessPortfolioRisk(positions) {
+    return {
+      concentrationRisk: this.calculateConcentrationRisk(positions),
+      sectorRisk: this.calculateSectorRisk(positions),
+      correlationRisk: this.calculateCorrelationRisk(positions),
+      overallRiskScore: number,
+      recommendations: Array
+    };
+  }
+}
+```
+
+**Risk Management Features:**
+- Kelly Criterion-based position sizing
+- Dynamic stop-loss calculation with volatility adjustment
+- Portfolio concentration and correlation analysis
+- Sector and geographic diversification monitoring
+- Real-time risk scoring and recommendations
+
+### 2.8 Real-Time Data Architecture (High-Performance)
+
+#### 2.8.1 High-Frequency Data Pipeline
+```javascript
+class RealtimeDataPipeline {
+  constructor(options) {
+    this.options = {
+      bufferSize: 2000,
+      flushInterval: 100,      // Ultra-low latency
+      maxConcurrentFlushes: 5,
+      adaptiveBuffering: true,
+      priorityQueuing: true,
+      circuitBreakerEnabled: true
+    };
+    
+    // Priority-based data buffers
+    this.priorityQueues = {
+      critical: [],  // Time-sensitive data (quotes, trades)
+      high: [],      // Important data (bars, orderbook)
+      normal: [],    // Regular data (news, alerts)
+      low: []        // Background data (sentiment, research)
+    };
+  }
+
+  processIncomingData(dataType, data) {
+    const priority = this.getDataPriority(dataType);
+    
+    // Route to appropriate buffer with priority
+    this.bufferDataWithPriority(data, priority);
+    
+    // Trigger immediate flush for critical data
+    if (priority === 'critical' && this.shouldFlushBuffers()) {
+      this.triggerImmediateFlush();
+    }
+  }
+}
+```
+
+**High-Performance Features:**
+- Priority-based data processing with critical/high/normal/low queues
+- Adaptive buffer management based on current load
+- Circuit breaker pattern for overload protection
+- Concurrent batch processing with configurable limits
+- Memory pool optimization for reduced garbage collection
+- Performance metrics with P95/P99 latency tracking
+
+#### 2.8.2 Authenticated WebSocket Proxy Pattern
 ```javascript
 // Backend WebSocket proxy for authenticated external API access
 class AlpacaWebSocketProxy {

@@ -108,12 +108,19 @@
 - **API Integration**: Detailed logging for external service calls with timeout and retry information
 - **CloudWatch Integration**: Use CloudWatch for AWS service monitoring
 
-## Task Management
-- Maintain active todo lists consistently
-- Update todos as work completes
-- Track lingering items and potential improvements
-- Mark items that aren't fully complete
-- Focus on data loaders and website functionality first
+## Task Management & Documentation Synchronization
+- **Primary Task Source**: Use `claude-todo.md` as the master todo list for all development priorities
+- **Documentation Sync**: Regularly review and update all 4 core documents:
+  - `REQUIREMENTS.md` - Project requirements and completion status
+  - `DESIGN.md` - System architecture and technical design
+  - `ENVIRONMENT_SETUP.md` - Environment configuration and deployment
+  - `TEST_PLAN.md` - Comprehensive testing strategy and execution
+- **Sync Frequency**: Update all documentation after major feature completions or system changes
+- **Cross-Reference**: Use the 4 core documents to validate and update all other project documentation
+- **Project Coherence**: Ensure all docs, code, and todos remain synchronized and represent current system state
+- **Next Task Selection**: When determining what to build next, prioritize based on `claude-todo.md` priority levels
+- **Progress Tracking**: Mark todos as complete in both claude-todo.md and internal todo system
+- **Documentation Updates**: After completing major features, update relevant sections in all 4 docs
 
 ## Infrastructure Utilities
 ### Core Services

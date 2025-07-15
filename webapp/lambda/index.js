@@ -653,8 +653,7 @@ if (!isProduction) {
   app.use(morgan('combined'));
 }
 
-// Global database initialization promise
-let dbInitPromise = null;
+// Global database initialization promise (already declared above)
 let dbAvailable = false;
 let tableAvailability = {}; // Track which tables are available
 
