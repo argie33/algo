@@ -9,6 +9,8 @@ This script loads comprehensive technical analysis indicators including:
 - Volume indicators (OBV, Volume Profile)
 - Trend indicators (ADX, Parabolic SAR)
 
+Updated: 2025-07-15 - Enhanced for deployment workflow trigger
+
 Data Sources:
 - Primary: yfinance for OHLCV data
 - Calculated: Technical indicators using TA-Lib and custom algorithms

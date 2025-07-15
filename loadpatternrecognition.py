@@ -2,6 +2,7 @@
 """
 Pattern Recognition Loader
 ECS Task for automated pattern recognition scanning
+Updated: 2025-07-15 - Enhanced for deployment workflow trigger
 
 This script is designed to run as an ECS task and can be scheduled via:
 - Step Functions orchestration
