@@ -24,6 +24,15 @@ Test Environments:
 └── production/         # Live production monitoring
 ```
 
+### 1.4 Current Testing Issues (2025-07-15)
+Critical issues discovered during testing:
+- **CORS Policy Failures**: Cross-origin requests blocked in production
+- **API Gateway 502 Errors**: Bad Gateway responses on credential endpoints
+- **WebSocket Authentication**: JWT token integration incomplete
+- **Missing API Endpoints**: /api/stocks/sectors returning 404 errors
+- **Parameter Misalignment**: Frontend-backend parameter inconsistencies (RESOLVED)
+- **Chart Component Failures**: React rendering errors with invalid data (RESOLVED)
+
 ## 2. UNIT TESTING
 
 ### 2.1 Frontend Unit Tests (React)

@@ -40,6 +40,14 @@ Recent additions include advanced analytics and real-time data processing:
 - **Risk Management System**: Complete position sizing, correlation analysis, and portfolio optimization
 - **Trading Strategy Engine**: Automated strategy execution with multiple algorithm types
 
+### Current Infrastructure Issues (2025-07-15)
+Critical issues requiring immediate attention:
+- **CORS Configuration**: Cross-origin requests being blocked by CORS policy
+- **API Gateway 502 Errors**: Bad Gateway responses on API key credential endpoints
+- **WebSocket Authentication**: JWT token integration for real-time connections in progress
+- **Missing Endpoints**: /api/stocks/sectors endpoint returning 404 errors
+- **Parameter Alignment**: Frontend-backend parameter mismatches (period vs timeframe) - RESOLVED
+
 ## Deployment Order
 
 ### 1. Core Infrastructure Stack

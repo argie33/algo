@@ -120,6 +120,19 @@ const AppContext = {
 - Input validation and sanitization
 - **WebSocket Authentication**: JWT token integration for real-time connections (IMPLEMENTATION IN PROGRESS)
 
+**Current Infrastructure Issues (2025-07-15):**
+- 🚨 **CRITICAL**: Multi-user API key architecture flaw - using Lambda env vars instead of per-user database retrieval
+- ⚠️ CORS policy blocking cross-origin API requests
+- ⚠️ 502 Bad Gateway errors on API key credential endpoints
+- ⚠️ Missing /api/stocks/sectors endpoint causing 404 errors
+- ⚠️ Frontend-backend parameter misalignment (period vs timeframe) - RESOLVED
+
+**Architecture Requirements:**
+- Each user has their own encrypted API keys in `user_api_keys` table
+- Runtime dynamic retrieval of user-specific API keys based on authenticated user context
+- No hardcoded API keys in Lambda environment variables
+- User data isolation and security through per-user API key management
+
 #### 2.2.2 Lambda Function Architecture
 ```
 webapp/lambda/
