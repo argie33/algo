@@ -1,0 +1,156 @@
+name: Deploy ECS Tasks with Docker Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_name:
+        description: 'ECS task to run (e.g., technicalsdaily, pricedaily, etc.)'
+        required: true
+        type: choice
+        options:
+          - technicalsdaily
+          - pricedaily
+          - buysell
+          - stocksymbols
+          - earningsmetrics
+  push:
+    branches: [loaddata]
+    paths: 
+      - 'Dockerfile.*'
+      - 'load*.py'
+      - 'requirements-*.txt'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: stocks-app-registry
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Determine task to build
+      id: determine-task
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          TASK_NAME="${{ github.event.inputs.task_name }}"
+        else
+          # Auto-detect changed Dockerfiles
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          TASK_NAME=$(echo "$CHANGED_FILES" | grep "^Dockerfile\." | head -1 | sed 's/Dockerfile\.//')
+          if [ -z "$TASK_NAME" ]; then
+            TASK_NAME="technicalsdaily"  # Default
+          fi
+        fi
+        echo "task_name=$TASK_NAME" >> $GITHUB_OUTPUT
+        echo "Building task: $TASK_NAME"
+        
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      
+    - name: Build and push Docker image
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        TASK_NAME: ${{ steps.determine-task.outputs.task_name }}
+        IMAGE_TAG: ${{ steps.determine-task.outputs.task_name }}-${{ github.sha }}
+      run: |
+        # Check if Dockerfile exists
+        if [ ! -f "Dockerfile.$TASK_NAME" ]; then
+          echo "Error: Dockerfile.$TASK_NAME not found"
+          exit 1
+        fi
+        
+        # Check if requirements file exists
+        if [ ! -f "requirements-load$TASK_NAME.txt" ]; then
+          echo "Warning: requirements-load$TASK_NAME.txt not found, using default"
+        fi
+        
+        # Build image
+        docker build -f Dockerfile.$TASK_NAME -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        
+        # Push image
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        
+        # Also tag as latest for this task
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$TASK_NAME-latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$TASK_NAME-latest
+        
+        echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        
+    - name: Run ECS task
+      env:
+        TASK_NAME: ${{ steps.determine-task.outputs.task_name }}
+        IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
+      run: |
+        # Get ECS cluster
+        CLUSTER_NAME="stocks-cluster"
+        
+        # Get or create task definition
+        TASK_DEF_NAME="${TASK_NAME}-loader"
+        
+        # Check if task definition exists
+        if aws ecs describe-task-definition --task-definition $TASK_DEF_NAME &>/dev/null; then
+          echo "Using existing task definition: $TASK_DEF_NAME"
+        else
+          echo "Task definition $TASK_DEF_NAME not found"
+          echo "You may need to deploy CloudFormation template first"
+          exit 1
+        fi
+        
+        # Run the task
+        echo "Running ECS task: $TASK_DEF_NAME"
+        TASK_ARN=$(aws ecs run-task \
+          --cluster $CLUSTER_NAME \
+          --task-definition $TASK_DEF_NAME \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[subnet-0142dc004c9fc3e0c],securityGroups=[sg-0123456789abcdef0],assignPublicIp=ENABLED}" \
+          --overrides "{\"containerOverrides\":[{\"name\":\"${TASK_NAME}-loader\",\"image\":\"${IMAGE_URI}\"}]}" \
+          --query 'tasks[0].taskArn' --output text)
+        
+        echo "Task started: $TASK_ARN"
+        
+        # Wait for task completion (with timeout)
+        echo "Waiting for task completion..."
+        aws ecs wait tasks-stopped --cluster $CLUSTER_NAME --tasks $TASK_ARN --timeout 1800
+        
+        # Get task status
+        TASK_STATUS=$(aws ecs describe-tasks --cluster $CLUSTER_NAME --tasks $TASK_ARN --query 'tasks[0].lastStatus' --output text)
+        EXIT_CODE=$(aws ecs describe-tasks --cluster $CLUSTER_NAME --tasks $TASK_ARN --query 'tasks[0].containers[0].exitCode' --output text)
+        
+        echo "Task Status: $TASK_STATUS"
+        echo "Exit Code: $EXIT_CODE"
+        
+        if [ "$EXIT_CODE" != "0" ] && [ "$EXIT_CODE" != "None" ]; then
+          echo "Task failed with exit code: $EXIT_CODE"
+          # Get logs for debugging
+          aws logs filter-log-events --log-group-name "/ecs/${TASK_NAME}-loader" --start-time $(date -d '1 hour ago' +%s)000 || true
+          exit 1
+        fi
+        
+        echo "✅ Task completed successfully!"
+        
+    - name: Cleanup old images (optional)
+      run: |
+        # Keep only the 5 most recent images for each task
+        TASK_NAME="${{ steps.determine-task.outputs.task_name }}"
+        aws ecr list-images --repository-name $ECR_REPOSITORY --filter tagStatus=TAGGED \
+          --query "imageIds[?starts_with(imageTag, '${TASK_NAME}-')].imageTag" --output text | \
+          tr '\t' '\n' | sort -r | tail -n +6 | \
+          xargs -r -I {} aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageTag={} || true
