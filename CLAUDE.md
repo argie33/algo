@@ -115,41 +115,40 @@
 5. Advanced trading strategy integration
 6. Performance monitoring and alerting
 
-## 4 Core Documentation System - CRITICAL
-The project is driven by 4 core documents that must be continuously updated and reviewed:
+## 3 Core Documentation System - CRITICAL
+The project is driven by 3 core documents that must be continuously updated and reviewed:
 
-### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Blueprint
-- **Purpose**: Comprehensive technical blueprint for building institutional-grade financial analysis platform
-- **Usage**: Reference for all technical decisions, scoring algorithms, and system architecture
-- **Update When**: New features planned, architecture changes, or technical requirements evolve
+### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Comprehensive Technical Solution
+- **Purpose**: Complete technical blueprint and system architecture for institutional-grade financial analysis platform
+- **Content**: System architecture, technology stack, core components, data architecture, security framework, deployment strategy, business model
+- **Usage**: Primary reference for all technical decisions, system design, and implementation details
+- **Update When**: New features planned, architecture changes, technical requirements evolve, or system improvements implemented
 
-### 2. **TEST_PLAN.md** - Testing Strategy
-- **Purpose**: Comprehensive testing framework for all system components
-- **Usage**: Guide for test implementation, quality assurance, and system validation
-- **Update When**: New features added, bugs discovered, or testing requirements change
+### 2. **TEST_PLAN.md** - Testing Strategy & Test-Driven Development
+- **Purpose**: Comprehensive testing framework for all system components with test-driven development approach
+- **Content**: Testing methodologies, test coverage requirements, automated testing pipelines, quality assurance processes
+- **Usage**: Guide for test implementation before feature development, quality assurance, and system validation
+- **Update When**: New features added, bugs discovered, testing requirements change, or new testing approaches adopted
+- **CRITICAL**: All new features must have associated test cases defined in TEST_PLAN.md before implementation begins
 
-### 3. **DESIGN.md** - System Design Document
-- **Purpose**: Advanced technical architecture and implementation details
-- **Usage**: Reference for system design decisions, performance optimizations, and scalability patterns
-- **Update When**: Architecture changes, performance improvements, or new system components added
-
-### 4. **claude-todo.md** - Task Management System
+### 3. **claude-todo.md** - Task Management System
 - **Purpose**: Centralized task tracking and todo management via TodoRead/TodoWrite tools
-- **Usage**: Primary source for current work priorities, task status, and session continuity
-- **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously
+- **Content**: Current work priorities, task status, implementation details, and session continuity
+- **Usage**: Primary source for current work priorities and task execution order
+- **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously throughout development
 - **CRITICAL**: This is the ONLY todo system - never create new task documents
 
 ### Documentation Workflow - CRITICAL PROCESS
-1. **Analyze the 3 content documents** (FINANCIAL_PLATFORM_BLUEPRINT.md, TEST_PLAN.md, DESIGN.md)
-2. **Determine remaining work** from gaps, issues, and requirements in those 3 documents
+1. **Analyze the 2 content documents** (FINANCIAL_PLATFORM_BLUEPRINT.md, TEST_PLAN.md)
+2. **Determine remaining work** from gaps, issues, and requirements in those 2 documents
 3. **Populate claude-todo.md** with prioritized list of work items from the analysis
 4. **Always refer to claude-todo.md** when determining next items to work on
-5. **Update the 3 content documents** as work progresses to reflect current state
+5. **Update the 2 content documents** as work progresses to reflect current state
 
 ### Documentation Management Commands
-- **Read All 4 Docs**: Start each session by reviewing all 4 documents
-- **Analyze → Prioritize → Execute**: Iterate through the 3 content docs to determine work, add to todos, then execute from todos
-- **Sync Requirements**: Ensure all 4 docs align with current system state
+- **Read All 3 Docs**: Start each session by reviewing all 3 documents
+- **Analyze → Prioritize → Execute**: Iterate through the 2 content docs to determine work, add to todos, then execute from todos
+- **Sync Requirements**: Ensure all 3 docs align with current system state
 - **Reference First**: Always check claude-todo.md before starting new work
 
 ## Task Management - CRITICAL WORKFLOW
@@ -160,6 +159,82 @@ The project is driven by 4 core documents that must be continuously updated and 
 - **Never forget**: If you start creating new analyses instead of using todos, STOP and use TodoRead/TodoWrite
 - Track lingering items and potential improvements via todo system
 - Focus on infrastructure stability and website functionality first
+
+## Test-Driven Development (TDD) - MANDATORY APPROACH
+**CRITICAL RULE**: All new features MUST follow test-driven development methodology.
+
+### TDD Workflow Requirements
+1. **Test First**: Before implementing any new feature, write tests in TEST_PLAN.md
+2. **Test Definition**: Define test cases, expected behaviors, edge cases, and validation criteria
+3. **Implementation**: Only after tests are defined, implement the feature to pass the tests
+4. **Validation**: Run tests to ensure feature works as expected
+5. **Refactor**: Improve code quality while maintaining test compliance
+
+### Test Coverage Requirements
+- **Unit Tests**: Individual function and component testing
+- **Integration Tests**: API endpoint and service integration testing
+- **End-to-End Tests**: Complete user workflow testing
+- **Performance Tests**: Load testing and response time validation
+- **Security Tests**: Authentication, authorization, and input validation testing
+
+### Test Documentation in TEST_PLAN.md
+- Each new feature must have corresponding test section in TEST_PLAN.md
+- Test cases must be detailed with input data, expected output, and validation steps
+- Performance benchmarks and acceptance criteria must be defined
+- Error handling and edge case testing must be specified
+
+## Comprehensive Logging Strategy - TROUBLESHOOTING CRITICAL
+**MANDATORY**: Implement thorough logging for all system components to enable effective troubleshooting.
+
+### Logging Requirements for All Development
+1. **Structured Logging**: Use JSON format with correlation IDs for all log entries
+2. **Log Levels**: Implement DEBUG, INFO, WARN, ERROR, FATAL with proper classification
+3. **Context Data**: Include user ID, request path, parameters, timing information
+4. **Error Details**: Full stack traces for all errors with contextual information
+5. **Performance Tracking**: Log all external API calls, database queries, and operation durations
+
+### When to Log - CRITICAL SITUATIONS
+- **Database Operations**: All queries, connection events, transaction boundaries, and performance metrics
+- **API Calls**: All external service calls with request/response data, timing, and error details
+- **Authentication**: Login attempts, token validation, permission checks, and security events
+- **User Actions**: All user-initiated operations with user context and operation results
+- **System Events**: Application startup, shutdown, configuration changes, and health checks
+- **Error Conditions**: ALL errors with full context, stack traces, and recovery actions taken
+
+### Troubleshooting Focus Areas
+- **Connection Issues**: Network connectivity, timeout configurations, retry logic effectiveness
+- **Performance Problems**: Query performance, memory usage, response times, bottlenecks
+- **Data Issues**: Data validation failures, inconsistencies, corruption detection
+- **Authentication Failures**: Token validation, permission denials, session management
+- **Integration Problems**: External API failures, data format mismatches, service dependencies
+
+### Logging Standards Implementation
+```javascript
+// Example structured logging format
+const logEntry = {
+  timestamp: new Date().toISOString(),
+  level: 'INFO',
+  message: 'Database connection established',
+  correlationId: 'req-12345',
+  service: 'financial-platform',
+  component: 'database',
+  operation: 'connect',
+  userId: 'user-67890',
+  duration_ms: 1250,
+  context: {
+    host: 'stocks.amazonaws.com',
+    database: 'stocks',
+    connectionAttempt: 1
+  }
+};
+```
+
+### Error Logging Requirements
+- **Error Context**: Include operation being performed, user context, system state
+- **Recovery Actions**: Log all retry attempts, fallback mechanisms, and recovery strategies
+- **Impact Assessment**: Log severity level and potential user impact
+- **Correlation**: Use correlation IDs to track related events across services
+- **Actionable Information**: Include specific steps needed to resolve the issue
 
 ## Data Loading & Deployment Workflow - EFFICIENT TESTING
 - **Trigger Multiple Loaders**: When testing data loading, trigger multiple scripts to populate different pages

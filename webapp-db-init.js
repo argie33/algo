@@ -42,9 +42,12 @@ async function getDbCredentials() {
                 require: true,
                 rejectUnauthorized: false
             },
-            connectionTimeoutMillis: 60000,
-            query_timeout: 120000,
-            statement_timeout: 120000
+            connectionTimeoutMillis: 30000, // Reduced from 60s to 30s
+            query_timeout: 60000, // Reduced from 120s to 60s
+            statement_timeout: 60000, // Reduced from 120s to 60s
+            idle_in_transaction_session_timeout: 30000, // Add to prevent hanging transactions
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000
         };
     } catch (error) {
         log('error', 'Failed to get database credentials:', error.message);
@@ -997,8 +1000,87 @@ ON CONFLICT (table_name) DO NOTHING;
 `;
 }
 
+async function connectWithRetry(dbConfig, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        log('info', `🔄 Connection attempt ${attempt}/${maxRetries}`);
+        
+        const client = new Client(dbConfig);
+        
+        try {
+            // Set up connection timeout
+            const connectPromise = client.connect();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000);
+            });
+            
+            await Promise.race([connectPromise, timeoutPromise]);
+            log('info', '✅ Database connection successful');
+            
+            // Test the connection with a simple query
+            await client.query('SELECT 1 as test');
+            log('info', '✅ Database connectivity test passed');
+            
+            return client;
+        } catch (error) {
+            log('error', `❌ Connection attempt ${attempt} failed:`, error.message);
+            
+            try {
+                await client.end();
+            } catch (closeError) {
+                // Ignore close errors on failed connections
+            }
+            
+            if (attempt === maxRetries) {
+                throw new Error(`Failed to connect after ${maxRetries} attempts. Last error: ${error.message}`);
+            }
+            
+            // Exponential backoff: wait 2^attempt seconds
+            const waitTime = Math.pow(2, attempt) * 1000;
+            log('info', `⏳ Waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+    }
+}
+
+async function testNetworkConnectivity(host, port) {
+    log('info', '🌐 Testing network connectivity...');
+    
+    try {
+        // Basic DNS resolution test
+        const dns = require('dns').promises;
+        const addresses = await dns.lookup(host);
+        log('info', `✅ DNS resolution successful: ${host} -> ${addresses.address}`);
+        
+        // Test if we can reach the port (basic TCP test)
+        const net = require('net');
+        return new Promise((resolve, reject) => {
+            const socket = new net.Socket();
+            const timeout = setTimeout(() => {
+                socket.destroy();
+                reject(new Error(`Network timeout: Cannot reach ${host}:${port}`));
+            }, 10000);
+            
+            socket.connect(port, host, () => {
+                clearTimeout(timeout);
+                socket.destroy();
+                log('info', `✅ Network connectivity test passed: ${host}:${port}`);
+                resolve(true);
+            });
+            
+            socket.on('error', (error) => {
+                clearTimeout(timeout);
+                socket.destroy();
+                reject(new Error(`Network connectivity failed: ${error.message}`));
+            });
+        });
+    } catch (error) {
+        log('error', `❌ Network connectivity test failed: ${error.message}`);
+        throw error;
+    }
+}
+
 async function initializeWebappDatabase() {
-    log('info', '🚀 Starting webapp database initialization v1.2');
+    log('info', '🚀 Starting webapp database initialization v1.3');
     log('info', `Environment: ${process.env.ENVIRONMENT || 'unknown'}`);
     log('info', `AWS Region: ${process.env.AWS_REGION || 'unknown'}`);
     log('info', `DB Secret ARN: ${process.env.DB_SECRET_ARN ? 'set' : 'NOT SET'}`);
@@ -1008,12 +1090,13 @@ async function initializeWebappDatabase() {
     try {
         // Get database credentials
         const dbConfig = await getDbCredentials();
+        log('info', `Target database: ${dbConfig.host}:${dbConfig.port} (database: ${dbConfig.database})`);
         
-        // Connect to database
-        log('info', `Connecting to database at ${dbConfig.host}:${dbConfig.port} (database: ${dbConfig.database})`);
-        client = new Client(dbConfig);
-        await client.connect();
-        log('info', '✅ Database connection successful');
+        // Test network connectivity first
+        await testNetworkConnectivity(dbConfig.host, dbConfig.port);
+        
+        // Connect to database with retry logic
+        client = await connectWithRetry(dbConfig, 3);
         
         // Check existing tables
         const beforeStatus = await checkTablesExist(client);
