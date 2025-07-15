@@ -627,6 +627,27 @@ CREATE TABLE IF NOT EXISTS health_status (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create Performance Metrics table for real-time monitoring
+CREATE TABLE IF NOT EXISTS performance_metrics (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    uptime BIGINT NOT NULL,
+    active_requests INTEGER NOT NULL DEFAULT 0,
+    total_requests BIGINT NOT NULL DEFAULT 0,
+    total_errors BIGINT NOT NULL DEFAULT 0,
+    error_rate REAL NOT NULL DEFAULT 0,
+    avg_response_time REAL NOT NULL DEFAULT 0,
+    memory_used BIGINT NOT NULL DEFAULT 0,
+    memory_total BIGINT NOT NULL DEFAULT 0,
+    metrics_data JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for performance metrics
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_timestamp ON performance_metrics(timestamp);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_error_rate ON performance_metrics(error_rate);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_response_time ON performance_metrics(avg_response_time);
+
 -- ================================
 -- STOCK SYMBOL AND COMPANY DATA TABLES
 -- ================================

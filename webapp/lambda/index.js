@@ -113,6 +113,7 @@ poolManagementRoutes = safeRequire('./routes/pool-management', 'Pool Management'
 tradingStrategiesRoutes = safeRequire('./routes/trading-strategies', 'Trading Strategies');
 riskManagementRoutes = safeRequire('./routes/risk-management', 'Risk Management');
 performanceAnalyticsRoutes = safeRequire('./routes/performance-analytics', 'Performance Analytics');
+const performanceRoutes = safeRequire('./routes/performance', 'Performance Monitoring');
 console.log('✅ Route loading completed');
 
 // Validate environment variables
@@ -618,6 +619,10 @@ app.use(responseFormatterMiddleware);
 // Enhanced request logging middleware - provides structured logging with correlation IDs
 app.use(requestLoggingMiddleware);
 
+// Performance monitoring middleware - tracks all requests
+const { performanceMonitoringMiddleware } = require('./middleware/performanceMonitoring');
+app.use(performanceMonitoringMiddleware);
+
 // Security validation middleware - ENABLED for production security
 app.use(requestSizeLimit('2mb'));
 app.use(sqlInjectionPrevention);
@@ -838,6 +843,7 @@ app.use('/api/pool', poolManagementRoutes);
 app.use('/api/trading-strategies', tradingStrategiesRoutes);
 app.use('/api/risk-management', riskManagementRoutes);
 app.use('/api/performance-analytics', performanceAnalyticsRoutes);
+app.use('/api/performance', performanceRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {

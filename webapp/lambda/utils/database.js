@@ -525,6 +525,17 @@ async function query(text, params = [], timeoutMs = null) {
         console.log(`✅ [${queryId}] Query completed in ${queryDuration}ms (total: ${totalDuration}ms)`);
         console.log(`✅ [${queryId}] Rows returned: ${result.rows?.length || 0}`);
         
+        // Track performance metrics
+        try {
+            const { performanceMonitor } = require('./performanceMonitor');
+            const operation = text.trim().split(' ')[0].toUpperCase();
+            const table = extractTableName(text);
+            performanceMonitor.trackDbOperation(operation, table, queryDuration, true, queryId);
+        } catch (perfError) {
+            // Don't fail the query if performance monitoring fails
+            console.warn('Performance monitoring failed:', perfError.message);
+        }
+        
         return result;
         
     } catch (error) {
@@ -548,6 +559,16 @@ async function query(text, params = [], timeoutMs = null) {
         
         // Update pool metrics for connection errors
         updatePoolMetrics('error');
+        
+        // Track performance metrics for failed queries
+        try {
+            const { performanceMonitor } = require('./performanceMonitor');
+            const operation = text.trim().split(' ')[0].toUpperCase();
+            const table = extractTableName(text);
+            performanceMonitor.trackDbOperation(operation, table, errorDuration, false, queryId);
+        } catch (perfError) {
+            console.warn('Performance monitoring failed:', perfError.message);
+        }
         
         throw error;
     }
@@ -1039,6 +1060,38 @@ async function initForLambda() {
     }
 }
 
+/**
+ * Extract table name from SQL query for performance tracking
+ */
+function extractTableName(sql) {
+    try {
+        const cleanSql = sql.trim().toLowerCase();
+        
+        // Match common SQL patterns
+        const patterns = [
+            /^insert\s+into\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^update\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^delete\s+from\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^select\s+.*?\s+from\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^create\s+table\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^drop\s+table\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^truncate\s+table\s+([a-zA-Z_][a-zA-Z0-9_]*)/,
+            /^alter\s+table\s+([a-zA-Z_][a-zA-Z0-9_]*)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = cleanSql.match(pattern);
+            if (match) {
+                return match[1];
+            }
+        }
+        
+        return 'unknown';
+    } catch (error) {
+        return 'unknown';
+    }
+}
+
 module.exports = {
     initializeDatabase,
     initForLambda,
@@ -1053,5 +1106,6 @@ module.exports = {
     transaction,
     closeDatabase,
     healthCheck,
-    REQUIRED_SCHEMA
+    REQUIRED_SCHEMA,
+    extractTableName
 };
