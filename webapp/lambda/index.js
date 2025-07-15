@@ -918,7 +918,6 @@ module.exports.handler = serverless(app, {
 module.exports.app = app;
 
 // Export serverless handler for Lambda
-const serverless = require('serverless-http');
 module.exports.handler = serverless(app);
 
 // For local testing
