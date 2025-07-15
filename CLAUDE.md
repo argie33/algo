@@ -71,42 +71,42 @@
 4. Advanced trading strategy integration
 5. Performance monitoring and alerting
 
-## 5 Core Documentation System - CRITICAL
-The project is driven by 5 core documents that must be continuously updated and reviewed:
+## 4 Core Documentation System - CRITICAL
+The project is driven by 4 core documents that must be continuously updated and reviewed:
 
 ### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Blueprint
 - **Purpose**: Comprehensive technical blueprint for building institutional-grade financial analysis platform
 - **Usage**: Reference for all technical decisions, scoring algorithms, and system architecture
 - **Update When**: New features planned, architecture changes, or technical requirements evolve
 
-### 2. **DEVELOPMENT_TASKS.md** - Task List & Progress Tracker
-- **Purpose**: Real-time development progress tracking and TODO management
-- **Usage**: Primary source for current work priorities, bug tracking, and implementation status
-- **Update When**: Tasks completed, new issues discovered, priorities changed, or session terminated
-- **CRITICAL**: Must be updated continuously throughout development sessions
-
-### 3. **TEST_PLAN.md** - Testing Strategy
+### 2. **TEST_PLAN.md** - Testing Strategy
 - **Purpose**: Comprehensive testing framework for all system components
 - **Usage**: Guide for test implementation, quality assurance, and system validation
 - **Update When**: New features added, bugs discovered, or testing requirements change
 
-### 4. **DESIGN.md** - System Design Document
+### 3. **DESIGN.md** - System Design Document
 - **Purpose**: Advanced technical architecture and implementation details
 - **Usage**: Reference for system design decisions, performance optimizations, and scalability patterns
 - **Update When**: Architecture changes, performance improvements, or new system components added
 
-### 5. **claude-todo.md** - Task Management System
+### 4. **claude-todo.md** - Task Management System
 - **Purpose**: Centralized task tracking and todo management via TodoRead/TodoWrite tools
 - **Usage**: Primary source for current work priorities, task status, and session continuity
 - **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously
 - **CRITICAL**: This is the ONLY todo system - never create new task documents
-- **IMPORTANT**: claude-todos.md is populated based on analysis of the other 3 core documents to determine what work needs to be done and in what priority order
+
+### Documentation Workflow - CRITICAL PROCESS
+1. **Analyze the 3 content documents** (FINANCIAL_PLATFORM_BLUEPRINT.md, TEST_PLAN.md, DESIGN.md)
+2. **Determine remaining work** from gaps, issues, and requirements in those 3 documents
+3. **Populate claude-todo.md** with prioritized list of work items from the analysis
+4. **Always refer to claude-todo.md** when determining next items to work on
+5. **Update the 3 content documents** as work progresses to reflect current state
 
 ### Documentation Management Commands
-- **Read All 5 Docs**: Start each session by reviewing all 5 documents
-- **Update Progress**: Continuously update DEVELOPMENT_TASKS.md with current status
-- **Sync Requirements**: Ensure all 5 docs align with current system state
-- **Reference First**: Always check relevant docs before making technical decisions
+- **Read All 4 Docs**: Start each session by reviewing all 4 documents
+- **Analyze → Prioritize → Execute**: Iterate through the 3 content docs to determine work, add to todos, then execute from todos
+- **Sync Requirements**: Ensure all 4 docs align with current system state
+- **Reference First**: Always check claude-todo.md before starting new work
 
 ## Task Management - CRITICAL WORKFLOW
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
@@ -138,24 +138,23 @@ The project is driven by 5 core documents that must be continuously updated and 
 - **Request Tracing**: End-to-end correlation IDs for debugging and monitoring
 
 ## Documentation Management - CRITICAL
-⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 5 .MD FILES - NO EXCEPTIONS** ⚠️
+⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 4 .MD FILES - NO EXCEPTIONS** ⚠️
 
-### THE ONLY 5 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
+### THE ONLY 4 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical blueprint
-2. **DEVELOPMENT_TASKS.md** - Task tracking and progress
-3. **TEST_PLAN.md** - Testing strategy
-4. **DESIGN.md** - System design
-5. **claude-todo.md** - Todo management (auto-managed by TodoRead/TodoWrite)
+2. **TEST_PLAN.md** - Testing strategy
+3. **DESIGN.md** - System design
+4. **claude-todo.md** - Todo management (auto-managed by TodoRead/TodoWrite)
 
 ### STRICT PROHIBITIONS:
-- **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, etc.
+- **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, DEVELOPMENT_TASKS.md, etc.
 - **NEVER create temporary .md files** - even for "quick notes" or "session summaries"
 - **NEVER create workflow .md files** - deployment guides, fix summaries, etc.
-- **ALL project management MUST happen in the 5 core documents above**
-- **ALL findings, status, plans, analyses MUST be integrated into the 5 core documents**
+- **ALL project management MUST happen in the 4 core documents above**
+- **ALL findings, status, plans, analyses MUST be integrated into the 4 core documents**
 
 ### ENFORCEMENT:
 - If you start creating a new .md file, STOP immediately
 - If you need to document something, choose the appropriate core document
 - If unsure which core document to use, ask the user
-- These 5 documents are the ONLY source of truth for all project information
+- These 4 documents are the ONLY source of truth for all project information
