@@ -106,12 +106,12 @@ class DataLoaderCoordinator:
             # Price data (depends on symbols)
             LoaderConfig(
                 name="price_daily",
-                description="Daily stock prices (OHLCV)",
-                script_path="loadpricedaily.py",
+                description="Daily stock prices (OHLCV) - Optimized",
+                script_path="loadpricedaily_optimized.py",
                 table_name="price_daily",
                 dependencies=["stock_symbols"],
                 critical=True,
-                timeout_minutes=45
+                timeout_minutes=60
             ),
             
             LoaderConfig(
@@ -127,12 +127,12 @@ class DataLoaderCoordinator:
             # Technical analysis (depends on price data)
             LoaderConfig(
                 name="technicals_daily",
-                description="Daily technical indicators",
-                script_path="loadtechnicalsdaily.py",
+                description="Daily technical indicators - Optimized",
+                script_path="loadtechnicalsdaily_optimized.py",
                 table_name="technicals_daily",
                 dependencies=["price_daily"],
                 critical=True,
-                timeout_minutes=30
+                timeout_minutes=45
             ),
             
             # Company information (can run in parallel with price data)
@@ -197,6 +197,17 @@ class DataLoaderCoordinator:
                 dependencies=[],
                 critical=False,
                 timeout_minutes=25
+            ),
+            
+            # Data quality validation (runs after core data loads)
+            LoaderConfig(
+                name="data_quality_validation",
+                description="Comprehensive data quality validation",
+                script_path="data_quality_validator.py",
+                table_name="multiple",
+                dependencies=["stock_symbols", "price_daily", "technicals_daily"],
+                critical=False,
+                timeout_minutes=10
             )
         ]
         

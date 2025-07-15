@@ -1,24 +1,33 @@
 /**
- * Enhanced Real-time Market Data Pipeline
- * Provides optimized data streaming with buffering, batch processing, and performance monitoring
+ * High-Performance Real-time Market Data Pipeline
+ * Institutional-grade streaming with ultra-low latency optimization and adaptive throughput management
  */
 
 const { getTimeout, withTradingTimeout } = require('./timeoutManager');
 const { createRequestLogger } = require('./logger');
+const EventEmitter = require('events');
 
-class RealtimeDataPipeline {
+class RealtimeDataPipeline extends EventEmitter {
   constructor(options = {}) {
+    super();
     this.options = {
-      bufferSize: options.bufferSize || 1000,
-      flushInterval: options.flushInterval || 1000, // ms
+      bufferSize: options.bufferSize || 2000,
+      flushInterval: options.flushInterval || 100, // Reduced to 100ms for ultra-low latency
       maxRetries: options.maxRetries || 3,
-      batchSize: options.batchSize || 100,
+      batchSize: options.batchSize || 50, // Smaller batches for faster processing
       compressionEnabled: options.compressionEnabled || true,
       performanceMonitoring: options.performanceMonitoring || true,
+      // New high-performance options
+      maxConcurrentFlushes: options.maxConcurrentFlushes || 5,
+      adaptiveBuffering: options.adaptiveBuffering || true,
+      priorityQueuing: options.priorityQueuing || true,
+      memoryOptimization: options.memoryOptimization || true,
+      circuitBreakerEnabled: options.circuitBreakerEnabled || true,
+      preallocationEnabled: options.preallocationEnabled || true,
       ...options
     };
 
-    // Data buffers for different data types
+    // High-performance data buffers with priority queuing
     this.dataBuffers = {
       quotes: new Map(), // symbol -> latest quote
       trades: [],
@@ -27,7 +36,15 @@ class RealtimeDataPipeline {
       orderbook: new Map() // symbol -> latest orderbook
     };
 
-    // Performance metrics
+    // Priority queues for different data types
+    this.priorityQueues = {
+      critical: [], // Time-sensitive data (quotes, trades)
+      high: [],     // Important data (bars, orderbook)
+      normal: [],   // Regular data (news, alerts)
+      low: []       // Background data (sentiment, research)
+    };
+
+    // Enhanced performance metrics
     this.metrics = {
       messagesReceived: 0,
       messagesProcessed: 0,
@@ -36,19 +53,49 @@ class RealtimeDataPipeline {
       averageLatency: 0,
       lastFlushTime: Date.now(),
       bufferUtilization: 0,
-      throughputPerSecond: 0
+      throughputPerSecond: 0,
+      // New performance metrics
+      peakThroughput: 0,
+      latencyP95: 0,
+      latencyP99: 0,
+      circuitBreakerTrips: 0,
+      memoryUtilization: 0,
+      concurrentFlushes: 0,
+      adaptiveBufferResizes: 0,
+      priorityQueueSizes: { critical: 0, high: 0, normal: 0, low: 0 }
     };
 
     // Subscriptions and connections
     this.subscriptions = new Map(); // userId -> subscription details
     this.connectionPool = new Map(); // connectionId -> connection details
     
-    // Buffer management
+    // Advanced buffer management
     this.flushTimer = null;
+    this.adaptiveTimer = null;
     this.compressionEnabled = this.options.compressionEnabled;
+    this.currentFlushes = 0;
+    this.flushQueue = [];
     
-    // Performance monitoring
+    // Circuit breaker for overload protection
+    this.circuitBreaker = {
+      isOpen: false,
+      failures: 0,
+      lastFailureTime: 0,
+      threshold: 5,
+      resetTimeout: 30000 // 30 seconds
+    };
+
+    // Memory optimization
+    this.memoryPool = {
+      buffers: [],
+      maxPoolSize: 100,
+      currentSize: 0
+    };
+
+    // Performance monitoring with adaptive intervals
     this.performanceTimer = null;
+    this.latencyHistory = [];
+    this.throughputHistory = [];
     this.startPerformanceMonitoring();
 
     this.logger = createRequestLogger('realtime-pipeline');
@@ -56,20 +103,136 @@ class RealtimeDataPipeline {
   }
 
   /**
-   * Start performance monitoring
+   * Start performance monitoring with adaptive intervals
    */
   startPerformanceMonitoring() {
     if (!this.options.performanceMonitoring) return;
 
+    // Adaptive performance monitoring based on load
     this.performanceTimer = setInterval(() => {
       this.calculatePerformanceMetrics();
       this.logPerformanceMetrics();
-    }, 5000); // Every 5 seconds
+      this.adaptiveBufferManagement();
+    }, 1000); // Every second for responsive monitoring
 
-    // Start periodic buffer flush
+    // Start high-frequency buffer flush with adaptive intervals
     this.flushTimer = setInterval(() => {
-      this.flushBuffers();
+      this.adaptiveFlushBuffers();
     }, this.options.flushInterval);
+
+    // Start adaptive buffer management
+    if (this.options.adaptiveBuffering) {
+      this.adaptiveTimer = setInterval(() => {
+        this.optimizeBufferSizes();
+      }, 5000); // Every 5 seconds
+    }
+  }
+
+  /**
+   * Adaptive buffer management based on current load
+   */
+  adaptiveBufferManagement() {
+    if (!this.options.adaptiveBuffering) return;
+
+    const currentLoad = this.metrics.throughputPerSecond;
+    const bufferUtilization = this.metrics.bufferUtilization;
+
+    // Adjust flush interval based on load
+    if (currentLoad > 1000 && this.options.flushInterval > 50) {
+      // High load - increase flush frequency
+      this.options.flushInterval = Math.max(50, this.options.flushInterval - 10);
+      this.restartFlushTimer();
+    } else if (currentLoad < 100 && this.options.flushInterval < 500) {
+      // Low load - decrease flush frequency to save resources
+      this.options.flushInterval = Math.min(500, this.options.flushInterval + 10);
+      this.restartFlushTimer();
+    }
+
+    // Adjust buffer size based on utilization
+    if (bufferUtilization > 80) {
+      // High utilization - increase buffer size
+      this.options.bufferSize = Math.min(5000, this.options.bufferSize * 1.2);
+      this.metrics.adaptiveBufferResizes++;
+    } else if (bufferUtilization < 20 && this.options.bufferSize > 1000) {
+      // Low utilization - decrease buffer size to save memory
+      this.options.bufferSize = Math.max(1000, this.options.bufferSize * 0.9);
+      this.metrics.adaptiveBufferResizes++;
+    }
+  }
+
+  /**
+   * Restart flush timer with new interval
+   */
+  restartFlushTimer() {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+    }
+    this.flushTimer = setInterval(() => {
+      this.adaptiveFlushBuffers();
+    }, this.options.flushInterval);
+  }
+
+  /**
+   * Circuit breaker check for overload protection
+   */
+  checkCircuitBreaker() {
+    if (!this.options.circuitBreakerEnabled) return false;
+
+    const now = Date.now();
+    
+    // Reset circuit breaker if enough time has passed
+    if (this.circuitBreaker.isOpen && 
+        now - this.circuitBreaker.lastFailureTime > this.circuitBreaker.resetTimeout) {
+      this.circuitBreaker.isOpen = false;
+      this.circuitBreaker.failures = 0;
+      this.logger.info('🔄 Circuit breaker reset');
+    }
+
+    return this.circuitBreaker.isOpen;
+  }
+
+  /**
+   * Trip circuit breaker on failure
+   */
+  tripCircuitBreaker(error) {
+    if (!this.options.circuitBreakerEnabled) return;
+
+    this.circuitBreaker.failures++;
+    this.circuitBreaker.lastFailureTime = Date.now();
+    this.metrics.circuitBreakerTrips++;
+
+    if (this.circuitBreaker.failures >= this.circuitBreaker.threshold) {
+      this.circuitBreaker.isOpen = true;
+      this.logger.error('🔥 Circuit breaker tripped', { 
+        failures: this.circuitBreaker.failures,
+        error: error.message 
+      });
+      this.emit('circuitBreakerTripped', { failures: this.circuitBreaker.failures, error });
+    }
+  }
+
+  /**
+   * Get buffer from memory pool or create new one
+   */
+  getBuffer() {
+    if (this.options.memoryOptimization && this.memoryPool.buffers.length > 0) {
+      return this.memoryPool.buffers.pop();
+    }
+    return {};
+  }
+
+  /**
+   * Return buffer to memory pool
+   */
+  returnBuffer(buffer) {
+    if (this.options.memoryOptimization && this.memoryPool.currentSize < this.memoryPool.maxPoolSize) {
+      // Clear buffer contents
+      for (const key in buffer) {
+        delete buffer[key];
+      }
+      this.memoryPool.buffers.push(buffer);
+      this.memoryPool.currentSize++;
+    }
   }
 
   /**
@@ -125,23 +288,32 @@ class RealtimeDataPipeline {
   }
 
   /**
-   * Process incoming market data with intelligent buffering
+   * Process incoming market data with priority-based intelligent buffering
    */
   processIncomingData(dataType, data) {
     const processStart = Date.now();
     
     try {
+      // Circuit breaker check
+      if (this.checkCircuitBreaker()) {
+        this.metrics.messagesDropped++;
+        return;
+      }
+
       this.metrics.messagesReceived++;
 
-      // Route data to appropriate buffer
+      // Determine priority based on data type
+      const priority = this.getDataPriority(dataType);
+      
+      // Route data to appropriate buffer with priority
       switch (dataType) {
         case 'quote':
         case 'quotes':
-          this.bufferQuoteData(data);
+          this.bufferQuoteDataWithPriority(data, priority);
           break;
         case 'trade':
         case 'trades':
-          this.bufferTradeData(data);
+          this.bufferTradeDataWithPriority(data, priority);
           break;
         case 'bar':
         case 'bars':
@@ -161,9 +333,9 @@ class RealtimeDataPipeline {
 
       this.metrics.messagesProcessed++;
       
-      // Check if we need to flush buffers
-      if (this.shouldFlushBuffers()) {
-        this.flushBuffers();
+      // Check if we need immediate flush for critical data
+      if (priority === 'critical' && this.shouldFlushBuffers()) {
+        this.triggerImmediateFlush();
       }
 
       // Update latency metrics
@@ -172,11 +344,138 @@ class RealtimeDataPipeline {
 
     } catch (error) {
       this.metrics.messagesDropped++;
+      this.tripCircuitBreaker(error);
       this.logger.error('Error processing incoming data', { 
         dataType, 
         error: error.message,
         stack: error.stack 
       });
+    }
+  }
+
+  /**
+   * Determine data priority for processing
+   */
+  getDataPriority(dataType) {
+    switch (dataType) {
+      case 'quote':
+      case 'quotes':
+      case 'trade':
+      case 'trades':
+        return 'critical';
+      case 'bar':
+      case 'bars':
+      case 'orderbook':
+        return 'high';
+      case 'news':
+      case 'alerts':
+        return 'normal';
+      default:
+        return 'low';
+    }
+  }
+
+  /**
+   * Buffer quote data with priority handling
+   */
+  bufferQuoteDataWithPriority(data, priority) {
+    if (Array.isArray(data)) {
+      data.forEach(quote => this.bufferSingleQuoteWithPriority(quote, priority));
+    } else {
+      this.bufferSingleQuoteWithPriority(data, priority);
+    }
+  }
+
+  /**
+   * Buffer single quote with priority
+   */
+  bufferSingleQuoteWithPriority(quote, priority) {
+    const symbol = quote.symbol || quote.S;
+    if (!symbol) return;
+
+    // Store latest quote with timestamp and priority
+    const quoteData = {
+      ...quote,
+      bufferedAt: Date.now(),
+      priority: priority,
+      price: quote.price || quote.ap || quote.bp || 0,
+      bid: quote.bid || quote.bp || 0,
+      ask: quote.ask || quote.ap || 0,
+      bidSize: quote.bidSize || quote.bs || 0,
+      askSize: quote.askSize || quote.as || 0,
+      timestamp: quote.timestamp || quote.t || Date.now()
+    };
+
+    this.dataBuffers.quotes.set(symbol, quoteData);
+
+    // Add to priority queue if enabled
+    if (this.options.priorityQueuing) {
+      this.priorityQueues[priority].push(quoteData);
+      this.metrics.priorityQueueSizes[priority]++;
+    }
+  }
+
+  /**
+   * Buffer trade data with priority
+   */
+  bufferTradeDataWithPriority(data, priority) {
+    if (Array.isArray(data)) {
+      this.dataBuffers.trades.push(...data.map(trade => ({
+        ...trade,
+        bufferedAt: Date.now(),
+        priority: priority
+      })));
+    } else {
+      this.dataBuffers.trades.push({
+        ...data,
+        bufferedAt: Date.now(),
+        priority: priority
+      });
+    }
+
+    // Limit trade buffer size
+    if (this.dataBuffers.trades.length > this.options.bufferSize) {
+      this.dataBuffers.trades = this.dataBuffers.trades.slice(-this.options.bufferSize);
+    }
+  }
+
+  /**
+   * Adaptive flush buffers with concurrent processing
+   */
+  async adaptiveFlushBuffers() {
+    // Don't flush if we're at max concurrent flushes
+    if (this.currentFlushes >= this.options.maxConcurrentFlushes) {
+      return;
+    }
+
+    // Check if we should flush based on priority queues
+    if (this.shouldFlushBuffers() || this.hasCriticalData()) {
+      this.currentFlushes++;
+      this.metrics.concurrentFlushes = this.currentFlushes;
+
+      try {
+        await this.flushBuffers();
+      } finally {
+        this.currentFlushes--;
+        this.metrics.concurrentFlushes = this.currentFlushes;
+      }
+    }
+  }
+
+  /**
+   * Check if we have critical data that needs immediate processing
+   */
+  hasCriticalData() {
+    return this.priorityQueues.critical.length > 0 || 
+           this.priorityQueues.high.length > this.options.batchSize / 2;
+  }
+
+  /**
+   * Trigger immediate flush for critical data
+   */
+  triggerImmediateFlush() {
+    if (this.currentFlushes < this.options.maxConcurrentFlushes) {
+      setImmediate(() => this.adaptiveFlushBuffers());
     }
   }
 
@@ -579,14 +878,26 @@ class RealtimeDataPipeline {
   }
 
   /**
-   * Calculate performance metrics
+   * Calculate enhanced performance metrics with percentiles
    */
   calculatePerformanceMetrics() {
     const now = Date.now();
     const elapsedSeconds = (now - (this.metrics.lastCalculationTime || now)) / 1000;
     
     if (elapsedSeconds > 0) {
-      this.metrics.throughputPerSecond = this.metrics.messagesProcessed / elapsedSeconds;
+      const currentThroughput = this.metrics.messagesProcessed / elapsedSeconds;
+      this.metrics.throughputPerSecond = currentThroughput;
+      
+      // Track peak throughput
+      if (currentThroughput > this.metrics.peakThroughput) {
+        this.metrics.peakThroughput = currentThroughput;
+      }
+      
+      // Add to throughput history for trend analysis
+      this.throughputHistory.push(currentThroughput);
+      if (this.throughputHistory.length > 100) {
+        this.throughputHistory.shift();
+      }
     }
 
     // Calculate buffer utilization
@@ -599,11 +910,53 @@ class RealtimeDataPipeline {
       this.dataBuffers.orderbook.size;
     
     this.metrics.bufferUtilization = (currentBufferUsage / totalBufferCapacity) * 100;
+    
+    // Calculate priority queue sizes
+    this.metrics.priorityQueueSizes = {
+      critical: this.priorityQueues.critical.length,
+      high: this.priorityQueues.high.length,
+      normal: this.priorityQueues.normal.length,
+      low: this.priorityQueues.low.length
+    };
+    
+    // Calculate latency percentiles
+    if (this.latencyHistory.length > 0) {
+      const sortedLatencies = [...this.latencyHistory].sort((a, b) => a - b);
+      const p95Index = Math.floor(sortedLatencies.length * 0.95);
+      const p99Index = Math.floor(sortedLatencies.length * 0.99);
+      
+      this.metrics.latencyP95 = sortedLatencies[p95Index] || 0;
+      this.metrics.latencyP99 = sortedLatencies[p99Index] || 0;
+    }
+    
+    // Calculate memory utilization (approximate)
+    const memoryUsage = process.memoryUsage();
+    this.metrics.memoryUtilization = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
+    
     this.metrics.lastCalculationTime = now;
   }
 
   /**
-   * Update latency metrics
+   * Optimize buffer sizes based on historical performance
+   */
+  optimizeBufferSizes() {
+    if (this.throughputHistory.length < 10) return;
+    
+    const avgThroughput = this.throughputHistory.reduce((sum, val) => sum + val, 0) / this.throughputHistory.length;
+    const throughputVariance = this.throughputHistory.reduce((sum, val) => sum + Math.pow(val - avgThroughput, 2), 0) / this.throughputHistory.length;
+    
+    // Adjust buffer size based on throughput variance
+    if (throughputVariance > 1000) {
+      // High variance - increase buffer size for stability
+      this.options.bufferSize = Math.min(5000, this.options.bufferSize * 1.1);
+    } else if (throughputVariance < 100) {
+      // Low variance - can reduce buffer size
+      this.options.bufferSize = Math.max(1000, this.options.bufferSize * 0.95);
+    }
+  }
+
+  /**
+   * Update latency metrics with history tracking
    */
   updateLatencyMetrics(latency) {
     if (this.metrics.averageLatency === 0) {
@@ -611,24 +964,47 @@ class RealtimeDataPipeline {
     } else {
       this.metrics.averageLatency = (this.metrics.averageLatency + latency) / 2;
     }
+    
+    // Add to latency history for percentile calculations
+    this.latencyHistory.push(latency);
+    if (this.latencyHistory.length > 1000) {
+      this.latencyHistory.shift();
+    }
   }
 
   /**
-   * Log performance metrics
+   * Log enhanced performance metrics
    */
   logPerformanceMetrics() {
-    this.logger.info('📊 Real-time pipeline performance', {
-      metrics: {
+    this.logger.info('📊 High-Performance Real-time Pipeline Metrics', {
+      throughput: {
+        current: this.metrics.throughputPerSecond.toFixed(2),
+        peak: this.metrics.peakThroughput.toFixed(2),
         messagesReceived: this.metrics.messagesReceived,
         messagesProcessed: this.metrics.messagesProcessed,
-        messagesDropped: this.metrics.messagesDropped,
-        batchesFlushed: this.metrics.batchesFlushed,
-        averageLatency: `${this.metrics.averageLatency.toFixed(2)}ms`,
-        bufferUtilization: `${this.metrics.bufferUtilization.toFixed(1)}%`,
-        throughputPerSecond: this.metrics.throughputPerSecond.toFixed(2),
+        messagesDropped: this.metrics.messagesDropped
+      },
+      latency: {
+        average: `${this.metrics.averageLatency.toFixed(2)}ms`,
+        p95: `${this.metrics.latencyP95.toFixed(2)}ms`,
+        p99: `${this.metrics.latencyP99.toFixed(2)}ms`
+      },
+      buffers: {
+        utilization: `${this.metrics.bufferUtilization.toFixed(1)}%`,
+        adaptiveResizes: this.metrics.adaptiveBufferResizes,
+        concurrentFlushes: this.metrics.concurrentFlushes,
+        batchesFlushed: this.metrics.batchesFlushed
+      },
+      priorityQueues: this.metrics.priorityQueueSizes,
+      system: {
+        memoryUtilization: `${this.metrics.memoryUtilization.toFixed(1)}%`,
+        circuitBreakerTrips: this.metrics.circuitBreakerTrips,
         activeSubscriptions: this.subscriptions.size
       }
     });
+
+    // Emit performance event for monitoring
+    this.emit('performanceMetrics', this.metrics);
   }
 
   /**
@@ -656,7 +1032,7 @@ class RealtimeDataPipeline {
   }
 
   /**
-   * Cleanup and shutdown
+   * Cleanup and shutdown with enhanced resource management
    */
   shutdown() {
     if (this.flushTimer) {
@@ -667,10 +1043,30 @@ class RealtimeDataPipeline {
       clearInterval(this.performanceTimer);
     }
 
+    if (this.adaptiveTimer) {
+      clearInterval(this.adaptiveTimer);
+    }
+
+    // Clear priority queues
+    Object.keys(this.priorityQueues).forEach(priority => {
+      this.priorityQueues[priority].length = 0;
+    });
+
+    // Clear memory pool
+    this.memoryPool.buffers.length = 0;
+    this.memoryPool.currentSize = 0;
+
     // Final flush
     this.flushBuffers();
     
-    this.logger.info('🛑 Real-time Data Pipeline shutdown completed');
+    this.logger.info('🛑 High-Performance Real-time Data Pipeline shutdown completed', {
+      finalMetrics: {
+        peakThroughput: this.metrics.peakThroughput,
+        totalMessages: this.metrics.messagesProcessed,
+        circuitBreakerTrips: this.metrics.circuitBreakerTrips,
+        adaptiveResizes: this.metrics.adaptiveBufferResizes
+      }
+    });
   }
 }
 
