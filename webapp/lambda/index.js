@@ -154,40 +154,60 @@ const initializeLambdaDatabase = () => {
 // Start database initialization immediately during cold start
 initializeLambdaDatabase();
 
-// Secure CORS Configuration
+// Unified CORS Configuration - Single source of truth
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
   
-  // Default allowed origins for development
-  const defaultAllowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://d1zb7knau41vl9.cloudfront.net',  // Production CloudFront domain
-    'https://your-domain.com'  // Replace with actual production domain
+  // Define allowed origins
+  const allowedOrigins = [
+    'https://d1zb7knau41vl9.cloudfront.net', // Production CloudFront
+    'http://localhost:3000',                 // Local development
+    'http://localhost:5173',                 // Vite dev server
+    'http://127.0.0.1:3000',                // Local development (IP)
+    'http://127.0.0.1:5173'                 // Vite dev server (IP)
   ];
   
-  const finalAllowedOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultAllowedOrigins;
+  // Add environment-specific origins
+  const envOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+  allowedOrigins.push(...envOrigins);
   
-  // Only allow requests from specific origins
-  if (origin && finalAllowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else if (!origin) {
-    // Allow requests without origin (like from Postman, curl, etc.) in development
-    if (process.env.NODE_ENV !== 'production') {
-      res.header('Access-Control-Allow-Origin', '*');
-    }
+  // Add API Gateway origins dynamically
+  if (origin && (origin.includes('.execute-api.') || origin.includes('.cloudfront.net'))) {
+    allowedOrigins.push(origin);
+  }
+  
+  // Determine if this origin is allowed
+  let allowOrigin = false;
+  if (!origin) {
+    // Allow requests without origin in development
+    allowOrigin = process.env.NODE_ENV !== 'production';
+  } else {
+    // Check if origin is in allowed list
+    allowOrigin = allowedOrigins.includes(origin);
+  }
+  
+  console.log(`🌐 CORS check - Origin: ${origin}, Allowed: ${allowOrigin}`);
+  
+  // Set CORS headers
+  if (allowOrigin) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
   res.header('Access-Control-Max-Age', '86400');
   
   // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    console.log(`🌐 Preflight OPTIONS handled for ${origin}`);
+    return res.status(200).end();
+  }
+  
+  // Block non-preflight requests from unauthorized origins
+  if (!allowOrigin && origin) {
+    console.warn(`🚫 Blocking request from unauthorized origin: ${origin}`);
+    return res.status(403).json({ error: 'CORS policy violation' });
   }
   
   next();
@@ -292,36 +312,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration (allow API Gateway origins)
-app.use(cors({
-  origin: (origin, callback) => {
-    console.log('CORS check for origin:', origin);
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Allow API Gateway, CloudFront, and localhost origins
-    if (origin.includes('.execute-api.') || 
-        origin.includes('.cloudfront.net') || 
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1') ||
-        origin === process.env.FRONTEND_URL) {
-      console.log('CORS allowed for origin:', origin);
-      callback(null, true);
-    } else {
-      console.warn('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID'],
-  optionsSuccessStatus: 200
-}));
 
-// Secure CORS middleware - restrict origins to approved domains only
+// Enhanced logging and timeout protection middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
