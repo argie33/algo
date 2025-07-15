@@ -42,7 +42,9 @@ async function getDbCredentials() {
                 require: true,
                 rejectUnauthorized: false
             },
-            connectionTimeoutMillis: 30000
+            connectionTimeoutMillis: 60000,
+            query_timeout: 120000,
+            statement_timeout: 120000
         };
     } catch (error) {
         log('error', 'Failed to get database credentials:', error.message);
