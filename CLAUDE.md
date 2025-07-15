@@ -71,8 +71,8 @@
 4. Advanced trading strategy integration
 5. Performance monitoring and alerting
 
-## 4 Core Documentation System - CRITICAL
-The project is driven by 4 core documents that must be continuously updated and reviewed:
+## 5 Core Documentation System - CRITICAL
+The project is driven by 5 core documents that must be continuously updated and reviewed:
 
 ### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Blueprint
 - **Purpose**: Comprehensive technical blueprint for building institutional-grade financial analysis platform
@@ -95,17 +95,25 @@ The project is driven by 4 core documents that must be continuously updated and 
 - **Usage**: Reference for system design decisions, performance optimizations, and scalability patterns
 - **Update When**: Architecture changes, performance improvements, or new system components added
 
+### 5. **claude-todo.md** - Task Management System
+- **Purpose**: Centralized task tracking and todo management via TodoRead/TodoWrite tools
+- **Usage**: Primary source for current work priorities, task status, and session continuity
+- **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously
+- **CRITICAL**: This is the ONLY todo system - never create new task documents
+
 ### Documentation Management Commands
-- **Read All 4 Docs**: Start each session by reviewing all 4 documents
+- **Read All 5 Docs**: Start each session by reviewing all 5 documents
 - **Update Progress**: Continuously update DEVELOPMENT_TASKS.md with current status
-- **Sync Requirements**: Ensure all 4 docs align with current system state
+- **Sync Requirements**: Ensure all 5 docs align with current system state
 - **Reference First**: Always check relevant docs before making technical decisions
 
-## Task Management
-- Maintain active todo lists consistently
-- Update todos as work completes
-- Track lingering items and potential improvements
-- Mark items that aren't fully complete
+## Task Management - CRITICAL WORKFLOW
+- **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
+- **Update todos continuously**: Mark items complete as you finish them, add new items as discovered
+- **TodoRead frequently**: Check todo list at start of work and regularly during development
+- **Focus on existing todos**: Don't create new research tasks - work on items in the todo list
+- **Never forget**: If you start creating new analyses instead of using todos, STOP and use TodoRead/TodoWrite
+- Track lingering items and potential improvements via todo system
 - Focus on infrastructure stability and website functionality first
 
 ## Infrastructure Utilities
@@ -127,3 +135,26 @@ The project is driven by 4 core documents that must be continuously updated and 
 - **Circuit Breakers**: External service failure protection with automatic recovery
 - **Adaptive Pool Sizing**: Database connection optimization based on load patterns
 - **Request Tracing**: End-to-end correlation IDs for debugging and monitoring
+
+## Documentation Management - CRITICAL
+⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 5 .MD FILES - NO EXCEPTIONS** ⚠️
+
+### THE ONLY 5 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
+1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical blueprint
+2. **DEVELOPMENT_TASKS.md** - Task tracking and progress
+3. **TEST_PLAN.md** - Testing strategy
+4. **DESIGN.md** - System design
+5. **claude-todo.md** - Todo management (auto-managed by TodoRead/TodoWrite)
+
+### STRICT PROHIBITIONS:
+- **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, etc.
+- **NEVER create temporary .md files** - even for "quick notes" or "session summaries"
+- **NEVER create workflow .md files** - deployment guides, fix summaries, etc.
+- **ALL project management MUST happen in the 5 core documents above**
+- **ALL findings, status, plans, analyses MUST be integrated into the 5 core documents**
+
+### ENFORCEMENT:
+- If you start creating a new .md file, STOP immediately
+- If you need to document something, choose the appropriate core document
+- If unsure which core document to use, ask the user
+- These 5 documents are the ONLY source of truth for all project information
