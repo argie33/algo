@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const { validateInput } = require('../middleware/validation');
+const { createValidationMiddleware } = require('../middleware/validation');
 const { getDatabase } = require('../utils/database');
 const { AdvancedPerformanceAnalytics } = require('../utils/advancedPerformanceAnalytics');
 const { createRequestLogger } = require('../utils/logger');
@@ -55,7 +55,7 @@ const performanceReportSchema = {
  * GET /performance-analytics/portfolio
  * Get comprehensive portfolio performance analysis
  */
-router.get('/portfolio', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/portfolio', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate, format, includeBenchmarks } = req.query;
@@ -109,7 +109,7 @@ router.get('/portfolio', authenticateToken, validateInput(performanceAnalysisSch
  * GET /performance-analytics/report
  * Generate comprehensive performance report
  */
-router.get('/report', authenticateToken, validateInput(performanceReportSchema), async (req, res) => {
+router.get('/report', authenticateToken, createValidationMiddleware(performanceReportSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate, reportType } = req.query;
@@ -158,7 +158,7 @@ router.get('/report', authenticateToken, validateInput(performanceReportSchema),
  * GET /performance-analytics/attribution
  * Get performance attribution analysis
  */
-router.get('/attribution', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/attribution', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate } = req.query;
@@ -205,7 +205,7 @@ router.get('/attribution', authenticateToken, validateInput(performanceAnalysisS
  * GET /performance-analytics/risk-metrics
  * Get comprehensive risk metrics
  */
-router.get('/risk-metrics', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/risk-metrics', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate } = req.query;
@@ -267,7 +267,7 @@ router.get('/risk-metrics', authenticateToken, validateInput(performanceAnalysis
  * GET /performance-analytics/sector-analysis
  * Get sector allocation and performance analysis
  */
-router.get('/sector-analysis', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/sector-analysis', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate } = req.query;
@@ -310,7 +310,7 @@ router.get('/sector-analysis', authenticateToken, validateInput(performanceAnaly
  * GET /performance-analytics/factor-exposure
  * Get factor exposure analysis
  */
-router.get('/factor-exposure', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/factor-exposure', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate } = req.query;
@@ -353,7 +353,7 @@ router.get('/factor-exposure', authenticateToken, validateInput(performanceAnaly
  * GET /performance-analytics/benchmarks
  * Get benchmark comparison analysis
  */
-router.get('/benchmarks', authenticateToken, validateInput(performanceAnalysisSchema), async (req, res) => {
+router.get('/benchmarks', authenticateToken, createValidationMiddleware(performanceAnalysisSchema), async (req, res) => {
   const requestId = req.requestId;
   const userId = req.user.userId;
   const { startDate, endDate } = req.query;
