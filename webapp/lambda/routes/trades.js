@@ -899,41 +899,43 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
     });
     
     // Return detailed error structure with proper HTTP status
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: 'Failed to fetch analytics overview',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      timestamp: new Date().toISOString(),
-      requestId: req.requestId || 'unknown'
-    });
-  } catch (fallbackError) {
-    console.error('Fallback error handler triggered:', fallbackError);
-    // Last resort fallback response
-    res.status(200).json({
-      success: true,
-      data: {
-        analytics: {
-          totalTrades: 0,
-          winningTrades: 0,
-          losingTrades: 0,
-          winRate: 0,
-          totalPnL: 0,
-          avgPnL: 0,
-          avgRoi: 0,
-          bestTrade: 0,
-          worstTrade: 0,
-          avgHoldingPeriod: 0,
-          totalVolume: 0
+    try {
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to fetch analytics overview',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        timestamp: new Date().toISOString(),
+        requestId: req.requestId || 'unknown'
+      });
+    } catch (fallbackError) {
+      console.error('Fallback error handler triggered:', fallbackError);
+      // Last resort fallback response
+      res.status(200).json({
+        success: true,
+        data: {
+          analytics: {
+            totalTrades: 0,
+            winningTrades: 0,
+            losingTrades: 0,
+            winRate: 0,
+            totalPnL: 0,
+            avgPnL: 0,
+            avgRoi: 0,
+            bestTrade: 0,
+            worstTrade: 0,
+            avgHoldingPeriod: 0,
+            totalVolume: 0
+          },
+          chartData: [],
+          pnlBySymbol: [],
+          tradingPatterns: [],
+          dataSource: 'none'
         },
-        chartData: [],
-        pnlBySymbol: [],
-        tradingPatterns: [],
-        dataSource: 'none'
-      },
-      message: 'No trade data available. Please import your portfolio data from your broker first.',
-      timestamp: new Date().toISOString()
-    });
+        message: 'No trade data available. Please import your portfolio data from your broker first.',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 

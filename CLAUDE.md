@@ -71,6 +71,36 @@
 4. Advanced trading strategy integration
 5. Performance monitoring and alerting
 
+## 4 Core Documentation System - CRITICAL
+The project is driven by 4 core documents that must be continuously updated and reviewed:
+
+### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Blueprint
+- **Purpose**: Comprehensive technical blueprint for building institutional-grade financial analysis platform
+- **Usage**: Reference for all technical decisions, scoring algorithms, and system architecture
+- **Update When**: New features planned, architecture changes, or technical requirements evolve
+
+### 2. **DEVELOPMENT_TASKS.md** - Task List & Progress Tracker
+- **Purpose**: Real-time development progress tracking and TODO management
+- **Usage**: Primary source for current work priorities, bug tracking, and implementation status
+- **Update When**: Tasks completed, new issues discovered, priorities changed, or session terminated
+- **CRITICAL**: Must be updated continuously throughout development sessions
+
+### 3. **TEST_PLAN.md** - Testing Strategy
+- **Purpose**: Comprehensive testing framework for all system components
+- **Usage**: Guide for test implementation, quality assurance, and system validation
+- **Update When**: New features added, bugs discovered, or testing requirements change
+
+### 4. **DESIGN.md** - System Design Document
+- **Purpose**: Advanced technical architecture and implementation details
+- **Usage**: Reference for system design decisions, performance optimizations, and scalability patterns
+- **Update When**: Architecture changes, performance improvements, or new system components added
+
+### Documentation Management Commands
+- **Read All 4 Docs**: Start each session by reviewing all 4 documents
+- **Update Progress**: Continuously update DEVELOPMENT_TASKS.md with current status
+- **Sync Requirements**: Ensure all 4 docs align with current system state
+- **Reference First**: Always check relevant docs before making technical decisions
+
 ## Task Management
 - Maintain active todo lists consistently
 - Update todos as work completes
