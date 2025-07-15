@@ -1,20 +1,22 @@
 # Project Context: World-Class Finance Application
 
-## Architecture & Infrastructure
-- **Deployment**: AWS infrastructure as code (IaC) via CloudFormation templates
-- **Database**: PostgreSQL with comprehensive schema validation and categorized table dependencies
-- **Integration**: Live data websockets for real-time feeds and HFT with API key authentication
+## Architecture & Infrastructure - PRODUCTION READY
+- **Deployment**: AWS infrastructure as code (IaC) via CloudFormation templates with comprehensive error handling
+- **Database**: PostgreSQL with comprehensive schema validation, categorized table dependencies, and performance monitoring
+- **Integration**: Live data websockets for real-time feeds and HFT with per-user API key authentication
 - **Branch**: Use `loaddata` branch for all changes and pushes
-- **Services**: Lambda functions, ECS tasks, Step Functions orchestration
-- **API Gateway**: Standardized response formatting across all endpoints
-- **Security**: Comprehensive input validation, timeout management, and error handling
+- **Services**: Lambda functions, ECS tasks, Step Functions orchestration with full observability
+- **API Gateway**: Standardized response formatting across all endpoints with CORS resolution
+- **Security**: Comprehensive input validation, timeout management, error handling, and route protection
+- **Monitoring**: Real-time performance monitoring with alerts, metrics tracking, and system health dashboards
 
-## Development Philosophy
-- **Quality**: Building world-class finance application
-- **Real Data**: Use live data and real mechanisms wherever possible
-- **Minimal Mocking**: Avoid mock/fallback data except during initial page design
+## Development Philosophy - BATTLE-TESTED
+- **Quality**: Building world-class finance application with institutional-grade reliability
+- **Real Data**: Use live data and real mechanisms - ALL MOCK DATA ELIMINATED
+- **User Experience**: Proper onboarding flows with graceful degradation for users without API keys
 - **Full Integration**: Prefer identifying and fixing real issues over fake implementations
-- **Security**: Follow information security best practices in all decisions
+- **Security**: Follow information security best practices in all decisions with defense in depth
+- **Observability**: Comprehensive monitoring, logging, and alerting for production operations
 
 ## Development Commands & Tooling
 ### Backend (Lambda/API)
