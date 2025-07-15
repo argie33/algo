@@ -704,6 +704,29 @@ jobs:
               echo "✅ Image $AAIIDATA_TAG already exists"
             fi
           fi
+          
+          # Check if technicalsdaily image exists, build if missing
+          TECHNICALSDAILY_TAG=$(grep '^TechnicalsDailyImageTag=' tags.env | cut -d= -f2- || echo "technicalsdaily-latest")
+          echo "🔍 TECHNICALSDAILY_TAG resolved to: '$TECHNICALSDAILY_TAG'"
+          if [ -n "$TECHNICALSDAILY_TAG" ] && [ -n "$URI" ]; then
+            if ! aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$TECHNICALSDAILY_TAG" >/dev/null 2>&1; then
+              echo "❌ Image $TECHNICALSDAILY_TAG not found, building now..."
+              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$URI"
+              
+              LATEST_TAG="technicalsdaily-latest"
+              echo "🔨 Building technicalsdaily image with tags: $TECHNICALSDAILY_TAG, $LATEST_TAG"
+              docker buildx build \
+                --platform linux/arm64 \
+                --push \
+                -f Dockerfile.technicalsdaily \
+                -t "$URI:$TECHNICALSDAILY_TAG" \
+                -t "$URI:$LATEST_TAG" \
+                .
+              echo "✅ Successfully built and pushed technicalsdaily image"
+            else
+              echo "✅ Image $TECHNICALSDAILY_TAG already exists"
+            fi
+          fi
 
       - name: Deploy ECS-tasks CloudFormation stack
         run: |
