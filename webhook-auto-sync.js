@@ -51,7 +51,14 @@ app.post('/webhook/auto-sync', verifySignature, async (req, res) => {
     res.json({
       success: true,
       message: 'Auto-sync completed successfully',
-      nextActions: result,
+      nextActions: result.nextActions,
+      buildResult: result.buildResult,
+      workflow: {
+        step1: 'Documentation sync completed',
+        step2: 'Next todo item started automatically',
+        step3: 'Monitor progress and update todos',
+        step4: 'Trigger webhook again after significant changes'
+      },
       timestamp: new Date().toISOString()
     });
     
@@ -85,12 +92,13 @@ app.post('/manual-sync', async (req, res) => {
     res.json({
       success: true,
       message: 'Manual sync completed successfully',
-      nextActions: result,
+      nextActions: result.nextActions,
+      buildResult: result.buildResult,
       workflow: {
         step1: 'Review the next actions below',
-        step2: 'Update todos as you complete work',
-        step3: 'Run manual sync after significant changes',
-        step4: 'Follow operational guidelines in CLAUDE.md'
+        step2: 'Next todo item started automatically',
+        step3: 'Monitor progress and update todos',
+        step4: 'Run manual sync after significant changes'
       },
       timestamp: new Date().toISOString()
     });

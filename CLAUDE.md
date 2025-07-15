@@ -18,6 +18,15 @@
 - **Security**: Follow information security best practices in all decisions with defense in depth
 - **Observability**: Comprehensive monitoring, logging, and alerting for production operations
 
+## Mock & Fallback Usage Policy - CRITICAL RULE
+- **Initial Setup & Design ONLY**: Mock and fallback data should ONLY be used for initial setup and design phases
+- **Design Preview Purpose**: Mock data gives a sense of what the page or product should look like during development
+- **NOT for Problem Solving**: Mock/fallback should NEVER be used as a means to solve problems with functionality
+- **Transition to Real**: After we have a sense of what we're building, we MUST get the real thing working
+- **No Production Fallbacks**: Production systems must use real data and real API connections
+- **Fix Root Causes**: When functionality breaks, fix the real issue - don't add mock fallbacks
+- **Quality Standard**: Real implementation must be at least as good as (if not better than) mock version
+
 ## Development Commands & Tooling
 ### Backend (Lambda/API)
 - **Test**: `npm test` (in webapp/lambda/)
