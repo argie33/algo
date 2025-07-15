@@ -935,9 +935,25 @@ async function initializeWebappDatabase() {
         log('info', `📊 Found ${beforeStatus.totalTables} existing tables`);
         log('info', `📋 Critical tables present: ${beforeStatus.criticalTablesExist.join(', ')}`);
         
-        // Initialize webapp database schema
+        // Initialize webapp database schema in parts to isolate any issues
         log('info', '🔧 Creating webapp database schema...');
-        await executeSQL(client, getWebappDatabaseSchema(), 'Webapp database schema initialization');
+        
+        // Split schema into parts for better error isolation
+        const schemaSQL = getWebappDatabaseSchema();
+        const schemaParts = schemaSQL.split(/(?=CREATE TABLE|CREATE INDEX|INSERT INTO)/);
+        
+        for (let i = 0; i < schemaParts.length; i++) {
+            const part = schemaParts[i].trim();
+            if (part && !part.startsWith('--') && part.length > 10) {
+                try {
+                    await executeSQL(client, part, `Schema part ${i + 1}`);
+                } catch (error) {
+                    log('error', `❌ Schema part ${i + 1} failed:`, error.message);
+                    log('error', `Problematic SQL: ${part.substring(0, 200)}...`);
+                    throw error;
+                }
+            }
+        }
         
         // Test database connectivity with a simple query
         await executeSQL(client, `
