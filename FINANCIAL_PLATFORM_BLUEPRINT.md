@@ -148,6 +148,38 @@ Portfolio Analytics Pipeline:
 
 **Problem Solved**: Previous per-user websocket approach was inefficient and costly with each customer running their own websockets, redundant API calls, and higher costs.
 
+### 2.4 Infrastructure Resilience & Error Handling (Critical Lessons Learned)
+
+**Current Status (July 15, 2025)**: Major infrastructure resilience issues identified and addressed through emergency deployments.
+
+**Critical Issues Discovered**:
+- **Lambda Cold Start Failures**: Complex route loading and database initialization causing 5+ second timeouts
+- **Database Connection Hangs**: Multiple simultaneous connection attempts causing resource exhaustion
+- **Environment Variable Dependencies**: Missing critical environment variables causing complete system failure
+- **Route Loading Complexity**: Over 20 routes loading during Lambda cold start creating bottlenecks
+
+**Emergency Solutions Implemented**:
+```javascript
+// Emergency Lambda Architecture - Minimal Startup
+const emergencyLambdaPattern = {
+  // 1. Immediate health endpoints (bypass all initialization)
+  emergencyEndpoints: ['/emergency-health', '/health', '/api/health'],
+  
+  // 2. Graceful degradation for missing dependencies
+  optionalModules: ['database', 'encryption', 'complex-routes'],
+  
+  // 3. Progressive enhancement rather than all-or-nothing
+  initializationStages: ['basic-cors', 'health-checks', 'database', 'full-routes']
+};
+```
+
+**Infrastructure Resilience Patterns**:
+- **Circuit Breaker Pattern**: Automatic failover when database is unreachable
+- **Graceful Degradation**: Core functionality works even when secondary systems fail
+- **Progressive Enhancement**: System starts with minimal functionality and adds features as dependencies become available
+- **Emergency Endpoints**: Always-available diagnostics that bypass complex initialization
+- **Connection Pooling Optimization**: Single shared database pool instead of per-route initialization
+
 **New Centralized Architecture**:
 ```javascript
 // Centralized Live Data Service

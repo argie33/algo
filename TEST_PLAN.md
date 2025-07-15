@@ -1,1131 +1,944 @@
-# Financial Trading Platform - Test Plan
-*Version 1.1 | Updated 2025-07-15 | Comprehensive Testing Strategy - Performance Optimizations*
+# Financial Trading Platform - Comprehensive Test Plan
+*Institutional-Grade Testing Strategy for Production Financial Systems*  
+**Version 3.1 | Updated: July 15, 2025 - Critical Infrastructure Testing Lessons**
 
-## 1. TEST OVERVIEW
+## 🚨 CRITICAL TESTING LESSONS LEARNED (July 15, 2025)
 
-### 1.1 Test Strategy
-This comprehensive test plan covers all aspects of the Financial Trading Platform, ensuring institutional-grade quality and reliability. The testing approach includes unit tests, integration tests, performance tests, security tests, and end-to-end user acceptance tests.
+### Emergency Infrastructure Testing Requirements
+Based on critical production issues discovered during deployment:
 
-### 1.2 Testing Scope
-- **Frontend Components**: React components, hooks, contexts, services
-- **Backend APIs**: Lambda functions, route handlers, middleware
-- **Database Operations**: Schema validation, query performance, data integrity
-- **External Integrations**: Broker APIs, market data feeds, authentication
-- **Performance Systems**: Real-time data pipeline, advanced analytics, risk management
-- **Security**: Authentication, authorization, API key encryption, input validation
-- **Infrastructure**: CloudFormation templates, deployment processes, monitoring
+**Lambda Function Testing**:
+- ✅ **Cold Start Performance**: Lambda functions MUST respond within 3 seconds during cold starts
+- ✅ **Progressive Initialization**: Test system functionality with partial initialization states
+- ✅ **Emergency Endpoints**: Always-available health checks that bypass complex initialization
+- ✅ **Database Connection Resilience**: Test behavior when database is unreachable
+- ✅ **Environment Variable Validation**: Comprehensive testing of missing/invalid environment variables
 
-### 1.3 Test Environment Strategy
+**Database Connection Testing**:
+- ✅ **Connection Pool Limits**: Test connection exhaustion scenarios
+- ✅ **Timeout Handling**: Database calls MUST timeout within 15 seconds maximum
+- ✅ **Multiple Simultaneous Connections**: Test behavior with concurrent database initialization
+- ✅ **Network Isolation**: Test Lambda behavior when database is network-unreachable
+
+**API Gateway & CORS Testing**:
+- ✅ **CORS Preflight**: Test OPTIONS requests work correctly
+- ✅ **CloudFront Origin Validation**: Test CORS with production CloudFront domain
+- ✅ **502 Bad Gateway Prevention**: Test error handling prevents Lambda crashes causing 502s
+
+## 1. TESTING FRAMEWORK OVERVIEW
+
+### 1.1 Testing Philosophy
+This test plan implements institutional-grade testing standards equivalent to those used by major financial institutions and trading firms. Every component undergoes rigorous validation including functional, performance, security, and regulatory compliance testing.
+
+### 1.2 Test Environment Architecture
 ```
-Test Environments:
-├── local/              # Local development testing
-├── dev/                # Development environment
-├── staging/            # Pre-production testing
-└── production/         # Live production monitoring
+Testing Environment Hierarchy:
+├── unit/              # Component-level testing (Jest, React Testing Library)
+├── integration/       # API and database integration testing (Supertest)
+├── e2e/              # End-to-end user workflow testing (Playwright)
+├── performance/      # Load testing and stress testing (Artillery, k6)
+├── security/         # Security and penetration testing (OWASP ZAP)
+├── compliance/       # Financial regulatory compliance testing
+└── production/       # Live production monitoring and validation
 ```
 
-### 1.4 Current Testing Issues (2025-07-15)
-Critical issues discovered and resolved during testing:
-- ✅ **RESOLVED**: Lambda syntax errors causing 503 service failures - Fixed stocks.js, trades.js, portfolio.js, economic.js
-- ✅ **RESOLVED**: Missing API Endpoints - /api/stocks/sectors fixed by removing duplicate code
-- ✅ **RESOLVED**: Parameter Misalignment - Frontend-backend parameter inconsistencies resolved
-- ✅ **RESOLVED**: Chart Component Failures - React rendering errors with invalid data resolved
-- ✅ **RESOLVED**: API key workflow testing - Complete end-to-end testing suite implemented
-- ✅ **RESOLVED**: API key validation system - validateApiKeyFormat method added and tested
-- ✅ **RESOLVED**: Data Loading Architecture - Redesigned from 3234 to 400 lines with proper job dependency validation
-- ✅ **RESOLVED**: ECR Publishing Dependencies - Infrastructure validation happens before image builds
-- ✅ **RESOLVED**: Load Type Separation - Proper separation of initial, fundamental, and incremental data loads
-- ✅ **RESOLVED**: Lambda Handler Export - Added missing `module.exports.handler = serverless(app)`
-- ✅ **RESOLVED**: Data Loading Parameter Support - Added --historical and --incremental to Python scripts
-- ✅ **RESOLVED**: Mock Data Dependencies - Eliminated 60%+ of mock data fallbacks (SocialMediaSentiment, TradingSignals)
-- ✅ **RESOLVED**: Security Vulnerabilities - Real JWT authentication implemented, mock bypasses removed
-- ✅ **RESOLVED**: All 5 Critical Deployment Blockers - System is deployment-ready (9/10 status)
-- ✅ **RESOLVED**: Docker Build Dependencies - Fixed Node.js container dependency issues in webapp-db-init
-- ✅ **RESOLVED**: FRED API Integration - Economic data available via GitHub secrets (no user setup required)
+### 1.3 Testing Technology Stack
+- **Frontend Testing**: Jest, React Testing Library, Cypress, Storybook
+- **Backend Testing**: Jest, Supertest, Artillery for load testing
+- **Database Testing**: PostgreSQL test databases, data seeding, migration testing
+- **API Testing**: Postman collections, contract testing with Pact
+- **Performance Testing**: k6, Artillery, WebPageTest
+- **Security Testing**: OWASP ZAP, Burp Suite, dependency scanning
+- **Infrastructure Testing**: CloudFormation validation, AWS Config rules
 
-### 1.5 CRITICAL SYSTEM INTEGRATION TESTING COMPLETE (2025-07-15)
-**ALL CRITICAL INTEGRATION ISSUES RESOLVED:**
-- ✅ **RESOLVED**: CORS Policy and API Communication - Fixed 502 Bad Gateway errors, all API endpoints working
-- ✅ **RESOLVED**: Complete API Key Flow Testing - End-to-end integration from frontend to backend database working
-- ✅ **RESOLVED**: Settings Page Integration Testing - Full connection between frontend settings and backend API key service
-- ✅ **RESOLVED**: User Onboarding Flow Testing - Comprehensive guided API key setup with validation implemented
-- ✅ **RESOLVED**: Real-time Data Service Testing - Live data services integrated with API key authentication system
-- ✅ **RESOLVED**: Portfolio Data Flow Testing - Portfolio properly retrieves and displays data using user API credentials
+## 2. COMPONENT-LEVEL TESTING
 
-### 1.6 NEW END-TO-END TESTING FRAMEWORK (2025-07-15)
-**Complete API Key Flow Test Suite Implemented:**
-- **`test-api-key-flow.js`**: Comprehensive test script validating entire API key lifecycle
-- **Test Coverage**: Creation, retrieval, validation, portfolio data access, real-time services, cleanup
-- **Error Scenarios**: Proper handling of missing credentials and authentication failures
-- **Success Metrics**: 100% test coverage of critical API key integration points
+### 2.1 Frontend Component Testing
 
-**TESTING STATUS: ALL CRITICAL TESTS PASSING** - Complete system integration functional
-
-### 1.7 CRITICAL TEST VALIDATIONS COMPLETE (2025-07-15)
-- ✅ **PASSING**: Portfolio Data Loading Tests - Successfully retrieves portfolio data with functional API key flow
-- ✅ **PASSING**: User Authentication Integration Tests - JWT tokens properly integrated with API key retrieval system
-- ✅ **PASSING**: Real-Time Data Service Tests - Live data authentication working with API key system
-- ✅ **PASSING**: End-to-End User Flow Tests - Complete user journey functional from API key setup to portfolio viewing
-- ✅ **PASSING**: Component Integration Tests - ApiKeyProvider, ApiKeyOnboarding, RequiresApiKeys all working
-- ✅ **PASSING**: Settings Page Integration Tests - Full backend integration with unified SettingsManager
-
-### 1.6 IMMEDIATE TESTING PRIORITIES (2025-07-15)
-1. **Lambda Handler Export Deployment Test**: Verify fix is deployed and functional in production
-2. **API Gateway Integration Test**: Confirm Lambda function properly integrated with API Gateway
-3. **CORS Headers Test**: Validate all endpoints return proper CORS headers for CloudFront domain
-4. **Settings Page Backend Integration Test**: Implement and test POST `/api/settings/api-keys` endpoint
-5. **API Key Encryption/Decryption Test**: Validate full API key lifecycle from frontend to database
-6. **Portfolio Data Retrieval Test**: Test complete flow from user authentication to portfolio display
-7. **Error Handling Test**: Validate graceful degradation when API keys missing or invalid
-8. **User Onboarding Flow Test**: Test guided API key setup and validation process
-
-🔄 **IN PROGRESS**: Centralized Live Data Service - Architecture redesigned, implementation pending
-🔄 **IN PROGRESS**: Remaining Mock Data Cleanup - Trading Signals AI, Social Media API integration
-⚠️ **BLOCKED**: End-to-end system validation - Blocked by core API communication failures
-
-### 1.7 Critical Error Pattern Analysis (RESOLVED)
-**Previous Error Pattern (July 2025):**
-- All API endpoints: `/health`, `/stocks`, `/portfolio`, `/trading`, `/settings`, `/technical` returned 502 Bad Gateway
-- **Root Cause**: Missing Lambda handler export (`module.exports.handler = serverless(app)`)
-- **Resolution**: Added proper serverless handler export, all endpoints now functional
-
-**Current System Status (July 15, 2025):**
-- ✅ All API endpoints return proper responses
-- ✅ CORS configuration unified and functional
-- ✅ Frontend-backend communication established
-- ✅ Real data integration with minimal mock fallbacks
-- ✅ JWT authentication and security implemented
-- 🔄 Live data service architecture redesigned for cost efficiency
-
-**Next Phase Testing Priorities:**
-- End-to-end system validation with real deployment
-- Centralized live data service implementation testing
-- Performance testing with real data loads
-- Remaining mock data elimination validation
-
-### 1.6 Testing Strategy for WSL + IaC Deployment (2025-07-15)
-**Local Testing Approach:**
-- Business logic testing: Comprehensive local test suites for all workflows
-- User context testing: Verify user-specific API key isolation and handling
-- Encryption testing: Validate encryption/decryption roundtrip functionality
-- Database testing: Mock database operations with realistic data structures
-- Data loading testing: Validate script parameters and data flow logic
-- **Handler Export Testing**: Verify Lambda handler is properly exported before deployment
-- **Live Data Testing**: Test WebSocket connections and real-time data flow
-
-**Deployment Testing Approach:**
-- Environment variables: Configured via IaC templates during deployment
-- AWS integrations: Real AWS services (RDS, Secrets Manager, Cognito) testing post-deployment
-- End-to-end workflow: Settings → API key addition → Portfolio import → Live data
-- Performance testing: Load testing against deployed AWS infrastructure
-- Infrastructure verification: Use deployment verification scripts to validate readiness
-- Dependency validation: Ensure all CloudFormation stacks and exports are available
-- Data loading validation: Test new workflow architecture with proper load type separation
-- **CORS Testing**: Verify CloudFront domain allowed in CORS configuration
-- **502 Error Prevention**: Test all endpoints return proper status codes, not 502
-- **Complete API Testing**: Validate all endpoints accessible from frontend
-- **Live Data Integration**: Test real-time data feeds and WebSocket performance
-
-### 1.7 Live Data Experience Testing Strategy
-**Live Data Feed Testing:**
-- **Subscription Management**: Test user can select and modify data feed subscriptions
-- **Real-Time Validation**: Verify live data streams are working correctly
-- **API Rate Monitoring**: Test rate limiting and cost calculation accuracy
-- **WebSocket Reliability**: Test connection stability and automatic reconnection
-- **Data Quality Validation**: Test data integrity and anomaly detection
-- **Performance Metrics**: Validate latency, throughput, and reliability measurements
-
-## 2. UNIT TESTING
-
-### 2.1 Frontend Unit Tests (React)
-
-#### 2.1.1 Component Testing Framework
+**React Component Test Strategy**:
 ```javascript
-// Example: Portfolio component test
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Portfolio } from '../components/Portfolio';
-
-describe('Portfolio Component', () => {
-  test('renders portfolio data correctly', () => {
-    const mockPortfolio = {
-      totalValue: 100000,
-      totalPnL: 5000,
-      holdings: [
-        { symbol: 'AAPL', quantity: 10, marketValue: 1500 }
-      ]
-    };
-    
-    render(<Portfolio portfolio={mockPortfolio} />);
-    
-    expect(screen.getByText('$100,000')).toBeInTheDocument();
-    expect(screen.getByText('$5,000')).toBeInTheDocument();
-    expect(screen.getByText('AAPL')).toBeInTheDocument();
+// Example: ApiKeyOnboarding Component Test Suite
+describe('ApiKeyOnboarding Component', () => {
+  // Rendering Tests
+  test('renders all onboarding steps correctly', () => {
+    render(<ApiKeyOnboarding />);
+    expect(screen.getByText('Welcome & Overview')).toBeInTheDocument();
+    expect(screen.getByText('Alpaca Trading API')).toBeInTheDocument();
+    expect(screen.getByText('Market Data APIs')).toBeInTheDocument();
   });
-});
-```
 
-#### 2.1.2 Hook Testing
-```javascript
-// Example: usePortfolio hook test
-import { renderHook, act } from '@testing-library/react';
-import { usePortfolio } from '../hooks/usePortfolio';
-
-describe('usePortfolio Hook', () => {
-  test('fetches portfolio data correctly', async () => {
-    const { result } = renderHook(() => usePortfolio());
+  // User Interaction Tests
+  test('validates API key format in real-time', async () => {
+    render(<ApiKeyOnboarding />);
+    const alpacaKeyInput = screen.getByLabelText('API Key ID');
     
-    await act(async () => {
-      await result.current.fetchPortfolio();
+    fireEvent.change(alpacaKeyInput, { target: { value: 'invalid_key' } });
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid API key format/)).toBeInTheDocument();
     });
-    
-    expect(result.current.loading).toBe(false);
-    expect(result.current.portfolio).toBeDefined();
+  });
+
+  // Integration with Backend
+  test('successfully saves API key to backend', async () => {
+    const mockSaveApiKey = jest.fn().mockResolvedValue({ id: '123', success: true });
+    jest.mock('../services/settingsService', () => ({
+      addApiKey: mockSaveApiKey
+    }));
+
+    render(<ApiKeyOnboarding />);
+    // Fill form and submit...
+    expect(mockSaveApiKey).toHaveBeenCalledWith({
+      provider: 'alpaca',
+      apiKey: 'VALID_KEY',
+      apiSecret: 'VALID_SECRET',
+      isSandbox: true
+    });
   });
 });
 ```
 
-### 2.2 Backend Unit Tests (Node.js)
+**Coverage Requirements**:
+- **Unit Tests**: >90% code coverage for all React components
+- **Integration Tests**: All API service calls mocked and tested
+- **Accessibility Tests**: WCAG 2.1 AA compliance validation
+- **Visual Regression Tests**: Automated screenshot comparison
 
-#### 2.2.1 API Route Testing
+### 2.2 Backend API Testing
+
+**Lambda Function Test Strategy**:
 ```javascript
-// Example: Portfolio API test
-const request = require('supertest');
-const app = require('../index');
+// Example: Portfolio API Endpoint Testing
+describe('Portfolio API Endpoints', () => {
+  let testServer;
+  let testDb;
+  let testUser;
 
-describe('Portfolio API', () => {
-  test('GET /api/portfolio returns user portfolio', async () => {
-    const response = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', 'Bearer valid-jwt-token')
-      .expect(200);
-    
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toHaveProperty('totalValue');
-    expect(response.body.data).toHaveProperty('holdings');
+  beforeAll(async () => {
+    testDb = await setupTestDatabase();
+    testServer = await createTestServer();
+    testUser = await createTestUser();
+  });
+
+  describe('GET /api/portfolio/holdings', () => {
+    test('returns portfolio data for authenticated user', async () => {
+      const response = await request(testServer)
+        .get('/api/portfolio/holdings')
+        .set('Authorization', `Bearer ${testUser.token}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          holdings: expect.any(Array),
+          totalValue: expect.any(Number),
+          dayChange: expect.any(Number)
+        }
+      });
+    });
+
+    test('handles missing API keys gracefully', async () => {
+      const userWithoutKeys = await createTestUserWithoutApiKeys();
+      
+      const response = await request(testServer)
+        .get('/api/portfolio/holdings')
+        .set('Authorization', `Bearer ${userWithoutKeys.token}`)
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error_code: 'API_CREDENTIALS_MISSING',
+        actions: expect.arrayContaining([
+          'Go to Settings > API Keys',
+          'Add your Alpaca API credentials'
+        ])
+      });
+    });
+
+    test('validates request parameters', async () => {
+      const response = await request(testServer)
+        .get('/api/portfolio/holdings?accountType=invalid')
+        .set('Authorization', `Bearer ${testUser.token}`)
+        .expect(400);
+
+      expect(response.body.error).toContain('Invalid account type');
+    });
   });
 });
 ```
 
-#### 2.2.2 Service Layer Testing
-```javascript
-// Example: AdvancedPerformanceAnalytics test
-const { AdvancedPerformanceAnalytics } = require('../utils/advancedPerformanceAnalytics');
-
-describe('AdvancedPerformanceAnalytics', () => {
-  test('calculates performance metrics correctly', async () => {
-    const analytics = new AdvancedPerformanceAnalytics(mockDb);
-    
-    const metrics = await analytics.calculatePortfolioPerformance(
-      'user123',
-      '2024-01-01',
-      '2024-12-31'
-    );
-    
-    expect(metrics.baseMetrics.totalReturn).toBeDefined();
-    expect(metrics.riskMetrics.volatility).toBeDefined();
-    expect(metrics.attributionAnalysis).toBeDefined();
-  });
-});
-```
+**API Test Coverage Requirements**:
+- **Functional Tests**: All endpoints with valid/invalid inputs
+- **Authentication Tests**: JWT validation, expired tokens, unauthorized access
+- **Input Validation**: SQL injection, XSS, malformed JSON
+- **Error Handling**: Graceful degradation, proper error codes
+- **Rate Limiting**: API throttling and abuse prevention
 
 ### 2.3 Database Testing
 
-#### 2.3.1 Schema Validation Tests
-```javascript
-// Example: Database schema test
-describe('Database Schema', () => {
-  test('portfolio_holdings table structure', async () => {
-    const columns = await db.query(`
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_name = 'portfolio_holdings'
-    `);
-    
-    expect(columns.rows).toContainEqual({
-      column_name: 'user_id',
-      data_type: 'character varying',
-      is_nullable: 'NO'
-    });
-  });
-});
+**Database Integration Test Strategy**:
+```sql
+-- Example: Database Schema and Data Integrity Tests
+-- Test Suite: User API Keys Encryption/Decryption
+
+-- Test 1: API Key Encryption
+INSERT INTO user_api_keys (user_id, provider, encrypted_api_key, encrypted_api_secret, salt)
+VALUES ('test-user-123', 'alpaca', 'encrypted_key_data', 'encrypted_secret_data', 'unique_salt');
+
+-- Test 2: Unique Constraint Validation
+-- Should fail - duplicate provider for same user
+INSERT INTO user_api_keys (user_id, provider, encrypted_api_key, encrypted_api_secret, salt)
+VALUES ('test-user-123', 'alpaca', 'different_key', 'different_secret', 'different_salt');
+
+-- Test 3: Foreign Key Relationships
+-- Should fail - invalid user_id
+INSERT INTO user_api_keys (user_id, provider, encrypted_api_key, encrypted_api_secret, salt)
+VALUES ('nonexistent-user', 'polygon', 'key_data', 'secret_data', 'salt_data');
+
+-- Test 4: Data Type Validation
+-- Should fail - invalid enum value
+INSERT INTO user_api_keys (user_id, provider, encrypted_api_key, encrypted_api_secret, salt)
+VALUES ('test-user-123', 'invalid_provider', 'key_data', 'secret_data', 'salt_data');
 ```
 
-#### 2.3.2 Query Performance Tests
-```javascript
-// Example: Query performance test
-describe('Query Performance', () => {
-  test('portfolio query performance within SLA', async () => {
-    const startTime = Date.now();
-    
-    const result = await db.query(`
-      SELECT * FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0
-    `, ['user123']);
-    
-    const queryTime = Date.now() - startTime;
-    expect(queryTime).toBeLessThan(100); // 100ms SLA
-  });
-});
-```
+**Database Test Coverage**:
+- **Schema Validation**: All table constraints, foreign keys, indexes
+- **Data Integrity**: Referential integrity, data type validation
+- **Performance**: Query execution plans, index effectiveness
+- **Migrations**: Up/down migration testing with data preservation
+- **Backup/Recovery**: Database backup and restoration procedures
 
 ## 3. INTEGRATION TESTING
 
-### 3.1 API Integration Tests
+### 3.1 API Integration Testing
 
-#### 3.1.1 Authentication Flow
+**External API Integration Test Suite**:
 ```javascript
-describe('Authentication Integration', () => {
-  test('complete authentication flow', async () => {
-    // Test login
-    const loginResponse = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'test@example.com',
-        password: 'password123'
-      });
-    
-    expect(loginResponse.status).toBe(200);
-    const { accessToken } = loginResponse.body.data;
-    
-    // Test protected route with token
-    const protectedResponse = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', `Bearer ${accessToken}`);
-    
-    expect(protectedResponse.status).toBe(200);
-  });
-});
-```
-
-#### 3.1.2 External API Integration
-```javascript
-describe('Broker API Integration', () => {
-  test('Alpaca API integration', async () => {
-    const alpacaService = new AlpacaService(testApiKey, testSecret, true);
-    
-    const positions = await alpacaService.getPositions();
-    expect(positions).toBeDefined();
-    expect(Array.isArray(positions)).toBe(true);
-  });
-});
-```
-
-#### 3.1.3 Frontend-Backend Integration Testing
-```javascript
-describe('CORS and API Integration', () => {
-  test('CloudFront CORS headers properly set', async () => {
-    const response = await request(app)
-      .get('/api/settings/api-keys')
-      .set('Origin', 'https://d1zb7knau41vl9.cloudfront.net');
-    
-    expect(response.headers['access-control-allow-origin']).toBe('https://d1zb7knau41vl9.cloudfront.net');
-    expect(response.status).not.toBe(502);
-  });
-  
-  test('Settings API endpoints return proper data structure', async () => {
-    const response = await request(app)
-      .get('/api/settings/api-keys')
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body.data)).toBe(true);
-  });
-  
-  test('Portfolio API returns array for map operations', async () => {
-    const response = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body.data)).toBe(true);
-  });
-});
-
-describe('Lambda Error Handling', () => {
-  test('Lambda crashes return 500 not 502', async () => {
-    // Test endpoint that might crash
-    const response = await request(app).get('/api/settings/api-keys');
-    
-    expect(response.status).not.toBe(502);
-    if (response.status >= 400) {
-      expect(response.body.error).toBeDefined();
-    }
-  });
-});
-
-describe('Data Loading Architecture Testing', () => {
-  test('data loading workflow validates infrastructure before ECR', async () => {
-    // Mock infrastructure validation
-    const infraValidation = await validateInfrastructure();
-    expect(infraValidation.can_proceed).toBe(true);
-    
-    // Only proceed with ECR if validation passes
-    if (infraValidation.can_proceed) {
-      const ecrResult = await buildAndPushImages();
-      expect(ecrResult.success).toBe(true);
-    }
-  });
-  
-  test('load type separation works correctly', async () => {
-    const loadTypes = ['initial', 'incremental', 'fundamentals'];
-    
-    for (const loadType of loadTypes) {
-      const result = await triggerDataLoad(loadType);
-      expect(result.loadType).toBe(loadType);
-      expect(result.jobsExecuted).toBeGreaterThan(0);
-    }
-  });
-  
-  test('workflow complexity reduction maintained', async () => {
-    // Verify workflow file size is reasonable
-    const workflowFile = fs.readFileSync('.github/workflows/deploy-app-stocks-redesigned.yml', 'utf8');
-    const lineCount = workflowFile.split('\n').length;
-    
-    expect(lineCount).toBeLessThan(500); // Should be under 500 lines vs original 3234
-  });
-  
-  test('Python scripts support required parameters', async () => {
-    const scripts = ['loadpricedaily.py', 'loadtechnicals.py'];
-    
-    for (const script of scripts) {
-      // Test --historical parameter
-      const historicalResult = await runScript(script, ['--historical']);
-      expect(historicalResult.success).toBe(true);
-      expect(historicalResult.logs).toContain('HISTORICAL mode');
-      
-      // Test --incremental parameter
-      const incrementalResult = await runScript(script, ['--incremental']);
-      expect(incrementalResult.success).toBe(true);
-      expect(incrementalResult.logs).toContain('INCREMENTAL mode');
-    }
-  });
-});
-
-describe('Critical API Failure Prevention', () => {
-  test('Lambda handler is properly exported', () => {
-    const indexFile = fs.readFileSync('webapp/lambda/index.js', 'utf8');
-    expect(indexFile).toContain('module.exports.handler = serverless(app)');
-  });
-  
-  test('CORS configuration includes CloudFront domain', async () => {
-    const response = await request(app)
-      .options('/api/health')
-      .set('Origin', 'https://d1zb7knau41vl9.cloudfront.net');
-    
-    expect(response.headers['access-control-allow-origin']).toBe('https://d1zb7knau41vl9.cloudfront.net');
-  });
-  
-  test('All API endpoints return proper status codes not 502', async () => {
-    const endpoints = ['/health', '/stocks', '/portfolio', '/trading', '/settings'];
-    
-    for (const endpoint of endpoints) {
-      const response = await request(app).get(endpoint);
-      expect(response.status).not.toBe(502);
-      expect(response.status).toBeLessThan(600); // Not server error
-    }
-  });
-});
-
-describe('Mock Data Elimination Testing', () => {
-  test('Portfolio API returns real data not mock', async () => {
-    const response = await request(app)
-      .get('/api/portfolio/performance')
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(200);
-    expect(response.body.mock).toBeFalsy();
-    expect(response.body.source).not.toBe('mock');
-  });
-  
-  test('API key management uses real encryption', async () => {
-    const response = await request(app)
-      .get('/api/settings/api-keys')
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(200);
-    expect(response.body.mock).toBeFalsy();
-    // Should not contain hardcoded mock responses
-    expect(response.body.data).not.toEqual([]);
-  });
-  
-  test('Authentication uses real JWT validation', async () => {
-    const response = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', 'Bearer mock-token');
-    
-    expect(response.status).toBe(401); // Mock tokens should be rejected
-  });
-  
-  test('Watchlist returns real database data', async () => {
-    const response = await request(app)
-      .get('/api/watchlist')
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(200);
-    expect(response.body.mock).toBeFalsy();
-    expect(response.body.source).toBe('database');
-  });
-});
-
-describe('Live Data Experience Testing', () => {
-  test('Live data subscription management works correctly', async () => {
-    const subscriptionConfig = {
-      dataType: 'stocks',
-      symbols: ['AAPL', 'TSLA'],
-      frequency: 'realtime',
-      fields: ['price', 'volume']
+// Example: Alpaca API Integration Testing
+describe('Alpaca API Integration', () => {
+  test('validates API credentials with live Alpaca service', async () => {
+    const testCredentials = {
+      apiKey: process.env.ALPACA_TEST_KEY,
+      apiSecret: process.env.ALPACA_TEST_SECRET,
+      isSandbox: true
     };
+
+    const validation = await alpacaService.validateCredentials(testCredentials);
     
-    const response = await request(app)
-      .post('/api/live-data/subscribe')
-      .set('Authorization', 'Bearer valid-token')
-      .send(subscriptionConfig);
-    
-    expect(response.status).toBe(200);
-    expect(response.body.subscription.id).toBeDefined();
-    expect(response.body.subscription.cost).toBeDefined();
-  });
-  
-  test('API rate limiting validation works', async () => {
-    const heavySubscription = {
-      dataType: 'stocks',
-      symbols: Array.from({ length: 1000 }, (_, i) => `SYMBOL${i}`),
-      frequency: 'realtime'
-    };
-    
-    const response = await request(app)
-      .post('/api/live-data/subscribe')
-      .set('Authorization', 'Bearer valid-token')
-      .send(heavySubscription);
-    
-    expect(response.status).toBe(429); // Rate limit exceeded
-    expect(response.body.error).toContain('rate limit');
-  });
-  
-  test('WebSocket connection provides real-time data', (done) => {
-    const ws = new WebSocket('ws://localhost:3001/live-data');
-    
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        action: 'subscribe',
-        symbols: ['AAPL'],
-        token: 'valid-jwt-token'
-      }));
+    expect(validation).toMatchObject({
+      valid: true,
+      accountStatus: 'ACTIVE',
+      tradingPermissions: expect.any(Array)
     });
+  });
+
+  test('handles invalid credentials appropriately', async () => {
+    const invalidCredentials = {
+      apiKey: 'INVALID_KEY',
+      apiSecret: 'INVALID_SECRET',
+      isSandbox: true
+    };
+
+    const validation = await alpacaService.validateCredentials(invalidCredentials);
     
-    ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      expect(message.type).toBe('quote');
-      expect(message.symbol).toBe('AAPL');
-      expect(message.price).toBeDefined();
-      expect(message.timestamp).toBeDefined();
+    expect(validation).toMatchObject({
+      valid: false,
+      error: 'Invalid API credentials',
+      errorCode: 'AUTHENTICATION_FAILED'
+    });
+  });
+
+  test('fetches portfolio data correctly', async () => {
+    const portfolioData = await alpacaService.getPortfolioData(validCredentials);
+    
+    expect(portfolioData).toMatchObject({
+      positions: expect.any(Array),
+      totalEquity: expect.any(Number),
+      dayChange: expect.any(Number),
+      dayChangePercent: expect.any(Number)
+    });
+
+    // Validate position data structure
+    if (portfolioData.positions.length > 0) {
+      expect(portfolioData.positions[0]).toMatchObject({
+        symbol: expect.any(String),
+        qty: expect.any(Number),
+        market_value: expect.any(Number),
+        cost_basis: expect.any(Number)
+      });
+    }
+  });
+});
+```
+
+### 3.2 Real-time Data Integration Testing
+
+**Live Data Feed Testing**:
+```javascript
+describe('Real-time Market Data Integration', () => {
+  test('establishes connection to market data service', async () => {
+    const dataService = new RealTimeDataService();
+    
+    await expect(dataService.connect()).resolves.not.toThrow();
+    expect(dataService.isConnected).toBe(true);
+  });
+
+  test('subscribes to market data successfully', async () => {
+    const dataService = new RealTimeDataService();
+    await dataService.connect();
+    
+    const subscriptionResult = await dataService.subscribeMarketData(['AAPL', 'MSFT']);
+    expect(subscriptionResult).toBe(true);
+    expect(dataService.subscriptions.size).toBe(2);
+  });
+
+  test('receives and processes market data updates', (done) => {
+    const dataService = new RealTimeDataService();
+    
+    dataService.on('marketData_AAPL', (data) => {
+      expect(data).toMatchObject({
+        symbol: 'AAPL',
+        price: expect.any(Number),
+        timestamp: expect.any(String)
+      });
       done();
     });
-  });
-  
-  test('Live data quality validation detects anomalies', async () => {
-    const testData = {
-      symbol: 'AAPL',
-      price: 999999, // Unrealistic price
-      volume: -100,   // Invalid volume
-      timestamp: Date.now() - 3600000 // 1 hour old
-    };
-    
-    const response = await request(app)
-      .post('/api/live-data/validate')
-      .set('Authorization', 'Bearer valid-token')
-      .send(testData);
-    
-    expect(response.status).toBe(200);
-    expect(response.body.anomalies).toContain('price_spike');
-    expect(response.body.anomalies).toContain('invalid_volume');
-    expect(response.body.anomalies).toContain('stale_data');
-  });
-});
-```
 
-### 3.2 Database Integration Tests
-
-#### 3.2.1 Transaction Testing
-```javascript
-describe('Database Transactions', () => {
-  test('portfolio update transaction', async () => {
-    const userId = 'test-user';
-    const positions = [
-      { symbol: 'AAPL', quantity: 10, avgCost: 150 }
-    ];
-    
-    await db.transaction(async (client) => {
-      await client.query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
-      
-      for (const position of positions) {
-        await client.query(
-          'INSERT INTO portfolio_holdings (user_id, symbol, quantity, avg_cost) VALUES ($1, $2, $3, $4)',
-          [userId, position.symbol, position.quantity, position.avgCost]
-        );
-      }
+    dataService.connect().then(() => {
+      dataService.subscribeMarketData(['AAPL']);
     });
+  }, 10000); // 10 second timeout for real-time data
+});
+```
+
+## 4. END-TO-END TESTING
+
+### 4.1 Complete User Workflow Testing
+
+**User Journey Test Scenarios**:
+```javascript
+// Example: Complete API Key Setup to Portfolio View Journey
+describe('Complete User Journey: API Key Setup to Portfolio', () => {
+  let page;
+  let browser;
+
+  beforeAll(async () => {
+    browser = await playwright.chromium.launch();
+    page = await browser.newPage();
+  });
+
+  test('new user completes full onboarding workflow', async () => {
+    // Step 1: User Registration
+    await page.goto('/register');
+    await page.fill('[data-testid="email-input"]', 'test@example.com');
+    await page.fill('[data-testid="password-input"]', 'SecurePassword123!');
+    await page.click('[data-testid="register-button"]');
     
-    const result = await db.query(
-      'SELECT * FROM portfolio_holdings WHERE user_id = $1',
-      [userId]
-    );
+    // Verify registration success
+    await expect(page.locator('[data-testid="registration-success"]')).toBeVisible();
+
+    // Step 2: Email Verification (mocked in test environment)
+    await page.goto('/verify-email?token=test-verification-token');
+    await expect(page.locator('[data-testid="email-verified"]')).toBeVisible();
+
+    // Step 3: API Key Onboarding
+    await page.goto('/onboarding');
     
-    expect(result.rows.length).toBe(1);
-    expect(result.rows[0].symbol).toBe('AAPL');
+    // Welcome step
+    await expect(page.locator('text=Welcome to Financial Dashboard Setup')).toBeVisible();
+    await page.click('[data-testid="continue-button"]');
+
+    // Alpaca API setup
+    await page.fill('[data-testid="alpaca-key-input"]', 'TEST_API_KEY_123456789012');
+    await page.fill('[data-testid="alpaca-secret-input"]', 'TEST_SECRET_KEY_1234567890123456789012345678');
+    await page.check('[data-testid="paper-trading-toggle"]');
+    await page.click('[data-testid="save-alpaca-key"]');
+    
+    // Verify API key saved
+    await expect(page.locator('[data-testid="alpaca-key-saved"]')).toBeVisible();
+    await page.click('[data-testid="continue-button"]');
+
+    // Market data APIs (optional step)
+    await page.click('[data-testid="continue-button"]');
+
+    // Validation step
+    await page.click('[data-testid="test-connection-alpaca"]');
+    await expect(page.locator('[data-testid="alpaca-connection-success"]')).toBeVisible();
+    await page.click('[data-testid="continue-button"]');
+
+    // Complete setup
+    await page.click('[data-testid="start-trading-button"]');
+
+    // Step 4: Navigate to Portfolio
+    await expect(page).toHaveURL('/portfolio');
+    
+    // Verify portfolio loads with API key
+    await expect(page.locator('[data-testid="portfolio-holdings"]')).toBeVisible();
+    await expect(page.locator('[data-testid="account-balance"]')).toBeVisible();
+    
+    // Verify live data integration
+    await expect(page.locator('[data-testid="live-data-indicator"]')).toContainText('Connected');
+  });
+
+  test('existing user without API keys sees onboarding prompt', async () => {
+    // Login as existing user without API keys
+    await page.goto('/login');
+    await page.fill('[data-testid="email-input"]', 'existing@example.com');
+    await page.fill('[data-testid="password-input"]', 'Password123!');
+    await page.click('[data-testid="login-button"]');
+
+    // Navigate to portfolio
+    await page.goto('/portfolio');
+
+    // Should see API key requirement notice
+    await expect(page.locator('[data-testid="api-key-required"]')).toBeVisible();
+    await expect(page.locator('text=Setup API Keys')).toBeVisible();
+
+    // Click setup and verify onboarding opens
+    await page.click('[data-testid="setup-api-keys-button"]');
+    await expect(page.locator('[data-testid="api-key-onboarding"]')).toBeVisible();
   });
 });
 ```
 
-## 4. PERFORMANCE TESTING
+### 4.2 Performance Testing Scenarios
 
-### 4.1 Load Testing
-
-#### 4.1.1 API Load Tests
+**Load Testing Specifications**:
 ```javascript
-// Example: Load test configuration
-const loadTest = {
-  target: 'https://api.example.com',
-  phases: [
-    { duration: '2m', arrivalRate: 10 },  // Ramp up
-    { duration: '5m', arrivalRate: 50 },  // Sustained load
-    { duration: '2m', arrivalRate: 100 }  // Peak load
+// Example: k6 Load Testing Script
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export let options = {
+  stages: [
+    { duration: '2m', target: 100 },   // Ramp up to 100 users
+    { duration: '5m', target: 100 },   // Stay at 100 users
+    { duration: '2m', target: 200 },   // Ramp up to 200 users
+    { duration: '5m', target: 200 },   // Stay at 200 users
+    { duration: '2m', target: 0 },     // Ramp down to 0 users
   ],
-  scenarios: [
-    {
-      name: 'Portfolio API Load Test',
-      weight: 70,
-      flow: [
-        { post: { url: '/api/auth/login', json: { email: 'test@example.com', password: 'password' } } },
-        { get: { url: '/api/portfolio', headers: { Authorization: 'Bearer {{ accessToken }}' } } }
-      ]
-    }
-  ]
+  thresholds: {
+    http_req_duration: ['p(99)<1500'], // 99% of requests under 1.5s
+    http_req_failed: ['rate<0.1'],     // Error rate under 10%
+  },
 };
-```
 
-#### 4.1.2 Database Performance Tests
-```javascript
-describe('Database Performance', () => {
-  test('concurrent portfolio queries', async () => {
-    const concurrentQueries = 100;
-    const userIds = Array.from({ length: concurrentQueries }, (_, i) => `user${i}`);
-    
-    const startTime = Date.now();
-    
-    const promises = userIds.map(userId => 
-      db.query('SELECT * FROM portfolio_holdings WHERE user_id = $1', [userId])
-    );
-    
-    await Promise.all(promises);
-    
-    const totalTime = Date.now() - startTime;
-    const avgTime = totalTime / concurrentQueries;
-    
-    expect(avgTime).toBeLessThan(50); // 50ms average per query
+export default function () {
+  // Test portfolio API under load
+  let response = http.get('https://api.example.com/api/portfolio/holdings', {
+    headers: {
+      'Authorization': `Bearer ${__ENV.TEST_TOKEN}`,
+    },
   });
-});
-```
 
-### 4.2 Real-Time Data Pipeline Testing
-
-#### 4.2.1 High-Frequency Data Processing
-```javascript
-describe('Real-Time Data Pipeline', () => {
-  test('handles high-frequency market data', async () => {
-    const pipeline = new RealtimeDataPipeline();
-    const dataPoints = 10000;
-    
-    const startTime = Date.now();
-    
-    for (let i = 0; i < dataPoints; i++) {
-      pipeline.processIncomingData('quote', {
-        symbol: 'AAPL',
-        price: 150 + Math.random(),
-        timestamp: Date.now()
-      });
-    }
-    
-    const processingTime = Date.now() - startTime;
-    const throughput = dataPoints / (processingTime / 1000);
-    
-    expect(throughput).toBeGreaterThan(1000); // 1000+ messages per second
+  check(response, {
+    'status is 200': (r) => r.status === 200,
+    'response time < 500ms': (r) => r.timings.duration < 500,
+    'has portfolio data': (r) => JSON.parse(r.body).data.holdings !== undefined,
   });
-});
-```
 
-### 4.3 Memory and Resource Testing
-
-#### 4.3.1 Memory Leak Detection
-```javascript
-describe('Memory Management', () => {
-  test('no memory leaks in portfolio processing', async () => {
-    const initialMemory = process.memoryUsage().heapUsed;
-    
-    // Process multiple portfolio updates
-    for (let i = 0; i < 1000; i++) {
-      await processPortfolioUpdate('user123', mockPortfolioData);
-    }
-    
-    // Force garbage collection
-    if (global.gc) {
-      global.gc();
-    }
-    
-    const finalMemory = process.memoryUsage().heapUsed;
-    const memoryIncrease = finalMemory - initialMemory;
-    
-    expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024); // Less than 50MB increase
-  });
-});
+  sleep(1);
+}
 ```
 
 ## 5. SECURITY TESTING
 
-### 5.1 Authentication Security Tests
+### 5.1 Authentication Security Testing
 
-#### 5.1.1 JWT Token Security
+**JWT Token Security Tests**:
 ```javascript
-describe('JWT Security', () => {
-  test('rejects invalid tokens', async () => {
-    const response = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', 'Bearer invalid-token');
-    
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe('Invalid token');
-  });
-  
+describe('JWT Security Testing', () => {
   test('rejects expired tokens', async () => {
     const expiredToken = jwt.sign(
-      { userId: 'user123' },
-      process.env.JWT_SECRET,
-      { expiresIn: '-1h' }
+      { sub: 'test-user', exp: Math.floor(Date.now() / 1000) - 3600 },
+      'secret'
     );
-    
+
     const response = await request(app)
-      .get('/api/portfolio')
-      .set('Authorization', `Bearer ${expiredToken}`);
-    
-    expect(response.status).toBe(401);
+      .get('/api/portfolio/holdings')
+      .set('Authorization', `Bearer ${expiredToken}`)
+      .expect(401);
+
+    expect(response.body.error).toContain('expired');
+  });
+
+  test('rejects malformed tokens', async () => {
+    const response = await request(app)
+      .get('/api/portfolio/holdings')
+      .set('Authorization', 'Bearer invalid.token.here')
+      .expect(401);
+
+    expect(response.body.error).toContain('Invalid token');
+  });
+
+  test('validates token signature', async () => {
+    const tamperedToken = jwt.sign(
+      { sub: 'test-user', exp: Math.floor(Date.now() / 1000) + 3600 },
+      'wrong-secret'
+    );
+
+    const response = await request(app)
+      .get('/api/portfolio/holdings')
+      .set('Authorization', `Bearer ${tamperedToken}`)
+      .expect(401);
   });
 });
 ```
 
-#### 5.1.2 API Key Encryption Tests
-```javascript
-describe('API Key Security', () => {
-  test('encrypts and decrypts API keys correctly', async () => {
-    const apiKeyService = new ApiKeyService();
-    const originalKey = 'test-api-key-123';
-    const userSalt = 'user-specific-salt';
-    
-    const encrypted = await apiKeyService.encryptApiKey(originalKey, userSalt);
-    const decrypted = await apiKeyService.decryptApiKey(encrypted, userSalt);
-    
-    expect(decrypted).toBe(originalKey);
-    expect(encrypted.encrypted).not.toBe(originalKey);
-  });
-});
-```
+### 5.2 API Security Testing
 
-### 5.2 Input Validation Tests
-
-#### 5.2.1 SQL Injection Protection
+**Input Validation Security Tests**:
 ```javascript
-describe('SQL Injection Protection', () => {
+describe('API Security - Input Validation', () => {
   test('prevents SQL injection attacks', async () => {
     const maliciousInput = "'; DROP TABLE users; --";
     
     const response = await request(app)
-      .get('/api/portfolio')
-      .query({ userId: maliciousInput })
-      .set('Authorization', 'Bearer valid-token');
-    
-    expect(response.status).toBe(400);
-    expect(response.body.error).toContain('Invalid input');
-  });
-});
-```
+      .post('/api/settings/api-keys')
+      .send({
+        provider: maliciousInput,
+        apiKey: 'test-key',
+        apiSecret: 'test-secret'
+      })
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(400);
 
-#### 5.2.2 XSS Protection Tests
-```javascript
-describe('XSS Protection', () => {
-  test('sanitizes user input', async () => {
+    expect(response.body.error).toContain('Invalid provider');
+  });
+
+  test('prevents XSS attacks', async () => {
     const xssPayload = '<script>alert("xss")</script>';
     
     const response = await request(app)
-      .post('/api/portfolio/note')
-      .send({ note: xssPayload })
-      .set('Authorization', 'Bearer valid-token');
+      .post('/api/settings/api-keys')
+      .send({
+        provider: 'alpaca',
+        description: xssPayload,
+        apiKey: 'test-key'
+      })
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(400);
+
+    expect(response.body.error).toContain('Invalid characters');
+  });
+
+  test('enforces rate limiting', async () => {
+    const requests = Array(101).fill().map(() => 
+      request(app)
+        .get('/api/portfolio/holdings')
+        .set('Authorization', `Bearer ${validToken}`)
+    );
+
+    const responses = await Promise.all(requests);
+    const tooManyRequestsResponses = responses.filter(r => r.status === 429);
     
-    expect(response.status).toBe(400);
-    expect(response.body.error).toContain('Invalid input');
+    expect(tooManyRequestsResponses.length).toBeGreaterThan(0);
   });
 });
 ```
 
-## 6. END-TO-END TESTING
+### 5.3 Data Encryption Testing
 
-### 6.1 User Journey Tests
-
-#### 6.1.1 Portfolio Management Flow
+**API Key Encryption Security Tests**:
 ```javascript
-describe('Portfolio Management E2E', () => {
-  test('complete portfolio management workflow', async () => {
-    // 1. User login
-    await page.goto('/login');
-    await page.fill('[data-testid="email"]', 'test@example.com');
-    await page.fill('[data-testid="password"]', 'password123');
-    await page.click('[data-testid="login-button"]');
+describe('API Key Encryption Security', () => {
+  test('encrypts API keys with unique salts', async () => {
+    const testApiKey = 'TEST_API_KEY_123';
+    const userId = 'test-user-id';
+
+    // Encrypt the same key twice
+    const encrypted1 = await apiKeyService.encryptApiKey(testApiKey, userId);
+    const encrypted2 = await apiKeyService.encryptApiKey(testApiKey, userId);
+
+    // Should be different due to unique salts
+    expect(encrypted1.encryptedKey).not.toBe(encrypted2.encryptedKey);
+    expect(encrypted1.salt).not.toBe(encrypted2.salt);
+  });
+
+  test('successfully decrypts API keys', async () => {
+    const originalKey = 'TEST_API_KEY_123';
+    const userId = 'test-user-id';
+
+    const encrypted = await apiKeyService.encryptApiKey(originalKey, userId);
+    const decrypted = await apiKeyService.decryptApiKey(
+      encrypted.encryptedKey,
+      encrypted.salt,
+      userId
+    );
+
+    expect(decrypted).toBe(originalKey);
+  });
+
+  test('fails decryption with wrong user context', async () => {
+    const originalKey = 'TEST_API_KEY_123';
+    const correctUserId = 'correct-user';
+    const wrongUserId = 'wrong-user';
+
+    const encrypted = await apiKeyService.encryptApiKey(originalKey, correctUserId);
     
-    // 2. Navigate to portfolio
-    await page.click('[data-testid="portfolio-nav"]');
-    await page.waitForSelector('[data-testid="portfolio-value"]');
-    
-    // 3. Add API key
-    await page.click('[data-testid="add-api-key"]');
-    await page.fill('[data-testid="api-key-input"]', 'test-api-key');
-    await page.click('[data-testid="save-api-key"]');
-    
-    // 4. Sync portfolio
-    await page.click('[data-testid="sync-portfolio"]');
-    await page.waitForSelector('[data-testid="portfolio-holdings"]');
-    
-    // 5. View performance analytics
-    await page.click('[data-testid="performance-tab"]');
-    await page.waitForSelector('[data-testid="performance-metrics"]');
-    
-    // Verify portfolio data is displayed
-    const portfolioValue = await page.textContent('[data-testid="portfolio-value"]');
-    expect(portfolioValue).toContain('$');
+    await expect(
+      apiKeyService.decryptApiKey(encrypted.encryptedKey, encrypted.salt, wrongUserId)
+    ).rejects.toThrow('Decryption failed');
   });
 });
 ```
 
-### 6.2 Trading Workflow Tests
+## 6. FINANCIAL COMPLIANCE TESTING
 
-#### 6.2.1 Order Placement Flow
+### 6.1 Regulatory Compliance Tests
+
+**SEC Regulation Testing**:
 ```javascript
-describe('Trading E2E', () => {
-  test('place and monitor trade order', async () => {
-    // Navigate to trading interface
-    await page.goto('/trading');
-    
-    // Place buy order
-    await page.fill('[data-testid="symbol-input"]', 'AAPL');
-    await page.fill('[data-testid="quantity-input"]', '10');
-    await page.fill('[data-testid="price-input"]', '150.00');
-    await page.click('[data-testid="buy-button"]');
-    
-    // Confirm order
-    await page.click('[data-testid="confirm-order"]');
-    
-    // Verify order appears in order history
-    await page.waitForSelector('[data-testid="order-history"]');
-    const orderRow = await page.locator('[data-testid="order-row"]').first();
-    expect(await orderRow.textContent()).toContain('AAPL');
+describe('Financial Regulatory Compliance', () => {
+  test('includes required risk disclosures', async () => {
+    const response = await request(app)
+      .get('/api/trading/signals')
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(200);
+
+    expect(response.body.disclosures).toContain('Past performance does not guarantee future results');
+    expect(response.body.disclosures).toContain('Trading involves substantial risk');
+    expect(response.body.riskLevel).toBeOneOf(['LOW', 'MEDIUM', 'HIGH']);
+  });
+
+  test('maintains complete audit trail', async () => {
+    // Make a trading signal request
+    const response = await request(app)
+      .get('/api/trading/signals/AAPL')
+      .set('Authorization', `Bearer ${validToken}`);
+
+    // Verify audit log entry
+    const auditLogs = await db.query(
+      'SELECT * FROM audit_log WHERE user_id = ? AND action = ?',
+      [testUserId, 'VIEW_TRADING_SIGNAL']
+    );
+
+    expect(auditLogs.length).toBe(1);
+    expect(auditLogs[0]).toMatchObject({
+      user_id: testUserId,
+      action: 'VIEW_TRADING_SIGNAL',
+      resource: 'AAPL',
+      timestamp: expect.any(Date),
+      ip_address: expect.any(String)
+    });
+  });
+
+  test('enforces data retention policies', async () => {
+    // Create test data older than retention period
+    await db.query(
+      'INSERT INTO user_sessions (user_id, created_at) VALUES (?, ?)',
+      [testUserId, new Date(Date.now() - 366 * 24 * 60 * 60 * 1000)] // 366 days ago
+    );
+
+    // Run data retention cleanup
+    await dataRetentionService.cleanupExpiredData();
+
+    // Verify old data is removed
+    const oldSessions = await db.query(
+      'SELECT * FROM user_sessions WHERE created_at < ?',
+      [new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)]
+    );
+
+    expect(oldSessions.length).toBe(0);
   });
 });
 ```
 
-## 7. AUTOMATED TESTING PIPELINE
+## 7. PERFORMANCE TESTING
 
-### 7.1 CI/CD Integration
+### 7.1 Response Time Testing
 
-#### 7.1.1 GitHub Actions Workflow
+**API Performance Benchmarks**:
+```javascript
+describe('API Performance Testing', () => {
+  test('portfolio endpoint responds within 500ms', async () => {
+    const startTime = Date.now();
+    
+    const response = await request(app)
+      .get('/api/portfolio/holdings')
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(200);
+    
+    const responseTime = Date.now() - startTime;
+    expect(responseTime).toBeLessThan(500);
+  });
+
+  test('handles concurrent requests efficiently', async () => {
+    const concurrentRequests = 50;
+    const requests = Array(concurrentRequests).fill().map(() =>
+      request(app)
+        .get('/api/market-data/quotes/AAPL')
+        .set('Authorization', `Bearer ${validToken}`)
+    );
+
+    const startTime = Date.now();
+    const responses = await Promise.all(requests);
+    const totalTime = Date.now() - startTime;
+
+    // All requests should succeed
+    responses.forEach(response => {
+      expect(response.status).toBe(200);
+    });
+
+    // Average response time should be reasonable
+    const avgResponseTime = totalTime / concurrentRequests;
+    expect(avgResponseTime).toBeLessThan(1000);
+  });
+});
+```
+
+### 7.2 Database Performance Testing
+
+**Database Query Performance Tests**:
+```sql
+-- Performance Test: Portfolio Holdings Query
+EXPLAIN ANALYZE
+SELECT 
+  h.symbol,
+  h.quantity,
+  h.cost_basis,
+  m.current_price,
+  (h.quantity * m.current_price) as market_value
+FROM portfolio_holdings h
+JOIN market_data m ON h.symbol = m.symbol
+WHERE h.user_id = 'test-user-id'
+  AND h.quantity > 0
+ORDER BY market_value DESC;
+
+-- Expected: Execution time < 50ms, uses proper indexes
+
+-- Performance Test: Complex Analytics Query
+EXPLAIN ANALYZE
+SELECT 
+  symbol,
+  AVG(close_price) OVER (PARTITION BY symbol ORDER BY date ROWS 19 PRECEDING) as sma_20,
+  STDDEV(close_price) OVER (PARTITION BY symbol ORDER BY date ROWS 19 PRECEDING) as volatility
+FROM market_data 
+WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+  AND symbol IN ('AAPL', 'MSFT', 'GOOGL')
+ORDER BY symbol, date;
+
+-- Expected: Execution time < 200ms, efficient window function usage
+```
+
+## 8. MONITORING & ALERTING TESTS
+
+### 8.1 System Health Monitoring
+
+**Health Check Test Scenarios**:
+```javascript
+describe('System Health Monitoring', () => {
+  test('health endpoint returns system status', async () => {
+    const response = await request(app)
+      .get('/health')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status: 'healthy',
+      services: {
+        database: 'connected',
+        external_apis: expect.objectContaining({
+          alpaca: expect.any(String),
+          polygon: expect.any(String)
+        }),
+        cache: 'operational'
+      },
+      version: expect.any(String),
+      uptime: expect.any(Number)
+    });
+  });
+
+  test('triggers alerts for service degradation', async () => {
+    // Simulate database connection failure
+    await simulateDatabaseFailure();
+
+    const response = await request(app)
+      .get('/health')
+      .expect(503);
+
+    expect(response.body.status).toBe('degraded');
+    expect(response.body.services.database).toBe('disconnected');
+
+    // Verify alert was triggered
+    const alerts = await getTriggeredAlerts();
+    expect(alerts).toContainEqual(
+      expect.objectContaining({
+        type: 'database_connection_failure',
+        severity: 'critical'
+      })
+    );
+  });
+});
+```
+
+## 9. DISASTER RECOVERY TESTING
+
+### 9.1 Data Backup and Recovery Tests
+
+**Backup/Recovery Test Procedures**:
+```bash
+#!/bin/bash
+# Database Backup and Recovery Test Script
+
+# Test 1: Database Backup Creation
+echo "Creating database backup..."
+pg_dump $DATABASE_URL > test_backup.sql
+if [ $? -eq 0 ]; then
+  echo "✅ Backup created successfully"
+else
+  echo "❌ Backup creation failed"
+  exit 1
+fi
+
+# Test 2: Backup Restoration
+echo "Testing backup restoration..."
+createdb test_restore_db
+psql test_restore_db < test_backup.sql
+if [ $? -eq 0 ]; then
+  echo "✅ Backup restored successfully"
+else
+  echo "❌ Backup restoration failed"
+  exit 1
+fi
+
+# Test 3: Data Integrity Verification
+echo "Verifying data integrity..."
+ORIGINAL_COUNT=$(psql $DATABASE_URL -t -c "SELECT COUNT(*) FROM users;")
+RESTORED_COUNT=$(psql test_restore_db -t -c "SELECT COUNT(*) FROM users;")
+
+if [ "$ORIGINAL_COUNT" = "$RESTORED_COUNT" ]; then
+  echo "✅ Data integrity verified"
+else
+  echo "❌ Data integrity check failed"
+  exit 1
+fi
+
+# Cleanup
+dropdb test_restore_db
+rm test_backup.sql
+```
+
+## 10. TEST AUTOMATION & CI/CD
+
+### 10.1 Automated Testing Pipeline
+
+**GitHub Actions Test Workflow**:
 ```yaml
-name: Test Pipeline
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+name: Comprehensive Test Suite
+on: [push, pull_request]
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
         with:
           node-version: '18'
-      - run: npm ci
-      - run: npm run test:unit
-      - run: npm run test:coverage
+      
+      - name: Install dependencies
+        run: |
+          cd webapp/frontend && npm ci
+          cd ../lambda && npm ci
+      
+      - name: Run frontend tests
+        run: cd webapp/frontend && npm test -- --coverage --watchAll=false
+      
+      - name: Run backend tests
+        run: cd webapp/lambda && npm test -- --coverage --watchAll=false
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v1
 
   integration-tests:
     runs-on: ubuntu-latest
-    needs: unit-tests
     services:
       postgres:
-        image: postgres:14
+        image: postgres:13
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run test:integration
+      - uses: actions/checkout@v2
+      - name: Run integration tests
+        run: |
+          cd webapp/lambda
+          npm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/test
 
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: integration-tests
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run build
-      - run: npm run test:e2e
+      - uses: actions/checkout@v2
+      - name: Run E2E tests
+        run: |
+          cd webapp/frontend
+          npm run build
+          npm run test:e2e
+        env:
+          API_URL: http://localhost:3001
 
-  performance-tests:
+  security-tests:
     runs-on: ubuntu-latest
-    needs: integration-tests
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v2
+      - name: Run security audit
+        run: |
+          cd webapp/frontend && npm audit
+          cd ../lambda && npm audit
+      
+      - name: Run OWASP ZAP scan
+        uses: zaproxy/action-full-scan@v0.4.0
         with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run test:performance
+          target: 'http://localhost:3000'
 ```
 
-### 7.2 Test Reporting
+## 11. TEST METRICS & REPORTING
 
-#### 7.2.1 Coverage Requirements
+### 11.1 Test Quality Metrics
+
+**Required Test Coverage Metrics**:
+- **Frontend Components**: >90% line coverage, >85% branch coverage
+- **Backend APIs**: >95% line coverage, >90% branch coverage
+- **Database Queries**: 100% of critical queries tested
+- **Integration Points**: 100% of external API calls mocked and tested
+- **Security Features**: 100% of authentication/authorization paths tested
+
+### 11.2 Performance Benchmarks
+
+**Production Performance Requirements**:
+- **API Response Time**: 95th percentile < 500ms
+- **Database Queries**: 99th percentile < 100ms
+- **Page Load Time**: < 2 seconds initial load
+- **Real-time Data Latency**: < 1 second end-to-end
+- **System Availability**: 99.9% uptime SLA
+
+### 11.3 Test Reporting Dashboard
+
+**Automated Test Result Reporting**:
 ```javascript
-// jest.config.js
-module.exports = {
-  coverageThreshold: {
-    global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80
-    }
+// Test Results Dashboard Configuration
+const testReportConfig = {
+  coverage: {
+    frontend: { minimum: 90, target: 95 },
+    backend: { minimum: 95, target: 98 },
+    integration: { minimum: 85, target: 90 }
   },
-  coverageReporters: ['text', 'lcov', 'html']
-};
-```
-
-## 8. MONITORING AND ALERTING TESTS
-
-### 8.1 Health Check Tests
-
-#### 8.1.1 System Health Monitoring
-```javascript
-describe('Health Checks', () => {
-  test('database health check', async () => {
-    const response = await request(app).get('/health');
-    
-    expect(response.status).toBe(200);
-    expect(response.body.database.status).toBe('healthy');
-    expect(response.body.database.responseTime).toBeLessThan(100);
-  });
-  
-  test('external API health check', async () => {
-    const response = await request(app).get('/health/external');
-    
-    expect(response.status).toBe(200);
-    expect(response.body.alpaca.status).toBe('healthy');
-    expect(response.body.marketData.status).toBe('healthy');
-  });
-});
-```
-
-### 8.2 Performance Monitoring Tests
-
-#### 8.2.1 Metric Collection Verification
-```javascript
-describe('Performance Metrics', () => {
-  test('collects performance metrics', async () => {
-    const metrics = await getPerformanceMetrics();
-    
-    expect(metrics).toHaveProperty('responseTime');
-    expect(metrics).toHaveProperty('throughput');
-    expect(metrics).toHaveProperty('errorRate');
-    expect(metrics.responseTime).toBeLessThan(100);
-  });
-});
-```
-
-## 9. REGRESSION TESTING
-
-### 9.1 Automated Regression Suite
-
-#### 9.1.1 Critical Path Testing
-```javascript
-describe('Regression Tests', () => {
-  test('portfolio sync regression', async () => {
-    // Test all critical portfolio functionality
-    const testCases = [
-      () => testPortfolioSync(),
-      () => testPerformanceCalculation(),
-      () => testRiskAnalysis(),
-      () => testFactorAnalysis()
-    ];
-    
-    for (const testCase of testCases) {
-      await testCase();
-    }
-  });
-});
-```
-
-## 10. TEST DATA MANAGEMENT
-
-### 10.1 Test Data Strategy
-
-#### 10.1.1 Test Data Generation
-```javascript
-// Test data factory
-class TestDataFactory {
-  static createPortfolio(overrides = {}) {
-    return {
-      userId: 'test-user-123',
-      totalValue: 100000,
-      totalPnL: 5000,
-      holdings: [
-        { symbol: 'AAPL', quantity: 10, avgCost: 150, marketValue: 1500 },
-        { symbol: 'GOOGL', quantity: 5, avgCost: 2800, marketValue: 14000 }
-      ],
-      ...overrides
-    };
-  }
-  
-  static createMarketData(symbol, overrides = {}) {
-    return {
-      symbol,
-      price: 150.00,
-      bid: 149.95,
-      ask: 150.05,
-      volume: 1000000,
-      timestamp: Date.now(),
-      ...overrides
-    };
-  }
-}
-```
-
-### 10.2 Database Test Fixtures
-
-#### 10.2.1 Test Database Setup
-```javascript
-// Database test setup
-const setupTestDatabase = async () => {
-  // Create test database
-  await db.query('CREATE DATABASE test_stocks');
-  
-  // Run migrations
-  await runMigrations(testDb);
-  
-  // Insert test data
-  await testDb.query(`
-    INSERT INTO users (id, email, created_at) 
-    VALUES ('test-user-123', 'test@example.com', NOW())
-  `);
-  
-  await testDb.query(`
-    INSERT INTO portfolio_holdings (user_id, symbol, quantity, avg_cost, market_value)
-    VALUES ('test-user-123', 'AAPL', 10, 150.00, 1500.00)
-  `);
-};
-```
-
-## 11. TEST EXECUTION SCHEDULE
-
-### 11.1 Test Execution Matrix
-
-| Test Type | Frequency | Trigger | Duration | Coverage |
-|-----------|-----------|---------|----------|----------|
-| Unit Tests | Every commit | Git push | 2-5 min | 80%+ |
-| Integration Tests | Every PR | PR creation | 5-10 min | Critical paths |
-| E2E Tests | Daily | Scheduled | 15-30 min | User journeys |
-| Performance Tests | Weekly | Scheduled | 30-60 min | Load/stress |
-| Security Tests | Weekly | Scheduled | 10-20 min | OWASP Top 10 |
-| Regression Tests | Before release | Manual trigger | 60-120 min | Full suite |
-
-### 11.2 Test Environment Management
-
-#### 11.2.1 Environment Provisioning
-```bash
-# Automated test environment setup
-#!/bin/bash
-echo "Setting up test environment..."
-
-# Deploy test infrastructure
-aws cloudformation deploy \
-  --template-file template-test-env.yml \
-  --stack-name stocks-test-env \
-  --capabilities CAPABILITY_IAM
-
-# Run database migrations
-npm run db:migrate:test
-
-# Seed test data
-npm run db:seed:test
-
-# Start test services
-npm run test:services:start
-
-echo "Test environment ready"
-```
-
-## 12. QUALITY GATES
-
-### 12.1 Release Criteria
-
-#### 12.1.1 Quality Metrics
-```javascript
-const qualityGates = {
-  unitTests: {
-    coverage: 80,
-    passingRate: 100
+  performance: {
+    apiResponseTime: { max: 500, target: 300 },
+    pageLoadTime: { max: 2000, target: 1500 },
+    databaseQueries: { max: 100, target: 50 }
   },
-  integrationTests: {
-    passingRate: 100,
-    performance: {
-      responseTime: 100, // ms
-      throughput: 1000   // requests/second
-    }
-  },
-  e2eTests: {
-    passingRate: 95,
-    criticalPath: 100
-  },
-  securityTests: {
-    vulnerabilities: 0,
-    passingRate: 100
+  security: {
+    vulnerabilities: { critical: 0, high: 0, medium: 5 },
+    dependencies: { outdated: 10, vulnerable: 0 }
   }
 };
 ```
 
-### 12.2 Continuous Quality Monitoring
-
-#### 12.2.1 Quality Dashboard
-```javascript
-// Quality metrics collection
-const collectQualityMetrics = async () => {
-  return {
-    testResults: await getTestResults(),
-    coverage: await getCoverageReport(),
-    performance: await getPerformanceMetrics(),
-    security: await getSecurityScan(),
-    codeQuality: await getCodeQualityMetrics()
-  };
-};
-```
-
----
-
-*This test plan ensures comprehensive coverage of all system components and provides a framework for maintaining high quality throughout the development lifecycle. All tests should be executed according to this plan to ensure system reliability and performance.*
+This comprehensive test plan ensures institutional-grade quality for our financial trading platform with rigorous testing at every level of the system.
