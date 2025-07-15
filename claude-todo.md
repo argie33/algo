@@ -1,57 +1,90 @@
 # Claude TODO - Comprehensive Issues List
-*Updated: 2025-07-15 | Status: CRITICAL DEPLOYMENT BLOCKERS IDENTIFIED | Focus: Fix Blockers Before Deployment*
+*Updated: 2025-07-15 | Status: SYSTEM INTEGRATION CRISIS | Focus: Fix Core API Communication & API Key Flow*
 
-## CRITICAL DEPLOYMENT BLOCKERS (Fix Immediately) 🚨
+## PREVIOUS DEPLOYMENT BLOCKERS (RESOLVED) ✅
 
-### 1. **Lambda Handler Export Duplication - BROKEN**
-   - ❌ CRITICAL BUG: Duplicate `module.exports.handler = serverless(app)` in index.js (lines 962-996)
-   - **Impact**: Will cause Lambda deployment failures and runtime errors
+### 1. **Lambda Handler Export Duplication - RESOLVED**
+   - ✅ **RESOLVED**: Added missing `module.exports.handler = serverless(app)` in index.js
+   - **Impact**: Fixed Lambda deployment failures and runtime errors
+   - **Status**: COMPLETED - Fix committed but deployment pending
+
+### 2. **Database Initialization Dockerfile Conflict - RESOLVED**
+   - ✅ **RESOLVED**: Consolidated to single Node.js approach with proper dependency verification
+   - **Impact**: Database initialization now uses consistent container approach
+   - **Status**: COMPLETED
+
+### 3. **CORS Configuration Over-Engineered - RESOLVED**
+   - ✅ **RESOLVED**: Simplified to single CORS middleware implementation
+   - **Impact**: Eliminated middleware conflicts
+   - **Status**: COMPLETED
+
+### 4. **Authentication Configuration Incomplete - RESOLVED**
+   - ✅ **RESOLVED**: Fixed CloudFormation import values for proper Cognito configuration
+   - **Impact**: Authentication now properly configured for production
+   - **Status**: COMPLETED
+
+### 5. **CloudFormation Templates Not Production-Ready - RESOLVED**
+   - ✅ **RESOLVED**: Parameterized all hardcoded localhost URLs for multi-environment support
+   - **Impact**: Templates now support development, staging, and production environments
+   - **Status**: COMPLETED
+
+## NEW CRITICAL SYSTEM INTEGRATION FAILURES (Fix Immediately) 🚨
+
+### 1. **API Communication Completely Broken - CRITICAL**
+   - ❌ **CRITICAL**: 502 Bad Gateway errors on all API endpoints despite Lambda handler fix
+   - **Impact**: Frontend cannot communicate with backend, entire system non-functional
    - **Priority**: IMMEDIATE FIX REQUIRED
-   - **Status**: BLOCKING DEPLOYMENT
+   - **Status**: BLOCKING ALL FUNCTIONALITY
 
-### 2. **Database Initialization Dockerfile Conflict - BROKEN**
-   - ❌ CRITICAL ISSUE: Conflicting Dockerfiles (`Dockerfile.dbinit` vs `Dockerfile.webapp-db-init`)
-   - **Impact**: Database initialization may fail or use wrong container
+### 2. **API Key Flow Completely Broken - CRITICAL**
+   - ❌ **CRITICAL**: Frontend stores API keys in localStorage only, never reaches backend database
+   - **Impact**: No portfolio data can be retrieved, core feature non-functional
    - **Priority**: IMMEDIATE FIX REQUIRED
-   - **Status**: BLOCKING DEPLOYMENT
+   - **Status**: BLOCKING CORE FUNCTIONALITY
 
-### 3. **CORS Configuration Over-Engineered - BROKEN**
-   - ❌ CRITICAL ISSUE: Multiple CORS middleware implementations (lines 159-406) creating conflicts
-   - **Impact**: Could cause 502 errors or security issues
+### 3. **Settings Page Integration Missing - CRITICAL**
+   - ❌ **CRITICAL**: No connection between frontend settings UI and backend API key service
+   - **Impact**: Users cannot properly configure API keys, onboarding broken
    - **Priority**: IMMEDIATE FIX REQUIRED
-   - **Status**: BLOCKING DEPLOYMENT
+   - **Status**: BLOCKING USER ONBOARDING
 
-### 4. **Authentication Configuration Incomplete - BROKEN**
-   - ❌ CRITICAL ISSUE: Still uses dummy values (`us-east-1_DUMMY`, `dummy-client-id`) as fallbacks
-   - **Impact**: Won't work in production without proper Cognito configuration
+### 4. **Frontend-Backend Authentication Disconnect - CRITICAL**
+   - ❌ **CRITICAL**: JWT tokens not properly integrated with API key retrieval system
+   - **Impact**: Authentication works but API key access fails
    - **Priority**: IMMEDIATE FIX REQUIRED
-   - **Status**: BLOCKING DEPLOYMENT
+   - **Status**: BLOCKING SECURE DATA ACCESS
 
-### 5. **CloudFormation Templates Not Production-Ready - BROKEN**
-   - ❌ CRITICAL ISSUE: Templates have localhost URLs hardcoded for development
-   - **Impact**: Deployment will fail or connect to wrong endpoints
+### 5. **User Onboarding Flow Missing - CRITICAL**
+   - ❌ **CRITICAL**: No guided process for API key setup, testing, and validation
+   - **Impact**: Users cannot successfully configure the system
    - **Priority**: IMMEDIATE FIX REQUIRED
-   - **Status**: BLOCKING DEPLOYMENT
+   - **Status**: BLOCKING USER ADOPTION
 
-## HIGH PRIORITY (Fix After Deployment Blockers) ⚡
+## HIGH PRIORITY (Fix After Critical Issues) ⚡
 
-### 6. **End-to-End Testing Required**
-   - ❌ NEEDS TESTING: Complete system testing after deployment blockers are fixed
-   - **Impact**: System functionality unknown until deployed and tested
-   - **Priority**: HIGH (after blockers fixed)
+### 6. **Lambda Handler Export Deployment**
+   - ❌ **PENDING**: Lambda handler fix committed but not yet deployed to production
+   - **Impact**: 502 errors will continue until deployment completes
+   - **Priority**: HIGH (waiting for deployment)
    - **Status**: PENDING DEPLOYMENT
 
-### 7. **Mock Data Dependencies Still Present**
-   - ❌ PARTIALLY FIXED: Some mock data fallbacks remain in error states
-   - **Impact**: May show incorrect data under error conditions
-   - **Priority**: HIGH
-   - **Status**: NEEDS CLEANUP
+### 7. **Real-Time Data Service Needs Validation**
+   - ❌ **BLOCKED**: WebSocket authentication fails due to missing API keys
+   - **Impact**: Live data functionality non-functional
+   - **Priority**: HIGH (blocked by API key flow)
+   - **Status**: BLOCKED
 
-### 8. **Real-Time Data Service Needs Validation**
-   - ❌ NEEDS TESTING: HTTP polling service created but not tested end-to-end
-   - **Impact**: Live data functionality unknown
+### 8. **End-to-End Testing Required**
+   - ❌ **BLOCKED**: Complete system testing blocked by core API communication failures
+   - **Impact**: System functionality unknown until core issues resolved
+   - **Priority**: HIGH (blocked by critical issues)
+   - **Status**: BLOCKED
+
+### 9. **Centralized Live Data Service Implementation**
+   - ❌ **PENDING**: Architecture redesigned, implementation pending
+   - **Impact**: Current per-user websocket approach is inefficient and costly
    - **Priority**: HIGH
-   - **Status**: NEEDS TESTING
+   - **Status**: READY FOR IMPLEMENTATION
 
 ### Data Pipeline & Loading ✅ COMPLETED
 5. **Data Loader Optimization** - `/database/loaders/` and Python scripts
@@ -254,11 +287,18 @@
 5. **Error Handling**: Detailed error identification and resolution logging
 
 ### Critical Success Metrics
-- Zero 500/502/503 errors with detailed error logs for any issues
-- All API key operations working with comprehensive audit trails
-- Real-time data functioning with detailed connection and performance logs
-- Portfolio and trade history displaying accurate data with calculation logs
-- Database connections stable with detailed performance monitoring
+- **❌ FAILING**: 502 Bad Gateway errors on all API endpoints
+- **❌ FAILING**: API key operations completely broken (localStorage only)
+- **❌ FAILING**: Real-time data non-functional due to authentication failures
+- **❌ FAILING**: Portfolio data cannot be retrieved due to API key flow issues
+- **✅ WORKING**: Database connections stable with detailed performance monitoring
+
+### System Integration Health Check
+- **Backend Health**: ✅ HEALTHY - All services, database, authentication working
+- **Frontend Health**: ✅ HEALTHY - UI components, routing, authentication working
+- **Integration Health**: ❌ CRITICAL FAILURE - API communication completely broken
+- **User Experience**: ❌ CRITICAL FAILURE - Cannot complete basic user workflows
+- **Data Flow**: ❌ CRITICAL FAILURE - API keys cannot reach backend, no portfolio data
 
 ### Logging Standards
 - **Request ID**: Every request gets unique correlation ID
@@ -278,20 +318,21 @@
 
 ## CURRENT SYSTEM STATUS
 
-### 🎯 **DEPLOYMENT READINESS: 8/10 - INFRASTRUCTURE READY, NEEDS VALIDATION**
+### 🚨 **DEPLOYMENT READINESS: 3/10 - CRITICAL SYSTEM INTEGRATION FAILURE**
 
-**Realistic Assessment:**
-- **✅ ALL 5 CRITICAL DEPLOYMENT BLOCKERS RESOLVED** - Infrastructure is deployment-ready
-- Core functionality appears well-implemented but needs end-to-end testing
-- Infrastructure has solid architecture with critical bugs fixed
-- Authentication and security implementation is production-ready but untested in deployed environment
+**Reality Check - Core System Broken:**
+- **✅ INFRASTRUCTURE RESOLVED**: All 5 deployment blockers fixed
+- **❌ SYSTEM INTEGRATION FAILED**: Core API communication completely broken
+- **❌ API KEY FLOW FAILED**: Frontend-backend disconnect preventing all data access
+- **❌ USER EXPERIENCE FAILED**: Settings page cannot persist API keys
+- **❌ AUTHENTICATION FAILED**: JWT tokens not integrated with API key retrieval
 
 ### 📊 **CURRENT SYSTEM STATE:**
-- **✅ WORKING**: Database utilities, route handlers, security middleware, error handling
+- **✅ WORKING**: Database utilities, route handlers, security middleware, error handling (backend only)
 - **✅ FIXED**: Lambda handler export, Dockerfile conflicts, CORS config, auth config, CloudFormation
-- **⏳ NEXT**: End-to-end functionality testing in deployed environment (REQUIRED FOR 9/10 rating)
-- **🔄 IN PROGRESS**: Centralized live data service architecture implementation
-- **🔄 IN PROGRESS**: Remaining mock data cleanup (Trading Signals AI, Social Media API, FRED API)
+- **❌ BROKEN**: API communication (502 errors), API key flow, settings integration, user onboarding
+- **❌ BLOCKED**: Portfolio data, real-time data, end-to-end testing, user adoption
+- **⚠️ CRITICAL**: System appears functional in backend but completely broken for end users
 
 ### 🎯 **DEPLOYMENT BLOCKERS RESOLVED:**
 1. ✅ **FIXED**: Duplicate Lambda handler export bug - Removed conflicting exports

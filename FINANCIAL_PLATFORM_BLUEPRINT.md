@@ -15,15 +15,24 @@ This blueprint outlines the construction of an institutional-grade financial ana
 
 ## Critical Issues Discovered & Resolved (July 2025)
 - ✅ **RESOLVED**: Lambda Handler Export Missing - Added `module.exports.handler = serverless(app)` fixing 502 errors
-- ✅ **RESOLVED**: CORS Policy Blocking - CloudFront domain properly configured in CORS headers
-- ✅ **RESOLVED**: API Endpoint Failures - All endpoints now return proper responses instead of 502 Bad Gateway
 - ✅ **RESOLVED**: Parameter Support Gap - Data loading scripts now support `--historical` and `--incremental` parameters
-- ✅ **RESOLVED**: Frontend-Backend Communication - Complete API communication established
 - ✅ **RESOLVED**: Extensive Mock Data Usage - Eliminated 60% of mock data, replaced with real API implementations
 - ✅ **RESOLVED**: Security Vulnerabilities - Removed mock API key validation, implemented real JWT authentication
 - ✅ **RESOLVED**: WebSocket Configuration - Created HTTP polling service for real-time data (Lambda-compatible)
 - ✅ **RESOLVED**: Portfolio Data Structure Mismatch - Fixed frontend-backend data format compatibility
 - ✅ **RESOLVED**: TA-Lib Installation - Proper installation from source in Docker container
+- ✅ **RESOLVED**: Docker Build Dependencies - Fixed Node.js container dependency issues in webapp-db-init
+- ✅ **RESOLVED**: FRED API Availability - Economic data available via GitHub secrets (no user setup required)
+
+## NEW CRITICAL ISSUES DISCOVERED (July 15, 2025)
+- ❌ **ACTIVE**: API Key Flow Completely Broken - Frontend stores keys in localStorage only, never reaches backend database
+- ❌ **ACTIVE**: CORS Configuration Still Blocking All API Calls - 502 Bad Gateway errors preventing any API communication
+- ❌ **ACTIVE**: Settings Page Integration Missing - No connection between frontend settings and backend API key service
+- ❌ **ACTIVE**: User Onboarding Flow Missing - No guided process for API key setup and validation
+- ❌ **ACTIVE**: Portfolio Data Loading Fails - Cannot retrieve portfolio data without proper API key flow
+- ❌ **ACTIVE**: Real-Time Data Service Non-Functional - WebSocket authentication fails due to missing API keys
+- ❌ **ACTIVE**: Frontend-Backend Authentication Disconnect - JWT tokens not properly integrated with API key retrieval
+- ✅ **RESOLVED**: FRED API for Economic Data - Available in GitHub secrets, no user API key needed
 
 ## Critical Deployment Blockers Resolved (July 15, 2025)
 - ✅ **RESOLVED**: Duplicate Lambda Handler Export - Removed conflicting `module.exports.handler` statements causing deployment failures
@@ -39,15 +48,59 @@ This blueprint outlines the construction of an institutional-grade financial ana
 - **Data Loading Bulletproofing**: Comprehensive parameter support and workflow automation
 - **Production-Ready Authentication**: Removed all development bypasses and implemented institutional-grade security
 - **Deployment Architecture**: Fixed all 5 critical deployment blockers enabling production deployment readiness
-- **CORS Consolidation**: Unified CORS configuration eliminating middleware conflicts and 502 errors
 - **Multi-Environment Support**: Parameterized CloudFormation templates for development, staging, and production environments
 - **Infrastructure Consistency**: Resolved Docker container conflicts and standardized database initialization approach
+- **API Key Service Architecture**: Built comprehensive encryption system with AES-256-GCM and user-specific salts
+- **Database Schema**: Implemented robust user_api_keys table with validation status tracking
+
+## CRITICAL SYSTEM INTEGRATION FAILURES (July 15, 2025)
+**Root Cause Analysis**: Despite solid backend architecture, the API key system has complete frontend-backend disconnect:
+
+### Backend Architecture (SOLID):
+- ✅ **Database Schema**: Robust user_api_keys table with AES-256-GCM encryption
+- ✅ **API Key Service**: Comprehensive encryption/decryption with AWS Secrets Manager
+- ✅ **Authentication Middleware**: Proper JWT verification with Cognito
+- ✅ **Portfolio Routes**: Integration with AlpacaService for external API calls
+- ✅ **Security**: User-specific salts, validation status tracking, audit logging
+
+### Frontend Integration (BROKEN):
+- ❌ **Settings Page**: Stores API keys in localStorage only, never sends to backend
+- ❌ **API Communication**: All endpoints return 502 Bad Gateway due to CORS/handler issues
+- ❌ **User Experience**: No real connection testing, no validation feedback
+- ❌ **Data Flow**: Portfolio requests fail because API keys never reach database
+- ❌ **Error Handling**: Graceful degradation works but masks underlying failures
 
 ## Live Data Service Architecture Redesign (July 15, 2025)
 
 **Problem Identified**: Current per-user websocket approach is inefficient and costly
 - Each customer running their own websocket connections
 - Redundant API calls for the same data
+
+## IMMEDIATE PRIORITY FIXES REQUIRED (July 15, 2025)
+
+### Phase 1: Core API Communication (CRITICAL)
+1. **Fix Lambda Handler Export**: Deploy missing `module.exports.handler = serverless(app)` to resolve 502 errors
+2. **Fix CORS Configuration**: Ensure CloudFront domain in CORS headers for all API endpoints
+3. **Verify API Gateway Integration**: Confirm Lambda function properly integrated with API Gateway
+4. **Test Basic API Connectivity**: Validate `/health` endpoint returns 200 with proper CORS headers
+
+### Phase 2: API Key Integration (HIGH PRIORITY)
+1. **Connect Settings Page to Backend**: Implement POST `/api/settings/api-keys` endpoint integration
+2. **Remove localStorage Dependency**: Replace localStorage with proper backend API key storage
+3. **Implement Real API Key Validation**: Connect to actual broker APIs for validation
+4. **Add User Onboarding Flow**: Guide users through API key setup and testing
+
+### Phase 3: Portfolio Data Flow (HIGH PRIORITY)
+1. **Fix API Key Retrieval**: Ensure userApiKeyHelper properly decrypts and retrieves user API keys
+2. **Test AlpacaService Integration**: Validate portfolio data fetching with real API keys
+3. **Implement Graceful Degradation**: Show proper error states when API keys missing
+4. **Add Connection Status Indicators**: Real-time feedback on API key validity
+
+### Phase 4: Real-Time Data Service (MEDIUM PRIORITY)
+1. **Implement Centralized Live Data Service**: Single admin-managed websocket per symbol
+2. **Add Subscriber Management**: Multiple users per symbol with proper authentication
+3. **Create Admin Interface**: Management panel for data feeds and user subscriptions
+4. **Add FRED API Integration**: Use GitHub secrets for economic data (no user API key needed)
 - Higher costs due to multiple API key usage
 - Complex rate limit management per user
 
