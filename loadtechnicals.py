@@ -27,6 +27,7 @@ import os
 import gc
 import resource
 import math
+import argparse
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -657,6 +658,25 @@ def load_technicals_batch(symbols: List[str], conn, cur, batch_size: int = 5) ->
     return total_processed, total_inserted
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Load technical indicators for stocks')
+    parser.add_argument('--historical', action='store_true', 
+                       help='Load full historical technical indicators')
+    parser.add_argument('--incremental', action='store_true',
+                       help='Load recent technical indicators only')
+    args = parser.parse_args()
+
+    # Determine data period based on arguments
+    if args.historical:
+        LOOKBACK_DAYS = 1000  # Full historical data
+        logging.info("Running in HISTORICAL mode - calculating full historical technical indicators")
+    elif args.incremental:
+        LOOKBACK_DAYS = 90    # Recent 3 months
+        logging.info("Running in INCREMENTAL mode - calculating recent technical indicators only")
+    else:
+        LOOKBACK_DAYS = 365   # Default to 1 year
+        logging.info("Running in DEFAULT mode - calculating 1 year of technical indicators")
+
     log_mem("startup")
     
     # Connect to database

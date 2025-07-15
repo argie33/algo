@@ -9,6 +9,7 @@ import os
 import gc
 import resource
 import math
+import argparse
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -91,7 +92,7 @@ def load_prices(table_name, symbols, cur, conn):
             try:
                 df = yf.download(
                     tickers=yq_batch,
-                    period="max",
+                    period=DATA_PERIOD,
                     interval="1d",
                     group_by="ticker",
                     auto_adjust=True,    # preserved
@@ -171,6 +172,25 @@ def load_prices(table_name, symbols, cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Load daily price data for stocks and ETFs')
+    parser.add_argument('--historical', action='store_true', 
+                       help='Load full historical data (period="max")')
+    parser.add_argument('--incremental', action='store_true',
+                       help='Load recent data only (period="3mo")')
+    args = parser.parse_args()
+
+    # Determine data period based on arguments
+    if args.historical:
+        DATA_PERIOD = "max"
+        logging.info("Running in HISTORICAL mode - loading full historical data")
+    elif args.incremental:
+        DATA_PERIOD = "3mo"
+        logging.info("Running in INCREMENTAL mode - loading recent 3 months of data")
+    else:
+        DATA_PERIOD = "max"  # Default to full history
+        logging.info("Running in DEFAULT mode - loading full historical data")
+
     log_mem("startup")
 
     # Connect to DB

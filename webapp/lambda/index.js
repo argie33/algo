@@ -992,6 +992,9 @@ module.exports.handler = serverless(app, {
   }
 });
 
+// Export serverless handler for Lambda
+module.exports.handler = serverless(app);
+
 // Export app for local testing
 module.exports.app = app;
 
