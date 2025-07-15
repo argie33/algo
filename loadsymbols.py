@@ -9,15 +9,13 @@ This script loads stock symbols with enhanced metadata including:
 - Exchange and currency information
 - Market status and listing details
 
-Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
-"""
-
 Data Sources:
 - Primary: yfinance for comprehensive stock data
 - Secondary: SEC EDGAR for additional company details
 - Fallback: Manual classification for key indices
 
 Author: Financial Dashboard System
+Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
 """
 
 import sys
@@ -28,6 +26,7 @@ import json
 import os
 import gc
 import resource
+import argparse
 from datetime import datetime, date
 from typing import Dict, List, Optional, Tuple
 
