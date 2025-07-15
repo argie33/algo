@@ -479,66 +479,19 @@ const TradingSignals = () => {
         setAllSignals(combined);
         setFilteredSignals(combined);
       } catch (fallbackError) {
-        console.error('Fallback also failed, using mock data:', fallbackError);
-        const mockSignals = generateMockSignals();
-        setBuySignals(mockSignals.filter(s => s.signal_type === 'buy'));
-        setSellSignals(mockSignals.filter(s => s.signal_type === 'sell'));
-        setAllSignals(mockSignals);
-        setFilteredSignals(mockSignals);
+        console.error('Fallback also failed:', fallbackError);
+        setError(`Failed to load trading signals: ${fallbackError.message}`);
+        // Set empty arrays instead of mock data
+        setBuySignals([]);
+        setSellSignals([]);
+        setAllSignals([]);
+        setFilteredSignals([]);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate mock signals for development
-  const generateMockSignals = () => {
-    const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'JPM', 'V', 'JNJ'];
-    const sectors = ['Technology', 'Healthcare', 'Financial Services', 'Consumer Discretionary'];
-    const companies = {
-      'AAPL': 'Apple Inc.',
-      'MSFT': 'Microsoft Corporation',
-      'GOOGL': 'Alphabet Inc.',
-      'AMZN': 'Amazon.com Inc.',
-      'NVDA': 'NVIDIA Corporation',
-      'META': 'Meta Platforms Inc.',
-      'TSLA': 'Tesla Inc.',
-      'JPM': 'JPMorgan Chase & Co.',
-      'V': 'Visa Inc.',
-      'JNJ': 'Johnson & Johnson'
-    };
-
-    return symbols.map((symbol, index) => {
-      const signalType = Math.random() > 0.5 ? 'buy' : 'sell';
-      const entryPrice = Math.random() * 300 + 50;
-      const currentPrice = entryPrice * (0.8 + Math.random() * 0.4); // ±20% from entry
-      const performance = ((currentPrice - entryPrice) / entryPrice) * 100;
-      const daysSince = Math.floor(Math.random() * 30);
-      
-      return {
-        symbol,
-        company_name: companies[symbol],
-        sector: sectors[index % sectors.length],
-        signal: signalType === 'buy' ? 'Buy' : 'Sell',
-        signal_type: signalType,
-        signal_strength: Math.random() * 0.8 + 0.2,
-        date: new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        timestamp: new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000),
-        entry_price: entryPrice,
-        current_price: currentPrice,
-        stop_loss: entryPrice * (signalType === 'buy' ? 0.95 : 1.05),
-        market_cap: Math.random() * 2000e9 + 10e9,
-        market_cap_billions: (Math.random() * 2000 + 10),
-        trailing_pe: Math.random() * 30 + 10,
-        dividend_yield: Math.random() * 5,
-        beta: Math.random() * 2 + 0.5,
-        is_current_period: true,
-        performance_percent: signalType === 'buy' ? performance : -performance,
-        days_since_signal: daysSince,
-        signal_status: Math.random() > 0.7 ? 'WINNING' : Math.random() > 0.5 ? 'ACTIVE' : 'STOPPED'
-      };
-    });
-  };
 
   // Load data on component mount and when timeframe changes
   useEffect(() => {

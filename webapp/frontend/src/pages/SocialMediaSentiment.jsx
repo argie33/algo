@@ -248,25 +248,16 @@ const SocialMediaSentiment = () => {
       const response = await fetch(`${API_BASE}/api/sentiment/social/${selectedSymbol}?timeframe=${timeframe}`);
       
       if (!response.ok) {
-        if (response.status === 404 || response.status === 500) {
-          console.warn(`Sentiment API returned ${response.status}, using mock data`);
-          // Use mock data for 404/500 errors
-          setRedditData(mockRedditData);
-          setTrendsData(mockTrendsData);
-          setSocialMetrics(mockSocialMetrics);
-          setSentimentHistory(mockRedditData.mentions);
-          return;
-        }
         throw new Error(`API request failed: ${response.status}`);
       }
       
       const result = await response.json();
       
       if (result.data) {
-        setRedditData(result.data.reddit || mockRedditData);
-        setTrendsData(result.data.googleTrends || mockTrendsData);
-        setSocialMetrics(result.data.socialMetrics || mockSocialMetrics);
-        setSentimentHistory(result.data.reddit?.mentions || mockRedditData.mentions);
+        setRedditData(result.data.reddit || { mentions: [], keywords: [], engagement: {} });
+        setTrendsData(result.data.googleTrends || { queries: [], regions: [] });
+        setSocialMetrics(result.data.socialMetrics || { overall: { totalMentions: 0, sentimentScore: 0, engagementRate: 0, viralityIndex: 0 } });
+        setSentimentHistory(result.data.reddit?.mentions || []);
       } else {
         // Fallback to mock data if API doesn't return expected structure
         setRedditData(mockRedditData);
@@ -278,18 +269,14 @@ const SocialMediaSentiment = () => {
     } catch (error) {
       console.error('Error loading sentiment data:', error);
       
-      // Only show error to user for unexpected errors, not for expected API unavailability
-      if (!error.message.includes('404') && !error.message.includes('500')) {
-        setError(`Failed to load social media sentiment data: ${error.message}`);
-      } else {
-        console.warn('Sentiment API not available, using mock data silently');
-      }
+      console.error('Failed to load social media sentiment data:', error);
+      setError(`Failed to load social media sentiment data: ${error.message}`);
       
-      // Fallback to mock data on error
-      setRedditData(mockRedditData);
-      setTrendsData(mockTrendsData);
-      setSocialMetrics(mockSocialMetrics);
-      setSentimentHistory(mockRedditData.mentions);
+      // Set empty data structure on error instead of mock data
+      setRedditData({ mentions: [], keywords: [], engagement: {} });
+      setTrendsData({ queries: [], regions: [] });
+      setSocialMetrics({ overall: { totalMentions: 0, sentimentScore: 0, engagementRate: 0, viralityIndex: 0 } });
+      setSentimentHistory([]);
     } finally {
       setLoading(false);
     }
