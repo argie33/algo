@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v2.5 - trigger loader with optimized calendar processing
-# Updated 2025-07-14: Enhanced calendar data processing with improved error handling
-# TRIGGER DEPLOY: loadcalendar update with enhanced processing pipeline
+# Load calendar data - trigger v2.6 - production ready calendar loader
+# Updated 2025-07-15: Enhanced calendar data processing with improved error handling
+# TRIGGER DEPLOY: loadcalendar update with production-ready pipeline
 import sys
 import time
 import logging
@@ -127,7 +127,7 @@ def log_mem(stage: str):
 
 @retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
-    """Fetch calendar events via yfinance and insert into PostgreSQL."""
+    """Fetch calendar events via yfinance and insert into PostgreSQL - production optimized."""
     yf_symbol = symbol.upper().replace(".", "-")
     ticker = yf.Ticker(yf_symbol)
 

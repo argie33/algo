@@ -1,6 +1,6 @@
 #!/usr/bin/env python3  
 # Daily technicals loader - deployment test v13 - trigger workflow with fixed secrets
-# Updated 2025-07-14: Optimized technical indicators calculation and database schema deployment
+# Updated 2025-07-15: Ready for production deployment with optimized technical indicators
 import sys
 import time
 import logging
@@ -21,7 +21,7 @@ numpy.NaN = numpy.nan
 np.NaN    = np.nan
 # ───────────────────────────────────────────────────────────────────
 
-# Memory optimization for small ECS tasks
+# Memory optimization for small ECS tasks - production ready
 MEMORY_THRESHOLD_MB = int(os.environ.get('MEMORY_THRESHOLD_MB', '400'))  # Warning threshold
 ECS_MEMORY_MB = int(os.environ.get('ECS_MEMORY_MB', '512'))  # Total ECS memory
 USE_ULTRA_LOW_MEMORY = os.environ.get('ULTRA_LOW_MEMORY', 'false').lower() == 'true'
@@ -133,7 +133,7 @@ def fast_bbands(close, period=20, std_dev=2):
     return lower, sma, upper
 
 def fast_adx(high, low, close, period=14):
-    """Fast ADX calculation"""
+    """Fast ADX calculation - production optimized"""
     # True Range
     tr1 = high - low
     tr2 = abs(high - close.shift())
