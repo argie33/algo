@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-07-14 - 503 ERROR FIX with Centralized Secrets Management - v11.0 - DEPLOY NOW
+// Updated: 2025-07-15 - FIXED BROKEN COMPONENTS: diagnostics endpoint + public stocks API - v11.1 - DEPLOY NOW
 
 // Load secrets from AWS Secrets Manager BEFORE anything else
 const secretsLoader = require('./utils/secretsLoader');
