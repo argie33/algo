@@ -112,6 +112,7 @@ websocketRoutes = safeRequire('./routes/websocket', 'WebSocket');
 poolManagementRoutes = safeRequire('./routes/pool-management', 'Pool Management');
 tradingStrategiesRoutes = safeRequire('./routes/trading-strategies', 'Trading Strategies');
 riskManagementRoutes = safeRequire('./routes/risk-management', 'Risk Management');
+performanceAnalyticsRoutes = safeRequire('./routes/performance-analytics', 'Performance Analytics');
 console.log('✅ Route loading completed');
 
 // Validate environment variables
@@ -807,6 +808,7 @@ app.use('/alerts', alertsRoutes);
 app.use('/commodities', commoditiesRoutes);
 app.use('/economic', economicRoutes);
 app.use('/risk-management', riskManagementRoutes);
+app.use('/performance-analytics', performanceAnalyticsRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -844,6 +846,7 @@ app.use('/api/websocket', websocketRoutes);
 app.use('/api/pool', poolManagementRoutes);
 app.use('/api/trading-strategies', tradingStrategiesRoutes);
 app.use('/api/risk-management', riskManagementRoutes);
+app.use('/api/performance-analytics', performanceAnalyticsRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {
@@ -910,7 +913,8 @@ app.get('/', (req, res) => {
         calendar: '/calendar',
         signals: '/signals',
         trades: '/trades',
-        risk_management: '/risk-management'
+        risk_management: '/risk-management',
+        performance_analytics: '/performance-analytics'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'

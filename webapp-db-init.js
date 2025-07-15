@@ -61,6 +61,68 @@ async function executeSQL(client, sql, description) {
     }
 }
 
+async function ensureTableColumnsExist(client) {
+    try {
+        log('info', '🔍 Checking and adding missing columns to existing tables...');
+        
+        // Check if portfolio_metadata table exists and has last_sync column
+        const portfolioMetadataCheck = await client.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'portfolio_metadata' 
+            AND column_name = 'last_sync'
+        `);
+        
+        if (portfolioMetadataCheck.rows.length === 0) {
+            // Check if table exists at all
+            const tableCheck = await client.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name = 'portfolio_metadata'
+            `);
+            
+            if (tableCheck.rows.length > 0) {
+                log('info', '📝 Adding missing last_sync column to portfolio_metadata table');
+                await client.query(`
+                    ALTER TABLE portfolio_metadata 
+                    ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                `);
+            }
+        }
+        
+        // Check if portfolio_holdings table exists and has last_sync column
+        const portfolioHoldingsCheck = await client.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'portfolio_holdings' 
+            AND column_name = 'last_sync'
+        `);
+        
+        if (portfolioHoldingsCheck.rows.length === 0) {
+            // Check if table exists at all
+            const tableCheck = await client.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name = 'portfolio_holdings'
+            `);
+            
+            if (tableCheck.rows.length > 0) {
+                log('info', '📝 Adding missing last_sync column to portfolio_holdings table');
+                await client.query(`
+                    ALTER TABLE portfolio_holdings 
+                    ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                `);
+            }
+        }
+        
+        log('info', '✅ Table column validation completed');
+        
+    } catch (error) {
+        log('error', '❌ Error ensuring table columns exist:', error.message);
+        // Don't throw error here - we want to continue with schema creation
+    }
+}
+
 async function checkTablesExist(client) {
     const result = await client.query(`
         SELECT table_name 
@@ -938,6 +1000,9 @@ async function initializeWebappDatabase() {
         // Initialize webapp database schema in parts to isolate any issues
         log('info', '🔧 Creating webapp database schema...');
         
+        // First, check and add missing columns to existing tables
+        await ensureTableColumnsExist(client);
+        
         // Split schema into parts for better error isolation
         const schemaSQL = getWebappDatabaseSchema();
         const schemaParts = schemaSQL.split(/(?=CREATE TABLE|CREATE INDEX|INSERT INTO)/);
@@ -950,6 +1015,13 @@ async function initializeWebappDatabase() {
                 } catch (error) {
                     log('error', `❌ Schema part ${i + 1} failed:`, error.message);
                     log('error', `Problematic SQL: ${part.substring(0, 200)}...`);
+                    
+                    // Check if this is a column missing error for index creation
+                    if (error.code === '42703' && part.includes('CREATE INDEX')) {
+                        log('warn', `⚠️ Skipping index creation due to missing column - this may be expected if table schema has changed`);
+                        continue; // Skip this index creation and continue with other parts
+                    }
+                    
                     throw error;
                 }
             }
