@@ -105,6 +105,8 @@
 3. **Comprehensive Testing Strategy**: Business logic can be thoroughly tested locally; AWS integrations need deployment testing
 4. **Service Isolation Critical**: Each user must have completely isolated API keys and data access
 5. **System-wide Validation**: API key validation must be available across all services, not just individual routes
+6. **Infrastructure Assessment First**: Always verify existing infrastructure before creating new solutions - CloudFormation template was already properly configured
+7. **Deployment Verification Scripts**: Create verification tools to validate infrastructure readiness and dependencies before deployment
 
 **What We Built:**
 - ✅ Complete syntax error resolution across all Lambda routes

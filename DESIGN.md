@@ -158,6 +158,8 @@ const AppContext = {
 - Environment variables: Configured via IaC templates, not local environment
 - Database: RDS with AWS Secrets Manager for credentials
 - API keys: Encrypted storage with AWS Secrets Manager for encryption keys
+- Deployment verification: Pre-deployment infrastructure validation scripts
+- Dependency management: CloudFormation stack exports for cross-stack references
 
 **Architecture Requirements:**
 - Each user has their own encrypted API keys in `user_api_keys` table

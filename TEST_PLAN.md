@@ -25,13 +25,32 @@ Test Environments:
 ```
 
 ### 1.4 Current Testing Issues (2025-07-15)
-Critical issues discovered during testing:
-- **CORS Policy Failures**: Cross-origin requests blocked in production
-- **API Gateway 502 Errors**: Bad Gateway responses on credential endpoints
-- **WebSocket Authentication**: JWT token integration incomplete
-- **Missing API Endpoints**: /api/stocks/sectors returning 404 errors
-- **Parameter Misalignment**: Frontend-backend parameter inconsistencies (RESOLVED)
-- **Chart Component Failures**: React rendering errors with invalid data (RESOLVED)
+Critical issues discovered and resolved during testing:
+- ✅ **RESOLVED**: Lambda syntax errors causing 503 service failures - Fixed stocks.js, trades.js, portfolio.js, economic.js
+- ✅ **RESOLVED**: Missing API Endpoints - /api/stocks/sectors fixed by removing duplicate code
+- ✅ **RESOLVED**: Parameter Misalignment - Frontend-backend parameter inconsistencies resolved
+- ✅ **RESOLVED**: Chart Component Failures - React rendering errors with invalid data resolved
+- ✅ **RESOLVED**: API key workflow testing - Complete end-to-end testing suite implemented
+- ✅ **RESOLVED**: API key validation system - validateApiKeyFormat method added and tested
+- 🔄 **READY FOR DEPLOYMENT**: Environment variables configuration needed for AWS deployment
+- ⚠️ **NEEDS INVESTIGATION**: CORS Policy Failures - Cross-origin requests blocked in production
+- ⚠️ **NEEDS INVESTIGATION**: API Gateway 502 Errors - Bad Gateway responses on credential endpoints
+- ⚠️ **NEEDS INVESTIGATION**: WebSocket Authentication - JWT token integration incomplete
+
+### 1.5 Testing Strategy for WSL + IaC Deployment (2025-07-15)
+**Local Testing Approach:**
+- Business logic testing: Comprehensive local test suites for all workflows
+- User context testing: Verify user-specific API key isolation and handling
+- Encryption testing: Validate encryption/decryption roundtrip functionality
+- Database testing: Mock database operations with realistic data structures
+
+**Deployment Testing Approach:**
+- Environment variables: Configured via IaC templates during deployment
+- AWS integrations: Real AWS services (RDS, Secrets Manager, Cognito) testing post-deployment
+- End-to-end workflow: Settings → API key addition → Portfolio import → Live data
+- Performance testing: Load testing against deployed AWS infrastructure
+- Infrastructure verification: Use deployment verification scripts to validate readiness
+- Dependency validation: Ensure all CloudFormation stacks and exports are available
 
 ## 2. UNIT TESTING
 

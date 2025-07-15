@@ -720,6 +720,22 @@ class DataQualityValidator:
 - Marketing launch and user acquisition
 - Continuous monitoring and feature enhancement
 
+### Development Lessons Learned (2025-07-15)
+- **Critical Syntax Validation**: Always validate syntax across all Lambda routes before deployment
+- **Orphaned Code Detection**: Watch for duplicate/orphaned code that can cause await-outside-async errors
+- **Error Handling Patterns**: Ensure proper try-catch nesting, especially for fallback error handlers
+- **Database Schema Verification**: Confirm table structures match service expectations early
+- **Deployment Dependencies**: Ensure all required utilities (zip, etc.) are available in deployment environment
+
+### Key Architectural Insights (Session Reflections)
+- **User Context is Critical**: The real challenge isn't encryption - it's ensuring user-specific API keys are properly passed through the authentication → service → database → external API chain
+- **WSL + IaC Deployment**: Development in WSL with AWS IaC deployment requires environment variable configuration rather than local tools
+- **Testing Strategy**: Local testing of business logic is essential, but environment variables and AWS integrations need IaC deployment
+- **Service Isolation**: Each user must have completely isolated API keys and data - no shared state or cross-user leakage
+- **Comprehensive Validation**: API key validation must be available system-wide, not just in individual routes
+- **Infrastructure as Code Excellence**: Existing CloudFormation templates already had proper environment variable configuration - verify before rebuilding
+- **Deployment Verification**: Create verification scripts to validate infrastructure readiness before deployment attempts
+
 ---
 
 ## 10. Success Metrics & Validation
