@@ -191,9 +191,10 @@ app.use((req, res, next) => {
   console.log(`🌐 CORS check - Origin: ${origin}, Allowed: ${allowOrigin}`);
   
   // Set CORS headers - always set basic headers, conditionally set origin
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
   res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
   if (allowOrigin) {
     res.header('Access-Control-Allow-Origin', origin || '*');
@@ -307,99 +308,20 @@ app.use((req, res, next) => {
   res.setHeader('X-RateLimit-Limit', '1000');
   res.setHeader('X-RateLimit-Window', '3600');
   
-  // Debug logging for routing issues
-  if (req.path.includes('/screen')) {
-    console.log(`🔍 Request to screen endpoint: ${req.method} ${req.path}`);
-    console.log(`🔍 Full URL: ${req.url}`);
-    console.log(`🔍 Base URL: ${req.baseUrl}`);
-    console.log(`🔍 Original URL: ${req.originalUrl}`);
-  }
-  
   next();
 });
 
 
 // Enhanced logging and timeout protection middleware
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  console.log(`📝 Request logging - Method: ${req.method}, Path: ${req.path}, Origin: ${req.headers.origin}`);
   
-  console.log(`🌐 CORS middleware - Method: ${req.method}, Origin: ${origin}, Path: ${req.path}`);
-  
-  // Define allowed origins for production security
-  const allowedOrigins = [
-    'https://d1zb7knau41vl9.cloudfront.net', // Production CloudFront
-    'http://localhost:3000',                 // Local development
-    'http://localhost:5173',                 // Vite dev server
-    'https://your-domain.com'                // Replace with actual domain
-  ];
-  
-  // Add environment-specific origins
-  const envOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
-  allowedOrigins.push(...envOrigins);
-  
-  // Determine if origin is allowed
-  let allowOrigin = false;
-  if (!origin) {
-    // Allow requests without origin only in development
-    allowOrigin = process.env.NODE_ENV !== 'production';
-  } else {
-    allowOrigin = allowedOrigins.includes(origin) || 
-                  (process.env.NODE_ENV !== 'production' && origin.includes('localhost'));
-  }
-  
-  // Set secure CORS headers
-  if (allowOrigin) {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    console.log(`✅ CORS allowed for origin: ${origin}`);
-  } else {
-    console.warn(`❌ CORS blocked for origin: ${origin}`);
-    // Don't set CORS headers for blocked origins
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
-  res.header('Access-Control-Max-Age', '86400');
-  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
-  
-  // Override res.json and res.send to ensure secure CORS headers
-  const originalJson = res.json;
-  res.json = function(body) {
-    if (allowOrigin) {
-      this.header('Access-Control-Allow-Origin', origin || '*');
-      this.header('Access-Control-Allow-Credentials', 'true');
-    }
-    this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-    this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
-    return originalJson.call(this, body);
-  };
-  
-  const originalSend = res.send;
-  res.send = function(body) {
-    if (allowOrigin) {
-      this.header('Access-Control-Allow-Origin', origin || '*');
-      this.header('Access-Control-Allow-Credentials', 'true');
-    }
-    this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
-    this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
-    return originalSend.call(this, body);
-  };
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    console.log(`✅ Handling OPTIONS preflight for ${req.path}`);
-    if (allowOrigin) {
-      res.status(200).end();
-    } else {
-      res.status(403).json({ error: 'CORS policy violation' });
-    }
-    return;
-  }
-  
-  // Block request if origin not allowed for non-preflight requests
-  if (!allowOrigin && origin && req.method !== 'OPTIONS') {
-    console.warn(`🚫 Blocking request from unauthorized origin: ${origin}`);
-    return res.status(403).json({ error: 'CORS policy violation' });
+  // Debug logging for routing issues
+  if (req.path.includes('/screen')) {
+    console.log(`🔍 Request to screen endpoint: ${req.method} ${req.path}`);
+    console.log(`🔍 Full URL: ${req.url}`);
+    console.log(`🔍 Base URL: ${req.baseUrl}`);
+    console.log(`🔍 Original URL: ${req.originalUrl}`);
   }
   
   next();
@@ -958,7 +880,7 @@ app.use('*', (req, res) => {
 // Error handling middleware (should be last) - Use proper error handler
 app.use(errorHandler);
 
-// Simplified Lambda handler to fix 502 errors
+// Export serverless handler for Lambda with proper CORS handling
 module.exports.handler = serverless(app, {
   // Lambda-specific options
   request: (request, event, context) => {
@@ -992,11 +914,12 @@ module.exports.handler = serverless(app, {
   }
 });
 
-// Export serverless handler for Lambda
-module.exports.handler = serverless(app);
-
 // Export app for local testing
 module.exports.app = app;
+
+// Export serverless handler for Lambda
+const serverless = require('serverless-http');
+module.exports.handler = serverless(app);
 
 // For local testing
 if (require.main === module) {
