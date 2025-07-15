@@ -8,6 +8,7 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import ApiKeyProvider from './components/ApiKeyProvider'
 
 console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
 console.log('Window location:', window.location.href);
@@ -47,7 +48,9 @@ const AppWithTheme = () => {
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <App />
+        <ApiKeyProvider>
+          <App />
+        </ApiKeyProvider>
       </AuthProvider>
     </MuiThemeProvider>
   );
