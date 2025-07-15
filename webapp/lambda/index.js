@@ -6,6 +6,7 @@ require('dotenv').config();
 
 // Load secrets from AWS Secrets Manager BEFORE anything else
 const secretsLoader = require('./utils/secretsLoader');
+const lambdaOptimizer = require('./utils/lambdaOptimizer');
 
 const serverless = require('serverless-http');
 const express = require('express');
@@ -399,6 +400,11 @@ app.use((req, res, next) => {
   
   next();
 });
+
+// Lambda performance optimization middleware
+const optimizer = lambdaOptimizer.createMiddleware();
+app.use(optimizer.trackRequest);
+app.use(optimizer.optimizeResponse);
 
 // Enhanced logging and timeout protection middleware
 app.use((req, res, next) => {

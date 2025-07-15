@@ -594,6 +594,27 @@ router.get('/diagnostics', async (req, res) => {
   }
 });
 
+// Lambda performance metrics endpoint
+router.get('/lambda-metrics', async (req, res) => {
+  try {
+    const lambdaOptimizer = require('../utils/lambdaOptimizer');
+    const metrics = lambdaOptimizer.getMetrics();
+    
+    res.success({
+      lambdaMetrics: metrics,
+      endpoint: 'lambda-metrics',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Lambda metrics endpoint failed:', error);
+    res.serverError('Lambda metrics failed', {
+      error: error.message,
+      endpoint: 'lambda-metrics',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint for environment and configuration
 router.get('/debug/env', async (req, res) => {
   try {
