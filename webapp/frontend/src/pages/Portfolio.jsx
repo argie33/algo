@@ -333,7 +333,7 @@ const Portfolio = () => {
   const [portfolioData, setPortfolioData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dataSource, setDataSource] = useState('mock'); // Default to mock to avoid auth issues
+  const [dataSource, setDataSource] = useState('live'); // Default to live data
   const [accountType, setAccountType] = useState('paper');
   const [availableAccounts, setAvailableAccounts] = useState([]);
   const [accountInfo, setAccountInfo] = useState(null);
@@ -571,25 +571,17 @@ const Portfolio = () => {
     }
   };
 
-  // Authentication guard - disabled (portfolio available to all users)
-  // useEffect(() => {
-  //   // Skip authentication check in development mode
-  //   const isDevelopmentMode = import.meta.env.DEV;
-  //   if (!isDevelopmentMode && !isLoading && !isAuthenticated) {
-  //     navigate('/login');
-  //   }
-  // }, [isAuthenticated, isLoading, navigate]);
-
-  // Load portfolio data when authentication, data source, or account type changes
+  // Load portfolio data when authentication or account type changes
   useEffect(() => {
     console.log('🔃 Portfolio useEffect triggered', { 
       isAuthenticated, 
       user: user?.username || 'none', 
-      dataSource, 
       accountType 
     });
-    loadPortfolioData();
-  }, [isAuthenticated, user, dataSource, accountType]);
+    if (isAuthenticated && user) {
+      loadPortfolioData();
+    }
+  }, [isAuthenticated, user, accountType]);
 
   // Load available accounts when authenticated
   useEffect(() => {
@@ -607,19 +599,11 @@ const Portfolio = () => {
       apiUrl: getApiConfig().apiUrl 
     });
 
-    if (!isAuthenticated && dataSource !== 'mock') {
-      console.log('🔀 Not authenticated but dataSource is not mock - using mock data without changing state');
-      // Don't change dataSource here to avoid infinite loop
-      // Just load mock data instead
-      setPortfolioData(mockPortfolioData);
-      setAccountInfo({ 
-        accountType: 'mock', 
-        balance: 250000, 
-        equity: 80500, 
-        dayChange: 1250.75, 
-        dayChangePercent: 1.58 
-      });
+    // Ensure user is authenticated before loading data
+    if (!isAuthenticated || !user) {
+      console.log('🔒 User not authenticated, cannot load portfolio data');
       setLoading(false);
+      setError('Authentication required');
       return;
     }
 
@@ -627,75 +611,61 @@ const Portfolio = () => {
     setError(null);
     
     try {
-      if (dataSource === 'mock') {
-        console.log('📊 Loading mock portfolio data');
-        // Use mock data for demonstration
-        setPortfolioData(mockPortfolioData);
-        setAccountInfo({ 
-          accountType: 'mock', 
-          balance: 250000, 
-          equity: 80500, 
-          dayChange: 1250.75, 
-          dayChangePercent: 1.58 
-        });
-        console.log('✅ Mock data loaded successfully');
-      } else {
-        console.log('🌐 Loading real portfolio data from API');
-        const apiConfig = getApiConfig();
-        console.log('📡 API Config:', {
-          baseURL: apiConfig.baseURL,
-          isConfigured: apiConfig.isConfigured,
-          environment: apiConfig.environment
-        });
-        console.log('🔑 Auth state:', {
-          isAuthenticated,
-          userId: user?.sub || 'unknown',
-          userEmail: user?.email || 'unknown',
-          tokenPresent: !!tokens?.accessToken
+      console.log('🌐 Loading real portfolio data from API');
+      const apiConfig = getApiConfig();
+      console.log('📡 API Config:', {
+        baseURL: apiConfig.baseURL,
+        isConfigured: apiConfig.isConfigured,
+        environment: apiConfig.environment
+      });
+      console.log('🔑 Auth state:', {
+        isAuthenticated,
+        userId: user?.sub || 'unknown',
+        userEmail: user?.email || 'unknown',
+        tokenPresent: !!tokens?.accessToken
+      });
+      
+      try {
+        // Add timeout handling for API calls
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('API call timeout after 8 seconds')), 8000)
+        );
+        
+        console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}`);
+        // Load real data from API with timeout
+        const portfolioResponse = await Promise.race([
+          getPortfolioData(accountType),
+          timeoutPromise
+        ]);
+        console.log('✅ [PORTFOLIO] Portfolio API Response:', {
+          success: portfolioResponse?.success,
+          holdingsCount: portfolioResponse?.holdings?.length || 0,
+          hasData: !!portfolioResponse
         });
         
-        try {
-          // Add timeout handling for API calls
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API call timeout after 8 seconds')), 8000)
-          );
-          
-          console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}`);
-          // Load real data from API with timeout
-          const portfolioResponse = await Promise.race([
-            getPortfolioData(accountType),
-            timeoutPromise
-          ]);
-          console.log('✅ [PORTFOLIO] Portfolio API Response:', {
-            success: portfolioResponse?.success,
-            holdingsCount: portfolioResponse?.holdings?.length || 0,
-            hasData: !!portfolioResponse
-          });
-          
-          console.log(`🏦 [ACCOUNT] Loading account info for: ${accountType}`);
-          const accountResponse = await Promise.race([
-            getAccountInfo(accountType),
-            timeoutPromise
-          ]);
-          console.log('✅ [ACCOUNT] Account API Response:', {
-            success: accountResponse?.success,
-            accountType: accountResponse?.accountType,
-            hasBalance: !!accountResponse?.balance
-          });
-          
-          setPortfolioData(portfolioResponse);
-          setAccountInfo(accountResponse);
-          console.log('🎉 Real data loaded and set successfully');
-        } catch (apiError) {
-          console.error('API call failed:', apiError);
-          console.error('API Error details:', {
-            message: apiError.message,
-            response: apiError.response?.data,
-            status: apiError.response?.status,
-            url: apiError.config?.url
-          });
-          throw apiError;
-        }
+        console.log(`🏦 [ACCOUNT] Loading account info for: ${accountType}`);
+        const accountResponse = await Promise.race([
+          getAccountInfo(accountType),
+          timeoutPromise
+        ]);
+        console.log('✅ [ACCOUNT] Account API Response:', {
+          success: accountResponse?.success,
+          accountType: accountResponse?.accountType,
+          hasBalance: !!accountResponse?.balance
+        });
+        
+        setPortfolioData(portfolioResponse);
+        setAccountInfo(accountResponse);
+        console.log('🎉 Real data loaded and set successfully');
+      } catch (apiError) {
+        console.error('API call failed:', apiError);
+        console.error('API Error details:', {
+          message: apiError.message,
+          response: apiError.response?.data,
+          status: apiError.response?.status,
+          url: apiError.config?.url
+        });
+        throw apiError;
       }
     } catch (error) {
       console.error('❌ Error loading portfolio:', error);

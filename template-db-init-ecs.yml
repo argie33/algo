@@ -36,6 +36,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: NODE_ENV
+              Value: production
           LogConfiguration:
             LogDriver: awslogs
             Options:

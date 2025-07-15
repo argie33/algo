@@ -40,12 +40,20 @@ Recent additions include advanced analytics and real-time data processing:
 - **Risk Management System**: Complete position sizing, correlation analysis, and portfolio optimization
 - **Trading Strategy Engine**: Automated strategy execution with multiple algorithm types
 
+### Database Initialization Architecture Fix
+Critical architectural issue resolved:
+- **Conflicting Dockerfiles**: Fixed `Dockerfile.dbinit` (Python) vs `Dockerfile.webapp-db-init` (Node.js) conflict
+- **Missing Integration**: Database initialization ECS task not properly integrated into deployment workflow
+- **Deployment Fix**: Updated deployment scripts to use correct Node.js-based initialization
+- **Impact**: Resolves API key service failures causing errors on settings, portfolio, live data, and trade history pages
+
 ### Current Infrastructure Issues (2025-07-15)
 Critical issues requiring immediate attention:
-- **CORS Configuration**: Cross-origin requests being blocked by CORS policy
-- **API Gateway 502 Errors**: Bad Gateway responses on API key credential endpoints
-- **WebSocket Authentication**: JWT token integration for real-time connections in progress
-- **Missing Endpoints**: /api/stocks/sectors endpoint returning 404 errors
+- **Database Initialization**: Conflicting Dockerfiles and missing ECS task deployment integration
+- **CORS Configuration**: Cross-origin requests being blocked by CORS policy - RESOLVED
+- **API Gateway 502 Errors**: Bad Gateway responses on API key credential endpoints - RESOLVED
+- **WebSocket Authentication**: JWT token integration for real-time connections - RESOLVED
+- **Missing Endpoints**: /api/stocks/sectors endpoint returning 404 errors - RESOLVED
 - **Parameter Alignment**: Frontend-backend parameter mismatches (period vs timeframe) - RESOLVED
 
 ## Deployment Order
