@@ -228,7 +228,7 @@ router.get('/stream/:symbols', createValidationMiddleware(websocketValidationSch
       userAlpacaService = new alpacaService.AlpacaService(
         credentials.apiKey, 
         credentials.apiSecret, 
-        credentials.isSandbox || process.env.ALPACA_PAPER_TRADING === 'true'
+        credentials.isSandbox
       );
       const alpacaInitDuration = Date.now() - alpacaInitStart;
       
@@ -509,7 +509,7 @@ router.get('/trades/:symbols', async (req, res) => {
     const userAlpacaService = new alpacaService.AlpacaService(
       credentials.apiKey, 
       credentials.apiSecret, 
-      process.env.ALPACA_PAPER_TRADING === 'true'
+      credentials.isSandbox
     );
 
     // Get latest trades
@@ -573,7 +573,7 @@ router.get('/bars/:symbols', async (req, res) => {
     const userAlpacaService = new alpacaService.AlpacaService(
       credentials.apiKey, 
       credentials.apiSecret, 
-      process.env.ALPACA_PAPER_TRADING === 'true'
+      credentials.isSandbox
     );
 
     // Get bars data
