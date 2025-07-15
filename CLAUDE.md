@@ -100,6 +100,7 @@ The project is driven by 5 core documents that must be continuously updated and 
 - **Usage**: Primary source for current work priorities, task status, and session continuity
 - **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously
 - **CRITICAL**: This is the ONLY todo system - never create new task documents
+- **IMPORTANT**: claude-todos.md is populated based on analysis of the other 3 core documents to determine what work needs to be done and in what priority order
 
 ### Documentation Management Commands
 - **Read All 5 Docs**: Start each session by reviewing all 5 documents

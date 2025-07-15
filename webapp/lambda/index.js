@@ -410,6 +410,28 @@ const optimizer = lambdaOptimizer.createMiddleware();
 app.use(optimizer.trackRequest);
 app.use(optimizer.optimizeResponse);
 
+// Global error handler to prevent 502 Bad Gateway errors
+app.use((error, req, res, next) => {
+  console.error('🚨 Lambda error caught:', error);
+  
+  // Ensure CORS headers are set even on errors
+  const origin = req.headers.origin;
+  if (origin === 'https://d1zb7knau41vl9.cloudfront.net' || origin?.includes('.cloudfront.net')) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
+  
+  // Return structured error instead of crashing
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Enhanced logging and timeout protection middleware
 app.use((req, res, next) => {
   const startTime = Date.now();

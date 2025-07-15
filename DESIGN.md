@@ -513,9 +513,90 @@ class RiskManager {
 - Sector and geographic diversification monitoring
 - Real-time risk scoring and recommendations
 
-### 2.8 Real-Time Data Architecture (High-Performance)
+### 2.8 Frontend-Backend Integration Issues (CRITICAL)
 
-#### 2.8.1 High-Frequency Data Pipeline
+#### 2.8.1 CORS Configuration Problems
+```javascript
+// Current CORS issue: CloudFront domain not properly handled
+const allowedOrigins = [
+  'https://d1zb7knau41vl9.cloudfront.net', // Added but still blocking
+  'http://localhost:3000',
+  'http://localhost:5173'
+];
+
+// Problem: Lambda returning 502 before CORS headers set
+// Solution: Ensure CORS headers set even on Lambda crashes
+```
+
+#### 2.8.2 Lambda Error Handling
+```javascript
+// Current issue: Lambda crashes cause 502 Bad Gateway
+// Missing comprehensive error handling in routes
+// Settings API endpoints exist but may have validation issues
+
+// Solution needed: Global error handler to prevent 502s
+app.use((error, req, res, next) => {
+  console.error('Lambda error:', error);
+  res.status(500).json({ error: 'Internal server error' });
+});
+```
+
+#### 2.8.3 Data Structure Mismatch
+```javascript
+// Portfolio.jsx error: bu.map is not a function
+// Frontend expects array, backend may be returning object or null
+// Need to ensure consistent data structure contracts
+```
+
+### 2.9 Lambda Performance Optimization (IMPLEMENTED)
+
+#### 2.9.1 Performance Optimizer System
+```javascript
+class LambdaOptimizer {
+  constructor() {
+    this.warmupComplete = false;
+    this.connectionPool = new Map();
+    this.cache = new Map();
+    this.metrics = {
+      requests: 0,
+      coldStarts: 0,
+      avgResponseTime: 0
+    };
+  }
+  
+  async warmup() {
+    // Pre-load modules during cold start
+    await this.preloadModules();
+    await this.preestablishConnections();
+    await this.precacheCommonData();
+    this.warmupComplete = true;
+  }
+  
+  trackRequest(req, res, next) {
+    const start = performance.now();
+    if (!this.warmupComplete) this.metrics.coldStarts++;
+    
+    res.on('finish', () => {
+      const duration = performance.now() - start;
+      this.metrics.totalResponseTime += duration;
+      this.metrics.avgResponseTime = this.metrics.totalResponseTime / this.metrics.requests;
+    });
+    
+    next();
+  }
+}
+```
+
+**Performance Features:**
+- Module pre-loading during Lambda cold starts
+- Connection pool optimization based on Lambda memory
+- Common query pre-caching
+- Request tracking and metrics collection
+- Memory management and garbage collection
+
+### 2.9 Real-Time Data Architecture (High-Performance)
+
+#### 2.9.1 High-Frequency Data Pipeline
 ```javascript
 class RealtimeDataPipeline {
   constructor(options) {

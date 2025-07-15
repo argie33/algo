@@ -1,5 +1,5 @@
 # Financial Trading Platform - Test Plan
-*Version 1.0 | Updated 2025-07-15 | Comprehensive Testing Strategy*
+*Version 1.1 | Updated 2025-07-15 | Comprehensive Testing Strategy - Performance Optimizations*
 
 ## 1. TEST OVERVIEW
 
@@ -223,6 +223,50 @@ describe('Broker API Integration', () => {
     const positions = await alpacaService.getPositions();
     expect(positions).toBeDefined();
     expect(Array.isArray(positions)).toBe(true);
+  });
+});
+```
+
+#### 3.1.3 Frontend-Backend Integration Testing
+```javascript
+describe('CORS and API Integration', () => {
+  test('CloudFront CORS headers properly set', async () => {
+    const response = await request(app)
+      .get('/api/settings/api-keys')
+      .set('Origin', 'https://d1zb7knau41vl9.cloudfront.net');
+    
+    expect(response.headers['access-control-allow-origin']).toBe('https://d1zb7knau41vl9.cloudfront.net');
+    expect(response.status).not.toBe(502);
+  });
+  
+  test('Settings API endpoints return proper data structure', async () => {
+    const response = await request(app)
+      .get('/api/settings/api-keys')
+      .set('Authorization', 'Bearer valid-token');
+    
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data)).toBe(true);
+  });
+  
+  test('Portfolio API returns array for map operations', async () => {
+    const response = await request(app)
+      .get('/api/portfolio')
+      .set('Authorization', 'Bearer valid-token');
+    
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data)).toBe(true);
+  });
+});
+
+describe('Lambda Error Handling', () => {
+  test('Lambda crashes return 500 not 502', async () => {
+    // Test endpoint that might crash
+    const response = await request(app).get('/api/settings/api-keys');
+    
+    expect(response.status).not.toBe(502);
+    if (response.status >= 400) {
+      expect(response.body.error).toBeDefined();
+    }
   });
 });
 ```
