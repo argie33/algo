@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import settingsService from '../services/settingsService';
 import {
   Box,
   Card,
@@ -132,28 +133,100 @@ const SettingsManager = () => {
   const [connectionResults, setConnectionResults] = useState({});
   const [unsavedChanges, setUnsavedChanges] = useState(false);
 
-  // Load settings from localStorage on mount
+  // Load settings from backend on mount
   useEffect(() => {
-    const savedSettings = localStorage.getItem('app_settings');
-    if (savedSettings) {
+    const loadSettings = async () => {
       try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
+        console.log('🔄 Loading API keys from backend...');
+        
+        // First, try to migrate any localStorage settings
+        const migrationResult = await settingsService.migrateLocalStorageToBackend();
+        if (migrationResult.migrated) {
+          setSnackbar({ 
+            open: true, 
+            message: `Migrated ${migrationResult.keys.length} API key(s) to secure backend storage`, 
+            severity: 'success' 
+          });
+        }
+        
+        // Load API keys from backend
+        const apiKeys = await settingsService.getApiKeys();
+        const formattedKeys = settingsService.formatApiKeysForFrontend(apiKeys);
+        
+        setSettings(prev => ({
+          ...prev,
+          apiKeys: formattedKeys
+        }));
+        
+        console.log('✅ Successfully loaded settings from backend');
+        
       } catch (error) {
-        console.error('Error loading settings:', error);
+        console.error('❌ Error loading settings from backend:', error);
+        
+        // Fallback to localStorage for graceful degradation
+        console.log('🔄 Falling back to localStorage...');
+        const savedSettings = localStorage.getItem('app_settings');
+        if (savedSettings) {
+          try {
+            const parsed = JSON.parse(savedSettings);
+            setSettings(prev => ({ ...prev, ...parsed }));
+            setSnackbar({ 
+              open: true, 
+              message: 'Loaded settings from local storage. Connect to backend for secure storage.', 
+              severity: 'warning' 
+            });
+          } catch (parseError) {
+            console.error('Error parsing localStorage settings:', parseError);
+          }
+        }
       }
-    }
+    };
+
+    loadSettings();
   }, []);
 
-  // Save settings to localStorage
-  const saveSettings = () => {
+  // Save API key to backend
+  const saveApiKey = async (provider, apiKeyData) => {
     try {
-      localStorage.setItem('app_settings', JSON.stringify(settings));
+      console.log('💾 Saving API key for provider:', provider);
+      
+      const keyData = {
+        provider: provider,
+        apiKey: apiKeyData.keyId || apiKeyData.apiKey,
+        apiSecret: apiKeyData.secretKey || 'not_required',
+        isSandbox: apiKeyData.paperTrading !== undefined ? apiKeyData.paperTrading : false,
+        description: `${provider} API key`
+      };
+
+      // Check if this is an update (key has an id) or new key
+      if (apiKeyData.id) {
+        await settingsService.updateApiKey(apiKeyData.id, {
+          description: keyData.description,
+          isSandbox: keyData.isSandbox
+        });
+      } else {
+        await settingsService.addApiKey(keyData);
+      }
+      
+      // Reload settings from backend
+      const apiKeys = await settingsService.getApiKeys();
+      const formattedKeys = settingsService.formatApiKeysForFrontend(apiKeys);
+      
+      setSettings(prev => ({
+        ...prev,
+        apiKeys: formattedKeys
+      }));
+      
       setUnsavedChanges(false);
-      setSnackbar({ open: true, message: 'Settings saved successfully', severity: 'success' });
+      setSnackbar({ open: true, message: `${provider} API key saved successfully`, severity: 'success' });
+      
     } catch (error) {
-      console.error('Error saving settings:', error);
-      setSnackbar({ open: true, message: 'Error saving settings', severity: 'error' });
+      console.error('❌ Error saving API key:', error);
+      setSnackbar({ 
+        open: true, 
+        message: `Error saving ${provider} API key: ${error.message}`, 
+        severity: 'error' 
+      });
     }
   };
 
@@ -169,29 +242,53 @@ const SettingsManager = () => {
     setUnsavedChanges(true);
   };
 
-  // Test API connection
+  // Test API connection with real backend validation
   const testConnection = async (provider) => {
     setTestingConnection(true);
     
     try {
-      // Simulate API test
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('🧪 Testing connection for provider:', provider);
       
-      // Mock success/failure
-      const isSuccess = Math.random() > 0.3;
+      // Get the API key ID for this provider
+      const apiKey = settings.apiKeys[provider];
+      if (!apiKey || !apiKey.id) {
+        throw new Error('No API key configured for this provider');
+      }
+      
+      // Validate API key with backend
+      const validationResult = await settingsService.validateApiKey(apiKey.id, provider);
+      
       setConnectionResults(prev => ({
         ...prev,
         [provider]: {
-          status: isSuccess ? 'success' : 'error',
-          message: isSuccess ? 'Connection successful' : 'Invalid API credentials'
+          status: validationResult.valid ? 'success' : 'error',
+          message: validationResult.message || (validationResult.valid ? 'Connection successful' : 'Invalid API credentials'),
+          details: validationResult.details
         }
       }));
+      
+      // Update the validation status in settings
+      if (validationResult.valid) {
+        setSettings(prev => ({
+          ...prev,
+          apiKeys: {
+            ...prev.apiKeys,
+            [provider]: {
+              ...prev.apiKeys[provider],
+              validationStatus: 'VALID',
+              lastValidated: new Date().toISOString()
+            }
+          }
+        }));
+      }
+      
     } catch (error) {
+      console.error('❌ Error testing connection:', error);
       setConnectionResults(prev => ({
         ...prev,
         [provider]: {
           status: 'error',
-          message: 'Connection failed'
+          message: error.message || 'Connection test failed'
         }
       }));
     } finally {
@@ -335,9 +432,17 @@ const SettingsManager = () => {
                     label="Enabled"
                   />
                   <Button
+                    variant="contained"
+                    onClick={() => saveApiKey('alpaca', settings.apiKeys.alpaca)}
+                    disabled={!settings.apiKeys.alpaca.keyId || !settings.apiKeys.alpaca.secretKey}
+                    sx={{ mr: 1 }}
+                  >
+                    Save API Key
+                  </Button>
+                  <Button
                     variant="outlined"
                     onClick={() => testConnection('alpaca')}
-                    disabled={testingConnection}
+                    disabled={testingConnection || !settings.apiKeys.alpaca.id}
                   >
                     Test Connection
                   </Button>
@@ -411,11 +516,19 @@ const SettingsManager = () => {
                     label="Enabled"
                   />
                   <Button
+                    variant="contained"
+                    onClick={() => saveApiKey('polygon', settings.apiKeys.polygon)}
+                    disabled={!settings.apiKeys.polygon.apiKey}
+                    sx={{ mr: 1 }}
+                  >
+                    Save API Key
+                  </Button>
+                  <Button
                     variant="outlined"
                     onClick={() => testConnection('polygon')}
-                    disabled={testingConnection}
+                    disabled={testingConnection || !settings.apiKeys.polygon.id}
                   >
-                    Test
+                    Test Connection
                   </Button>
                 </Box>
               </Grid>
@@ -905,7 +1018,15 @@ const SettingsManager = () => {
           
           <Button 
             variant="contained" 
-            onClick={saveSettings}
+            onClick={() => {
+              // Save API keys to backend
+              Object.keys(settings.apiKeys).forEach(provider => {
+                const apiKey = settings.apiKeys[provider];
+                if (apiKey.enabled && (apiKey.keyId || apiKey.apiKey)) {
+                  saveApiKey(provider, apiKey);
+                }
+              });
+            }}
             disabled={!unsavedChanges}
             startIcon={<Save />}
           >
