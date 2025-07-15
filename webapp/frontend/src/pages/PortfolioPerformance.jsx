@@ -386,38 +386,53 @@ const PortfolioPerformance = () => {
             <Typography variant="h6" gutterBottom>
               Portfolio Performance vs Benchmark
             </Typography>
-            <ResponsiveContainer width="100%" height={400}>
-              <ComposedChart data={performanceData && Array.isArray(performanceData) ? performanceData : []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <RechartsTooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="portfolioValue"
-                  stroke="#2196F3"
-                  fill="#2196F3"
-                  fillOpacity={0.1}
-                  name="Portfolio Value"
-                />
-                {showBenchmark && (
-                  <Line
+            {/* Only render chart if we have valid data */}
+            {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart data={performanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Area
                     type="monotone"
-                    dataKey="benchmarkValue"
-                    stroke="#FF9800"
-                    strokeWidth={2}
-                    dot={false}
-                    name="S&P 500"
+                    dataKey="portfolioValue"
+                    stroke="#2196F3"
+                    fill="#2196F3"
+                    fillOpacity={0.1}
+                    name="Portfolio Value"
                   />
-                )}
-                <Bar
-                  dataKey="dailyReturn"
-                  fill="#4CAF50"
-                  name="Daily Return %"
-                  yAxisId="right"
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                  {showBenchmark && (
+                    <Line
+                      type="monotone"
+                      dataKey="benchmarkValue"
+                      stroke="#FF9800"
+                      strokeWidth={2}
+                      dot={false}
+                      name="S&P 500"
+                    />
+                  )}
+                  <Bar
+                    dataKey="dailyReturn"
+                    fill="#4CAF50"
+                    name="Daily Return %"
+                    yAxisId="right"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box 
+                display="flex" 
+                justifyContent="center" 
+                alignItems="center" 
+                height={400}
+                sx={{ bgcolor: 'grey.50', borderRadius: 1 }}
+              >
+                <Typography variant="body1" color="text.secondary">
+                  {error ? 'Error loading performance data' : 'No performance data available'}
+                </Typography>
+              </Box>
+            )}
           </CardContent>
         </TabPanel>
 

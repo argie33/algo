@@ -118,6 +118,7 @@ const AppContext = {
 - CORS configuration for approved domains
 - Request/response logging for audit trails
 - Input validation and sanitization
+- **WebSocket Authentication**: JWT token integration for real-time connections (IMPLEMENTATION IN PROGRESS)
 
 #### 2.2.2 Lambda Function Architecture
 ```

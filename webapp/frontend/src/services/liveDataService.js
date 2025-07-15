@@ -110,8 +110,8 @@ class LiveDataService extends EventEmitter {
     }
   }
 
-  // Enhanced Connection Management
-  async connect(userId = 'anonymous') {
+  // Enhanced Connection Management with JWT Authentication
+  async connect(userId = null) {
     if (this.connecting || this.connected) {
       console.log('🔄 Connection already in progress or established');
       return;
@@ -124,9 +124,31 @@ class LiveDataService extends EventEmitter {
       return;
     }
 
+    // Get authentication token
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+    if (!token) {
+      console.warn('⚠️ No authentication token found. WebSocket requires authentication.');
+      this.emit('authenticationError', 'Authentication token required for WebSocket connection');
+      return;
+    }
+
+    // Get userId from token or use provided value
+    let actualUserId = userId;
+    if (!actualUserId) {
+      try {
+        // Decode JWT to get userId (basic decode, not verification)
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        actualUserId = tokenPayload.sub || tokenPayload.userId || tokenPayload.user_id || 'unknown';
+      } catch (error) {
+        console.warn('⚠️ Could not decode token for userId:', error.message);
+        actualUserId = 'authenticated';
+      }
+    }
+
     console.log('🔄 Attempting to connect to WebSocket...', {
       url: this.config.wsUrl,
-      userId: userId,
+      userId: actualUserId,
+      hasToken: !!token,
       attempt: this.reconnectAttempts + 1
     });
 
@@ -134,7 +156,8 @@ class LiveDataService extends EventEmitter {
     this.emit('connecting', { attempt: this.reconnectAttempts + 1 });
 
     try {
-      const wsUrl = `${this.config.wsUrl}?userId=${encodeURIComponent(userId)}`;
+      // Include authentication token in WebSocket connection
+      const wsUrl = `${this.config.wsUrl}?userId=${encodeURIComponent(actualUserId)}&token=${encodeURIComponent(token)}`;
       
       this.ws = new WebSocket(wsUrl);
       this.ws.binaryType = 'arraybuffer';

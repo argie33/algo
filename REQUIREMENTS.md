@@ -38,11 +38,12 @@ We are building a world-class enterprise financial trading platform that combine
 ### 2.2 Market Data & Analytics
 
 #### 2.2.1 Real-Time Data
-- **Live Quotes**: Real-time price feeds via WebSocket
+- **Live Quotes**: ⚠️ Real-time price feeds via WebSocket (AUTHENTICATION ISSUES - FIX IN PROGRESS)
 - **Market Depth**: Order book data for supported instruments
 - **Trade History**: Real-time trade execution data
 - **Economic Indicators**: FRED economic data integration
 - **News & Sentiment**: Real-time news analysis and sentiment scoring
+- **WebSocket Authentication**: JWT token integration for secure real-time connections
 
 #### 2.2.2 Historical Data
 - **Price History**: Daily, weekly, monthly OHLCV data

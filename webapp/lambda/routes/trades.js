@@ -890,8 +890,26 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
     res.json(responseData);
     
   } catch (error) {
-    console.error('Error fetching analytics overview:', error);
-    // Return empty data structure instead of error
+    console.error('Error fetching analytics overview:', {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?.sub || req.user?.userId || 'unknown',
+      timeframe: req.query.timeframe || '3M',
+      requestId: req.requestId || 'unknown'
+    });
+    
+    // Return detailed error structure with proper HTTP status
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to fetch analytics overview',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      timestamp: new Date().toISOString(),
+      requestId: req.requestId || 'unknown'
+    });
+  } catch (fallbackError) {
+    console.error('Fallback error handler triggered:', fallbackError);
+    // Last resort fallback response
     res.status(200).json({
       success: true,
       data: {

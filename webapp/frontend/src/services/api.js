@@ -209,7 +209,8 @@ export const getAccountInfo = async (accountType = 'paper') => {
 
 export const getPortfolioPerformance = async (timeframe = '1Y') => {
   try {
-    const response = await api.get(`/api/portfolio/performance?timeframe=${timeframe}`);
+    // Backend expects 'period' parameter, not 'timeframe'
+    const response = await api.get(`/api/portfolio/performance?period=${timeframe}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching portfolio performance:', error);
