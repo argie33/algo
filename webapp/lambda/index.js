@@ -160,7 +160,7 @@ initializeLambdaDatabase();
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Define allowed origins
+  // Define allowed origins with comprehensive CloudFront support
   const allowedOrigins = [
     'https://d1zb7knau41vl9.cloudfront.net', // Production CloudFront
     'http://localhost:3000',                 // Local development
@@ -173,8 +173,8 @@ app.use((req, res, next) => {
   const envOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
   allowedOrigins.push(...envOrigins);
   
-  // Add API Gateway origins dynamically
-  if (origin && (origin.includes('.execute-api.') || origin.includes('.cloudfront.net'))) {
+  // Add API Gateway and CloudFront origins dynamically for dev/test
+  if (origin && (origin.includes('.execute-api.') || origin.includes('.cloudfront.net') || origin.includes('.amazonaws.com'))) {
     allowedOrigins.push(origin);
   }
   
@@ -184,26 +184,30 @@ app.use((req, res, next) => {
     // Allow requests without origin in development
     allowOrigin = process.env.NODE_ENV !== 'production';
   } else {
-    // Check if origin is in allowed list
-    allowOrigin = allowedOrigins.includes(origin);
+    // Check if origin is in allowed list OR is our CloudFront domain
+    allowOrigin = allowedOrigins.includes(origin) || origin === 'https://d1zb7knau41vl9.cloudfront.net';
   }
   
   console.log(`🌐 CORS check - Origin: ${origin}, Allowed: ${allowOrigin}`);
   
-  // Set CORS headers
+  // Set CORS headers - always set basic headers, conditionally set origin
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
+  res.header('Access-Control-Max-Age', '86400');
+  
   if (allowOrigin) {
     res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
   }
   
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID');
-  res.header('Access-Control-Max-Age', '86400');
-  
   // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
     console.log(`🌐 Preflight OPTIONS handled for ${origin}`);
-    return res.status(200).end();
+    if (allowOrigin) {
+      return res.status(200).end();
+    } else {
+      return res.status(403).json({ error: 'CORS policy violation' });
+    }
   }
   
   // Block non-preflight requests from unauthorized origins
