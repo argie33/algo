@@ -89,6 +89,57 @@ router.get('/sectors', async (req, res) => {
   }
 });
 
+// Public endpoint for monitoring purposes - basic stock data without authentication
+router.get('/public/sample', async (req, res) => {
+  try {
+    console.log('Public stocks sample endpoint called for monitoring');
+    
+    const limit = parseInt(req.query.limit) || 5;
+    
+    // Simple query to get basic stock data
+    const stocksQuery = `
+      SELECT symbol, company_name, sector, exchange, market_cap
+      FROM stock_symbols_enhanced
+      WHERE is_active = TRUE
+      ORDER BY market_cap DESC NULLS LAST
+      LIMIT $1
+    `;
+    
+    let result;
+    try {
+      result = await query(stocksQuery, [limit]);
+    } catch (dbError) {
+      console.log('Enhanced query failed, trying basic query');
+      // Fallback to basic stock_symbols table
+      const fallbackQuery = `
+        SELECT symbol, name as company_name, sector, exchange, market_cap
+        FROM stock_symbols
+        WHERE is_active = TRUE
+        ORDER BY market_cap DESC NULLS LAST
+        LIMIT $1
+      `;
+      result = await query(fallbackQuery, [limit]);
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      endpoint: 'public-sample',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in public stocks sample endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch stock data',
+      endpoint: 'public-sample',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Apply authentication to all other stock routes
 router.use(authenticateToken);
 

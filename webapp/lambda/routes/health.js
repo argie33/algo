@@ -502,6 +502,98 @@ router.get('/debug/table-structure', async (req, res) => {
   }
 });
 
+// Diagnostics endpoint - comprehensive system information
+router.get('/diagnostics', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    
+    // Gather comprehensive system diagnostics
+    const diagnostics = {
+      service: 'Financial Dashboard API',
+      version: '1.0.0',
+      status: 'operational',
+      environment: process.env.ENVIRONMENT || 'dev',
+      region: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || 'us-east-1',
+      
+      // System info
+      system: {
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+        platform: process.platform,
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString()
+      },
+      
+      // Configuration status
+      configuration: {
+        database: {
+          endpoint: process.env.DB_ENDPOINT ? 'configured' : 'not_configured',
+          secretArn: process.env.DB_SECRET_ARN ? 'configured' : 'not_configured',
+          connectTimeout: process.env.DB_CONNECT_TIMEOUT || 'default',
+          poolMax: process.env.DB_POOL_MAX || 'default'
+        },
+        authentication: {
+          cognitoUserPool: process.env.COGNITO_USER_POOL_ID ? 'configured' : 'not_configured',
+          cognitoClient: process.env.COGNITO_CLIENT_ID ? 'configured' : 'not_configured'
+        },
+        apiKeys: {
+          encryptionSecret: process.env.API_KEY_ENCRYPTION_SECRET_ARN ? 'configured' : 'not_configured'
+        },
+        lambda: {
+          functionName: process.env.AWS_LAMBDA_FUNCTION_NAME || 'unknown',
+          functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION || 'unknown',
+          region: process.env.AWS_REGION || 'unknown'
+        }
+      },
+      
+      // Quick health checks
+      healthChecks: {
+        database: 'checking...',
+        apiKeyService: 'checking...',
+        secretsManager: 'checking...'
+      }
+    };
+    
+    // Perform basic health checks
+    try {
+      const dbHealth = await healthCheck();
+      diagnostics.healthChecks.database = dbHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
+    } catch (error) {
+      diagnostics.healthChecks.database = 'failed';
+    }
+    
+    try {
+      await apiKeyService.ensureInitialized();
+      diagnostics.healthChecks.apiKeyService = 'healthy';
+    } catch (error) {
+      diagnostics.healthChecks.apiKeyService = 'failed';
+    }
+    
+    try {
+      const secretArn = process.env.API_KEY_ENCRYPTION_SECRET_ARN;
+      if (secretArn) {
+        diagnostics.healthChecks.secretsManager = 'healthy';
+      } else {
+        diagnostics.healthChecks.secretsManager = 'not_configured';
+      }
+    } catch (error) {
+      diagnostics.healthChecks.secretsManager = 'failed';
+    }
+    
+    const duration = Date.now() - startTime;
+    diagnostics.diagnosticsDuration = `${duration}ms`;
+    
+    res.success(diagnostics);
+  } catch (error) {
+    console.error('Diagnostics endpoint failed:', error);
+    res.serverError('Diagnostics failed', {
+      error: error.message,
+      service: 'Financial Dashboard API',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint for environment and configuration
 router.get('/debug/env', async (req, res) => {
   try {
