@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 2025-07-13 - Test loader functionality
+# Trigger rebuild: 2025-07-15 - PHASE 1: Load core symbols data for database population
 # Updated database schema to match webapp portfolio table requirements v44 - test ECR race
 import os
 import re
