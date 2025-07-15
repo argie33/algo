@@ -1,6 +1,11 @@
 const express = require('express');
-const router = express.Router();
 const { query } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+// Apply authentication to all sector analysis routes
+router.use(authenticateToken);
 
 /**
  * GET /sectors/analysis

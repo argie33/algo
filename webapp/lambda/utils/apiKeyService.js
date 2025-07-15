@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { query } = require('./database');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const logger = require('./logger');
 
 const ALGORITHM = 'aes-256-gcm';
 
@@ -60,32 +61,68 @@ class ApiKeyService {
   }
 
   async initialize() {
+    const initStartTime = Date.now();
+    
     try {
+      logger.info('🔐 Initializing API key encryption service', {
+        environment: process.env.NODE_ENV,
+        hasEnvSecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
+        hasSecretsManagerArn: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN
+      });
+
       // Try to load from environment first (for local dev)
       this.secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
       
       // If not found, load from Secrets Manager
       if (!this.secretKey) {
+        logger.info('📡 Loading encryption secret from AWS Secrets Manager');
         this.secretKey = await loadEncryptionSecret();
       }
 
       if (!this.secretKey) {
-        console.error('❌ CRITICAL: No encryption secret available');
-        console.error('⚠️  API Key service will be disabled - encryption/decryption not available');
-        this.isEnabled = false;
-        return;
+        // Fallback: Generate a temporary key for development (NOT for production)
+        if (process.env.NODE_ENV !== 'production') {
+          logger.warn('⚠️ No encryption secret configured - generating temporary development key', {
+            environment: process.env.NODE_ENV,
+            securityWarning: 'This is NOT secure for production use!'
+          });
+          this.secretKey = crypto.randomBytes(32).toString('hex');
+          logger.info('🔐 Temporary encryption key generated for development');
+        } else {
+          logger.error('❌ CRITICAL: No encryption secret available in production', {
+            environment: process.env.NODE_ENV,
+            hasEnvSecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
+            hasSecretsManagerArn: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
+            initializationTime: Date.now() - initStartTime
+          });
+          this.isEnabled = false;
+          return;
+        }
       }
 
       this.isEnabled = true;
       
       // Validate key has sufficient entropy
       if (this.secretKey.length < 32) {
-        console.warn('⚠️  Encryption key should be at least 32 characters for security');
+        logger.warn('⚠️ Encryption key should be at least 32 characters for security', {
+          currentLength: this.secretKey.length,
+          recommendedLength: 32
+        });
       }
       
-      console.log('✅ API key encryption service initialized and enabled');
+      logger.info('✅ API key encryption service initialized and enabled', {
+        initializationTime: Date.now() - initStartTime,
+        keyLength: this.secretKey.length,
+        environment: process.env.NODE_ENV
+      });
+      
     } catch (error) {
-      console.error('❌ Failed to initialize API key service:', error);
+      logger.error('❌ Failed to initialize API key service', {
+        error: error.message,
+        errorStack: error.stack,
+        initializationTime: Date.now() - initStartTime,
+        environment: process.env.NODE_ENV
+      });
       this.isEnabled = false;
     }
   }
@@ -97,31 +134,162 @@ class ApiKeyService {
     }
   }
 
-  // Decrypt API key using stored encryption data
-  async decryptApiKey(encryptedData, userSalt) {
-    await this.ensureInitialized();
+  // Encrypt API key for storage
+  async encryptApiKey(apiKey, userSalt, userId = null, provider = null) {
+    const operationStartTime = Date.now();
+    
     try {
+      await this.ensureInitialized();
+      
+      // Validate inputs
+      if (!apiKey || typeof apiKey !== 'string') {
+        throw new Error('Invalid API key provided for encryption');
+      }
+      
+      if (!userSalt || typeof userSalt !== 'string') {
+        throw new Error('Invalid user salt provided for encryption');
+      }
+      
+      if (apiKey.length < 8) {
+        throw new Error('API key is too short for security');
+      }
+      
+      logger.info('🔐 Starting API key encryption', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        apiKeyLength: apiKey.length,
+        saltLength: userSalt.length
+      });
+
+      const key = crypto.scryptSync(this.secretKey, userSalt, 32);
+      const iv = crypto.randomBytes(12); // GCM typically uses 12-byte IV
+      const cipher = crypto.createCipher('aes-256-cbc', key);
+      
+      let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      const result = {
+        encrypted: encrypted,
+        iv: iv.toString('hex'),
+        authTag: null  // Not used in CBC mode
+      };
+      
+      logger.info('✅ API key encrypted successfully', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        encryptionTime: Date.now() - operationStartTime,
+        encryptedLength: encrypted.length,
+        ivLength: result.iv.length
+      });
+      
+      return result;
+      
+    } catch (error) {
+      logger.error('❌ API key encryption failed', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        error: error.message,
+        errorStack: error.stack,
+        encryptionTime: Date.now() - operationStartTime,
+        apiKeyLength: apiKey ? apiKey.length : 0,
+        saltLength: userSalt ? userSalt.length : 0
+      });
+      
+      throw new Error(`Failed to encrypt API key: ${error.message}`);
+    }
+  }
+
+  // Decrypt API key using stored encryption data
+  async decryptApiKey(encryptedData, userSalt, userId = null, provider = null) {
+    const operationStartTime = Date.now();
+    
+    try {
+      await this.ensureInitialized();
+      
+      // Validate inputs
+      if (!encryptedData || typeof encryptedData !== 'object') {
+        throw new Error('Invalid encrypted data provided for decryption');
+      }
+      
+      if (!encryptedData.encrypted || typeof encryptedData.encrypted !== 'string') {
+        throw new Error('Invalid encrypted value in encrypted data');
+      }
+      
+      if (!encryptedData.iv || typeof encryptedData.iv !== 'string') {
+        throw new Error('Invalid IV in encrypted data');
+      }
+      
+      if (!userSalt || typeof userSalt !== 'string') {
+        throw new Error('Invalid user salt provided for decryption');
+      }
+      
+      logger.info('🔓 Starting API key decryption', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        encryptedLength: encryptedData.encrypted.length,
+        ivLength: encryptedData.iv.length,
+        saltLength: userSalt.length
+      });
+
       const key = crypto.scryptSync(this.secretKey, userSalt, 32);
       const iv = Buffer.from(encryptedData.iv, 'hex');
-      const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
-      decipher.setAAD(Buffer.from(userSalt));
-      decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+      const decipher = crypto.createDecipher('aes-256-cbc', key);
       
       let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
       
+      // Validate decrypted result
+      if (!decrypted || decrypted.length < 8) {
+        throw new Error('Decrypted API key is invalid or too short');
+      }
+      
+      logger.info('✅ API key decrypted successfully', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        decryptionTime: Date.now() - operationStartTime,
+        decryptedLength: decrypted.length
+      });
+      
       return decrypted;
+      
     } catch (error) {
-      console.error('Error decrypting API key:', error);
-      throw new Error('Failed to decrypt API key');
+      logger.error('❌ API key decryption failed', {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        provider: provider || 'unknown',
+        error: error.message,
+        errorStack: error.stack,
+        decryptionTime: Date.now() - operationStartTime,
+        encryptedDataValid: !!(encryptedData && encryptedData.encrypted),
+        ivValid: !!(encryptedData && encryptedData.iv),
+        saltLength: userSalt ? userSalt.length : 0
+      });
+      
+      // Security: Only log error message, not full error object or decrypted content
+      throw new Error(`Failed to decrypt API key: ${error.message}`);
     }
   }
 
   // Get decrypted API credentials for a user and provider
   async getDecryptedApiKey(userId, provider) {
-    await this.ensureInitialized();
+    const operationStartTime = Date.now();
+    
     try {
-      console.log(`🔍 [API KEY SERVICE] Querying for userId=${userId}, provider=${provider}`);
+      await this.ensureInitialized();
+      
+      // Validate inputs
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid user ID provided');
+      }
+      
+      if (!provider || typeof provider !== 'string') {
+        throw new Error('Invalid provider provided');
+      }
+      
+      logger.info('🔍 Querying for API key credentials', {
+        userId: userId.substring(0, 8) + '...',
+        provider: provider
+      });
+
       const result = await query(`
         SELECT 
           id,
@@ -141,21 +309,31 @@ class ApiKeyService {
         LIMIT 1
       `, [userId, provider]);
 
-      console.log(`🔍 [API KEY SERVICE] Query returned ${result.rows.length} rows`);
-      
       if (result.rows.length === 0) {
-        console.log(`🔍 [API KEY SERVICE] No API key found for user ${userId}, provider ${provider}`);
+        logger.warn('🔍 No API key found for requested user/provider', {
+          userId: userId.substring(0, 8) + '...',
+          provider: provider,
+          queryTime: Date.now() - operationStartTime
+        });
         return null;
       }
 
       const keyData = result.rows[0];
+      
+      logger.info('📋 API key found, starting decryption', {
+        userId: userId.substring(0, 8) + '...',
+        provider: provider,
+        keyId: keyData.id,
+        hasSecret: !!keyData.encrypted_api_secret,
+        isSandbox: keyData.is_sandbox
+      });
       
       // Decrypt API key
       const apiKey = await this.decryptApiKey({
         encrypted: keyData.encrypted_api_key,
         iv: keyData.key_iv,
         authTag: keyData.key_auth_tag
-      }, keyData.user_salt);
+      }, keyData.user_salt, userId, provider);
 
       // Decrypt API secret if it exists
       let apiSecret = null;
@@ -164,7 +342,7 @@ class ApiKeyService {
           encrypted: keyData.encrypted_api_secret,
           iv: keyData.secret_iv,
           authTag: keyData.secret_auth_tag
-        }, keyData.user_salt);
+        }, keyData.user_salt, userId, provider);
       }
 
       // Update last_used timestamp
@@ -174,6 +352,15 @@ class ApiKeyService {
         WHERE id = $1
       `, [keyData.id]);
 
+      logger.info('✅ API key retrieved and decrypted successfully', {
+        userId: userId.substring(0, 8) + '...',
+        provider: provider,
+        keyId: keyData.id,
+        hasSecret: !!apiSecret,
+        isSandbox: keyData.is_sandbox,
+        totalTime: Date.now() - operationStartTime
+      });
+
       return {
         id: keyData.id,
         provider: keyData.provider,
@@ -182,9 +369,18 @@ class ApiKeyService {
         isSandbox: keyData.is_sandbox,
         isActive: keyData.is_active
       };
+      
     } catch (error) {
-      console.error('Error getting decrypted API key:', error);
-      throw new Error('Failed to retrieve API key');
+      logger.error('❌ Failed to retrieve API key', {
+        userId: userId ? userId.substring(0, 8) + '...' : 'unknown',
+        provider: provider || 'unknown',
+        error: error.message,
+        errorStack: error.stack,
+        totalTime: Date.now() - operationStartTime
+      });
+      
+      // Security: Only log error message, not full error object
+      throw new Error(`Failed to retrieve API key: ${error.message}`);
     }
   }
 
@@ -207,7 +403,7 @@ class ApiKeyService {
 
       return result.rows;
     } catch (error) {
-      console.error('Error getting user API keys:', error);
+      console.error('Error getting user API keys:', error.message); // Security: Only log error message
       throw new Error('Failed to retrieve user API keys');
     }
   }
@@ -223,7 +419,7 @@ class ApiKeyService {
 
       return parseInt(result.rows[0].count) > 0;
     } catch (error) {
-      console.error('Error checking API key existence:', error);
+      console.error('Error checking API key existence:', error.message); // Security: Only log error message
       return false;
     }
   }
@@ -239,7 +435,7 @@ class ApiKeyService {
 
       return result.rows.map(row => row.provider);
     } catch (error) {
-      console.error('Error getting active providers:', error);
+      console.error('Error getting active providers:', error.message); // Security: Only log error message
       return [];
     }
   }

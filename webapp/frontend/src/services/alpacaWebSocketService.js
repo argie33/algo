@@ -53,9 +53,9 @@ class AlpacaWebSocketService extends EventEmitter {
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000;
     
-    // Configuration
+    // Configuration - Use backend WebSocket proxy for authentication
     this.config = {
-      wsUrl: 'wss://stream.data.alpaca.markets/v2/iex', // Alpaca IEX data feed
+      wsUrl: this.getWebSocketUrl(), // Backend WebSocket proxy with authentication
       heartbeatInterval: 30000,
       connectionTimeout: 10000,
       maxReconnectDelay: 30000
@@ -89,7 +89,19 @@ class AlpacaWebSocketService extends EventEmitter {
     }
   }
 
-  // Connection Management
+  // Get HTTP API base URL for backend real-time data endpoints
+  getApiBaseUrl() {
+    const apiUrl = window.__CONFIG__?.API_URL || 
+                   import.meta.env.VITE_API_URL;
+    
+    if (!apiUrl) {
+      throw new Error('API URL not configured for WebSocket service');
+    }
+    
+    return `${apiUrl}/api/websocket`;
+  }
+
+  // Connection Management (HTTP Polling instead of WebSocket)
   async connect(userId = null) {
     if (this.connecting || this.connected) return;
 
@@ -97,37 +109,31 @@ class AlpacaWebSocketService extends EventEmitter {
     this.emit('connecting');
 
     try {
-      const wsUrl = userId ? 
-        `${this.config.wsUrl}?userId=${encodeURIComponent(userId)}` : 
-        this.config.wsUrl;
+      // Get authentication token from localStorage or context
+      const authToken = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
       
-      this.ws = new WebSocket(wsUrl);
-      
-      const timeout = setTimeout(() => {
-        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
-          this.ws.close();
-          this.handleConnectionError(new Error('Connection timeout'));
+      if (!authToken) {
+        throw new Error('No authentication token available');
+      }
+
+      // Test connection to backend
+      const apiBase = this.getApiBaseUrl();
+      const response = await fetch(`${apiBase}/health`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
         }
-      }, this.config.connectionTimeout);
+      });
 
-      this.ws.onopen = () => {
-        clearTimeout(timeout);
-        this.handleConnectionOpen();
-      };
+      if (!response.ok) {
+        throw new Error(`Backend connection failed: ${response.status}`);
+      }
 
-      this.ws.onmessage = (event) => {
-        this.handleMessage(event);
-      };
-
-      this.ws.onerror = (error) => {
-        clearTimeout(timeout);
-        this.handleConnectionError(error);
-      };
-
-      this.ws.onclose = (event) => {
-        clearTimeout(timeout);
-        this.handleConnectionClose(event);
-      };
+      // Store auth token for future requests
+      this.authToken = authToken;
+      this.apiBase = apiBase;
+      
+      this.handleConnectionOpen();
 
     } catch (error) {
       this.connecting = false;
@@ -136,16 +142,16 @@ class AlpacaWebSocketService extends EventEmitter {
   }
 
   disconnect() {
-    if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
-    }
+    this.stopPolling();
     this.stopHeartbeat();
     this.connected = false;
     this.connecting = false;
     this.reconnectAttempts = 0;
+    this.authToken = null;
+    this.apiBase = null;
   }
 
-  // Message Handling
+  // Connection Handling
   handleConnectionOpen() {
     this.connecting = false;
     this.connected = true;
@@ -155,9 +161,10 @@ class AlpacaWebSocketService extends EventEmitter {
     
     this.emit('connected');
     this.startHeartbeat();
+    this.startPolling(); // Start HTTP polling instead of WebSocket
     this.loadAvailableFeeds();
     
-    console.log('🟢 Connected to Alpaca WebSocket service');
+    console.log('🟢 Connected to Alpaca HTTP real-time service');
   }
 
   handleConnectionClose(event) {
@@ -375,19 +382,51 @@ class AlpacaWebSocketService extends EventEmitter {
    * @param {string} frequency - Frequency for bars
    * @returns {Promise} - Subscription promise
    */
-  subscribe(symbols, dataType = 'quotes', frequency = '1Min') {
+  async subscribe(symbols, dataType = 'quotes', frequency = '1Min') {
     if (!Array.isArray(symbols)) {
       symbols = [symbols];
     }
     
-    const message = {
-      action: 'subscribe',
-      symbols: symbols.map(s => s.toUpperCase()),
-      dataType,
-      frequency
-    };
-    
-    return this.sendMessage(message);
+    try {
+      const result = await this.sendRequest('/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({
+          symbols: symbols.map(s => s.toUpperCase()),
+          dataTypes: [dataType],
+          frequency
+        })
+      });
+
+      if (result.success) {
+        // Store subscription locally
+        const subscriptionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.subscriptions.set(subscriptionId, {
+          id: subscriptionId,
+          symbols: symbols.map(s => s.toUpperCase()),
+          dataType,
+          frequency,
+          subscribedAt: Date.now()
+        });
+
+        // Restart polling with new subscriptions
+        this.startPolling();
+
+        this.emit('subscribed', {
+          subscriptionId,
+          symbols: symbols.map(s => s.toUpperCase()),
+          dataType,
+          frequency
+        });
+
+        console.log(`✅ Subscribed to ${dataType} for ${symbols.join(', ')}`);
+        return subscriptionId;
+      } else {
+        throw new Error(result.error || 'Subscription failed');
+      }
+    } catch (error) {
+      console.error('Subscription error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -395,49 +434,90 @@ class AlpacaWebSocketService extends EventEmitter {
    * @param {string} subscriptionId - Subscription ID to unsubscribe from
    * @returns {Promise} - Unsubscription promise
    */
-  unsubscribe(subscriptionId) {
-    const message = {
-      action: 'unsubscribe',
-      subscriptionId
-    };
-    
-    return this.sendMessage(message);
+  async unsubscribe(subscriptionId) {
+    try {
+      const subscription = this.subscriptions.get(subscriptionId);
+      if (!subscription) {
+        console.warn(`Subscription ${subscriptionId} not found`);
+        return;
+      }
+
+      const result = await this.sendRequest('/subscribe', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          symbols: subscription.symbols
+        })
+      });
+
+      // Remove from local subscriptions
+      this.subscriptions.delete(subscriptionId);
+
+      // Restart polling with remaining subscriptions
+      if (this.subscriptions.size > 0) {
+        this.startPolling();
+      } else {
+        this.stopPolling();
+      }
+
+      this.emit('unsubscribed', { subscriptionId });
+      console.log(`🔄 Unsubscribed from ${subscriptionId}`);
+
+    } catch (error) {
+      console.error('Unsubscribe error:', error);
+      throw error;
+    }
   }
 
   /**
    * Unsubscribe from all subscriptions
    * @returns {Promise} - Unsubscription promise
    */
-  unsubscribeAll() {
-    const message = {
-      action: 'unsubscribe'
-    };
-    
-    return this.sendMessage(message);
+  async unsubscribeAll() {
+    try {
+      const result = await this.sendRequest('/subscribe', {
+        method: 'DELETE',
+        body: JSON.stringify({})
+      });
+
+      // Clear all local subscriptions
+      this.subscriptions.clear();
+      this.stopPolling();
+
+      this.emit('unsubscribed', { subscriptionId: 'all' });
+      console.log(`🔄 Unsubscribed from all subscriptions`);
+
+    } catch (error) {
+      console.error('Unsubscribe all error:', error);
+      throw error;
+    }
   }
 
   /**
    * Get list of current subscriptions
    * @returns {Promise} - Promise that resolves with subscriptions list
    */
-  getSubscriptions() {
-    const message = {
-      action: 'list_subscriptions'
-    };
-    
-    return this.sendMessage(message);
+  async getSubscriptions() {
+    try {
+      const result = await this.sendRequest('/subscriptions');
+      return result.data || [];
+    } catch (error) {
+      console.error('❌ Get subscriptions error:', error);
+      throw new Error('Unable to retrieve subscriptions - WebSocket service error');
+    }
   }
 
   /**
    * Get available data feeds
    * @returns {Promise} - Promise that resolves with available feeds
    */
-  getAvailableFeeds() {
-    const message = {
-      action: 'get_available_feeds'
-    };
-    
-    return this.sendMessage(message);
+  async getAvailableFeeds() {
+    try {
+      const result = await this.sendRequest('/status');
+      return result.data?.availableFeeds || [];
+    } catch (error) {
+      console.error('❌ Get available feeds error:', error);
+      throw new Error('Unable to retrieve available feeds - WebSocket service error');
+    }
   }
 
   // Data Access Methods
@@ -520,32 +600,138 @@ class AlpacaWebSocketService extends EventEmitter {
     return (Date.now() - data.receivedAt) > maxAge;
   }
 
-  // Message Sending
-  sendMessage(message) {
-    return new Promise((resolve, reject) => {
-      if (!this.connected) {
-        reject(new Error('Not connected to Alpaca WebSocket'));
-        return;
-      }
+  // HTTP Polling Management
+  startPolling() {
+    this.stopPolling();
+    
+    // Only start polling if we have subscriptions
+    if (this.subscriptions.size === 0) {
+      return;
+    }
 
-      try {
-        this.ws.send(JSON.stringify(message));
-        resolve();
-      } catch (error) {
-        reject(error);
+    this.pollingTimer = setInterval(async () => {
+      if (this.connected && this.subscriptions.size > 0) {
+        await this.pollMarketData();
       }
-    });
+    }, this.config.heartbeatInterval || 5000); // Poll every 5 seconds
   }
 
-  // Heartbeat Management
+  stopPolling() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+
+  async pollMarketData() {
+    if (!this.connected || !this.authToken || this.subscriptions.size === 0) {
+      return;
+    }
+
+    try {
+      // Get all symbols we're subscribed to
+      const allSymbols = Array.from(this.subscriptions.values())
+        .flatMap(sub => sub.symbols)
+        .filter((symbol, index, array) => array.indexOf(symbol) === index); // Remove duplicates
+
+      if (allSymbols.length === 0) return;
+
+      // Poll the stream endpoint
+      const response = await fetch(`${this.apiBase}/stream/${allSymbols.join(',')}`, {
+        headers: {
+          'Authorization': `Bearer ${this.authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Polling failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        // Process market data similar to WebSocket messages
+        Object.entries(result.data.data).forEach(([symbol, marketData]) => {
+          if (!marketData.error) {
+            this.handleMarketDataUpdate(symbol, 'quotes', marketData);
+          }
+        });
+        
+        this.metrics.messagesReceived++;
+      }
+
+    } catch (error) {
+      console.error('Polling error:', error);
+      this.metrics.messagesDropped++;
+    }
+  }
+
+  handleMarketDataUpdate(symbol, dataType, marketData) {
+    // Update cache
+    const cacheKey = `${symbol}:${dataType}`;
+    this.dataCache.set(cacheKey, {
+      ...marketData,
+      receivedAt: Date.now()
+    });
+    
+    // Update metrics
+    switch (dataType) {
+      case 'quotes':
+        this.metrics.quotesReceived++;
+        break;
+      case 'trades':
+        this.metrics.tradesReceived++;
+        break;
+      case 'bars':
+        this.metrics.barsReceived++;
+        break;
+    }
+    
+    // Emit events
+    this.emit('marketData', { symbol, dataType, data: marketData });
+    this.emit(`marketData:${dataType}`, { symbol, data: marketData });
+    this.emit(`marketData:${symbol}`, { dataType, data: marketData });
+    this.emit(`marketData:${dataType}:${symbol}`, marketData);
+  }
+
+  // HTTP Request Helper
+  async sendRequest(endpoint, options = {}) {
+    if (!this.connected || !this.authToken) {
+      throw new Error('Not connected to Alpaca service');
+    }
+
+    const response = await fetch(`${this.apiBase}${endpoint}`, {
+      headers: {
+        'Authorization': `Bearer ${this.authToken}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+
+  // Heartbeat Management (HTTP-based)
   startHeartbeat() {
     this.stopHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
+    this.heartbeatTimer = setInterval(async () => {
       if (this.connected) {
-        this.sendMessage({
-          action: 'ping',
-          timestamp: Date.now()
-        });
+        try {
+          const result = await this.sendRequest('/health');
+          this.emit('pong', { 
+            timestamp: Date.now(),
+            serverStatus: result.data 
+          });
+        } catch (error) {
+          console.warn('Heartbeat failed:', error.message);
+          this.emit('error', error);
+        }
       }
     }, this.config.heartbeatInterval);
   }
@@ -558,9 +744,14 @@ class AlpacaWebSocketService extends EventEmitter {
   }
 
   // Auto-load available feeds on connection
-  loadAvailableFeeds() {
+  async loadAvailableFeeds() {
     if (this.connected) {
-      this.getAvailableFeeds();
+      try {
+        this.availableFeeds = await this.getAvailableFeeds();
+        this.emit('availableFeeds', this.availableFeeds);
+      } catch (error) {
+        console.warn('Failed to load available feeds:', error);
+      }
     }
   }
 

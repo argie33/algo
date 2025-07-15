@@ -597,8 +597,7 @@ const AdvancedScreener = () => {
     } catch (error) {
       console.error('Failed to run screen:', error);
       setError(error.message || 'Failed to run screen. Please try again.');
-      // ⚠️ MOCK DATA - Fallback to mock data when API fails
-      setResults(mockResults);
+      setResults([]);
       setActiveTab(1);
     } finally {
       setLoading(false);

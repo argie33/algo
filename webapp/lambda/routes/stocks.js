@@ -1,8 +1,13 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
+const schemaValidator = require('../utils/schemaValidator');
 const { createValidationMiddleware, validationSchemas, sanitizers } = require('../middleware/validation');
 
 const router = express.Router();
+
+// Apply authentication to all stock routes
+router.use(authenticateToken);
 
 // Basic ping endpoint
 router.get('/ping', (req, res) => {
@@ -243,11 +248,20 @@ router.get('/', stocksListValidation, async (req, res) => {
       ${whereClause}
     `;
 
-    console.log('Executing FAST queries...');
+    console.log('Executing FAST queries with schema validation...');
 
+    // Execute queries with schema validation
     const [stocksResult, countResult] = await Promise.all([
-      query(stocksQuery, params),
-      query(countQuery, params.slice(0, -2))
+      schemaValidator.safeQuery(stocksQuery, params, {
+        validateTables: true,
+        throwOnMissingTable: false,
+        timeout: 10000
+      }),
+      schemaValidator.safeQuery(countQuery, params.slice(0, -2), {
+        validateTables: true,
+        throwOnMissingTable: false,
+        timeout: 5000
+      })
     ]);
 
     const total = parseInt(countResult.rows[0].total);

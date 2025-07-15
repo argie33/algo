@@ -1,11 +1,30 @@
+const { logError, generateCorrelationId } = require('../utils/logger');
+
 const errorHandler = (err, req, res, next) => {
-  console.error('Error occurred:', {
-    message: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
-    timestamp: new Date().toISOString()
-  });
+  // Get or generate correlation ID
+  const requestId = req.logger?.requestId || 
+                   req.headers['x-request-id'] || 
+                   req.headers['x-correlation-id'] || 
+                   generateCorrelationId();
+  
+  // Use enhanced logging if available
+  if (req.logger) {
+    req.logger.error('Unhandled error occurred', {
+      error: err,
+      url: req.url,
+      method: req.method,
+      user_id: req.user?.sub,
+      error_type: err.constructor.name
+    });
+  } else {
+    // Fallback to utility function
+    logError(err, {
+      url: req.url,
+      method: req.method,
+      user_id: req.user?.sub,
+      error_type: err.constructor.name
+    }, requestId);
+  }
 
   // CRITICAL: Set CORS headers immediately to prevent CORS errors
   res.header('Access-Control-Allow-Origin', '*');
@@ -48,7 +67,8 @@ const errorHandler = (err, req, res, next) => {
       status,
       message,
       timestamp: new Date().toISOString(),
-      path: req.url
+      path: req.url,
+      request_id: requestId
     }
   };
 
@@ -56,6 +76,17 @@ const errorHandler = (err, req, res, next) => {
   if (process.env.NODE_ENV === 'development' && details) {
     response.error.details = details;
   }
+  
+  // Add error code and type for better debugging
+  if (err.code) {
+    response.error.code = err.code;
+  }
+  if (err.constructor.name !== 'Error') {
+    response.error.type = err.constructor.name;
+  }
+  
+  // Set correlation ID in response header
+  res.setHeader('X-Correlation-ID', requestId);
 
   console.log(`🚨 Error handler sending response with CORS headers: ${status} ${message}`);
   res.status(status).json(response);

@@ -124,18 +124,12 @@ const authenticateToken = async (req, res, next) => {
       hasSecretArn: !!process.env.COGNITO_SECRET_ARN
     });
     
-    // Check for demo/development bypass
-    if (process.env.SKIP_AUTH === 'true' && process.env.NODE_ENV === 'development') {
-      console.log(`⚠️ [${requestId}] BYPASSING authentication in development mode`);
-      req.user = {
-        sub: 'dev-user-123',
-        email: 'dev@example.com',
-        username: 'dev-user',
-        role: 'admin',
-        groups: ['developers']
-      };
-      return next();
-    }
+    // SECURITY: Remove development bypass to prevent production exploitation
+    // Development bypass completely removed for security reasons
+    // All requests must use proper Cognito authentication
+    
+    // Note: Development bypass was removed due to security risk
+    // Use proper Cognito tokens even in development environment
     
     // Check for demo/development tokens first
     const authHeader = req.headers['authorization'];

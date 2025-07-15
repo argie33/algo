@@ -171,17 +171,18 @@ const RealTimeDashboard = () => {
           chartData: []
         })) : watchlist.map(symbol => ({
           symbol,
-          price: 150 + Math.random() * 200,
-          change: (Math.random() - 0.5) * 10,
-          changePercent: (Math.random() - 0.5) * 4,
-          volume: Math.floor(Math.random() * 10000000),
+          price: 0,
+          change: 0,
+          changePercent: 0,
+          volume: 0,
           alert: false,
-          marketCap: Math.floor(Math.random() * 1000000000000),
-          avgVolume: Math.floor(Math.random() * 5000000),
-          high: 160 + Math.random() * 200,
-          low: 140 + Math.random() * 200,
-          open: 145 + Math.random() * 200,
-          chartData: []
+          marketCap: 0,
+          avgVolume: 0,
+          high: 0,
+          low: 0,
+          open: 0,
+          chartData: [],
+          error: 'No live data available'
         })),
         lastUpdate: new Date(),
         marketStatus: marketOverview?.market_status || 'open'
@@ -196,27 +197,29 @@ const RealTimeDashboard = () => {
       setMarketDataError(error.message);
       setMarketDataLoading(false);
       
-      // Fallback to basic mock data structure if no data exists
+      // Set error state if no data exists
       if (!marketData) {
         setMarketData({
-          isMockData: true,
-          dataSource: 'fallback',
+          isMockData: false,
+          dataSource: 'error',
           indices: {
-            sp500: { value: 4567.23, change: 12.45, changePercent: 0.27 },
-            nasdaq: { value: 14221.56, change: -45.67, changePercent: -0.32 },
-            dow: { value: 34789.12, change: 89.34, changePercent: 0.26 }
+            sp500: { value: 0, change: 0, changePercent: 0, error: 'Data unavailable' },
+            nasdaq: { value: 0, change: 0, changePercent: 0, error: 'Data unavailable' },
+            dow: { value: 0, change: 0, changePercent: 0, error: 'Data unavailable' }
           },
-          vix: { value: 18.45, change: -1.23, changePercent: -6.25 },
+          vix: { value: 0, change: 0, changePercent: 0, error: 'Data unavailable' },
           watchlistData: watchlist.map(symbol => ({
             symbol,
-            price: 150 + Math.random() * 200,
-            change: (Math.random() - 0.5) * 10,
-            changePercent: (Math.random() - 0.5) * 4,
-            volume: Math.floor(Math.random() * 10000000),
-            alert: false
+            price: 0,
+            change: 0,
+            changePercent: 0,
+            volume: 0,
+            alert: false,
+            error: 'Live data unavailable'
           })),
           lastUpdate: new Date(),
-          lastApiError: error.message
+          lastApiError: error.message,
+          error: error.message
         });
       }
     }

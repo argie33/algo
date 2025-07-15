@@ -125,23 +125,278 @@ router.use('/calendar', sqlInjectionPrevention, xssPrevention, rateLimitConfigs.
 
 // Root market-data endpoint for health checks (no auth required)
 router.get('/', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      system: 'Market Data API',
-      version: '1.0.0',
-      status: 'operational',
-      available_endpoints: [
-        'GET /market-data/status - Market status and trading hours',
-        'GET /market-data/quotes - Real-time quotes for symbols',
-        'GET /market-data/bars/:symbol - Historical price bars',
-        'GET /market-data/trades/:symbol - Latest trades',
-        'GET /market-data/calendar - Market calendar',
-        'GET /market-data/assets - Tradeable assets'
-      ],
-      timestamp: new Date().toISOString()
-    }
+  res.success({
+    system: 'Market Data API',
+    version: '1.0.0',
+    status: 'operational',
+    available_endpoints: [
+      'GET /market-data/status - Market status and trading hours',
+      'GET /market-data/quotes - Real-time quotes for symbols',
+      'GET /market-data/bars/:symbol - Historical price bars',
+      'GET /market-data/trades/:symbol - Latest trades',
+      'GET /market-data/calendar - Market calendar',
+      'GET /market-data/assets - Tradeable assets'
+    ]
   });
+});
+
+// Market Data Service Health Check - Tests API key functionality and external service connectivity
+router.get('/health', authenticateToken, async (req, res) => {
+  const requestId = require('crypto').randomUUID().split('-')[0];
+  const requestStart = Date.now();
+  
+  try {
+    const userId = validateUserAuthentication(req);
+    console.log(`🚀 [${requestId}] Market data health check initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    // Test API key availability and functionality
+    console.log(`🔑 [${requestId}] Testing API key availability for market data access`);
+    const credentialsStart = Date.now();
+    const credentials = await getUserApiKey(userId, 'alpaca');
+    const credentialsDuration = Date.now() - credentialsStart;
+    
+    const healthResult = {
+      overall_status: 'healthy',
+      timestamp: new Date().toISOString(),
+      request_id: requestId,
+      api_key_status: {},
+      external_services: {},
+      functionality_tests: {},
+      performance: {
+        credential_check_ms: credentialsDuration
+      }
+    };
+
+    // API Key Health Check
+    if (!credentials) {
+      console.error(`❌ [${requestId}] No API credentials found for market data access`, {
+        userId: `${userId.substring(0, 8)}...`,
+        impact: 'Market data functionality will not work',
+        recommendation: 'User needs to configure Alpaca API keys'
+      });
+      
+      healthResult.overall_status = 'degraded';
+      healthResult.api_key_status = {
+        status: 'missing',
+        error: 'No Alpaca API credentials configured',
+        impact: 'Market data services unavailable',
+        recommendation: 'Configure Alpaca API keys in Settings'
+      };
+    } else {
+      console.log(`✅ [${requestId}] API credentials found`, {
+        provider: 'alpaca',
+        isSandbox: credentials.isSandbox,
+        keyLength: credentials.apiKey ? credentials.apiKey.length : 0,
+        secretLength: credentials.apiSecret ? credentials.apiSecret.length : 0
+      });
+      
+      healthResult.api_key_status = {
+        status: 'configured',
+        provider: 'alpaca',
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        key_length: credentials.apiKey ? credentials.apiKey.length : 0,
+        has_secret: !!credentials.apiSecret
+      };
+
+      // Test external service connectivity
+      console.log(`📡 [${requestId}] Testing Alpaca service connectivity`);
+      const alpacaTestStart = Date.now();
+      
+      try {
+        const alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+
+        // Test 1: Account connectivity
+        console.log(`🧪 [${requestId}] Testing account connectivity`);
+        const accountTestStart = Date.now();
+        const account = await Promise.race([
+          alpaca.getAccount(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Account test timeout')), 10000)
+          )
+        ]);
+        const accountTestDuration = Date.now() - accountTestStart;
+        
+        if (account) {
+          console.log(`✅ [${requestId}] Account connectivity test PASSED in ${accountTestDuration}ms`, {
+            accountId: account.id,
+            status: account.status,
+            portfolioValue: account.portfolio_value || account.equity
+          });
+          
+          healthResult.external_services.account = {
+            status: 'connected',
+            account_id: account.id,
+            account_status: account.status,
+            response_time_ms: accountTestDuration,
+            environment: credentials.isSandbox ? 'sandbox' : 'live'
+          };
+        }
+
+        // Test 2: Market data connectivity (basic quote)
+        console.log(`🧪 [${requestId}] Testing market data connectivity`);
+        const quoteTestStart = Date.now();
+        
+        try {
+          const testQuote = await Promise.race([
+            alpaca.getLatestQuote('AAPL'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Quote test timeout')), 8000)
+            )
+          ]);
+          const quoteTestDuration = Date.now() - quoteTestStart;
+          
+          if (testQuote) {
+            console.log(`✅ [${requestId}] Market data connectivity test PASSED in ${quoteTestDuration}ms`, {
+              symbol: 'AAPL',
+              bidPrice: testQuote.bidPrice,
+              askPrice: testQuote.askPrice,
+              hasData: !!testQuote.bidPrice
+            });
+            
+            healthResult.external_services.market_data = {
+              status: 'connected',
+              test_symbol: 'AAPL',
+              response_time_ms: quoteTestDuration,
+              data_available: !!testQuote.bidPrice,
+              sample_data: {
+                bid: testQuote.bidPrice,
+                ask: testQuote.askPrice,
+                timestamp: testQuote.timestamp
+              }
+            };
+          }
+        } catch (quoteError) {
+          const quoteTestDuration = Date.now() - quoteTestStart;
+          console.warn(`⚠️ [${requestId}] Market data connectivity test FAILED after ${quoteTestDuration}ms:`, {
+            error: quoteError.message,
+            impact: 'Real-time quotes may not be available'
+          });
+          
+          healthResult.external_services.market_data = {
+            status: 'error',
+            error: quoteError.message,
+            response_time_ms: quoteTestDuration,
+            impact: 'Real-time market data may be limited'
+          };
+          
+          if (healthResult.overall_status === 'healthy') {
+            healthResult.overall_status = 'degraded';
+          }
+        }
+
+        // Test 3: Market status/calendar
+        console.log(`🧪 [${requestId}] Testing market calendar connectivity`);
+        const calendarTestStart = Date.now();
+        
+        try {
+          const marketCalendar = await Promise.race([
+            alpaca.getMarketCalendar(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Calendar test timeout')), 5000)
+            )
+          ]);
+          const calendarTestDuration = Date.now() - calendarTestStart;
+          
+          console.log(`✅ [${requestId}] Market calendar connectivity test PASSED in ${calendarTestDuration}ms`);
+          
+          healthResult.external_services.market_calendar = {
+            status: 'connected',
+            response_time_ms: calendarTestDuration,
+            data_available: !!marketCalendar
+          };
+        } catch (calendarError) {
+          const calendarTestDuration = Date.now() - calendarTestStart;
+          console.warn(`⚠️ [${requestId}] Market calendar test FAILED after ${calendarTestDuration}ms:`, {
+            error: calendarError.message
+          });
+          
+          healthResult.external_services.market_calendar = {
+            status: 'error',
+            error: calendarError.message,
+            response_time_ms: calendarTestDuration
+          };
+        }
+
+        const alpacaTestDuration = Date.now() - alpacaTestStart;
+        healthResult.performance.alpaca_tests_ms = alpacaTestDuration;
+        
+      } catch (alpacaError) {
+        const alpacaTestDuration = Date.now() - alpacaTestStart;
+        console.error(`❌ [${requestId}] Alpaca service connectivity FAILED after ${alpacaTestDuration}ms:`, {
+          error: alpacaError.message,
+          errorStack: alpacaError.stack,
+          impact: 'All market data functionality will be unavailable'
+        });
+        
+        healthResult.overall_status = 'unhealthy';
+        healthResult.external_services.alpaca = {
+          status: 'error',
+          error: alpacaError.message,
+          response_time_ms: alpacaTestDuration,
+          impact: 'Market data services unavailable'
+        };
+      }
+    }
+
+    // Functionality tests
+    healthResult.functionality_tests = {
+      api_key_retrieval: credentials ? 'pass' : 'fail',
+      service_initialization: healthResult.external_services.account?.status === 'connected' ? 'pass' : 'fail',
+      market_data_access: healthResult.external_services.market_data?.status === 'connected' ? 'pass' : 'fail'
+    };
+
+    const totalDuration = Date.now() - requestStart;
+    healthResult.performance.total_duration_ms = totalDuration;
+
+    console.log(`✅ [${requestId}] Market data health check completed in ${totalDuration}ms`, {
+      overallStatus: healthResult.overall_status,
+      apiKeyStatus: healthResult.api_key_status.status,
+      externalServices: Object.keys(healthResult.external_services).length,
+      passedTests: Object.values(healthResult.functionality_tests).filter(t => t === 'pass').length,
+      totalTests: Object.keys(healthResult.functionality_tests).length
+    });
+
+    // Set appropriate HTTP status
+    let statusCode = 200;
+    if (healthResult.overall_status === 'unhealthy') {
+      statusCode = 503;
+    } else if (healthResult.overall_status === 'degraded') {
+      statusCode = 206;
+    }
+
+    res.status(statusCode).json({
+      success: true,
+      data: healthResult
+    });
+
+  } catch (error) {
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] Market data health check FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorStack: error.stack,
+      impact: 'Cannot determine market data service health'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Market data health check failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      request_info: {
+        request_id: requestId,
+        error_duration_ms: errorDuration,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
 });
 
 // Apply authentication middleware to all other routes
@@ -159,11 +414,7 @@ router.get('/quotes', createValidationMiddleware(marketDataValidationSchemas.quo
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -177,19 +428,13 @@ router.get('/quotes', createValidationMiddleware(marketDataValidationSchemas.quo
     const symbolsArray = symbols.split(',');
     const quotes = await alpaca.getMultiQuotes(symbolsArray);
 
-    res.json({
-      success: true,
-      data: quotes,
-      provider: 'alpaca',
-      environment: credentials.isSandbox ? 'sandbox' : 'live'
+    res.financialSuccess(quotes, 'api', 'alpaca', {
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbolCount: symbolsArray.length
     });
   } catch (error) {
     console.error('Market data quotes error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch quotes',
-      details: error.message
-    });
+    res.externalApiError(error, 'Alpaca API', 'fetching quotes');
   }
 });
 
@@ -203,11 +448,7 @@ router.get('/bars/:symbol', createValidationMiddleware(marketDataValidationSchem
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -228,19 +469,15 @@ router.get('/bars/:symbol', createValidationMiddleware(marketDataValidationSchem
 
     const bars = await alpaca.getBars(symbol.toUpperCase(), params);
 
-    res.json({
-      success: true,
-      data: bars,
-      provider: 'alpaca',
-      environment: credentials.isSandbox ? 'sandbox' : 'live'
+    res.financialSuccess(bars, 'api', 'alpaca', {
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbol: symbol.toUpperCase(),
+      timeframe: timeframe || '1Day',
+      dataPoints: bars?.length || 0
     });
   } catch (error) {
     console.error('Market data bars error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch bars',
-      details: error.message
-    });
+    res.externalApiError(error, 'Alpaca API', 'fetching bars');
   }
 });
 
@@ -255,11 +492,7 @@ router.get('/trades/:symbol', async (req, res) => {
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -272,19 +505,14 @@ router.get('/trades/:symbol', async (req, res) => {
     // Get trades
     const trades = await alpaca.getTrades(symbol.toUpperCase(), { limit: parseInt(limit) });
 
-    res.json({
-      success: true,
-      data: trades,
-      provider: 'alpaca',
-      environment: credentials.isSandbox ? 'sandbox' : 'live'
+    res.financialSuccess(trades, 'api', 'alpaca', {
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      symbol: symbol.toUpperCase(),
+      tradeCount: trades?.length || 0
     });
   } catch (error) {
     console.error('Market data trades error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch trades',
-      details: error.message
-    });
+    res.externalApiError(error, 'Alpaca API', 'fetching trades');
   }
 });
 
@@ -298,11 +526,7 @@ router.get('/calendar', async (req, res) => {
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -315,19 +539,14 @@ router.get('/calendar', async (req, res) => {
     // Get market calendar
     const calendar = await alpaca.getCalendar(start, end);
 
-    res.json({
-      success: true,
-      data: calendar,
-      provider: 'alpaca',
-      environment: credentials.isSandbox ? 'sandbox' : 'live'
+    res.financialSuccess(calendar, 'api', 'alpaca', {
+      environment: credentials.isSandbox ? 'sandbox' : 'live',
+      dateRange: { start, end },
+      calendarDays: calendar?.length || 0
     });
   } catch (error) {
     console.error('Market calendar error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch calendar',
-      details: error.message
-    });
+    res.externalApiError(error, 'Alpaca API', 'fetching calendar');
   }
 });
 
@@ -338,10 +557,7 @@ router.get('/status', async (req, res) => {
     const userId = req.user?.sub;
     
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User authentication required'
-      });
+      return res.unauthorized('User authentication required');
     }
     
     try {
@@ -361,46 +577,21 @@ router.get('/status', async (req, res) => {
         // Get market status from Alpaca
         const status = await alpaca.getClock();
 
-        return res.json({
-          success: true,
-          data: status,
-          provider: 'alpaca',
+        return res.financialSuccess(status, 'api', 'alpaca', {
           environment: credentials.isSandbox ? 'sandbox' : 'live'
         });
       }
     } catch (apiError) {
-      console.log('⚠️ API credentials failed, using fallback status:', apiError.message);
+      console.error('❌ API credentials failed:', apiError.message);
+      throw new Error('Market status unavailable - API credentials required');
     }
     
-    // Fallback to general market status
-    console.log('📝 Using fallback market status');
-    const now = new Date();
-    const currentHour = now.getUTCHours() - 5; // EST conversion (approximate)
-    const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
-    const isMarketHours = isWeekday && currentHour >= 9 && currentHour < 16;
-    
-    const fallbackStatus = {
-      timestamp: now.toISOString(),
-      is_open: isMarketHours,
-      next_open: isMarketHours ? null : new Date(now.getTime() + (24 * 60 * 60 * 1000)).toISOString(),
-      next_close: isMarketHours ? new Date(now.getTime() + (6 * 60 * 60 * 1000)).toISOString() : null,
-      timezone: 'America/New_York'
-    };
-
-    res.json({
-      success: true,
-      data: fallbackStatus,
-      provider: 'fallback',
-      note: 'Using estimated market status - add API credentials for real-time data'
-    });
+    // No fallback - require proper API credentials
+    throw new Error('Market status unavailable - please configure API credentials');
 
   } catch (error) {
     console.error('❌ Market status error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch market status',
-      details: error.message
-    });
+    res.serverError('Failed to fetch market status', error.message);
   }
 });
 
@@ -414,11 +605,7 @@ router.get('/assets/:symbol', async (req, res) => {
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -457,11 +644,7 @@ router.get('/assets', async (req, res) => {
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service
@@ -502,11 +685,7 @@ router.get('/websocket-config', async (req, res) => {
     const credentials = await getUserApiKey(userId, 'alpaca');
     
     if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active API key found',
-        message: 'Please add your API credentials in Settings > API Keys'
-      });
+      return res.notFound('API credentials', 'Please add your API credentials in Settings > API Keys');
     }
 
     // Initialize Alpaca service

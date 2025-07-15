@@ -1,7 +1,47 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 
 const router = express.Router();
+
+// Validation schemas for financials endpoints
+const financialsValidationSchemas = {
+  symbolBased: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    }
+  },
+  
+  timeSeriesBased: {
+    ticker: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Ticker must be 1-10 uppercase letters'
+    },
+    period: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, toLowerCase: true, defaultValue: 'quarterly' }),
+      validator: (value) => ['annual', 'quarterly', 'ttm'].includes(value),
+      errorMessage: 'Period must be annual, quarterly, or ttm'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 20, defaultValue: 4 }),
+      validator: (value) => value >= 1 && value <= 20,
+      errorMessage: 'Limit must be between 1 and 20'
+    }
+  }
+};
+
+// Apply authentication to all financial data routes
+router.use(authenticateToken);
 
 // Debug endpoint to check table structure
 router.get('/debug/tables', async (req, res) => {
@@ -82,7 +122,7 @@ router.get('/debug/tables', async (req, res) => {
 });
 
 // Get financial statements for a ticker
-router.get('/:ticker/balance-sheet', async (req, res) => {
+router.get('/:ticker/balance-sheet', createValidationMiddleware(financialsValidationSchemas.timeSeriesBased), async (req, res) => {
   try {
     const { ticker } = req.params;
     const { period = 'annual' } = req.query;

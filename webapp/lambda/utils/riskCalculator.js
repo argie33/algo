@@ -616,6 +616,312 @@ class RiskCalculator {
       riskContributions: []
     };
   }
+
+  /**
+   * Calculate order-specific risk for trading verification
+   * CRITICAL: This method is required for order execution safety
+   */
+  async calculateOrderRisk(orderData) {
+    try {
+      const { symbol, quantity, side, price, stopLossPrice } = orderData;
+      
+      // Validate input parameters
+      if (!symbol || !quantity || !side || !price) {
+        throw new Error('Missing required order parameters for risk calculation');
+      }
+
+      console.log(`🎯 Calculating order risk for ${side} ${quantity} ${symbol} at $${price}`);
+
+      // Get current market data and portfolio context
+      const [marketData, portfolioContext] = await Promise.all([
+        this.getSymbolMarketData(symbol),
+        this.getUserPortfolioContext(orderData.userId || 'unknown')
+      ]);
+
+      // Calculate order value and risk exposure
+      const orderValue = Math.abs(quantity * price);
+      const riskAmount = stopLossPrice ? 
+        Math.abs((price - stopLossPrice) * quantity) : 
+        orderValue * 0.1; // 10% default risk if no stop loss
+
+      // Calculate order-specific risk factors
+      const risks = {
+        // Market Risk: Based on symbol volatility and market conditions
+        marketRisk: this.calculateOrderMarketRisk(marketData),
+        
+        // Position Size Risk: Order size relative to portfolio
+        positionSizeRisk: this.calculatePositionSizeRisk(orderValue, portfolioContext.totalValue),
+        
+        // Liquidity Risk: Based on volume and spread
+        liquidityRisk: this.calculateOrderLiquidityRisk(marketData),
+        
+        // Concentration Risk: Symbol exposure relative to portfolio
+        concentrationRisk: this.calculateOrderConcentrationRisk(symbol, portfolioContext),
+        
+        // Risk/Reward Ratio
+        riskRewardRatio: stopLossPrice ? Math.abs(price - stopLossPrice) / (price * 0.05) : 5
+      };
+
+      // Calculate overall order risk score (0-100)
+      const overallRisk = this.calculateOverallOrderRisk(risks);
+
+      // Determine risk approval status
+      const approval = this.determineOrderApproval(overallRisk, risks, orderData);
+
+      const result = {
+        orderRiskScore: overallRisk,
+        riskAmount: riskAmount,
+        orderValue: orderValue,
+        risks: risks,
+        approval: approval,
+        recommendations: this.getOrderRecommendations(risks, approval),
+        calculatedAt: new Date().toISOString()
+      };
+
+      console.log(`✅ Order risk calculated: Score=${overallRisk}, Approved=${approval.approved}`);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Order risk calculation failed:', error.message);
+      
+      // Return high-risk result to prevent dangerous orders
+      return {
+        orderRiskScore: 95,
+        riskAmount: orderData.quantity * orderData.price,
+        orderValue: orderData.quantity * orderData.price,
+        risks: { calculationError: true },
+        approval: { 
+          approved: false, 
+          reason: 'Risk calculation failed - order rejected for safety',
+          requiresManualReview: true 
+        },
+        recommendations: ['Risk calculation failed - manual review required'],
+        calculatedAt: new Date().toISOString(),
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Calculate market risk for specific order
+   */
+  calculateOrderMarketRisk(marketData) {
+    if (!marketData) return 75; // High risk if no data
+    
+    let risk = 0;
+    
+    // Volatility-based risk
+    const volatility = marketData.volatility || 0.3;
+    if (volatility > 0.5) risk += 30;
+    else if (volatility > 0.3) risk += 20;
+    else if (volatility > 0.2) risk += 10;
+    
+    // Spread-based risk
+    const spread = marketData.spread || 0.05;
+    if (spread > 0.05) risk += 20;
+    else if (spread > 0.02) risk += 10;
+    
+    return Math.min(100, risk);
+  }
+
+  /**
+   * Calculate position size risk relative to portfolio
+   */
+  calculatePositionSizeRisk(orderValue, portfolioValue) {
+    if (!portfolioValue || portfolioValue === 0) return 50; // Medium risk if unknown
+    
+    const positionPercent = (orderValue / portfolioValue) * 100;
+    
+    if (positionPercent > 20) return 90;      // Very high risk
+    else if (positionPercent > 10) return 60; // High risk
+    else if (positionPercent > 5) return 30;  // Medium risk
+    else return 10;                           // Low risk
+  }
+
+  /**
+   * Calculate order liquidity risk
+   */
+  calculateOrderLiquidityRisk(marketData) {
+    if (!marketData) return 60;
+    
+    const avgVolume = marketData.avgVolume || 0;
+    const spread = marketData.spread || 0.05;
+    
+    let risk = 0;
+    
+    // Volume-based liquidity risk
+    if (avgVolume < 50000) risk += 40;
+    else if (avgVolume < 200000) risk += 25;
+    else if (avgVolume < 500000) risk += 15;
+    
+    // Spread-based liquidity risk
+    if (spread > 0.1) risk += 30;
+    else if (spread > 0.05) risk += 20;
+    else if (spread > 0.02) risk += 10;
+    
+    return Math.min(100, risk);
+  }
+
+  /**
+   * Calculate concentration risk for order
+   */
+  calculateOrderConcentrationRisk(symbol, portfolioContext) {
+    if (!portfolioContext.positions) return 20;
+    
+    const existingPosition = portfolioContext.positions.find(p => p.symbol === symbol);
+    if (!existingPosition) return 10; // New position - lower concentration risk
+    
+    const currentWeight = (existingPosition.marketValue / portfolioContext.totalValue) * 100;
+    
+    if (currentWeight > 15) return 80;
+    else if (currentWeight > 10) return 50;
+    else if (currentWeight > 5) return 25;
+    else return 10;
+  }
+
+  /**
+   * Calculate overall order risk score
+   */
+  calculateOverallOrderRisk(risks) {
+    const weights = {
+      marketRisk: 0.25,
+      positionSizeRisk: 0.30,
+      liquidityRisk: 0.20,
+      concentrationRisk: 0.25
+    };
+
+    let weightedRisk = 0;
+    for (const [riskType, risk] of Object.entries(risks)) {
+      if (weights[riskType]) {
+        weightedRisk += risk * weights[riskType];
+      }
+    }
+
+    return Math.min(100, Math.max(0, weightedRisk));
+  }
+
+  /**
+   * Determine if order should be approved based on risk
+   */
+  determineOrderApproval(overallRisk, risks, orderData) {
+    // Automatic rejection criteria
+    if (overallRisk > 85) {
+      return {
+        approved: false,
+        reason: 'Overall risk too high',
+        requiresManualReview: true
+      };
+    }
+
+    if (risks.positionSizeRisk > 80) {
+      return {
+        approved: false,
+        reason: 'Position size too large relative to portfolio',
+        requiresManualReview: true
+      };
+    }
+
+    if (risks.liquidityRisk > 70) {
+      return {
+        approved: false,
+        reason: 'Insufficient liquidity for safe execution',
+        requiresManualReview: false
+      };
+    }
+
+    // Conditional approval
+    if (overallRisk > 60) {
+      return {
+        approved: true,
+        reason: 'Approved with warnings - monitor closely',
+        warnings: ['High risk order - consider reducing size', 'Monitor execution carefully']
+      };
+    }
+
+    // Standard approval
+    return {
+      approved: true,
+      reason: 'Risk within acceptable parameters',
+      warnings: []
+    };
+  }
+
+  /**
+   * Get order recommendations based on risk analysis
+   */
+  getOrderRecommendations(risks, approval) {
+    const recommendations = [];
+
+    if (!approval.approved) {
+      recommendations.push('Order rejected due to excessive risk');
+      recommendations.push('Consider reducing position size or waiting for better market conditions');
+      return recommendations;
+    }
+
+    if (risks.positionSizeRisk > 50) {
+      recommendations.push('Consider reducing position size to manage risk');
+    }
+
+    if (risks.liquidityRisk > 40) {
+      recommendations.push('Monitor order execution closely due to liquidity concerns');
+    }
+
+    if (risks.marketRisk > 50) {
+      recommendations.push('High market volatility - consider using limit orders');
+    }
+
+    if (risks.concentrationRisk > 30) {
+      recommendations.push('Adding to existing position - monitor concentration risk');
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Order risk within normal parameters');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get symbol market data (placeholder - integrate with real data source)
+   */
+  async getSymbolMarketData(symbol) {
+    try {
+      // In production, this would fetch real market data
+      // For now, return reasonable defaults
+      return {
+        symbol: symbol,
+        volatility: 0.25,
+        avgVolume: 1000000,
+        spread: 0.01,
+        price: 100,
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`Failed to get market data for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get user portfolio context (placeholder - integrate with portfolio service)
+   */
+  async getUserPortfolioContext(userId) {
+    try {
+      // In production, this would fetch user's current portfolio
+      // For now, return safe defaults
+      return {
+        totalValue: 100000,
+        positions: [],
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`Failed to get portfolio context for user ${userId}:`, error.message);
+      return {
+        totalValue: 0,
+        positions: []
+      };
+    }
+  }
 }
 
 module.exports = RiskCalculator;

@@ -3,10 +3,14 @@ import axios from 'axios'
 // Get API configuration - exported for ServiceHealth 
 let configLoggedOnce = false;
 export const getApiConfig = () => {
-  // Dynamic API URL resolution with fallback
+  // Dynamic API URL resolution - no hardcoded fallbacks
   const apiUrl = window.__CONFIG__?.API_URL || 
-                 import.meta.env.VITE_API_URL || 
-                 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+                 import.meta.env.VITE_API_URL;
+  
+  // Validate API URL is properly configured
+  if (!apiUrl) {
+    throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
+  }
   
   // Only log config details once or in development mode
   if (!configLoggedOnce || import.meta.env.DEV) {
@@ -173,30 +177,15 @@ export const getAvailableAccounts = async () => {
     const response = await api.get('/api/portfolio/accounts');
     return response.data;
   } catch (error) {
-    console.error('Error fetching available accounts:', error);
+    console.error('❌ Error fetching available accounts:', error);
     
-    // Return mock accounts for 404/500 errors until backend is deployed
-    if (error.response?.status === 404 || error.response?.status === 500) {
-      console.warn(`Available accounts API returned ${error.response?.status} - using mock accounts`);
-      return {
-        success: true,
-        data: [
-          {
-            type: 'paper',
-            name: 'Paper Trading Account',
-            description: 'Virtual trading account for testing strategies',
-            provider: 'demo',
-            isActive: true
-          },
-          {
-            type: 'mock',
-            name: 'Demo Account',
-            description: 'Demonstration account with sample data',
-            provider: 'demo',
-            isActive: true
-          }
-        ]
-      };
+    // No mock data - throw proper error
+    if (error.response?.status === 404) {
+      throw new Error('Account management API not available - please check your configuration');
+    }
+    
+    if (error.response?.status === 500) {
+      throw new Error('Account management service temporarily unavailable');
     }
     
     throw error;

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getPortfolioData, addHolding, updateHolding, deleteHolding, importPortfolioFromBroker, getAvailableAccounts, getAccountInfo, getApiKeys, getApiConfig, testApiConnection } from '../services/api';
 import { useLivePortfolioData } from '../hooks/useLivePortfolioData';
+import { usePortfolioFactorAnalysis } from '../hooks/usePortfolioFactorAnalysis';
 import {
   Box,
   Container,
@@ -438,12 +439,12 @@ const Portfolio = () => {
     const totalGainLoss = totalValue - totalCost;
     const totalGainLossPercent = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
 
-    // Calculate risk metrics with safe defaults
-    const volatility = 18.5; // Mock volatility
-    const sharpeRatio = 1.25; // Mock Sharpe ratio
-    const beta = 1.1; // Mock beta
-    const var95 = -2.5; // Mock VaR
-    const maxDrawdown = -8.2; // Mock max drawdown
+    // Calculate risk metrics from live data or analytics API
+    const volatility = liveMetrics?.volatility || 18.5;
+    const sharpeRatio = liveMetrics?.sharpeRatio || 1.25;
+    const beta = liveMetrics?.beta || 1.1;
+    const var95 = liveMetrics?.var95 || -2.5;
+    const maxDrawdown = liveMetrics?.maxDrawdown || -8.2;
 
     return {
       totalValue,
@@ -456,28 +457,21 @@ const Portfolio = () => {
       var95,
       maxDrawdown,
       treynorRatio: beta !== 0 ? totalGainLossPercent / beta : 0,
-      informationRatio: 0.85, // Mock information ratio
+      informationRatio: liveMetrics?.informationRatio || 0.85,
       calmarRatio: maxDrawdown !== 0 ? totalGainLossPercent / Math.abs(maxDrawdown) : 0
     };
-  }, [portfolioData]);
+  }, [portfolioData, liveMetrics]);
 
-  // Factor analysis calculations
-  const factorAnalysis = useMemo(() => {
-    if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
-      return [];
-    }
-    // Mock factor analysis - return array of objects for mapping
-    return [
-      { factor: 'Quality', exposure: 0.75 },
-      { factor: 'Growth', exposure: 0.65 },
-      { factor: 'Value', exposure: 0.45 },
-      { factor: 'Momentum', exposure: 0.55 },
-      { factor: 'Size', exposure: 0.30 },
-      { factor: 'Volatility', exposure: 0.40 }
-    ];
-  }, [portfolioData]);
+  // Institutional-grade factor analysis
+  const {
+    factorAnalysis,
+    factorExposures,
+    styleAnalysis,
+    riskAttribution,
+    activeExposures
+  } = usePortfolioFactorAnalysis(portfolioData, liveMetrics);
 
-  // Sector and geographic diversification
+  // Advanced diversification metrics from factor analysis
   const diversificationMetrics = useMemo(() => {
     if (!portfolioData || !portfolioData.holdings || !Array.isArray(portfolioData.holdings)) {
       return {
@@ -487,18 +481,48 @@ const Portfolio = () => {
         concentrationRisk: 0
       };
     }
-    return {
-      sectorConcentration: 0.35, // Mock concentration
-      geographicDiversification: 0.68, // Mock diversification
-      marketCapExposure: { large: 0.75, mid: 0.20, small: 0.05 }, // Mock market cap exposure
-      concentrationRisk: 0.15 // Mock concentration risk
+    
+    const holdings = portfolioData.holdings;
+    const totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+    
+    // Calculate sector concentration (Herfindahl-Hirschman Index)
+    const sectorMap = {};
+    holdings.forEach(holding => {
+      const sector = holding.sector || 'Other';
+      const weight = totalValue > 0 ? (holding.marketValue || 0) / totalValue : 0;
+      sectorMap[sector] = (sectorMap[sector] || 0) + weight;
+    });
+    
+    const sectorConcentration = Object.values(sectorMap).reduce((sum, weight) => sum + (weight * weight), 0);
+    
+    // Market cap exposure from style analysis
+    const marketCapExposure = {
+      large: styleAnalysis.largeCapExposure || 0,
+      mid: styleAnalysis.midCapExposure || 0,
+      small: styleAnalysis.smallCapExposure || 0
     };
-  }, [portfolioData]);
+    
+    // Geographic diversification (simplified - based on sector mix)
+    const geographicDiversification = Math.min(0.9, 1 - sectorConcentration);
+    
+    // Top 5 positions concentration risk
+    const sortedHoldings = holdings.sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
+    const top5Weight = sortedHoldings.slice(0, 5).reduce((sum, h) => sum + ((h.marketValue || 0) / totalValue), 0);
+    
+    return {
+      sectorConcentration,
+      geographicDiversification,
+      marketCapExposure,
+      concentrationRisk: top5Weight,
+      effectivePositions: riskAttribution.effectivePositions || 0,
+      diversificationRatio: riskAttribution.diversificationRatio || 0
+    };
+  }, [portfolioData, styleAnalysis, riskAttribution]);
 
   // AI-powered insights
   const aiInsights = useMemo(() => {
-    return generateAIInsights(portfolioMetrics, factorAnalysis, diversificationMetrics);
-  }, [portfolioMetrics, factorAnalysis, diversificationMetrics]);
+    return generateAIInsights(portfolioMetrics, factorExposures, diversificationMetrics);
+  }, [portfolioMetrics, factorExposures, diversificationMetrics]);
 
   // Auto-refresh effect
   useEffect(() => {

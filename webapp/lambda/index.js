@@ -12,9 +12,11 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const { initializeDatabase } = require('./utils/database');
+const { initializeDatabase, initForLambda } = require('./utils/database');
 const environmentValidator = require('./utils/environmentValidator');
 const errorHandler = require('./middleware/errorHandler');
+const { responseFormatterMiddleware } = require('./utils/responseFormatter');
+const { requestLoggingMiddleware } = require('./utils/logger');
 const { 
   rateLimitConfigs, 
   sqlInjectionPrevention, 
@@ -28,7 +30,8 @@ let analystRoutes, financialRoutes, tradingRoutes, technicalRoutes, calendarRout
 let dataRoutes, backtestRoutes, authRoutes, portfolioRoutes, scoringRoutes, priceRoutes;
 let settingsRoutes, patternsRoutes, sectorsRoutes, watchlistRoutes, aiAssistantRoutes;
 let tradesRoutes, cryptoRoutes, screenerRoutes, dashboardRoutes, alertsRoutes;
-let commoditiesRoutes, economicRoutes;
+let commoditiesRoutes, economicRoutes, websocketRoutes, poolManagementRoutes, tradingStrategiesRoutes;
+let riskManagementRoutes;
 
 // Safe route loading function with improved error handling
 const safeRequire = (path, name) => {
@@ -105,6 +108,10 @@ dashboardRoutes = safeRequire('./routes/dashboard', 'Dashboard');
 alertsRoutes = safeRequire('./routes/alerts', 'Alerts');
 commoditiesRoutes = safeRequire('./routes/commodities', 'Commodities');
 economicRoutes = safeRequire('./routes/economic', 'Economic');
+websocketRoutes = safeRequire('./routes/websocket', 'WebSocket');
+poolManagementRoutes = safeRequire('./routes/pool-management', 'Pool Management');
+tradingStrategiesRoutes = safeRequire('./routes/trading-strategies', 'Trading Strategies');
+riskManagementRoutes = safeRequire('./routes/risk-management', 'Risk Management');
 console.log('✅ Route loading completed');
 
 // Validate environment variables
@@ -127,6 +134,24 @@ const app = express();
 
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
+
+// Lambda database initialization with connection warming
+// This runs during Lambda cold start to reduce request latency
+let dbInitPromise = null;
+const initializeLambdaDatabase = () => {
+  if (!dbInitPromise) {
+    console.log('🚀 Starting Lambda database initialization...');
+    dbInitPromise = initForLambda().catch(error => {
+      console.error('❌ Lambda database initialization failed:', error);
+      dbInitPromise = null; // Reset so it can be retried
+      return false;
+    });
+  }
+  return dbInitPromise;
+};
+
+// Start database initialization immediately during cold start
+initializeLambdaDatabase();
 
 // Secure CORS Configuration
 app.use((req, res, next) => {
@@ -295,24 +320,56 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Aggressive CORS middleware - set headers on EVERY response
+// Secure CORS middleware - restrict origins to approved domains only
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
   console.log(`🌐 CORS middleware - Method: ${req.method}, Origin: ${origin}, Path: ${req.path}`);
   
-  // Set CORS headers immediately and aggressively
-  res.header('Access-Control-Allow-Origin', '*'); // Allow all origins
+  // Define allowed origins for production security
+  const allowedOrigins = [
+    'https://d1zb7knau41vl9.cloudfront.net', // Production CloudFront
+    'http://localhost:3000',                 // Local development
+    'http://localhost:5173',                 // Vite dev server
+    'https://your-domain.com'                // Replace with actual domain
+  ];
+  
+  // Add environment-specific origins
+  const envOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+  allowedOrigins.push(...envOrigins);
+  
+  // Determine if origin is allowed
+  let allowOrigin = false;
+  if (!origin) {
+    // Allow requests without origin only in development
+    allowOrigin = process.env.NODE_ENV !== 'production';
+  } else {
+    allowOrigin = allowedOrigins.includes(origin) || 
+                  (process.env.NODE_ENV !== 'production' && origin.includes('localhost'));
+  }
+  
+  // Set secure CORS headers
+  if (allowOrigin) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    console.log(`✅ CORS allowed for origin: ${origin}`);
+  } else {
+    console.warn(`❌ CORS blocked for origin: ${origin}`);
+    // Don't set CORS headers for blocked origins
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
-  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
-  // Override res.json and res.send to ensure CORS headers are always set
+  // Override res.json and res.send to ensure secure CORS headers
   const originalJson = res.json;
   res.json = function(body) {
-    this.header('Access-Control-Allow-Origin', '*');
+    if (allowOrigin) {
+      this.header('Access-Control-Allow-Origin', origin || '*');
+      this.header('Access-Control-Allow-Credentials', 'true');
+    }
     this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
     this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
     return originalJson.call(this, body);
@@ -320,17 +377,30 @@ app.use((req, res, next) => {
   
   const originalSend = res.send;
   res.send = function(body) {
-    this.header('Access-Control-Allow-Origin', '*');
+    if (allowOrigin) {
+      this.header('Access-Control-Allow-Origin', origin || '*');
+      this.header('Access-Control-Allow-Credentials', 'true');
+    }
     this.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
     this.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin');
     return originalSend.call(this, body);
   };
   
-  // Handle preflight requests immediately
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     console.log(`✅ Handling OPTIONS preflight for ${req.path}`);
-    res.status(200).end();
+    if (allowOrigin) {
+      res.status(200).end();
+    } else {
+      res.status(403).json({ error: 'CORS policy violation' });
+    }
     return;
+  }
+  
+  // Block request if origin not allowed for non-preflight requests
+  if (!allowOrigin && origin && req.method !== 'OPTIONS') {
+    console.warn(`🚫 Blocking request from unauthorized origin: ${origin}`);
+    return res.status(403).json({ error: 'CORS policy violation' });
   }
   
   next();
@@ -359,25 +429,28 @@ app.use((req, res, next) => {
       console.error(`🕐 [${requestId}] GLOBAL TIMEOUT after ${duration}ms for ${req.method} ${req.path}`);
       console.error(`🕐 [${requestId}] Memory usage:`, process.memoryUsage());
       
-      // Ensure CORS headers are set aggressively
-      res.header('Access-Control-Allow-Origin', '*');
+      // Set secure CORS headers for timeout response
+      const origin = req.headers.origin;
+      const allowedOrigins = [
+        'https://d1zb7knau41vl9.cloudfront.net',
+        'http://localhost:3000',
+        'http://localhost:5173'
+      ];
+      
+      if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+      }
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
-      res.header('Access-Control-Allow-Credentials', 'true');
       res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
       
-      // Send a diagnostic response
-      res.status(500).json({
-        success: false,
-        error: 'Lambda function timeout',
-        message: 'The request exceeded the maximum processing time',
-        details: {
-          duration: duration,
-          endpoint: `${req.method} ${req.path}`,
-          requestId: requestId,
-          memoryUsage: process.memoryUsage()
-        },
-        timestamp: new Date().toISOString()
+      // Send a diagnostic response using standardized format
+      res.serverError('Request timeout - Lambda function exceeded maximum processing time', {
+        duration: duration,
+        endpoint: `${req.method} ${req.path}`,
+        requestId: requestId,
+        memoryUsage: process.memoryUsage()
       });
     }
   }, 5000); // 5 second global timeout to prevent any timeouts
@@ -416,17 +489,49 @@ app.use((req, res, next) => {
   next();
 });
 
+// Database readiness middleware - ensures DB is ready before processing requests
+app.use(async (req, res, next) => {
+  const requestId = res.locals.requestId || 'unknown';
+  
+  // Skip database check for health endpoints to avoid circular dependencies
+  if (req.path.includes('/health') || req.path.includes('/debug')) {
+    return next();
+  }
+  
+  try {
+    // Ensure database is initialized before processing database-dependent requests
+    console.log(`🏥 [${requestId}] Checking database readiness...`);
+    const dbCheckStart = Date.now();
+    
+    await initializeLambdaDatabase();
+    
+    console.log(`✅ [${requestId}] Database ready in ${Date.now() - dbCheckStart}ms`);
+    next();
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Database not ready:`, error.message);
+    
+    // Return a proper error response if database is not ready
+    res.status(503).json({
+      success: false,
+      error: 'Database temporarily unavailable',
+      message: 'Service is initializing, please retry in a few seconds',
+      retryAfter: 5,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Removed emergency health endpoints - use proper health router instead
 // The health router provides comprehensive database health checks
 
 app.get('/api', (req, res) => {
-  res.json({
-    status: 'ok',
+  res.success({
     service: 'Financial Dashboard API',
-    timestamp: new Date().toISOString(),
+    status: 'operational',
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    version: '10.0.0'
+    version: '10.1.0'
   });
 });
 
@@ -435,17 +540,28 @@ app.get('/cors-test', (req, res) => {
   console.log(`🔬 CORS TEST from origin: ${req.headers.origin}`);
   console.log(`🔬 Headers:`, req.headers);
   
-  // Set every possible CORS header
-  res.header('Access-Control-Allow-Origin', '*');
+  // Set secure CORS headers for testing
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://d1zb7knau41vl9.cloudfront.net',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else if (process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
-  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
   console.log(`🔬 CORS TEST headers set, response headers:`, res.getHeaders());
   
-  res.json({
+  res.success({
     message: 'CORS test endpoint',
     origin: req.headers.origin || 'no-origin',
     method: req.method,
@@ -455,8 +571,7 @@ app.get('/cors-test', (req, res) => {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma'
-    },
-    timestamp: new Date().toISOString()
+    }
   });
 });
 
@@ -464,17 +579,28 @@ app.get('/api/cors-test', (req, res) => {
   console.log(`🔬 API CORS TEST from origin: ${req.headers.origin}`);
   console.log(`🔬 Headers:`, req.headers);
   
-  // Set every possible CORS header
-  res.header('Access-Control-Allow-Origin', '*');
+  // Set secure CORS headers for API testing
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://d1zb7knau41vl9.cloudfront.net',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else if (process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
-  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
   console.log(`🔬 API CORS TEST headers set, response headers:`, res.getHeaders());
   
-  res.json({
+  res.success({
     message: 'API CORS test endpoint',
     origin: req.headers.origin || 'no-origin',
     method: req.method,
@@ -484,8 +610,7 @@ app.get('/api/cors-test', (req, res) => {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma'
-    },
-    timestamp: new Date().toISOString()
+    }
   });
 });
 
@@ -493,6 +618,12 @@ app.get('/api/cors-test', (req, res) => {
 // Request parsing with size limits
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// Response formatter middleware - provides standardized response methods
+app.use(responseFormatterMiddleware);
+
+// Enhanced request logging middleware - provides structured logging with correlation IDs
+app.use(requestLoggingMiddleware);
 
 // Security validation middleware - ENABLED for production security
 app.use(requestSizeLimit('2mb'));
@@ -633,15 +764,14 @@ app.use(async (req, res, next) => {
 // Debug endpoint for secrets status
 app.get('/debug/secrets-status', (req, res) => {
   const status = secretsLoader.getStatus();
-  res.json({
+  res.success({
     secretsStatus: status,
     environment: {
       hasApiKeySecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasDbSecret: !!process.env.DB_SECRET_ARN,
       region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'
-    },
-    timestamp: new Date().toISOString()
+    }
   });
 });
 
@@ -676,6 +806,7 @@ app.use('/dashboard', dashboardRoutes);
 app.use('/alerts', alertsRoutes);
 app.use('/commodities', commoditiesRoutes);
 app.use('/economic', economicRoutes);
+app.use('/risk-management', riskManagementRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -709,12 +840,15 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/alerts', alertsRoutes);
 app.use('/api/commodities', commoditiesRoutes);
 app.use('/api/economic', economicRoutes);
+app.use('/api/websocket', websocketRoutes);
+app.use('/api/pool', poolManagementRoutes);
+app.use('/api/trading-strategies', tradingStrategiesRoutes);
+app.use('/api/risk-management', riskManagementRoutes);
 
 // Debug route for troubleshooting API Gateway issues
 app.get('/debug', (req, res) => {
-  res.json({
+  res.success({
     message: 'Debug endpoint - API Gateway routing test',
-    timestamp: new Date().toISOString(),
     request: {
       method: req.method,
       path: req.path,
@@ -739,18 +873,16 @@ app.get('/debug', (req, res) => {
     database: {
       available: dbAvailable,
       initPromise: !!dbInitPromise
-    },
-    success: true
+    }
   });
 });
 
 // Default route
 app.get('/', (req, res) => {
-  res.json({
+  res.success({
     message: 'Financial Dashboard API',
     version: '10.1.0',
     status: 'operational',
-    timestamp: new Date().toISOString(),
     environment: deploymentEnv,
     endpoints: {
       health: {
@@ -777,7 +909,8 @@ app.get('/', (req, res) => {
         technical: '/technical',
         calendar: '/calendar',
         signals: '/signals',
-        trades: '/trades'
+        trades: '/trades',
+        risk_management: '/risk-management'
       }
     },
     notes: 'Use /health?quick=true for fast status check without database dependency'
@@ -786,10 +919,7 @@ app.get('/', (req, res) => {
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Endpoint not found',
-    message: `The requested endpoint ${req.originalUrl} does not exist`
-  });
+  res.notFound('Endpoint', `The requested endpoint ${req.originalUrl} does not exist`);
 });
 
 // Error handling middleware (should be last) - Use proper error handler
@@ -809,10 +939,22 @@ module.exports.handler = serverless(app, {
     if (!response.headers) {
       response.headers = {};
     }
-    response.headers['Access-Control-Allow-Origin'] = '*';
+    // Set secure CORS headers in Lambda response
+    const allowedOrigins = [
+      'https://d1zb7knau41vl9.cloudfront.net',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ];
+    
+    const origin = event.headers?.origin || event.headers?.Origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      response.headers['Access-Control-Allow-Origin'] = origin;
+      response.headers['Access-Control-Allow-Credentials'] = 'true';
+    } else if (process.env.NODE_ENV !== 'production') {
+      response.headers['Access-Control-Allow-Origin'] = '*';
+    }
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH';
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin';
-    response.headers['Access-Control-Allow-Credentials'] = 'true';
     console.log(`🌐 CORS headers applied to ${response.statusCode} response`);
   }
 });

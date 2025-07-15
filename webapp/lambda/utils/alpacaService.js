@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getTimeout, withTradingTimeout } = require('./timeoutManager');
 
 /**
  * Alpaca Integration Service
@@ -28,10 +29,10 @@ class AlpacaService {
     this.dataURL = 'https://data.alpaca.markets';
     this.wsURL = 'wss://stream.data.alpaca.markets';
     
-    // Enhanced configuration with timeouts and retries
+    // Enhanced configuration with standardized timeouts
     const axiosConfig = {
       baseURL: this.baseURL,
-      timeout: 30000, // 30 second timeout
+      timeout: getTimeout('trading', 'standard'), // Standardized trading timeout
       headers: {
         'APCA-API-KEY-ID': this.apiKey,
         'APCA-API-SECRET-KEY': this.apiSecret
@@ -65,6 +66,14 @@ class AlpacaService {
     this.rateLimitWindow = 60000; // 1 minute
     this.maxRequestsPerWindow = 200;
     this.requestTimes = [];
+    
+    // Enhanced rate limiting with adaptive throttling
+    this.adaptiveRateLimit = {
+      consecutiveFailures: 0,
+      baseDelay: 100, // Base delay in ms
+      maxDelay: 5000, // Max delay in ms
+      backoffMultiplier: 2
+    };
   }
 
   /**
@@ -133,6 +142,12 @@ class AlpacaService {
       this.circuitBreaker.failures = 0;
       this.circuitBreaker.isOpen = false;
     }
+    
+    // Reset adaptive rate limiting failures on success
+    if (this.adaptiveRateLimit.consecutiveFailures > 0) {
+      console.log(`🎯 Adaptive rate limiting: Resetting failure count from ${this.adaptiveRateLimit.consecutiveFailures} to 0`);
+      this.adaptiveRateLimit.consecutiveFailures = 0;
+    }
   }
 
   /**
@@ -141,6 +156,10 @@ class AlpacaService {
   recordFailure() {
     this.circuitBreaker.failures++;
     this.circuitBreaker.lastFailureTime = Date.now();
+    
+    // Track consecutive failures for adaptive rate limiting
+    this.adaptiveRateLimit.consecutiveFailures++;
+    console.log(`⚠️ Adaptive rate limiting: Failure count increased to ${this.adaptiveRateLimit.consecutiveFailures}`);
     
     if (this.circuitBreaker.failures >= this.circuitBreaker.threshold) {
       this.circuitBreaker.isOpen = true;
@@ -151,25 +170,34 @@ class AlpacaService {
   }
 
   /**
-   * Enhanced API call wrapper with circuit breaker
+   * Enhanced API call wrapper with circuit breaker and standardized timeouts
    */
-  async safeApiCall(apiCall, operationName = 'API call') {
+  async safeApiCall(apiCall, operationName = 'API call', operationType = 'standard') {
     try {
       this.checkCircuitBreaker();
-      this.checkRateLimit();
+      await this.checkRateLimit();
       
-      const result = await apiCall();
+      // Use standardized timeout for trading operations
+      const result = await withTradingTimeout(
+        apiCall, 
+        operationType,
+        null // logger will be added later if needed
+      );
+      
       this.recordSuccess();
-      return result;
+      return result.success ? result.result : result;
     } catch (error) {
       this.recordFailure();
       
-      // Enhanced error logging
+      // Enhanced error logging with timeout information
       console.error(`❌ Alpaca ${operationName} failed:`, {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
+        operationType,
+        isTimeout: error.code === 'TIMEOUT',
+        timeout: error.timeout,
         circuitBreakerState: this.circuitBreaker.isOpen ? 'OPEN' : 'CLOSED',
         failures: this.circuitBreaker.failures
       });
@@ -188,8 +216,25 @@ class AlpacaService {
     // Remove old requests outside the window
     this.requestTimes = this.requestTimes.filter(time => time > windowStart);
     
+    // Calculate current usage percentage
+    const currentUsage = this.requestTimes.length / this.maxRequestsPerWindow;
+    
+    // Apply adaptive throttling based on usage and recent failures
+    if (currentUsage > 0.8 || this.adaptiveRateLimit.consecutiveFailures > 0) {
+      const delay = Math.min(
+        this.adaptiveRateLimit.baseDelay * Math.pow(this.adaptiveRateLimit.backoffMultiplier, this.adaptiveRateLimit.consecutiveFailures),
+        this.adaptiveRateLimit.maxDelay
+      );
+      
+      if (delay > 0) {
+        console.log(`🕰️ Adaptive throttling: ${delay}ms delay (usage: ${(currentUsage * 100).toFixed(1)}%, failures: ${this.adaptiveRateLimit.consecutiveFailures})`);
+        return new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
     if (this.requestTimes.length >= this.maxRequestsPerWindow) {
-      throw new Error('Rate limit exceeded. Please try again in a minute.');
+      const resetTime = Math.ceil((this.requestTimes[0] + this.rateLimitWindow - now) / 1000);
+      throw new Error(`Rate limit exceeded. Please try again in ${resetTime} seconds.`);
     }
     
     this.requestTimes.push(now);
@@ -228,7 +273,7 @@ class AlpacaService {
         patternDayTrader: account.pattern_day_trader,
         environment: this.isPaper ? 'paper' : 'live'
       };
-    }, 'account fetch');
+    }, 'account fetch', 'account');
   }
 
   /**
@@ -259,7 +304,7 @@ class AlpacaService {
         qtyAvailable: parseFloat(position.qty_available),
         lastUpdated: new Date().toISOString()
       }));
-    }, 'positions fetch');
+    }, 'positions fetch', 'positions');
   }
 
   /**
@@ -312,7 +357,7 @@ class AlpacaService {
         timeframe: 'realtime',
         exchange: quotes[symbol].ax || 'UNKNOWN'
       }));
-    }, 'multi quotes fetch');
+    }, 'multi quotes fetch', 'quotes');
   }
 
   /**

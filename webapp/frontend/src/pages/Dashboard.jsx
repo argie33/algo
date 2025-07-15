@@ -173,19 +173,14 @@ function usePortfolioData() {
         
         throw new Error('No portfolio data available');
       } catch (error) {
-        console.log('⚠️ Using mock portfolio data due to error:', error.message);
-        // Return mock data as fallback only when real API fails
+        console.error('Portfolio API failed:', error.message);
+        // Return error state instead of mock data
         return {
-          value: 1250000,
-          pnl: { daily: 3200, mtd: 18000, ytd: 92000 },
-          allocation: [
-            { name: 'AAPL', value: 38, sector: 'Technology' },
-            { name: 'MSFT', value: 27, sector: 'Technology' },
-            { name: 'GOOGL', value: 18, sector: 'Technology' },
-            { name: 'Cash', value: 10, sector: 'Cash' },
-            { name: 'Other', value: 7, sector: 'Mixed' }
-          ],
-          dataSource: 'mock'
+          value: 0,
+          pnl: { daily: 0, mtd: 0, ytd: 0 },
+          allocation: [],
+          dataSource: 'error',
+          error: error.message
         };
       }
     },
@@ -217,13 +212,9 @@ function useSectorPerformance() {
         }
         throw new Error('No sector data available');
       } catch (error) {
-        console.log('⚠️ Using fallback sector data:', error.message);
+        console.error('Sector data API failed:', error.message);
         return [
-          { sector: 'Technology', performance: 2.1, color: '#00C49F', dataSource: 'fallback' },
-          { sector: 'Healthcare', performance: 1.8, color: '#0088FE', dataSource: 'fallback' },
-          { sector: 'Finance', performance: -0.5, color: '#FF8042', dataSource: 'fallback' },
-          { sector: 'Energy', performance: 3.2, color: '#FFBB28', dataSource: 'fallback' },
-          { sector: 'Consumer', performance: 0.9, color: '#8884D8', dataSource: 'fallback' }
+          { sector: 'Error', performance: 0, color: '#FF0000', dataSource: 'error', error: error.message }
         ];
       }
     },
@@ -255,12 +246,9 @@ function useTopStocks() {
         }
         throw new Error('No scoring data available');
       } catch (error) {
-        console.log('⚠️ Using fallback top stocks data:', error.message);
+        console.error('⚠️ Top stocks scoring data unavailable:', error.message);
         return [
-          { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94, dataSource: 'fallback' },
-          { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92, dataSource: 'fallback' },
-          { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78, dataSource: 'fallback' },
-          { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82, dataSource: 'fallback' }
+          { symbol: 'ERROR', score: 0, quality: 0, value: 0, growth: 0, momentum: 0, dataSource: 'error', error: error.message }
         ];
       }
     },
@@ -296,13 +284,14 @@ function useMarketSentiment() {
         }
         throw new Error('No sentiment data available');
       } catch (error) {
-        console.log('⚠️ Using fallback sentiment data:', error.message);
+        console.error('⚠️ Market sentiment data unavailable:', error.message);
         return {
-          fearGreed: 72,
-          aaii: { bullish: 45, bearish: 28, neutral: 27 },
-          vix: 18.5,
-          status: 'Bullish',
-          dataSource: 'fallback'
+          fearGreed: 0,
+          aaii: { bullish: 0, bearish: 0, neutral: 0 },
+          vix: 0,
+          status: 'Unavailable',
+          dataSource: 'error',
+          error: error.message
         };
       }
     },
@@ -332,12 +321,9 @@ function useEconomicIndicators() {
         }
         throw new Error('No economic data available');
       } catch (error) {
-        console.log('⚠️ Using fallback economic data:', error.message);
+        console.error('⚠️ Economic indicators unavailable:', error.message);
         return [
-          { name: 'GDP Growth', value: 2.4, trend: 'stable', dataSource: 'fallback' },
-          { name: 'Inflation', value: 3.1, trend: 'down', dataSource: 'fallback' },
-          { name: 'Unemployment', value: 3.8, trend: 'stable', dataSource: 'fallback' },
-          { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', dataSource: 'fallback' }
+          { name: 'Economic Data', value: 0, trend: 'unavailable', dataSource: 'error', error: error.message }
         ];
       }
     },
@@ -392,15 +378,8 @@ function useUserWatchlistData() {
         return transformedItems;
         
       } catch (error) {
-        console.log('⚠️ Failed to fetch user watchlist, using fallback:', error.message);
-        
-        // Return fallback mock data
-        return [
-          { symbol: 'AAPL', price: 195.89, change: 2.34, changePercent: 1.21, name: 'Apple Inc.', score: 85, dataSource: 'fallback' },
-          { symbol: 'TSLA', price: 711.02, change: -5.67, changePercent: -0.79, name: 'Tesla Inc.', score: 78, dataSource: 'fallback' },
-          { symbol: 'NVDA', price: 1200.45, change: 15.23, changePercent: 1.29, name: 'NVIDIA Corp.', score: 95, dataSource: 'fallback' },
-          { symbol: 'AMZN', price: 3405.12, change: -12.45, changePercent: -0.36, name: 'Amazon.com Inc.', score: 82, dataSource: 'fallback' }
-        ];
+        console.error('❌ Failed to fetch user watchlist:', error.message);
+        throw new Error('Unable to load watchlist data - please check your API connection');
       }
     },
     enabled: isAuthenticated, // Only run if user is authenticated
@@ -411,46 +390,92 @@ function useUserWatchlistData() {
 }
 
 
-const mockActivity = [
-  { type: 'Trade', desc: 'Bought 100 AAPL', date: '2025-06-21', amount: 19500 },
-  { type: 'Alert', desc: 'TSLA price alert triggered', date: '2025-06-20', amount: null },
-  { type: 'Trade', desc: 'Sold 50 NVDA', date: '2025-06-19', amount: 60000 }
-];
-
-const mockCalendar = [
-  { event: 'FOMC Rate Decision', date: '2025-06-25', impact: 'High' },
-  { event: 'AAPL Earnings', date: '2025-07-01', impact: 'Medium' },
-  { event: 'Nonfarm Payrolls', date: '2025-07-05', impact: 'High' }
-];
-
-const mockSignals = [
-  { symbol: 'AAPL', action: 'Buy', confidence: 0.92, type: 'Technical' },
-  { symbol: 'TSLA', action: 'Sell', confidence: 0.87, type: 'Momentum' }
-];
-
-const mockNews = [
-  { title: 'Fed Holds Rates Steady, Signals Caution', date: '2025-06-21', sentiment: 'Neutral' },
-  { title: 'AAPL Surges on Strong Earnings', date: '2025-06-20', sentiment: 'Positive' },
-  { title: 'Global Markets Mixed Ahead of FOMC', date: '2025-06-19', sentiment: 'Neutral' }
-];
-
-const mockWatchlist = [
-  { symbol: 'AAPL', price: 195.89, change: 2.34, changePercent: 1.21, name: 'Apple Inc.' },
-  { symbol: 'TSLA', price: 711.02, change: -5.67, changePercent: -0.79, name: 'Tesla Inc.' },
-  { symbol: 'NVDA', price: 1200.45, change: 15.23, changePercent: 1.29, name: 'NVIDIA Corp.' },
-  { symbol: 'AMZN', price: 3405.12, change: -12.45, changePercent: -0.36, name: 'Amazon.com Inc.' }
-];
+// All mock data removed - using live API data only
 
 const BRAND_NAME = 'ProTrade Analytics';
 
-const marketSummary = [
-  { name: 'S&P 500', value: 5432.10, change: +0.42, pct: '+0.8%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
-  { name: 'NASDAQ', value: 17890.55, change: -0.22, pct: '-0.1%', icon: <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} /> },
-  { name: 'DOW', value: 38900.12, change: +0.15, pct: '+0.4%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
-  { name: 'VIX', value: 18.5, change: -0.8, pct: '-4.1%', icon: <ArrowDownward sx={{ color: 'success.main', fontSize: 18 }} /> },
-  { name: 'DXY', value: 103.2, change: +0.3, pct: '+0.3%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> },
-  { name: 'Gold', value: 2345.50, change: +12.30, pct: '+0.5%', icon: <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> }
-];
+// Market Summary Widget Component
+function MarketSummaryWidget() {
+  const { data: marketData, isLoading, error } = useQuery({
+    queryKey: ['market-summary'],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`${API_BASE}/market-data/summary`);
+        if (!response.ok) {
+          throw new Error(`Market data API failed: ${response.status}`);
+        }
+        return await response.json();
+      } catch (err) {
+        console.error('❌ Market summary error:', err);
+        throw new Error('Market data unavailable - please check API connection');
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000, // 5 minutes refresh
+    retry: 1
+  });
+
+  if (isLoading) {
+    return (
+      <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
+        <Grid container spacing={2}>
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <Grid item xs={12} sm={6} md={2} key={idx}>
+              <Card sx={{ boxShadow: 1 }}>
+                <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                  <Skeleton variant="text" width="60%" />
+                  <Skeleton variant="text" width="80%" />
+                  <Skeleton variant="text" width="50%" />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error.message}
+        </Alert>
+      </Box>
+    );
+  }
+
+  const marketSummary = marketData?.data || [];
+
+  return (
+    <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
+      <Grid container spacing={2}>
+        {marketSummary.map((mkt, idx) => (
+          <Grid item xs={12} sm={6} md={2} key={mkt.name}>
+            <Card sx={{ boxShadow: 1, borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
+              <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString() || 'N/A'}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  {mkt.change >= 0 ? 
+                    <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> : 
+                    <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} />
+                  }
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? 'success.main' : 'error.main' }}>
+                    {mkt.pct || 'N/A'}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
+  );
+}
 
 // Enhanced data fetching hooks
 function useMarketOverview() {
@@ -510,24 +535,12 @@ function TechnicalSignalsWidget() {
         const url = `${API_BASE}/api/trading/signals/daily?limit=10`;
         const res = await fetch(url);
         if (!res.ok) {
-          console.warn('Trading signals API failed, using mock data');
-          return {
-            data: [
-              { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
-              { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 },
-              { symbol: 'NVDA', signal: 'Buy', date: '2025-07-01', current_price: 1200, performance_percent: 3.5 }
-            ]
-          };
+          throw new Error(`Trading signals API failed: ${res.status} ${res.statusText}`);
         }
         return await res.json();
       } catch (err) {
-        console.warn('Technical signals error, using mock data:', err);
-        return {
-          data: [
-            { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
-            { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 }
-          ]
-        };
+        console.error('❌ Technical signals error:', err);
+        throw new Error('Trading signals unavailable - please check API connection');
       }
     },
     refetchInterval: 300000,
@@ -800,11 +813,11 @@ const Dashboard = () => {
   
   // Use live portfolio data (already has fallbacks built-in)
   const safePortfolio = portfolioData || { value: 0, pnl: { daily: 0, mtd: 0, ytd: 0 }, allocation: [] };
-  const safeWatchlist = userWatchlistData || mockWatchlist;
-  const safeNews = mockNews;
-  const safeActivity = mockActivity;
-  const safeCalendar = mockCalendar;
-  const safeSignals = mockSignals;
+  const safeWatchlist = userWatchlistData || [];
+  const safeNews = [];
+  const safeActivity = [];
+  const safeCalendar = [];
+  const safeSignals = [];
   
   const equityCurve = Array.isArray(priceData?.data)
     ? priceData.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
@@ -1059,25 +1072,7 @@ const Dashboard = () => {
       </Grid>
 
       {/* Market Summary Bar */}
-      <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
-        <Grid container spacing={2}>
-          {marketSummary.map((mkt, idx) => (
-            <Grid item xs={12} sm={6} md={2} key={mkt.name}>
-              <Card sx={{ boxShadow: 1, borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
-                <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value.toLocaleString()}</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                    {mkt.icon}
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? 'success.main' : 'error.main' }}>{mkt.pct}</Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
+      <MarketSummaryWidget />
       
       {/* Core Dashboard Widgets */}
       <Grid container spacing={3} sx={{ mb: 4 }}>

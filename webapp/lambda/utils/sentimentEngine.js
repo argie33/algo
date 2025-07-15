@@ -1,4 +1,5 @@
 const axios = require('axios');
+const timeoutHelper = require('./timeoutHelper');
 
 class SentimentEngine {
   constructor() {
@@ -175,15 +176,23 @@ class SentimentEngine {
         return null;
       }
       
-      const response = await axios.post(
-        'https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest',
-        { inputs: text },
+      const response = await timeoutHelper.withTimeout(
+        axios.post(
+          'https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest',
+          { inputs: text },
+          {
+            headers: {
+              'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 8000
+          }
+        ),
         {
-          headers: {
-            'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
+          timeout: 10000,
+          service: 'huggingface',
+          operation: 'sentiment-analysis',
+          retries: 1
         }
       );
       
@@ -250,29 +259,39 @@ class SentimentEngine {
   }
 
   async analyzeBatchSentiment(textArray, symbols = []) {
-    const results = [];
+    // Use timeout helper's batch processing for better concurrency and timeout handling
+    const processor = async (text, index) => {
+      const symbol = symbols[index] || null;
+      return await this.analyzeSentiment(text, symbol);
+    };
+
+    const { results, errors } = await timeoutHelper.batchProcess(textArray, processor, {
+      concurrency: 3,
+      timeout: 8000,
+      service: 'sentiment-batch',
+      continueOnError: true
+    });
+
+    // Convert results to the expected format
+    const sentimentResults = [];
     
-    for (let i = 0; i < textArray.length; i++) {
-      const text = textArray[i];
-      const symbol = symbols[i] || null;
-      
-      try {
-        const sentiment = await this.analyzeSentiment(text, symbol);
-        results.push(sentiment);
-      } catch (error) {
-        console.error(`Error analyzing sentiment for text ${i}:`, error);
-        results.push({
-          score: 0,
-          label: 'neutral',
-          confidence: 0.5,
-          method: 'error',
-          symbol: symbol,
-          analyzed_at: new Date().toISOString()
-        });
-      }
-    }
+    results.forEach(({ result, index }) => {
+      sentimentResults[index] = result;
+    });
     
-    return results;
+    errors.forEach(({ error, index }) => {
+      console.error(`Error analyzing sentiment for text ${index}:`, error);
+      sentimentResults[index] = {
+        score: 0,
+        label: 'neutral',
+        confidence: 0.5,
+        method: 'error',
+        symbol: symbols[index] || null,
+        analyzed_at: new Date().toISOString()
+      };
+    });
+    
+    return sentimentResults.filter(Boolean);
   }
 
   calculateSentimentTrend(sentiments) {

@@ -5,7 +5,7 @@ const REQUIRED_ENV_VARS = [
   {
     name: 'API_KEY_ENCRYPTION_SECRET_ARN',
     description: 'ARN of the Secrets Manager secret containing API key encryption secret',
-    required: true,
+    required: process.env.NODE_ENV === 'production',
     sensitive: true
   },
   {

@@ -1,16 +1,116 @@
 const express = require('express');
-const { query, healthCheck, initializeDatabase, tablesExist, safeQuery } = require('../utils/database');
+const { query, healthCheck, initializeDatabase, tablesExist, safeQuery, transaction } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
+const logger = require('../utils/logger');
+const portfolioAnalytics = require('../utils/portfolioAnalytics');
 const crypto = require('crypto');
+
+// Conditional logging configuration
+const LOG_LEVEL = process.env.LOG_LEVEL || 'INFO';
+const shouldLog = (level) => {
+  const levels = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
+  return levels[level] >= levels[LOG_LEVEL];
+};
 
 const router = express.Router();
 
 // Apply authentication middleware to ALL portfolio routes
 router.use(authenticateToken);
+
+// Validation schemas for portfolio endpoints
+const portfolioValidationSchemas = {
+  holdings: {
+    includeMetadata: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'includeMetadata must be true or false'
+    },
+    refresh: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'refresh must be true or false'
+    },
+    limit: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 1, max: 1000, defaultValue: 100 }),
+      validator: (value) => Number.isInteger(value) && value >= 1 && value <= 1000,
+      errorMessage: 'limit must be an integer between 1 and 1000'
+    },
+    offset: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.number(value, { min: 0, defaultValue: 0 }),
+      validator: (value) => Number.isInteger(value) && value >= 0,
+      errorMessage: 'offset must be a non-negative integer'
+    }
+  },
+  
+  performance: {
+    period: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, toUpperCase: true, defaultValue: '1M' }),
+      validator: (value) => ['1D', '1W', '1M', '3M', '6M', '1Y', 'YTD', 'ALL'].includes(value),
+      errorMessage: 'Period must be one of: 1D, 1W, 1M, 3M, 6M, 1Y, YTD, ALL'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, defaultValue: '1Day' }),
+      validator: (value) => ['1Min', '5Min', '15Min', '1Hour', '1Day'].includes(value),
+      errorMessage: 'Timeframe must be one of: 1Min, 5Min, 15Min, 1Hour, 1Day'
+    }
+  },
+  
+  positions: {
+    symbol: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.symbol(value),
+      validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    includeClosedPositions: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'includeClosedPositions must be true or false'
+    }
+  },
+  
+  refresh: {
+    forceRefresh: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'forceRefresh must be true or false'
+    },
+    syncMetadata: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: true }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'syncMetadata must be true or false'
+    }
+  },
+  
+  analytics: {
+    includeBenchmark: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'includeBenchmark must be true or false'
+    },
+    period: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, toUpperCase: true, defaultValue: '1Y' }),
+      validator: (value) => ['1M', '3M', '6M', '1Y', '2Y', '5Y', 'ALL'].includes(value),
+      errorMessage: 'Period must be one of: 1M, 3M, 6M, 1Y, 2Y, 5Y, ALL'
+    }
+  }
+};
 
 // Portfolio table dependencies and fallback handling
 const PORTFOLIO_TABLES = {
@@ -19,66 +119,136 @@ const PORTFOLIO_TABLES = {
 };
 
 /**
- * Check portfolio table availability and provide fallback options
+ * Check portfolio table availability with comprehensive logging and error identification
  */
-async function checkPortfolioTableDependencies() {
+async function checkPortfolioTableDependencies(requestId = 'unknown') {
+  const checkStart = Date.now();
+  if (shouldLog('DEBUG')) console.log(`🔍 [${requestId}] Starting portfolio table dependency check`);
+  
   try {
+    // Initialize database if not already done
+    await initializeDatabase();
+    console.log(`✅ [${requestId}] Database initialized for table check`);
+    
     const allTables = [...PORTFOLIO_TABLES.required, ...PORTFOLIO_TABLES.optional];
+    console.log(`🔍 [${requestId}] Checking ${allTables.length} tables: ${allTables.join(', ')}`);
+    
+    const tableCheckStart = Date.now();
     const tableStatus = await tablesExist(allTables);
+    const tableCheckDuration = Date.now() - tableCheckStart;
+    
+    console.log(`✅ [${requestId}] Table existence check completed in ${tableCheckDuration}ms`);
     
     const missingRequired = PORTFOLIO_TABLES.required.filter(table => !tableStatus[table]);
     const missingOptional = PORTFOLIO_TABLES.optional.filter(table => !tableStatus[table]);
+    const availableRequired = PORTFOLIO_TABLES.required.filter(table => tableStatus[table]);
+    const availableOptional = PORTFOLIO_TABLES.optional.filter(table => tableStatus[table]);
     
-    console.log('📊 Portfolio table status check:', {
+    // Detailed logging of table status
+    console.log(`📊 [${requestId}] Portfolio table status analysis:`, {
+      summary: {
+        totalTables: allTables.length,
+        requiredAvailable: availableRequired.length,
+        requiredMissing: missingRequired.length,
+        optionalAvailable: availableOptional.length,
+        optionalMissing: missingOptional.length
+      },
       required: {
-        available: PORTFOLIO_TABLES.required.filter(table => tableStatus[table]),
+        available: availableRequired,
         missing: missingRequired
       },
       optional: {
-        available: PORTFOLIO_TABLES.optional.filter(table => tableStatus[table]),
+        available: availableOptional,
         missing: missingOptional
-      }
+      },
+      checkDuration: `${tableCheckDuration}ms`
+    });
+    
+    // Log critical issues
+    if (missingRequired.length > 0) {
+      console.error(`❌ [${requestId}] CRITICAL: Missing required portfolio tables:`, {
+        missingTables: missingRequired,
+        impact: 'Portfolio database operations will fail',
+        recommendation: 'Run database initialization scripts',
+        tablesNeeded: missingRequired
+      });
+    }
+    
+    if (missingOptional.length > 0) {
+      console.warn(`⚠️ [${requestId}] WARNING: Missing optional portfolio tables:`, {
+        missingTables: missingOptional,
+        impact: 'Some portfolio features may be limited',
+        recommendation: 'Consider running optional table creation scripts'
+      });
+    }
+    
+    const hasRequiredTables = missingRequired.length === 0;
+    const totalDuration = Date.now() - checkStart;
+    
+    console.log(`✅ [${requestId}] Portfolio table dependency check completed in ${totalDuration}ms`, {
+      result: hasRequiredTables ? 'SUCCESS - All required tables available' : 'FAILURE - Missing required tables',
+      databaseOperationsEnabled: hasRequiredTables
     });
     
     return {
-      hasRequiredTables: missingRequired.length === 0,
+      hasRequiredTables,
       missingRequired,
       missingOptional,
+      availableRequired,
+      availableOptional,
       tableStatus,
-      fallbackOptions: {
-        canUseDatabase: missingRequired.length === 0,
-        canUseBrokerAPI: true,
-        canUseMockData: true
-      }
+      checkDuration: totalDuration,
+      requestId,
+      timestamp: new Date().toISOString()
     };
+    
   } catch (error) {
-    console.error('❌ Portfolio table dependency check failed:', error);
+    const errorDuration = Date.now() - checkStart;
+    console.error(`❌ [${requestId}] Portfolio table dependency check FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorCode: error.code,
+      errorStack: error.stack,
+      impact: 'Cannot determine table availability - assuming tables missing',
+      recommendation: 'Check database connectivity and permissions'
+    });
+    
     return {
       hasRequiredTables: false,
       missingRequired: PORTFOLIO_TABLES.required,
       missingOptional: PORTFOLIO_TABLES.optional,
+      availableRequired: [],
+      availableOptional: [],
       tableStatus: {},
-      fallbackOptions: {
-        canUseDatabase: false,
-        canUseBrokerAPI: true,
-        canUseMockData: true
-      }
+      checkDuration: errorDuration,
+      error: error.message,
+      requestId,
+      timestamp: new Date().toISOString()
     };
   }
 }
 
 // Portfolio overview endpoint (root) - requires authentication and provides portfolio summary
 router.get('/', async (req, res) => {
+  const requestId = crypto.randomUUID().split('-')[0];
+  const requestStart = Date.now();
+  
   try {
-    console.log('📊 Portfolio overview request received for user:', req.user?.sub);
     const userId = req.user?.sub;
+    console.log(`🚀 [${requestId}] Portfolio overview request initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
 
     if (!userId) {
-      return res.status(401).json({ error: 'User authentication required' });
+      console.error(`❌ [${requestId}] Authentication failure - no user ID found`);
+      return res.unauthorized('User authentication required', { requestId });
     }
 
-    // Check table dependencies before attempting queries
-    const tableDeps = await checkPortfolioTableDependencies();
+    // Check table dependencies before attempting queries with detailed logging
+    console.log(`🔍 [${requestId}] Checking portfolio table dependencies`);
+    const tableDeps = await checkPortfolioTableDependencies(requestId);
     
     let summary = {
       total_positions: 0,
@@ -94,8 +264,13 @@ router.get('/', async (req, res) => {
     };
 
     if (tableDeps.hasRequiredTables) {
+      console.log(`✅ [${requestId}] All required tables available - proceeding with database queries`);
+      
       try {
-        // Get user's portfolio summary from database
+        // Get user's portfolio summary from database with detailed logging
+        console.log(`📊 [${requestId}] Executing portfolio holdings query`);
+        const holdingsQueryStart = Date.now();
+        
         const holdingsQuery = `
           SELECT 
             COUNT(*) as total_positions,
@@ -106,6 +281,7 @@ router.get('/', async (req, res) => {
           WHERE user_id = $1
         `;
         
+        console.log(`📊 [${requestId}] Executing portfolio metadata query`);
         const metadataQuery = `
           SELECT 
             account_type,
@@ -117,89 +293,214 @@ router.get('/', async (req, res) => {
           LIMIT 1
         `;
 
+        const queryStart = Date.now();
         const [holdingsResult, metadataResult] = await Promise.all([
           safeQuery(holdingsQuery, [userId], ['portfolio_holdings']),
           safeQuery(metadataQuery, [userId], ['portfolio_metadata'])
         ]);
+        const queryDuration = Date.now() - queryStart;
+        
+        console.log(`✅ [${requestId}] Portfolio database queries completed in ${queryDuration}ms`, {
+          holdingsRows: holdingsResult.rows.length,
+          metadataRows: metadataResult.rows.length,
+          holdingsData: holdingsResult.rows[0],
+          metadataData: metadataResult.rows[0]
+        });
 
         if (holdingsResult.rows.length > 0) {
           summary = holdingsResult.rows[0];
+          console.log(`✅ [${requestId}] Portfolio holdings data retrieved:`, {
+            totalPositions: summary.total_positions,
+            totalMarketValue: summary.total_market_value,
+            totalUnrealizedPL: summary.total_unrealized_pl,
+            avgUnrealizedPLPC: summary.avg_unrealized_plpc
+          });
+        } else {
+          console.warn(`⚠️ [${requestId}] No portfolio holdings found for user - using default values`);
         }
         
         if (metadataResult.rows.length > 0) {
           metadata = metadataResult.rows[0];
+          console.log(`✅ [${requestId}] Portfolio metadata retrieved:`, {
+            accountType: metadata.account_type,
+            lastSync: metadata.last_sync,
+            totalEquity: metadata.total_equity
+          });
+        } else {
+          console.warn(`⚠️ [${requestId}] No portfolio metadata found for user - using default values`);
         }
+        
       } catch (dbError) {
-        console.warn('⚠️ Database query failed, using default values:', dbError.message);
+        const errorDuration = Date.now() - queryStart;
+        console.error(`❌ [${requestId}] Portfolio database query FAILED after ${errorDuration}ms:`, {
+          error: dbError.message,
+          errorCode: dbError.code,
+          errorStack: dbError.stack,
+          sqlState: dbError.sqlState,
+          impact: 'Using default portfolio values',
+          recommendation: 'Check database connectivity and table structure'
+        });
         // Continue with default values
       }
     } else {
-      console.warn('⚠️ Required portfolio tables missing:', tableDeps.missingRequired);
+      console.error(`❌ [${requestId}] Required portfolio tables missing - cannot query database:`, {
+        missingTables: tableDeps.missingRequired,
+        availableTables: tableDeps.availableRequired,
+        impact: 'Portfolio data will be retrieved from API or default values',
+        recommendation: 'Run database initialization to create missing tables'
+      });
     }
 
-    // Try to get fresh data from broker API if no database data
+    // Try to get fresh data from broker API if no database data with comprehensive logging
     if (parseInt(summary.total_positions) === 0) {
+      console.log(`🔄 [${requestId}] No portfolio positions found in database - attempting API fallback`);
+      
       try {
+        console.log(`🔑 [${requestId}] Retrieving user API credentials for Alpaca`);
+        const credentialsStart = Date.now();
         const credentials = await getUserApiKey(userId, 'alpaca');
+        const credentialsDuration = Date.now() - credentialsStart;
+        
         if (credentials) {
-          console.log('🔄 No portfolio data in database, attempting to fetch from Alpaca API');
+          console.log(`✅ [${requestId}] API credentials retrieved in ${credentialsDuration}ms`, {
+            provider: 'alpaca',
+            isSandbox: credentials.isSandbox,
+            keyLength: credentials.apiKey ? credentials.apiKey.length : 0,
+            secretLength: credentials.apiSecret ? credentials.apiSecret.length : 0
+          });
+          
+          console.log(`📡 [${requestId}] Initializing Alpaca API service`);
+          const alpacaStart = Date.now();
           const alpaca = new AlpacaService(
             credentials.apiKey,
             credentials.apiSecret,
             credentials.isSandbox
           );
           
+          console.log(`📊 [${requestId}] Fetching account data from Alpaca API`);
           const account = await alpaca.getAccount();
+          const alpacaDuration = Date.now() - alpacaStart;
+          
           if (account) {
+            console.log(`✅ [${requestId}] Alpaca account data retrieved in ${alpacaDuration}ms:`, {
+              portfolioValue: account.portfolioValue,
+              equity: account.equity,
+              buyingPower: account.buyingPower,
+              accountStatus: account.status,
+              daytradeCount: account.daytradeCount
+            });
+            
             summary.total_market_value = account.portfolioValue || 0;
             summary.total_equity = account.equity || 0;
             metadata.account_type = credentials.isSandbox ? 'paper' : 'live';
             metadata.last_sync = new Date().toISOString();
+            
+            console.log(`✅ [${requestId}] Portfolio data updated from Alpaca API:`, {
+              totalMarketValue: summary.total_market_value,
+              totalEquity: summary.total_equity,
+              accountType: metadata.account_type,
+              lastSync: metadata.last_sync
+            });
+          } else {
+            console.warn(`⚠️ [${requestId}] Alpaca API returned empty account data`);
           }
+        } else {
+          console.warn(`⚠️ [${requestId}] No Alpaca API credentials found for user - cannot fetch live data`, {
+            impact: 'Portfolio will show default/empty values',
+            recommendation: 'User needs to configure Alpaca API keys in settings'
+          });
         }
       } catch (apiError) {
-        console.warn('⚠️ Failed to fetch from broker API:', apiError.message);
+        const apiErrorDuration = Date.now() - credentialsStart || 0;
+        console.error(`❌ [${requestId}] Alpaca API fallback FAILED after ${apiErrorDuration}ms:`, {
+          error: apiError.message,
+          errorStack: apiError.stack,
+          errorCode: apiError.code,
+          impact: 'Portfolio will show database values or defaults',
+          recommendation: 'Check API credentials and Alpaca service status'
+        });
         // Continue with existing values
       }
+    } else {
+      console.log(`✅ [${requestId}] Portfolio data available from database - skipping API fallback`, {
+        totalPositions: summary.total_positions,
+        dataSource: 'database'
+      });
     }
 
-    res.json({
-      success: true,
-      data: {
-        user_id: userId,
-        portfolio_summary: {
-          total_positions: parseInt(summary.total_positions) || 0,
-          total_market_value: parseFloat(summary.total_market_value) || 0,
-          total_unrealized_pl: parseFloat(summary.total_unrealized_pl) || 0,
-          avg_unrealized_plpc: parseFloat(summary.avg_unrealized_plpc) || 0,
-          total_equity: parseFloat(metadata.total_equity) || parseFloat(summary.total_market_value) || 0
-        },
-        account_info: {
-          account_type: metadata.account_type,
-          last_sync: metadata.last_sync,
-          is_connected: metadata.account_type !== 'not_connected'
-        },
-        database_status: {
-          tables_available: tableDeps.hasRequiredTables,
-          missing_tables: tableDeps.missingRequired,
-          data_source: tableDeps.hasRequiredTables ? 'database' : 'api_fallback'
-        },
-        available_endpoints: [
-          '/portfolio/holdings - Portfolio holdings data',
-          '/portfolio/performance - Performance metrics and charts',
-          '/portfolio/analytics - Advanced portfolio analytics',
-          '/portfolio/allocations - Asset allocation breakdown',
-          '/portfolio/import - Import portfolio data from brokers'
-        ],
+    // Prepare final response with comprehensive logging
+    const totalDuration = Date.now() - requestStart;
+    const responseData = {
+      user_id: userId,
+      portfolio_summary: {
+        total_positions: parseInt(summary.total_positions) || 0,
+        total_market_value: parseFloat(summary.total_market_value) || 0,
+        total_unrealized_pl: parseFloat(summary.total_unrealized_pl) || 0,
+        avg_unrealized_plpc: parseFloat(summary.avg_unrealized_plpc) || 0,
+        total_equity: parseFloat(metadata.total_equity) || parseFloat(summary.total_market_value) || 0
+      },
+      account_info: {
+        account_type: metadata.account_type,
+        last_sync: metadata.last_sync,
+        is_connected: metadata.account_type !== 'not_connected'
+      },
+      database_status: {
+        tables_available: tableDeps.hasRequiredTables,
+        missing_tables: tableDeps.missingRequired,
+        available_tables: tableDeps.availableRequired,
+        data_source: tableDeps.hasRequiredTables ? 'database' : 'api_fallback',
+        check_duration_ms: tableDeps.checkDuration
+      },
+      available_endpoints: [
+        '/portfolio/holdings - Portfolio holdings data',
+        '/portfolio/performance - Performance metrics and charts',
+        '/portfolio/analytics - Advanced portfolio analytics',
+        '/portfolio/allocations - Asset allocation breakdown',
+        '/portfolio/import - Import portfolio data from brokers'
+      ],
+      request_info: {
+        request_id: requestId,
+        total_duration_ms: totalDuration,
         timestamp: new Date().toISOString()
       }
+    };
+
+    console.log(`✅ [${requestId}] Portfolio overview completed successfully in ${totalDuration}ms`, {
+      summary: {
+        totalPositions: responseData.portfolio_summary.total_positions,
+        totalMarketValue: responseData.portfolio_summary.total_market_value,
+        accountType: responseData.account_info.account_type,
+        dataSource: responseData.database_status.data_source,
+        isConnected: responseData.account_info.is_connected
+      },
+      performance: {
+        totalDuration: `${totalDuration}ms`,
+        tableCheckDuration: `${tableDeps.checkDuration}ms`
+      },
+      status: 'SUCCESS'
     });
+
+    res.success(responseData, {
+      requestId,
+      duration: `${totalDuration}ms`
+    });
+    
   } catch (error) {
-    console.error('❌ Portfolio overview error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to fetch portfolio overview',
-      details: error.message
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] Portfolio overview FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorStack: error.stack,
+      errorCode: error.code,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      requestDuration: `${errorDuration}ms`,
+      impact: 'Portfolio overview request failed completely',
+      recommendation: 'Check logs for specific failure point'
+    });
+    
+    res.serverError('Failed to fetch portfolio overview', {
+      requestId,
+      duration: `${errorDuration}ms`,
+      originalError: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -242,9 +543,10 @@ async function fetchTDAmeritradePortfolio(apiKey, isSandbox) {
   };
 }
 
-// Store portfolio data in database with table dependency checking
+// Store portfolio data in database with transaction for data integrity
 async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) {
-  console.log(`💾 Storing portfolio data for user ${userId}`);
+  console.log(`💾 Storing portfolio data with transaction for data integrity`);
+  // Security: Don't log user IDs in portfolio operations
   
   try {
     // Check if required tables exist before attempting to store data
@@ -255,86 +557,128 @@ async function storePortfolioData(userId, apiKeyId, portfolioData, accountType) 
       throw new Error(`Required database tables not available: ${tableDeps.missingRequired.join(', ')}`);
     }
     
-    // Clear existing portfolio data for this user and API key
-    await safeQuery(`
-      DELETE FROM portfolio_holdings 
-      WHERE user_id = $1 AND api_key_id = $2
-    `, [userId, apiKeyId], ['portfolio_holdings']);
-    
-    // Insert new portfolio holdings
-    for (const position of portfolioData.positions) {
-      await safeQuery(`
-        INSERT INTO portfolio_holdings (
-          user_id, api_key_id, symbol, quantity, avg_cost, 
-          current_price, market_value, unrealized_pl, unrealized_plpc, 
-          side, account_type, broker, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+    // Execute all portfolio operations in a single transaction
+    await transaction(async (client) => {
+      console.log('🔄 Starting portfolio data transaction');
+      
+      // Clear existing portfolio data for this user and API key
+      await client.query(`
+        DELETE FROM portfolio_holdings 
+        WHERE user_id = $1 AND api_key_id = $2
+      `, [userId, apiKeyId]);
+      
+      console.log(`🗑️ Cleared existing portfolio holdings`);
+      
+      // Insert new portfolio holdings in efficient batch
+      if (portfolioData.positions.length > 0) {
+        const batchSize = 100; // Process in chunks to avoid memory issues
+        for (let i = 0; i < portfolioData.positions.length; i += batchSize) {
+          const batch = portfolioData.positions.slice(i, i + batchSize);
+          
+          // Build VALUES clause for batch insert
+          const values = [];
+          const params = [];
+          let paramIndex = 1;
+          
+          batch.forEach(position => {
+            values.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, NOW(), NOW())`);
+            params.push(
+              userId,
+              apiKeyId,
+              position.symbol,
+              position.quantity,
+              position.avgCost || position.averageEntryPrice,
+              position.currentPrice,
+              position.marketValue || (position.quantity * position.currentPrice),
+              position.unrealizedPL || ((position.currentPrice - (position.avgCost || position.averageEntryPrice)) * position.quantity),
+              position.unrealizedPLPercent || (((position.currentPrice - (position.avgCost || position.averageEntryPrice)) / (position.avgCost || position.averageEntryPrice)) * 100),
+              position.side || 'long',
+              accountType,
+              'alpaca'
+            );
+          });
+          
+          await client.query(`
+            INSERT INTO portfolio_holdings (
+              user_id, api_key_id, symbol, quantity, avg_cost, 
+              current_price, market_value, unrealized_pl, unrealized_plpc, 
+              side, account_type, broker, created_at, updated_at
+            ) VALUES ${values.join(', ')}
+          `, params);
+          
+          console.log(`📈 Inserted batch ${Math.floor(i/batchSize) + 1}: ${batch.length} holdings`);
+        }
+      }
+      console.log(`📈 Inserted ${portfolioData.positions.length} portfolio holdings`);
+      
+      // Update portfolio metadata
+      await client.query(`
+        INSERT INTO portfolio_metadata (
+          user_id, api_key_id, total_equity, total_market_value, 
+          total_unrealized_pl, total_unrealized_plpc, account_type, 
+          broker, last_sync, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
+        ON CONFLICT (user_id, api_key_id) DO UPDATE SET
+          total_equity = EXCLUDED.total_equity,
+          total_market_value = EXCLUDED.total_market_value,
+          total_unrealized_pl = EXCLUDED.total_unrealized_pl,
+          total_unrealized_plpc = EXCLUDED.total_unrealized_plpc,
+          account_type = EXCLUDED.account_type,
+          broker = EXCLUDED.broker,
+          last_sync = NOW(),
+          updated_at = NOW()
       `, [
         userId,
         apiKeyId,
-        position.symbol,
-        position.quantity,
-        position.avgCost || position.averageEntryPrice,
-        position.currentPrice,
-        position.marketValue || (position.quantity * position.currentPrice),
-        position.unrealizedPL || ((position.currentPrice - (position.avgCost || position.averageEntryPrice)) * position.quantity),
-        position.unrealizedPLPercent || (((position.currentPrice - (position.avgCost || position.averageEntryPrice)) / (position.avgCost || position.averageEntryPrice)) * 100),
-        position.side || 'long',
+        portfolioData.totalValue,
+        portfolioData.totalValue,
+        portfolioData.totalPnL,
+        portfolioData.totalPnLPercent,
         accountType,
         'alpaca'
-      ], ['portfolio_holdings']);
-    }
+      ]);
+      
+      console.log(`📊 Updated portfolio metadata`);
+      return { success: true, positions: portfolioData.positions.length };
+    });
     
-    // Update portfolio metadata
-    await safeQuery(`
-      INSERT INTO portfolio_metadata (
-        user_id, api_key_id, total_equity, total_market_value, 
-        total_unrealized_pl, total_unrealized_plpc, account_type, 
-        broker, last_sync, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
-      ON CONFLICT (user_id, api_key_id) DO UPDATE SET
-        total_equity = EXCLUDED.total_equity,
-        total_market_value = EXCLUDED.total_market_value,
-        total_unrealized_pl = EXCLUDED.total_unrealized_pl,
-        total_unrealized_plpc = EXCLUDED.total_unrealized_plpc,
-        account_type = EXCLUDED.account_type,
-        broker = EXCLUDED.broker,
-        last_sync = NOW(),
-        updated_at = NOW()
-    `, [
-      userId,
-      apiKeyId,
-      portfolioData.totalValue,
-      portfolioData.totalValue,
-      portfolioData.totalPnL,
-      portfolioData.totalPnLPercent,
-      accountType,
-      'alpaca'
-    ], ['portfolio_metadata']);
-    
-    console.log(`✅ Portfolio data stored successfully`);
+    console.log(`✅ Portfolio data transaction completed successfully`);
   } catch (error) {
-    console.error('❌ Failed to store portfolio data:', error);
+    console.error('❌ Failed to store portfolio data:', error.message);
     throw error;
   }
 }
 
-// Portfolio holdings endpoint - uses real data from broker APIs
-router.get('/holdings', async (req, res) => {
+// Portfolio holdings endpoint - uses real data from broker APIs with comprehensive API key error handling
+router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.holdings), async (req, res) => {
+  const requestId = crypto.randomUUID().split('-')[0];
+  const requestStart = Date.now();
+  
   try {
-    const { accountType = 'paper' } = req.query;
+    // Security: Validate and sanitize query parameters
+    const rawAccountType = req.query.accountType || 'paper';
+    const allowedAccountTypes = ['paper', 'live'];
+    const accountType = allowedAccountTypes.includes(rawAccountType) ? rawAccountType : 'paper';
+    
     const userId = validateUserAuthentication(req);
     
-    console.log(`🔍 Portfolio holdings endpoint called`);
-    console.log(`👤 User ID: ${userId}`);
-    console.log(`📊 Account type: ${accountType}`);
+    console.log(`🚀 [${requestId}] Portfolio holdings request initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      accountType,
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`📊 [${requestId}] Account type requested: ${accountType}`);
     
     // Check table dependencies first
     const tableDeps = await checkPortfolioTableDependencies();
     
     // Try to get real data from database first, filtered by account type
     try {
-      console.log(`🔍 [HOLDINGS] Looking for stored portfolio data for user ${userId}, account type: ${accountType}`);
+      console.log(`🔍 [HOLDINGS] Looking for stored portfolio data, account type: ${accountType}`);
+      // Security: Don't log user IDs in portfolio operations
       
       if (!tableDeps.hasRequiredTables) {
         console.warn('⚠️ [HOLDINGS] Required portfolio tables missing, skipping database query:', tableDeps.missingRequired);
@@ -343,13 +687,28 @@ router.get('/holdings', async (req, res) => {
       
       // Get user's API keys filtered by account type (sandbox for paper, live for live)
       const isSandbox = accountType === 'paper';
+      const limit = req.query.limit || 100;
+      const offset = req.query.offset || 0;
+      
+      // Get total count for pagination metadata
+      const totalCount = await safeQuery(`
+        SELECT COUNT(*) as total
+        FROM portfolio_holdings ph
+        JOIN user_api_keys uak ON ph.api_key_id = uak.id
+        WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
+      `, [userId, isSandbox], ['portfolio_holdings', 'user_api_keys']);
+      
       const storedHoldings = await safeQuery(`
-        SELECT ph.*, uak.provider, uak.is_sandbox
+        SELECT ph.symbol, ph.quantity, ph.avg_cost, ph.current_price, 
+               ph.market_value, ph.unrealized_pl, ph.unrealized_plpc, 
+               ph.side, ph.account_type, ph.broker, ph.updated_at,
+               uak.provider, uak.is_sandbox
         FROM portfolio_holdings ph
         JOIN user_api_keys uak ON ph.api_key_id = uak.id
         WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
         ORDER BY ph.market_value DESC
-      `, [userId, isSandbox], ['portfolio_holdings', 'user_api_keys']);
+        LIMIT $3 OFFSET $4
+      `, [userId, isSandbox, limit, offset], ['portfolio_holdings', 'user_api_keys']);
       
       if (storedHoldings.rows.length > 0) {
         console.log(`✅ [HOLDINGS] Found ${storedHoldings.rows.length} stored holdings for ${accountType} account`);
@@ -372,44 +731,272 @@ router.get('/holdings', async (req, res) => {
           lastUpdated: h.updated_at
         }));
 
-        return res.json({
-          success: true,
-          data: {
-            holdings: formattedHoldings,
-            summary: {
-              totalValue: totalValue,
-              totalGainLoss: totalGainLoss,
-              totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-              numPositions: holdings.length,
-              accountType: accountType,
-              dataSource: 'database'
-            }
+        const total = parseInt(totalCount.rows[0]?.total || 0);
+        
+        return res.portfolioSuccess({
+          holdings: formattedHoldings,
+          summary: {
+            totalValue: totalValue,
+            totalGainLoss: totalGainLoss,
+            totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+            numPositions: holdings.length,
+            accountType: accountType,
+            dataSource: 'database'
+          },
+          pagination: {
+            total: total,
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            hasMore: (parseInt(offset) + parseInt(limit)) < total
+          }
+        }, accountType, null, { requestId });
+      }
+      
+      // If no stored data, try to get fresh data from broker API with comprehensive error handling
+      console.log(`📡 [${requestId}] No stored data found, attempting to fetch fresh data from broker API`);
+      const credentialsStart = Date.now();
+      
+      let credentials;
+      try {
+        credentials = await getUserApiKey(userId, 'alpaca');
+        const credentialsDuration = Date.now() - credentialsStart;
+        
+        if (!credentials) {
+          console.error(`❌ [${requestId}] No API credentials found after ${credentialsDuration}ms`, {
+            requestedProvider: 'alpaca',
+            accountType,
+            userId: `${userId.substring(0, 8)}...`,
+            impact: 'Portfolio holdings will not be available',
+            recommendation: 'User needs to configure Alpaca API keys in settings'
+          });
+          
+          return res.badRequest('API credentials not configured', {
+            requestId,
+            message: 'Please configure your Alpaca API keys in Settings to view portfolio holdings',
+            errorCode: 'API_CREDENTIALS_MISSING',
+            accountType: accountType,
+            provider: 'alpaca',
+            actions: [
+              'Go to Settings > API Keys',
+              'Add your Alpaca API credentials',
+              'Choose the correct environment (Paper Trading or Live Trading)',
+              'Test the connection to verify your credentials'
+            ]
+          });
+        }
+        
+        console.log(`✅ [${requestId}] API credentials retrieved in ${credentialsDuration}ms`, {
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          keyLength: credentials.apiKey ? credentials.apiKey.length : 0,
+          hasSecret: !!credentials.apiSecret
+        });
+        
+      } catch (credentialsError) {
+        const credentialsDuration = Date.now() - credentialsStart;
+        console.error(`❌ [${requestId}] Failed to retrieve API credentials after ${credentialsDuration}ms:`, {
+          error: credentialsError.message,
+          errorStack: credentialsError.stack,
+          provider: 'alpaca',
+          impact: 'Cannot access portfolio data from broker',
+          recommendation: 'Check API key configuration and database connectivity'
+        });
+        
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to retrieve API credentials',
+          message: 'There was an error accessing your API credentials. Please try again or contact support.',
+          error_code: 'API_CREDENTIALS_ERROR',
+          details: process.env.NODE_ENV === 'development' ? credentialsError.message : 'Internal error',
+          request_info: {
+            request_id: requestId,
+            error_duration_ms: credentialsDuration,
+            timestamp: new Date().toISOString()
           }
         });
       }
       
-      // If no stored data, try to get fresh data from broker API
-      console.log(`📡 [HOLDINGS] No stored data found, fetching fresh data from broker API`);
-      const credentials = await getUserApiKey(userId, 'alpaca');
-      
-      if (!credentials) {
-        console.log(`❌ [HOLDINGS] No API credentials found for user ${userId} and broker alpaca`);
-        return sendApiKeyError(res, 'alpaca', userId, new Error('No API credentials found'));
-      }
-      
-      console.log(`🔑 [HOLDINGS] Found credentials: isSandbox=${credentials.isSandbox}, requested=${isSandbox}`);
+      console.log(`🔑 [HOLDINGS] Found credentials: account_type=${credentials.isSandbox ? 'sandbox' : 'live'}, requested=${isSandbox ? 'sandbox' : 'live'}`);
       
       if (credentials.isSandbox === isSandbox) {
-        console.log(`🔑 [HOLDINGS] Using API key: alpaca (${credentials.isSandbox ? 'sandbox' : 'live'})`);
-        const alpaca = new AlpacaService(
-          credentials.apiKey,
-          credentials.apiSecret,
-          credentials.isSandbox
-        );
-
-        const positions = await alpaca.getPositions();
+        console.log(`🔑 [${requestId}] Using API key: alpaca (${credentials.isSandbox ? 'sandbox' : 'live'})`);
         
-        if (positions.length > 0) {
+        // Initialize Alpaca service with comprehensive error handling
+        console.log(`🏭 [${requestId}] Initializing Alpaca service`);
+        const serviceInitStart = Date.now();
+        let alpaca;
+        
+        try {
+          alpaca = new AlpacaService(
+            credentials.apiKey,
+            credentials.apiSecret,
+            credentials.isSandbox
+          );
+          const serviceInitDuration = Date.now() - serviceInitStart;
+          
+          console.log(`✅ [${requestId}] Alpaca service initialized in ${serviceInitDuration}ms`, {
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            hasApiKey: !!credentials.apiKey,
+            hasSecret: !!credentials.apiSecret
+          });
+          
+        } catch (serviceError) {
+          const serviceInitDuration = Date.now() - serviceInitStart;
+          console.error(`❌ [${requestId}] Alpaca service initialization FAILED after ${serviceInitDuration}ms:`, {
+            error: serviceError.message,
+            errorStack: serviceError.stack,
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            impact: 'Cannot access live portfolio data from broker',
+            recommendation: 'Check API key validity and Alpaca service status'
+          });
+          
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to initialize trading service',
+            message: 'Unable to connect to your broker. Please verify your API credentials or try again later.',
+            error_code: 'TRADING_SERVICE_INIT_ERROR',
+            details: process.env.NODE_ENV === 'development' ? serviceError.message : 'Service initialization failed',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            actions: [
+              'Verify your API credentials are correct',
+              'Check if your API keys have sufficient permissions',
+              'Try switching between Paper Trading and Live Trading modes',
+              'Contact broker support if the issue persists'
+            ],
+            request_info: {
+              request_id: requestId,
+              error_duration_ms: serviceInitDuration,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+        
+        // Fetch positions with comprehensive error handling
+        console.log(`📊 [${requestId}] Fetching portfolio positions from Alpaca API`);
+        const positionsStart = Date.now();
+        let positions;
+        
+        try {
+          positions = await Promise.race([
+            alpaca.getPositions(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Positions fetch timeout after 15 seconds')), 15000)
+            )
+          ]);
+          
+          const positionsDuration = Date.now() - positionsStart;
+          console.log(`✅ [${requestId}] Portfolio positions fetched in ${positionsDuration}ms`, {
+            positionCount: positions?.length || 0,
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            dataSource: 'alpaca_api'
+          });
+          
+        } catch (positionsError) {
+          const positionsDuration = Date.now() - positionsStart;
+          console.error(`❌ [${requestId}] Failed to fetch positions after ${positionsDuration}ms:`, {
+            error: positionsError.message,
+            errorStack: positionsError.stack,
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            errorCode: positionsError.code,
+            statusCode: positionsError.status,
+            impact: 'Live portfolio data unavailable',
+            recommendation: 'Check API key permissions and Alpaca service status'
+          });
+          
+          // Check for specific API errors
+          if (positionsError.message?.includes('timeout')) {
+            return res.status(504).json({
+              success: false,
+              error: 'Broker API timeout',
+              message: 'The broker API is taking too long to respond. Please try again.',
+              error_code: 'BROKER_API_TIMEOUT',
+              provider: 'alpaca',
+              environment: credentials.isSandbox ? 'sandbox' : 'live',
+              actions: [
+                'Try refreshing the page',
+                'Check your internet connection',
+                'Try again in a few minutes',
+                'Contact support if the issue persists'
+              ],
+              request_info: {
+                request_id: requestId,
+                timeout_duration_ms: positionsDuration,
+                timestamp: new Date().toISOString()
+              }
+            });
+          }
+          
+          if (positionsError.status === 401 || positionsError.message?.includes('unauthorized')) {
+            return res.status(401).json({
+              success: false,
+              error: 'Invalid API credentials',
+              message: 'Your API credentials appear to be invalid or expired. Please update them in Settings.',
+              error_code: 'BROKER_API_UNAUTHORIZED',
+              provider: 'alpaca',
+              environment: credentials.isSandbox ? 'sandbox' : 'live',
+              actions: [
+                'Go to Settings > API Keys',
+                'Update your Alpaca API credentials',
+                'Ensure you\'re using the correct environment (Paper vs Live)',
+                'Verify your API keys have trading permissions'
+              ],
+              request_info: {
+                request_id: requestId,
+                error_duration_ms: positionsDuration,
+                timestamp: new Date().toISOString()
+              }
+            });
+          }
+          
+          if (positionsError.status === 403 || positionsError.message?.includes('forbidden')) {
+            return res.status(403).json({
+              success: false,
+              error: 'Insufficient API permissions',
+              message: 'Your API credentials do not have permission to access portfolio data.',
+              error_code: 'BROKER_API_FORBIDDEN',
+              provider: 'alpaca',
+              environment: credentials.isSandbox ? 'sandbox' : 'live',
+              actions: [
+                'Check your API key permissions in your broker account',
+                'Ensure your API keys have portfolio read access',
+                'Contact your broker to verify account permissions',
+                'Try regenerating your API keys'
+              ],
+              request_info: {
+                request_id: requestId,
+                error_duration_ms: positionsDuration,
+                timestamp: new Date().toISOString()
+              }
+            });
+          }
+          
+          // Generic API error
+          return res.status(502).json({
+            success: false,
+            error: 'Broker API error',
+            message: 'Unable to retrieve portfolio data from your broker. Please try again later.',
+            error_code: 'BROKER_API_ERROR',
+            details: process.env.NODE_ENV === 'development' ? positionsError.message : 'External service error',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            actions: [
+              'Try refreshing the page',
+              'Check broker service status',
+              'Verify your API credentials',
+              'Contact support if the issue persists'
+            ],
+            request_info: {
+              request_id: requestId,
+              error_duration_ms: positionsDuration,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+        
+        // Process positions data with validation
+        if (positions && positions.length > 0) {
+          console.log(`📈 [${requestId}] Processing ${positions.length} portfolio positions`);
           const totalValue = positions.reduce((sum, p) => sum + p.marketValue, 0);
           const totalGainLoss = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
 
@@ -426,6 +1013,15 @@ router.get('/holdings', async (req, res) => {
             allocation: totalValue > 0 ? (p.marketValue / totalValue) * 100 : 0
           }));
 
+          const totalDuration = Date.now() - requestStart;
+          console.log(`✅ [${requestId}] Portfolio holdings successfully retrieved and processed in ${totalDuration}ms`, {
+            positionCount: positions.length,
+            totalValue,
+            totalGainLoss,
+            dataSource: 'alpaca_api',
+            environment: credentials.isSandbox ? 'sandbox' : 'live'
+          });
+          
           return res.json({
             success: true,
             data: {
@@ -441,13 +1037,81 @@ router.get('/holdings', async (req, res) => {
             timestamp: new Date().toISOString(),
             dataSource: 'alpaca_api',
             provider: 'alpaca',
-            environment: credentials.isSandbox ? 'sandbox' : 'live'
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            request_info: {
+              request_id: requestId,
+              total_duration_ms: totalDuration
+            }
+          });
+        } else {
+          const totalDuration = Date.now() - requestStart;
+          console.log(`📊 [${requestId}] No positions found in portfolio after ${totalDuration}ms`, {
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            dataSource: 'alpaca_api',
+            positionCount: 0
+          });
+          
+          // Return empty portfolio with proper structure
+          return res.json({
+            success: true,
+            data: {
+              holdings: [],
+              summary: {
+                totalValue: 0,
+                totalGainLoss: 0,
+                totalGainLossPercent: 0,
+                numPositions: 0,
+                accountType: credentials.isSandbox ? 'paper' : 'live'
+              }
+            },
+            message: 'No positions found in your portfolio',
+            timestamp: new Date().toISOString(),
+            dataSource: 'alpaca_api',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            request_info: {
+              request_id: requestId,
+              total_duration_ms: totalDuration
+            }
           });
         }
+      } else {
+        console.warn(`⚠️ [${requestId}] Account type mismatch`, {
+          requestedType: isSandbox ? 'sandbox' : 'live',
+          availableType: credentials.isSandbox ? 'sandbox' : 'live',
+          impact: 'Cannot use API credentials for requested account type'
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'Account type mismatch',
+          message: `Your configured API credentials are for ${credentials.isSandbox ? 'Paper Trading' : 'Live Trading'}, but you requested ${isSandbox ? 'Paper Trading' : 'Live Trading'} data.`,
+          error_code: 'ACCOUNT_TYPE_MISMATCH',
+          configured_type: credentials.isSandbox ? 'paper' : 'live',
+          requested_type: isSandbox ? 'paper' : 'live',
+          actions: [
+            'Go to Settings > API Keys',
+            `Configure API credentials for ${isSandbox ? 'Paper Trading' : 'Live Trading'}`,
+            `Or switch to ${credentials.isSandbox ? 'Paper Trading' : 'Live Trading'} mode`,
+            'Verify you have the correct API keys for the desired environment'
+          ],
+          request_info: {
+            request_id: requestId,
+            timestamp: new Date().toISOString()
+          }
+        });
       }
     } catch (error) {
-      console.error('Alpaca API error:', error);
+      const errorDuration = Date.now() - requestStart;
+      console.error(`❌ [${requestId}] Unexpected error in Alpaca API integration after ${errorDuration}ms:`, {
+        error: error.message,
+        errorStack: error.stack,
+        impact: 'Portfolio data retrieval failed unexpectedly',
+        recommendation: 'Check application logs and Alpaca service status'
+      });
+      
       // Fall through to database or mock data
+      console.log(`🔄 [${requestId}] Falling back to database query due to API error`);
     }
 
     // Fallback to database query (if tables are available and no API data was fetched)
@@ -520,15 +1184,13 @@ router.get('/holdings', async (req, res) => {
               allocation: totalValue > 0 ? (parseFloat(h.market_value) / totalValue) * 100 : 0
             }));
 
-            // Calculate sector allocation from real holdings data
-            const sectorMap = {};
-            formattedHoldings.forEach(holding => {
+            // Calculate sector allocation from real holdings data using reduce for better performance
+            const sectorMap = formattedHoldings.reduce((acc, holding) => {
               const sector = holding.sector || 'Other';
-              if (!sectorMap[sector]) {
-                sectorMap[sector] = { value: 0, allocation: 0 };
-              }
-              sectorMap[sector].value += holding.marketValue;
-            });
+              acc[sector] = acc[sector] || { value: 0, allocation: 0 };
+              acc[sector].value += holding.marketValue;
+              return acc;
+            }, {});
 
             const sectorAllocation = Object.entries(sectorMap).map(([sector, data]) => ({
               sector,
@@ -558,7 +1220,6 @@ router.get('/holdings', async (req, res) => {
               dataSource: 'database'
             });
           }
-        }
       } catch (error) {
         console.error('Database query failed:', error);
         // Fall through to mock data
@@ -1205,7 +1866,7 @@ router.post('/trigger-data-refresh', async (req, res) => {
 });
 
 // Portfolio performance endpoint - WITH DETAILED DIAGNOSTIC LOGGING
-router.get('/performance', async (req, res) => {
+router.get('/performance', createValidationMiddleware(portfolioValidationSchemas.performance), async (req, res) => {
   const requestId = res.locals.requestId || 'unknown';
   const startTime = Date.now();
   
@@ -1321,24 +1982,55 @@ router.get('/performance', async (req, res) => {
         
         if (performanceData && performanceData.length > 0) {
             
+            // Calculate advanced portfolio analytics
+            const analytics = portfolioAnalytics.calculatePortfolioAnalytics(performanceData);
+            
+            // Get current portfolio holdings for sector analysis
+            let sectorAnalysis = {};
+            try {
+              const holdingsQuery = `
+                SELECT symbol, market_value, sector, quantity
+                FROM portfolio_holdings 
+                WHERE user_id = $1 AND quantity > 0
+              `;
+              const holdingsResult = await query(holdingsQuery, [userId], 5000);
+              
+              if (holdingsResult.rows.length > 0) {
+                sectorAnalysis = portfolioAnalytics.calculateSectorAnalysis(holdingsResult.rows);
+              }
+            } catch (error) {
+              if (shouldLog('WARN')) console.warn(`⚠️ [${requestId}] Failed to get sector analysis:`, error.message);
+            }
+            
             const metrics = {
-              totalReturn: performanceData[0]?.totalPnL || 0,
-              totalReturnPercent: 0,
-              annualizedReturn: 12.0,
-              volatility: 16.5,
-              sharpeRatio: 0.85,
-              maxDrawdown: -8.5,
-              beta: 1.05,
-              alpha: 2.0,
-              informationRatio: 0.4,
-              calmarRatio: 1.3,
-              sortinoRatio: 1.2
+              totalReturn: analytics.totalReturn,
+              totalReturnPercent: analytics.totalReturn,
+              annualizedReturn: analytics.annualizedReturn,
+              volatility: analytics.volatility,
+              sharpeRatio: analytics.sharpeRatio,
+              maxDrawdown: analytics.maxDrawdown,
+              beta: analytics.beta,
+              alpha: analytics.annualizedReturn - (analytics.beta * 2.0), // Assuming 2% market return
+              informationRatio: analytics.informationRatio,
+              calmarRatio: analytics.annualizedReturn !== 0 ? analytics.annualizedReturn / Math.abs(analytics.maxDrawdown) : 0,
+              sortinoRatio: analytics.sharpeRatio * 1.4, // Approximation
+              var95: analytics.var95,
+              winRate: analytics.winRate,
+              averageWin: analytics.averageWin,
+              averageLoss: analytics.averageLoss,
+              profitFactor: analytics.profitFactor,
+              diversificationScore: sectorAnalysis.diversificationScore || 0,
+              concentrationRisk: sectorAnalysis.concentrationRisk || 0
             };
             
-            console.log(`✅ [${requestId}] Returning real performance data after ${Date.now() - startTime}ms`);
+            if (shouldLog('INFO')) console.log(`✅ [${requestId}] Returning advanced analytics after ${Date.now() - startTime}ms`);
             return res.json({
               success: true,
-              data: { performance: performanceData, metrics: metrics },
+              data: { 
+                performance: performanceData, 
+                metrics: metrics,
+                sectorAnalysis: sectorAnalysis.sectorAllocation || []
+              },
               timestamp: new Date().toISOString(),
               dataSource: 'database',
               duration: Date.now() - startTime
@@ -1517,7 +2209,7 @@ router.post('/import/:broker', async (req, res) => {
     const { accountType = 'paper', keyId } = req.query; // accountType for logging, keyId for specific API key selection
     const userId = req.user?.sub;
     
-    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, requested account: ${accountType}, keyId: ${keyId || 'auto-select'}, user: ${userId}`);
+    console.log(`🔄 [IMPORT START] Portfolio import requested for broker: ${broker}, account: ${accountType}, keyId: ${keyId || 'auto-select'}`);
     console.log(`🔄 [IMPORT] Request headers:`, Object.keys(req.headers));
     console.log(`🔄 [IMPORT] Memory usage:`, process.memoryUsage());
     
@@ -1567,7 +2259,7 @@ router.post('/import/:broker', async (req, res) => {
         // Enhanced debug: Check if user has any API keys at all
         try {
           const debugResult = await query(`SELECT id, provider, user_id, is_active, created_at FROM user_api_keys WHERE user_id = $1`, [userId]);
-          console.log(`🔍 [IMPORT DEBUG] User ${userId} has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `ID:${k.id} ${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
+          console.log(`🔍 [IMPORT DEBUG] User has ${debugResult.rows.length} API keys:`, debugResult.rows.map(k => `ID:${k.id} ${k.provider}(${k.is_active ? 'active' : 'inactive'})`));
           
           // If specific keyId requested, check if it exists
           if (keyId) {
@@ -1585,7 +2277,7 @@ router.post('/import/:broker', async (req, res) => {
           
           // Only use API keys that belong to the exact authenticated user ID
           if (debugResult.rows.length === 0) {
-            console.log(`🔍 [IMPORT DEBUG] No API keys found for user ${userId}. User must add API key in Settings.`);
+            console.log(`🔍 [IMPORT DEBUG] No API keys found for user. User must add API key in Settings.`);
             
             // Check if there are ANY API keys in the system
             const totalKeysResult = await query(`SELECT COUNT(*) as total FROM user_api_keys`);
@@ -1808,13 +2500,30 @@ router.post('/import/:broker', async (req, res) => {
       console.log(`✅ Portfolio data stored successfully`);
       
       // Also store individual positions
-      for (const position of portfolioData.positions) {
-        try {
+      // Batch UPSERT operations for better performance
+      if (portfolioData.positions.length > 0) {
+        const batchSize = 100;
+        for (let i = 0; i < portfolioData.positions.length; i += batchSize) {
+          const batch = portfolioData.positions.slice(i, i + batchSize);
+          
+          const values = [];
+          const params = [];
+          let paramIndex = 1;
+          
+          batch.forEach(position => {
+            values.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, NOW())`);
+            params.push(
+              userId, credentials.id, position.symbol, position.quantity,
+              position.averageEntryPrice, position.currentPrice, position.marketValue,
+              position.unrealizedPL, position.unrealizedPLPercent, position.side
+            );
+          });
+          
           await query(`
             INSERT INTO portfolio_holdings (
               user_id, api_key_id, symbol, quantity, avg_cost, current_price, 
               market_value, unrealized_pl, unrealized_plpc, side, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ) VALUES ${values.join(', ')}
             ON CONFLICT (user_id, api_key_id, symbol) DO UPDATE SET
               quantity = EXCLUDED.quantity,
               avg_cost = EXCLUDED.avg_cost,
@@ -1824,15 +2533,14 @@ router.post('/import/:broker', async (req, res) => {
               unrealized_plpc = EXCLUDED.unrealized_plpc,
               side = EXCLUDED.side,
               updated_at = NOW()
-          `, [
-            userId, credentials.id, position.symbol, position.quantity,
-            position.averageEntryPrice, position.currentPrice, position.marketValue,
-            position.unrealizedPL, position.unrealizedPLPercent, position.side
-          ]);
-        } catch (posError) {
-          console.warn(`Failed to store position ${position.symbol}:`, posError.message);
+          `, params);
+          
+          console.log(`📈 Processed batch ${Math.floor(i/batchSize) + 1}: ${batch.length} positions`);
         }
       }
+      
+      // Individual processing replaced with batch processing above
+      console.log(`✅ Completed batch UPSERT for ${portfolioData.positions.length} positions`);
       
     } catch (error) {
       console.error('❌ Failed to store portfolio data:', error);
@@ -2580,6 +3288,311 @@ router.get('/risk-analysis', async (req, res) => {
       error: 'Failed to get risk analysis',
       message: error.message,
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Portfolio data synchronization endpoint
+router.post('/sync', createValidationMiddleware({
+  force: {
+    type: 'boolean',
+    sanitizer: (value) => sanitizers.boolean(value, { defaultValue: false }),
+    validator: (value) => typeof value === 'boolean',
+    errorMessage: 'force must be true or false'
+  }
+}), async (req, res) => {
+  const requestId = crypto.randomUUID().split('-')[0];
+  const requestStart = Date.now();
+  
+  try {
+    const userId = validateUserAuthentication(req);
+    const { force = false } = req.body;
+    
+    console.log(`🔄 [${requestId}] Portfolio sync request initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      force,
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    // Import sync service
+    const { PortfolioSyncService } = require('../utils/portfolioSyncService');
+    const apiKeyService = require('../utils/apiKeyService');
+    
+    // Initialize sync service
+    const syncService = new PortfolioSyncService({
+      conflictResolutionStrategy: 'broker_priority',
+      enablePerformanceTracking: true
+    });
+
+    // Check if sync is already in progress
+    const currentSyncStatus = syncService.getSyncStatus(userId);
+    if (currentSyncStatus && currentSyncStatus.status === 'in_progress' && !force) {
+      return res.badRequest('Sync already in progress', {
+        requestId,
+        currentSyncId: currentSyncStatus.syncId,
+        stage: currentSyncStatus.stage,
+        startTime: currentSyncStatus.startTime
+      });
+    }
+
+    // Execute synchronization
+    const syncResult = await syncService.syncUserPortfolio(userId, apiKeyService, {
+      force,
+      requestId
+    });
+
+    const totalDuration = Date.now() - requestStart;
+    
+    console.log(`✅ [${requestId}] Portfolio sync completed successfully in ${totalDuration}ms`, {
+      syncId: syncResult.syncId,
+      recordsProcessed: syncResult.result.summary.totalRecordsProcessed,
+      conflictsResolved: syncResult.result.summary.totalConflictsResolved
+    });
+
+    res.success({
+      syncId: syncResult.syncId,
+      duration: totalDuration,
+      summary: syncResult.result.summary,
+      stages: Object.keys(syncResult.result.stages).map(stage => ({
+        stage,
+        success: syncResult.result.stages[stage].success,
+        recordsProcessed: syncResult.result.stages[stage].recordsProcessed || 0,
+        conflictsResolved: syncResult.result.stages[stage].conflictsResolved || 0
+      }))
+    }, {
+      requestId,
+      syncDuration: `${syncResult.duration}ms`
+    });
+    
+  } catch (error) {
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] Portfolio sync FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorStack: error.stack,
+      userId: req.user?.sub ? `${req.user.sub.substring(0, 8)}...` : 'undefined',
+      impact: 'Portfolio synchronization failed'
+    });
+    
+    res.serverError('Portfolio synchronization failed', {
+      requestId,
+      duration: `${errorDuration}ms`,
+      originalError: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Portfolio sync status endpoint
+router.get('/sync/status', async (req, res) => {
+  const requestId = crypto.randomUUID().split('-')[0];
+  
+  try {
+    const userId = validateUserAuthentication(req);
+    
+    // Import sync service
+    const { PortfolioSyncService } = require('../utils/portfolioSyncService');
+    
+    // Create temporary instance to get status
+    const syncService = new PortfolioSyncService();
+    const syncStatus = syncService.getSyncStatus(userId);
+    const serviceMetrics = syncService.getMetrics();
+    
+    res.success({
+      userSync: syncStatus || {
+        status: 'none',
+        message: 'No sync has been performed for this user'
+      },
+      serviceMetrics
+    }, {
+      requestId
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio sync status request failed:`, {
+      error: error.message,
+      userId: req.user?.sub ? `${req.user.sub.substring(0, 8)}...` : 'undefined'
+    });
+    
+    res.serverError('Failed to get sync status', {
+      requestId,
+      originalError: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Advanced Portfolio Analytics endpoint
+router.get('/analytics', createValidationMiddleware(portfolioValidationSchemas.analytics), async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  if (shouldLog('INFO')) console.log(`📊 [${requestId}] Advanced portfolio analytics request`);
+  
+  try {
+    const { period = '1Y', includeBenchmark = false } = req.query;
+    const userId = validateUserAuthentication(req);
+    
+    // Get portfolio holdings
+    const holdingsQuery = `
+      SELECT symbol, market_value, sector, quantity, avg_cost, current_price,
+             unrealized_pl, unrealized_plpc, updated_at
+      FROM portfolio_holdings 
+      WHERE user_id = $1 AND quantity > 0
+      ORDER BY market_value DESC
+    `;
+    
+    const holdingsResult = await query(holdingsQuery, [userId], 8000);
+    
+    if (holdingsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No portfolio holdings found',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const holdings = holdingsResult.rows;
+    
+    // Get historical performance data
+    const performanceQuery = `
+      SELECT 
+        DATE(updated_at) as date,
+        SUM(market_value) as portfolio_value,
+        SUM(unrealized_pl) as total_pnl
+      FROM portfolio_holdings 
+      WHERE user_id = $1 AND quantity > 0
+      GROUP BY DATE(updated_at)
+      ORDER BY DATE(updated_at) DESC
+      LIMIT 252
+    `;
+    
+    const performanceResult = await query(performanceQuery, [userId], 8000);
+    const performanceData = performanceResult.rows.map(row => ({
+      date: row.date,
+      portfolioValue: parseFloat(row.portfolio_value || 0),
+      totalPnL: parseFloat(row.total_pnl || 0)
+    }));
+    
+    // Calculate comprehensive analytics
+    const portfolioAnalyticsResult = portfolioAnalytics.calculatePortfolioAnalytics(performanceData);
+    const sectorAnalysis = portfolioAnalytics.calculateSectorAnalysis(holdings);
+    
+    // Calculate institutional-grade factor analysis
+    const factorAnalysisResult = portfolioFactorAnalysis.performFactorAnalysis(holdings, performanceData);
+    
+    // Calculate position-level risk metrics
+    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+    const positionAnalysis = holdings.map(holding => {
+      const weight = totalValue > 0 ? (parseFloat(holding.market_value) / totalValue) * 100 : 0;
+      const unrealizedReturn = parseFloat(holding.unrealized_plpc || 0);
+      
+      return {
+        symbol: holding.symbol,
+        sector: holding.sector || 'Other',
+        weight: weight,
+        marketValue: parseFloat(holding.market_value || 0),
+        unrealizedReturn: unrealizedReturn,
+        riskContribution: weight * Math.abs(unrealizedReturn) / 100,
+        avgCost: parseFloat(holding.avg_cost || 0),
+        currentPrice: parseFloat(holding.current_price || 0)
+      };
+    });
+    
+    // Calculate risk metrics
+    const riskMetrics = {
+      portfolioVaR: portfolioAnalyticsResult.var95,
+      expectedShortfall: portfolioAnalyticsResult.var95 * 1.3, // Approximation
+      concentrationRisk: sectorAnalysis.concentrationRisk,
+      diversificationBenefit: sectorAnalysis.diversificationScore,
+      maxPositionWeight: Math.max(...positionAnalysis.map(p => p.weight)),
+      activePositions: holdings.length,
+      riskBudgetUtilization: Math.min(100, sectorAnalysis.concentrationRisk * 1.2)
+    };
+    
+    // Performance attribution
+    const performanceAttribution = {
+      sectorContribution: sectorAnalysis.sectorAllocation.map(sector => ({
+        sector: sector.sector,
+        allocation: sector.allocation,
+        contribution: sector.allocation * 0.1 // Simplified calculation
+      })),
+      topContributors: positionAnalysis
+        .filter(p => p.unrealizedReturn > 0)
+        .sort((a, b) => b.unrealizedReturn - a.unrealizedReturn)
+        .slice(0, 5),
+      topDetractors: positionAnalysis
+        .filter(p => p.unrealizedReturn < 0)
+        .sort((a, b) => a.unrealizedReturn - b.unrealizedReturn)
+        .slice(0, 5)
+    };
+    
+    // Rebalancing recommendations
+    const rebalancingRecommendations = [];
+    
+    // Check for overconcentration
+    const overweightPositions = positionAnalysis.filter(p => p.weight > 10);
+    if (overweightPositions.length > 0) {
+      rebalancingRecommendations.push({
+        type: 'REDUCE_CONCENTRATION',
+        priority: 'HIGH',
+        message: `Consider reducing positions over 10% of portfolio`,
+        affectedPositions: overweightPositions.map(p => p.symbol)
+      });
+    }
+    
+    // Check for sector concentration
+    const overweightSectors = sectorAnalysis.sectorAllocation.filter(s => s.allocation > 30);
+    if (overweightSectors.length > 0) {
+      rebalancingRecommendations.push({
+        type: 'SECTOR_DIVERSIFICATION',
+        priority: 'MEDIUM',
+        message: `Consider diversifying across sectors`,
+        affectedSectors: overweightSectors.map(s => s.sector)
+      });
+    }
+    
+    // Check for low diversification
+    if (sectorAnalysis.diversificationScore < 50) {
+      rebalancingRecommendations.push({
+        type: 'INCREASE_DIVERSIFICATION',
+        priority: 'HIGH',
+        message: `Portfolio lacks diversification (score: ${sectorAnalysis.diversificationScore.toFixed(1)})`
+      });
+    }
+    
+    const response = {
+      success: true,
+      data: {
+        analytics: portfolioAnalyticsResult,
+        sectorAnalysis: sectorAnalysis,
+        factorAnalysis: factorAnalysisResult,
+        riskMetrics: riskMetrics,
+        performanceAttribution: performanceAttribution,
+        rebalancingRecommendations: rebalancingRecommendations,
+        positionAnalysis: positionAnalysis.slice(0, 10) // Top 10 positions
+      },
+      metadata: {
+        period: period,
+        includeBenchmark: includeBenchmark,
+        dataPoints: performanceData.length,
+        activePositions: holdings.length,
+        totalValue: totalValue,
+        calculatedAt: new Date().toISOString(),
+        duration: Date.now() - startTime
+      }
+    };
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Advanced analytics completed in ${Date.now() - startTime}ms`);
+    return res.json(response);
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Advanced analytics failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to calculate advanced analytics',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
     });
   }
 });

@@ -118,11 +118,19 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
     is_sandbox BOOLEAN DEFAULT true,
     is_active BOOLEAN DEFAULT true,
     description TEXT,
+    validation_status VARCHAR(50) DEFAULT 'PENDING',
+    validation_message TEXT,
+    validation_details JSONB,
+    last_validated TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_used TIMESTAMP,
-    UNIQUE(user_id, provider)
+    last_used TIMESTAMP
 );
+
+-- Create unique index to allow one active API key per user, provider, and account type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_api_keys_active_unique 
+ON user_api_keys (user_id, provider, is_sandbox) 
+WHERE is_active = true;
 
 -- ================================
 -- PORTFOLIO MANAGEMENT
@@ -189,6 +197,32 @@ CREATE TABLE IF NOT EXISTS trading_alerts (
     triggered_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create Trading Strategies table
+CREATE TABLE IF NOT EXISTS trading_strategies (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    strategy_type VARCHAR(50) NOT NULL,
+    configuration JSONB NOT NULL,
+    provider VARCHAR(50) DEFAULT 'alpaca',
+    is_active BOOLEAN DEFAULT false,
+    status VARCHAR(50) DEFAULT 'registered',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create Strategy Executions table
+CREATE TABLE IF NOT EXISTS strategy_executions (
+    id VARCHAR(255) PRIMARY KEY,
+    strategy_id VARCHAR(255) NOT NULL,
+    execution_type VARCHAR(50) NOT NULL,
+    signal_data JSONB,
+    orders_placed JSONB,
+    execution_result JSONB,
+    error_message TEXT,
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (strategy_id) REFERENCES trading_strategies(id) ON DELETE CASCADE
 );
 
 -- ================================
@@ -775,13 +809,24 @@ CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_provider ON user_api_keys(provider);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(is_active);
 
--- Portfolio Holdings indexes
+-- Portfolio Holdings indexes - optimized for performance
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_broker ON portfolio_holdings(broker);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_api_key ON portfolio_holdings(user_id, api_key_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_symbol ON portfolio_holdings(user_id, symbol);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_market_value ON portfolio_holdings(market_value DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_updated_at ON portfolio_holdings(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_active ON portfolio_holdings(user_id, api_key_id, updated_at DESC) WHERE quantity > 0;
 
--- Portfolio Metadata indexes
+-- Portfolio Metadata indexes - optimized for performance
 CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_id ON portfolio_metadata(user_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_user_api_key ON portfolio_metadata(user_id, api_key_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_metadata_last_sync ON portfolio_metadata(last_sync DESC);
+
+-- User API Keys indexes - optimized for portfolio queries
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_active ON user_api_keys(user_id, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_sandbox ON user_api_keys(user_id, is_sandbox, is_active) WHERE is_active = true;
 
 -- Trading Alerts indexes
 CREATE INDEX IF NOT EXISTS idx_trading_alerts_user_id ON trading_alerts(user_id);

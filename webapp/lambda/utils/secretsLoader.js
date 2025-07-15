@@ -39,8 +39,8 @@ class SecretsLoader {
       console.error('❌ Failed to load secrets:', error.message);
       console.warn('⚠️  Application will run with limited functionality');
       
-      // Set fallback values for development/testing
-      this.setFallbackSecrets();
+      // Security: Require proper secrets for production deployment
+      this.setRequiredEnvironmentVariables();
     }
   }
 
@@ -94,8 +94,8 @@ class SecretsLoader {
             }
             
             if (encryptionSecret) {
-              console.log(`✅ Found encryption secret in: ${secretName}`);
-              break;
+              console.log(`✅ Found encryption secret from AWS Secrets Manager`);
+              break; // Security: Don't log secret location details
             }
           }
         } catch (err) {
@@ -108,13 +108,17 @@ class SecretsLoader {
         process.env.API_KEY_ENCRYPTION_SECRET = encryptionSecret;
         console.log('✅ API key encryption secret loaded and injected');
       } else {
-        console.warn('⚠️  No API key encryption secret found - generating temporary key');
-        await this.generateTempEncryptionKey();
+        console.error('❌ CRITICAL: No API key encryption secret found - API key service will be disabled');
+        console.error('💡 REQUIRED: Create a secret named "stocks-app/api-key-encryption" in AWS Secrets Manager');
+        // Security: Never generate temporary encryption keys for financial data
+        throw new Error('API key encryption secret is required for production deployment');
       }
       
     } catch (error) {
       console.error('❌ Failed to load API key encryption secret:', error.message);
-      await this.generateTempEncryptionKey();
+      console.error('💡 REQUIRED: Create a secret named "stocks-app/api-key-encryption" in AWS Secrets Manager');
+      // Security: Never generate temporary encryption keys for financial data
+      throw new Error('API key encryption secret is required for production deployment');
     }
   }
 
@@ -146,8 +150,8 @@ class SecretsLoader {
             }
             
             if (jwtSecret) {
-              console.log(`✅ Found JWT secret in: ${secretName}`);
-              break;
+              console.log(`✅ Found JWT secret from AWS Secrets Manager`);
+              break; // Security: Don't log secret location details
             }
           }
         } catch (err) {
@@ -202,37 +206,40 @@ class SecretsLoader {
     }
   }
 
-  async generateTempEncryptionKey() {
-    console.log('🔄 Generating temporary encryption key for this session...');
+  // SECURITY: Removed temporary encryption key generation
+  // Financial applications must never use temporary encryption keys
+  // This prevents accidental production deployment with insecure keys
+  
+  async validateRequiredSecrets() {
+    console.log('🔐 Validating required production secrets...');
     
-    // Generate a cryptographically secure temporary key
-    const crypto = require('crypto');
-    const tempKey = crypto.randomBytes(32).toString('hex');
+    if (!process.env.API_KEY_ENCRYPTION_SECRET) {
+      throw new Error('CRITICAL: API_KEY_ENCRYPTION_SECRET is required for financial application');
+    }
     
-    process.env.API_KEY_ENCRYPTION_SECRET = tempKey;
-    process.env.TEMP_ENCRYPTION_KEY = 'true';
-    
-    console.log('⚠️  Using temporary encryption key - API keys will only work for this session');
-    console.log('💡 To fix permanently: Create a secret named "stocks-app/api-key-encryption" in AWS Secrets Manager');
+    console.log('✅ Required secrets validation passed');
   }
 
-  setFallbackSecrets() {
-    console.log('🔄 Setting fallback secrets for limited functionality...');
+  // SECURITY: Removed fallback secrets generation
+  // Financial applications must never use temporary/fallback secrets
+  // This prevents accidental production deployment with insecure keys
+  
+  setRequiredEnvironmentVariables() {
+    console.log('🔍 Checking required environment variables...');
     
-    // Only set if not already present
-    if (!process.env.API_KEY_ENCRYPTION_SECRET) {
-      const crypto = require('crypto');
-      process.env.API_KEY_ENCRYPTION_SECRET = crypto.randomBytes(32).toString('hex');
-      process.env.TEMP_ENCRYPTION_KEY = 'true';
-      console.log('⚠️  Using temporary encryption key');
+    const requiredSecrets = [
+      'API_KEY_ENCRYPTION_SECRET',
+      'JWT_SECRET'
+    ];
+    
+    const missing = requiredSecrets.filter(secret => !process.env[secret]);
+    
+    if (missing.length > 0) {
+      console.error('❌ CRITICAL: Missing required secrets:', missing);
+      throw new Error(`Missing required secrets: ${missing.join(', ')}`);
     }
     
-    if (!process.env.JWT_SECRET) {
-      const crypto = require('crypto');
-      process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
-      process.env.TEMP_JWT_SECRET = 'true';
-      console.log('⚠️  Using temporary JWT secret');
-    }
+    console.log('✅ All required environment variables are present');
   }
 
   // Helper method to check if secrets are loaded

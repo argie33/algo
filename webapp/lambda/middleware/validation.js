@@ -288,12 +288,9 @@ function createValidationMiddleware(schema, options = {}) {
             sanitized[fieldName] = value;
         }
 
-        // If there are validation errors, return them
+        // If there are validation errors, return them using standardized format
         if (errors.length > 0) {
-            return res.status(400).json({
-                error: 'Validation failed',
-                details: errors
-            });
+            return res.validationError(errors);
         }
 
         // Attach sanitized data to request
@@ -317,10 +314,7 @@ const requestSizeLimit = (limit = '1mb') => {
                 parseInt(limit);
             
             if (sizeInBytes > limitInBytes) {
-                return res.status(413).json({
-                    error: 'Request too large',
-                    maxSize: limit
-                });
+                return res.error('Request too large', 413, { maxSize: limit }, 'PAYLOAD_TOO_LARGE');
             }
         }
         next();
@@ -363,10 +357,7 @@ const sqlInjectionPrevention = (req, res, next) => {
     for (const source of sources) {
         const suspiciousField = checkObject(source);
         if (suspiciousField) {
-            return res.status(400).json({
-                error: 'Invalid input detected',
-                field: suspiciousField
-            });
+            return res.badRequest('Invalid input detected', { field: suspiciousField });
         }
     }
 

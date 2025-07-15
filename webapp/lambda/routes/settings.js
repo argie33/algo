@@ -1,10 +1,173 @@
 const express = require('express');
 const crypto = require('crypto');
 const { query } = require('../utils/database');
+const schemaValidator = require('../utils/schemaValidator');
 const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 
 const router = express.Router();
+
+// Validation schemas for settings endpoints
+const settingsValidationSchemas = {
+  apiKey: {
+    provider: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, toLowerCase: true }),
+      validator: (value) => ['alpaca', 'polygon', 'iex'].includes(value),
+      errorMessage: 'Provider must be alpaca, polygon, or iex'
+    },
+    apiKey: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 100, trim: true }),
+      validator: (value) => value.length >= 10 && value.length <= 100 && /^[A-Za-z0-9_\-]+$/.test(value),
+      errorMessage: 'API key must be 10-100 characters, alphanumeric with _ and - allowed'
+    },
+    apiSecret: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 200, trim: true }),
+      validator: (value) => value.length >= 10 && value.length <= 200,
+      errorMessage: 'API secret must be 10-200 characters'
+    },
+    isSandbox: {
+      type: 'boolean',
+      sanitizer: (value) => sanitizers.boolean(value, { defaultValue: true }),
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'isSandbox must be true or false'
+    }
+  },
+  
+  profile: {
+    displayName: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, trim: true }),
+      validator: (value) => !value || (value.length >= 2 && value.length <= 50),
+      errorMessage: 'Display name must be 2-50 characters if provided'
+    },
+    timezone: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50 }),
+      validator: (value) => !value || /^[A-Za-z/_]+$/.test(value),
+      errorMessage: 'Invalid timezone format'
+    }
+  },
+  
+  notifications: {
+    emailAlerts: {
+      type: 'boolean',
+      sanitizer: sanitizers.boolean,
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'emailAlerts must be true or false'
+    },
+    pushNotifications: {
+      type: 'boolean',
+      sanitizer: sanitizers.boolean,
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'pushNotifications must be true or false'
+    }
+  },
+  
+  theme: {
+    darkMode: {
+      type: 'boolean',
+      sanitizer: sanitizers.boolean,
+      validator: (value) => typeof value === 'boolean',
+      errorMessage: 'darkMode must be true or false'
+    },
+    primaryColor: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 7 }),
+      validator: (value) => !value || /^#[0-9A-Fa-f]{6}$/.test(value),
+      errorMessage: 'Primary color must be a valid hex color (e.g., #FF5733)'
+    }
+  }
+};
+
+// API Key format validation
+function validateApiKeyFormat(provider, apiKey, apiSecret) {
+  const validation = { valid: false, error: '', details: {} };
+  
+  switch (provider.toLowerCase()) {
+    case 'alpaca':
+      // Alpaca API keys are typically 20-40 characters, alphanumeric
+      if (!apiKey || apiKey.length < 20 || apiKey.length > 50) {
+        validation.error = 'Alpaca API key should be 20-50 characters long';
+        validation.details.expectedLength = '20-50 characters';
+        validation.details.actualLength = apiKey ? apiKey.length : 0;
+        return validation;
+      }
+      
+      if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
+        validation.error = 'Alpaca API key should contain only alphanumeric characters';
+        validation.details.pattern = 'Alphanumeric only';
+        return validation;
+      }
+      
+      // Alpaca secret keys are typically longer and may contain special characters
+      if (apiSecret && (apiSecret.length < 20 || apiSecret.length > 80)) {
+        validation.error = 'Alpaca API secret should be 20-80 characters long';
+        validation.details.secretExpectedLength = '20-80 characters';
+        validation.details.secretActualLength = apiSecret.length;
+        return validation;
+      }
+      
+      if (apiSecret && !/^[A-Za-z0-9\/+=]+$/.test(apiSecret)) {
+        validation.error = 'Alpaca API secret contains invalid characters';
+        validation.details.secretPattern = 'Alphanumeric and /+= only';
+        return validation;
+      }
+      break;
+      
+    case 'tdameritrade':
+      // TD Ameritrade consumer keys are typically 32 characters
+      if (!apiKey || apiKey.length !== 32) {
+        validation.error = 'TD Ameritrade consumer key should be exactly 32 characters';
+        validation.details.expectedLength = '32 characters';
+        validation.details.actualLength = apiKey ? apiKey.length : 0;
+        return validation;
+      }
+      
+      if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
+        validation.error = 'TD Ameritrade consumer key should contain only alphanumeric characters';
+        return validation;
+      }
+      break;
+      
+    case 'interactivebrokers':
+    case 'ib':
+      // IB uses various formats, be more lenient
+      if (!apiKey || apiKey.length < 8 || apiKey.length > 100) {
+        validation.error = 'Interactive Brokers API key should be 8-100 characters long';
+        return validation;
+      }
+      break;
+      
+    default:
+      // Generic validation for unknown providers
+      if (!apiKey || apiKey.length < 8 || apiKey.length > 200) {
+        validation.error = `${provider} API key should be 8-200 characters long`;
+        validation.details.expectedLength = '8-200 characters';
+        validation.details.actualLength = apiKey ? apiKey.length : 0;
+        return validation;
+      }
+      
+      // Check for obviously invalid patterns
+      if (/^\s+$/.test(apiKey) || /password|123456|test/i.test(apiKey)) {
+        validation.error = 'API key appears to be invalid or a placeholder';
+        return validation;
+      }
+  }
+  
+  validation.valid = true;
+  validation.details.provider = provider;
+  validation.details.keyLength = apiKey.length;
+  validation.details.secretLength = apiSecret ? apiSecret.length : 0;
+  
+  return validation;
+}
 
 // Root settings endpoint for health checks
 router.get('/', (req, res) => {
@@ -170,28 +333,21 @@ router.get('/api-keys/debug', async (req, res) => {
   try {
     console.log('🔍 [DEBUG] Checking user_api_keys table structure...');
     
-    // Check if table exists
-    const tableCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'user_api_keys'
-      );
-    `);
+    // Check if table exists using schema validator
+    const tableExists = await schemaValidator.validateTableExists('user_api_keys');
     
-    console.log('📋 Table exists:', tableCheck.rows[0].exists);
+    console.log('📋 Table exists:', tableExists);
     
-    if (tableCheck.rows[0].exists) {
-      // Get table structure
-      const structure = await query(`
-        SELECT column_name, data_type, is_nullable 
-        FROM information_schema.columns 
-        WHERE table_name = 'user_api_keys' 
-        ORDER BY ordinal_position;
-      `);
+    if (tableExists) {
+      // Get table structure using schema validator
+      const structure = await schemaValidator.getTableSchema('user_api_keys');
       
-      // Get total count
-      const count = await query(`SELECT COUNT(*) as total FROM user_api_keys`);
+      // Get total count with schema validation
+      const count = await schemaValidator.safeQuery(
+        `SELECT COUNT(*) as total FROM user_api_keys`,
+        [],
+        { validateTables: true, throwOnMissingTable: false }
+      );
       
       // Get recent entries (without sensitive data)
       const recent = await query(`
@@ -463,6 +619,17 @@ router.post('/api-keys', async (req, res) => {
     });
   }
 
+  // Validate API key format based on provider
+  const formatValidation = validateApiKeyFormat(provider, apiKey, apiSecret);
+  if (!formatValidation.valid) {
+    console.error(`❌ [${requestId}] Invalid API key format for ${provider}: ${formatValidation.error}`);
+    return res.status(400).json({
+      success: false,
+      error: formatValidation.error,
+      details: formatValidation.details
+    });
+  }
+
   // Check database availability immediately
   console.log(`🔍 [${requestId}] Testing database connectivity...`);
   try {
@@ -638,7 +805,7 @@ router.post('/api-keys', async (req, res) => {
 });
 
 // Update API key
-router.put('/api-keys/:keyId', async (req, res) => {
+router.put('/api-keys/:keyId', createValidationMiddleware(settingsValidationSchemas.apiKey), async (req, res) => {
   const userId = req.user.sub;
   const { keyId } = req.params;
   const { description, isSandbox } = req.body;
@@ -709,13 +876,40 @@ router.delete('/api-keys/:keyId', async (req, res) => {
 
 // Test API key connection
 router.post('/test-connection/:keyId', async (req, res) => {
+  const requestId = crypto.randomUUID().split('-')[0];
+  const requestStart = Date.now();
   const userId = req.user.sub;
   const { keyId } = req.params;
 
   try {
-    // Get encrypted API key
+    console.log(`🚀 [${requestId}] API key connection test initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      keyId,
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!keyId || !keyId.match(/^[a-f0-9-]{36}$/)) {
+      console.error(`❌ [${requestId}] Invalid keyId format:`, {
+        keyId,
+        expectedFormat: 'UUID',
+        impact: 'Connection test cannot proceed'
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API key ID format',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get encrypted API key with comprehensive database logging
+    console.log(`🔍 [${requestId}] Retrieving API key from database`);
+    const dbQueryStart = Date.now();
     const result = await query(`
       SELECT 
+        id,
         provider,
         encrypted_api_key,
         key_iv,
@@ -724,75 +918,302 @@ router.post('/test-connection/:keyId', async (req, res) => {
         secret_iv,
         secret_auth_tag,
         user_salt,
-        is_sandbox
+        is_sandbox,
+        created_at,
+        last_used
       FROM user_api_keys 
       WHERE id = $1 AND user_id = $2 AND is_active = true
     `, [keyId, userId]);
+    
+    const dbQueryDuration = Date.now() - dbQueryStart;
+    console.log(`✅ [${requestId}] Database query completed in ${dbQueryDuration}ms`, {
+      rowsFound: result.rows.length
+    });
 
     if (result.rows.length === 0) {
+      console.error(`❌ [${requestId}] API key not found or unauthorized:`, {
+        keyId,
+        userId: `${userId.substring(0, 8)}...`,
+        impact: 'Connection test denied'
+      });
       return res.status(404).json({
         success: false,
-        error: 'API key not found'
+        error: 'API key not found or access denied',
+        requestId,
+        timestamp: new Date().toISOString()
       });
     }
 
     const keyData = result.rows[0];
+    console.log(`✅ [${requestId}] API key found for provider: ${keyData.provider}`, {
+      provider: keyData.provider,
+      isSandbox: keyData.is_sandbox,
+      createdAt: keyData.created_at,
+      lastUsed: keyData.last_used,
+      hasSecret: !!keyData.encrypted_api_secret
+    });
     
-    // Decrypt API credentials
-    const apiKey = decryptApiKey({
-      encrypted: keyData.encrypted_api_key,
-      iv: keyData.key_iv,
-      authTag: keyData.key_auth_tag
-    }, keyData.user_salt);
+    // Decrypt API credentials with detailed logging
+    console.log(`🔓 [${requestId}] Decrypting API credentials`);
+    const decryptStart = Date.now();
+    let apiKey, apiSecret;
+    
+    try {
+      apiKey = decryptApiKey({
+        encrypted: keyData.encrypted_api_key,
+        iv: keyData.key_iv,
+        authTag: keyData.key_auth_tag
+      }, keyData.user_salt);
 
-    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
-      encrypted: keyData.encrypted_api_secret,
-      iv: keyData.secret_iv,
-      authTag: keyData.secret_auth_tag
-    }, keyData.user_salt) : null;
+      apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+        encrypted: keyData.encrypted_api_secret,
+        iv: keyData.secret_iv,
+        authTag: keyData.secret_auth_tag
+      }, keyData.user_salt) : null;
+      
+      const decryptDuration = Date.now() - decryptStart;
+      console.log(`✅ [${requestId}] Credentials decrypted successfully in ${decryptDuration}ms`, {
+        apiKeyLength: apiKey ? apiKey.length : 0,
+        apiSecretLength: apiSecret ? apiSecret.length : 0,
+        hasSecret: !!apiSecret
+      });
+      
+    } catch (decryptError) {
+      const decryptDuration = Date.now() - decryptStart;
+      console.error(`❌ [${requestId}] Credential decryption FAILED after ${decryptDuration}ms:`, {
+        error: decryptError.message,
+        errorStack: decryptError.stack,
+        impact: 'Cannot test connection with invalid credentials',
+        recommendation: 'User may need to re-enter API keys'
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to decrypt API credentials',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    // Test connection based on provider
+    // Test connection based on provider with comprehensive logging
+    console.log(`📡 [${requestId}] Testing connection to ${keyData.provider} API`);
+    const connectionTestStart = Date.now();
     let connectionResult = { valid: false, error: 'Provider not supported' };
     
     if (keyData.provider === 'alpaca') {
+      console.log(`🔧 [${requestId}] Initializing Alpaca service for connection test`);
       const AlpacaService = require('../utils/alpacaService');
-      const alpaca = new AlpacaService(apiKey, apiSecret, keyData.is_sandbox);
       
       try {
+        const alpaca = new AlpacaService(apiKey, apiSecret, keyData.is_sandbox);
+        console.log(`📊 [${requestId}] Attempting to fetch account data from Alpaca`);
+        
+        const accountFetchStart = Date.now();
         const account = await alpaca.getAccount();
-        connectionResult = {
-          valid: true,
-          accountInfo: {
+        const accountFetchDuration = Date.now() - accountFetchStart;
+        
+        if (account) {
+          connectionResult = {
+            valid: true,
+            accountInfo: {
+              accountId: account.id,
+              portfolioValue: parseFloat(account.portfolio_value || account.equity || 0),
+              buyingPower: parseFloat(account.buying_power || 0),
+              environment: keyData.is_sandbox ? 'sandbox' : 'live',
+              accountStatus: account.status,
+              daytradeCount: account.daytradeCount || 0
+            },
+            connectionTime: accountFetchDuration
+          };
+          
+          console.log(`✅ [${requestId}] Alpaca connection test SUCCESSFUL in ${accountFetchDuration}ms`, {
             accountId: account.id,
-            portfolioValue: parseFloat(account.portfolio_value || 0),
-            environment: keyData.is_sandbox ? 'sandbox' : 'live'
-          }
-        };
+            portfolioValue: connectionResult.accountInfo.portfolioValue,
+            environment: connectionResult.accountInfo.environment,
+            accountStatus: account.status
+          });
+          
+          // Update last_used timestamp with audit logging
+          console.log(`📝 [${requestId}] Updating last_used timestamp`);
+          const updateStart = Date.now();
+          await query(`
+            UPDATE user_api_keys 
+            SET last_used = NOW() 
+            WHERE id = $1
+          `, [keyId]);
+          const updateDuration = Date.now() - updateStart;
+          
+          console.log(`✅ [${requestId}] Last_used timestamp updated in ${updateDuration}ms`);
+          
+        } else {
+          console.warn(`⚠️ [${requestId}] Alpaca API returned empty account data`);
+          connectionResult = {
+            valid: false,
+            error: 'No account data returned from Alpaca API'
+          };
+        }
         
-        // Update last_used timestamp
-        await query(`
-          UPDATE user_api_keys 
-          SET last_used = NOW() 
-          WHERE id = $1
-        `, [keyId]);
+      } catch (alpacaError) {
+        const connectionTestDuration = Date.now() - connectionTestStart;
+        console.error(`❌ [${requestId}] Alpaca connection test FAILED after ${connectionTestDuration}ms:`, {
+          error: alpacaError.message,
+          errorCode: alpacaError.code,
+          errorStack: alpacaError.stack,
+          environment: keyData.is_sandbox ? 'sandbox' : 'live',
+          impact: 'API credentials appear to be invalid or service unavailable'
+        });
         
-      } catch (error) {
         connectionResult = {
           valid: false,
-          error: error.message
+          error: alpacaError.message,
+          errorCode: alpacaError.code,
+          environment: keyData.is_sandbox ? 'sandbox' : 'live'
         };
       }
+    } else {
+      console.error(`❌ [${requestId}] Unsupported provider for connection test:`, {
+        provider: keyData.provider,
+        supportedProviders: ['alpaca'],
+        impact: 'Connection test cannot be performed'
+      });
     }
 
-    res.json({
-      success: true,
-      connection: connectionResult
+    const connectionTestDuration = Date.now() - connectionTestStart;
+    const totalDuration = Date.now() - requestStart;
+
+    // Log comprehensive audit trail for connection test
+    console.log(`🔍 [${requestId}] API key connection test completed in ${totalDuration}ms`, {
+      result: connectionResult.valid ? 'SUCCESS' : 'FAILED',
+      provider: keyData.provider,
+      environment: keyData.is_sandbox ? 'sandbox' : 'live',
+      connectionTestDuration: `${connectionTestDuration}ms`,
+      totalDuration: `${totalDuration}ms`,
+      errorMessage: connectionResult.error || null,
+      auditInfo: {
+        userId: `${userId.substring(0, 8)}...`,
+        keyId,
+        provider: keyData.provider,
+        testResult: connectionResult.valid,
+        timestamp: new Date().toISOString()
+      }
     });
+
+    const responseData = {
+      success: true,
+      connection: connectionResult,
+      metadata: {
+        provider: keyData.provider,
+        environment: keyData.is_sandbox ? 'sandbox' : 'live',
+        tested_at: new Date().toISOString(),
+        connection_duration_ms: connectionTestDuration
+      },
+      request_info: {
+        request_id: requestId,
+        total_duration_ms: totalDuration,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    res.json(responseData);
+
   } catch (error) {
-    console.error('Error testing connection:', error);
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] API key connection test FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorStack: error.stack,
+      errorCode: error.code,
+      keyId,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      impact: 'Connection test failed completely',
+      recommendation: 'Check database connectivity and API key encryption'
+    });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to test connection'
+      error: 'Failed to test API key connection',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      request_info: {
+        request_id: requestId,
+        error_duration_ms: errorDuration,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+// Real-time API key validation status endpoint
+router.get('/api-keys/validation-status', async (req, res) => {
+  const userId = req.user.sub;
+  const { provider } = req.query;
+
+  try {
+    const apiKeyValidationService = require('../utils/apiKeyValidationService');
+    const validationStatus = await apiKeyValidationService.getValidationStatus(userId, provider);
+    
+    res.json({
+      success: true,
+      data: {
+        validationStatus,
+        lastChecked: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting validation status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get validation status',
+      details: error.message
+    });
+  }
+});
+
+// Real-time API key validation endpoint
+router.post('/api-keys/:keyId/validate', async (req, res) => {
+  const userId = req.user.sub;
+  const { keyId } = req.params;
+  const { provider } = req.body;
+
+  try {
+    const apiKeyValidationService = require('../utils/apiKeyValidationService');
+    const validationResult = await apiKeyValidationService.validateApiKey(userId, provider, keyId);
+    
+    res.json({
+      success: true,
+      data: validationResult
+    });
+  } catch (error) {
+    console.error('Error validating API key:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to validate API key',
+      details: error.message
+    });
+  }
+});
+
+// Validate all user API keys endpoint
+router.post('/api-keys/validate-all', async (req, res) => {
+  const userId = req.user.sub;
+
+  try {
+    const apiKeyValidationService = require('../utils/apiKeyValidationService');
+    const results = await apiKeyValidationService.validateAllUserApiKeys(userId);
+    
+    res.json({
+      success: true,
+      data: {
+        validationResults: results,
+        totalKeys: results.length,
+        validKeys: results.filter(r => r.currentValidation.isValid).length,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error validating all API keys:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to validate all API keys',
+      details: error.message
     });
   }
 });
@@ -853,7 +1274,7 @@ router.get('/api-keys/:provider/credentials', async (req, res) => {
       WHERE id = $1
     `, [keyData.id]);
 
-    console.log(`🔓 Decrypted ${provider} credentials for user ${userId}`);
+    console.log(`🔓 Credentials decrypted successfully for ${provider}`);
     
     res.json({
       success: true,
@@ -915,7 +1336,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', async (req, res) => {
+router.put('/profile', createValidationMiddleware(settingsValidationSchemas.profile), async (req, res) => {
   const userId = req.user.sub;
   const { firstName, lastName, email, phone, timezone, currency } = req.body;
 
@@ -1202,7 +1623,7 @@ router.get('/notifications', async (req, res) => {
 });
 
 // Update notification preferences
-router.put('/notifications', async (req, res) => {
+router.put('/notifications', createValidationMiddleware(settingsValidationSchemas.notifications), async (req, res) => {
   const userId = req.user.sub;
   const { email, push, priceAlerts, portfolioUpdates, marketNews, weeklyReports } = req.body;
 
@@ -1288,7 +1709,7 @@ router.get('/theme', async (req, res) => {
 });
 
 // Update theme preferences
-router.put('/theme', async (req, res) => {
+router.put('/theme', createValidationMiddleware(settingsValidationSchemas.theme), async (req, res) => {
   const userId = req.user.sub;
   const { darkMode, primaryColor, chartStyle, layout } = req.body;
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../utils/database');
 const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
 const AlpacaService = require('../utils/alpacaService');
 const RiskCalculator = require('../utils/riskCalculator');
@@ -10,6 +11,71 @@ const SignalEngine = require('../utils/signalEngine');
 
 // Apply authentication to all routes
 router.use(authenticateToken);
+
+// Validation schemas for trading endpoints
+const tradingValidationSchemas = {
+  tradeHistory: {
+    page: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 1000, defaultValue: 1 }),
+      validator: (value) => value >= 1 && value <= 1000,
+      errorMessage: 'Page must be between 1 and 1000'
+    },
+    limit: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 1, max: 200, defaultValue: 50 }),
+      validator: (value) => value >= 1 && value <= 200,
+      errorMessage: 'Limit must be between 1 and 200'
+    },
+    symbol: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.symbol(value),
+      validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    status: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 20, toLowerCase: true }),
+      validator: (value) => !value || ['filled', 'canceled', 'pending', 'rejected'].includes(value),
+      errorMessage: 'Status must be filled, canceled, pending, or rejected'
+    },
+    side: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, toLowerCase: true }),
+      validator: (value) => !value || ['buy', 'sell'].includes(value),
+      errorMessage: 'Side must be buy or sell'
+    }
+  },
+  
+  positionSizing: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: sanitizers.symbol,
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    entryPrice: {
+      required: true,
+      type: 'number',
+      sanitizer: (value) => sanitizers.float(value, { min: 0.01, max: 100000 }),
+      validator: (value) => value > 0 && value <= 100000,
+      errorMessage: 'Entry price must be between 0.01 and 100000'
+    },
+    stopLossPrice: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.float(value, { min: 0.01, max: 100000 }),
+      validator: (value) => !value || (value > 0 && value <= 100000),
+      errorMessage: 'Stop loss price must be between 0.01 and 100000'
+    },
+    riskPercentage: {
+      type: 'number',
+      sanitizer: (value) => sanitizers.float(value, { min: 0.1, max: 10, defaultValue: 2 }),
+      validator: (value) => value >= 0.1 && value <= 10,
+      errorMessage: 'Risk percentage must be between 0.1 and 10'
+    }
+  }
+};
 
 // Order types
 const ORDER_TYPES = {
@@ -271,8 +337,9 @@ router.get('/signals/:timeframe', async (req, res) => {
 
     queryParams.push(pageSize, offset);
 
-    console.log('[TRADING] Executing SQL:', sqlQuery, 'Params:', queryParams);
-    console.log('[TRADING] Executing count SQL:', countQuery, 'Params:', queryParams.slice(0, paramCount));
+    // Security: Don't log SQL queries and params that may contain sensitive trading data
+    console.log('[TRADING] Executing trading data query with', queryParams.length, 'parameters');
+    console.log('[TRADING] Executing count query for pagination');
 
     const [result, countResult] = await Promise.all([
       query(sqlQuery, queryParams),
@@ -283,7 +350,8 @@ router.get('/signals/:timeframe', async (req, res) => {
     const totalPages = Math.ceil(total / pageSize);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.warn('[TRADING] No data found for query:', { timeframe, params: req.query });
+      console.warn('[TRADING] No data found for query:', { timeframe });
+      // Security: Don't log request params which may contain sensitive trading filters
       return res.status(200).json({ 
         success: true,
         data: [],
@@ -733,7 +801,8 @@ router.get('/signals/current/:timeframe', async (req, res) => {
     queryParams.push(parseFloat(min_strength), pageSize, offset);
 
     console.log('[TRADING] Executing current period query:', sqlQuery);
-    console.log('[TRADING] Query params:', queryParams);
+    console.log('[TRADING] Executing query with', queryParams.length, 'parameters');
+    // Security: Don't log query params which may contain sensitive trading data
 
     const [result, countResult] = await Promise.all([
       query(sqlQuery, queryParams),
@@ -1378,17 +1447,38 @@ router.post('/orders', async (req, res) => {
       if (takeProfitPrice) orderData.take_profit = { limit_price: takeProfitPrice };
     }
 
-    // Calculate risk metrics
+    // Calculate risk metrics - CRITICAL for order safety
     const riskCalculator = new RiskCalculator();
     const riskMetrics = await riskCalculator.calculateOrderRisk({
       symbol,
       quantity,
       side,
       price: limitPrice || quote.ask,
-      stopLossPrice
+      stopLossPrice,
+      userId
     });
 
-    // Place order
+    // Security: Check risk approval before executing order
+    if (!riskMetrics.approval.approved) {
+      console.warn(`🚫 Order rejected due to risk: ${riskMetrics.approval.reason}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Order rejected due to risk assessment',
+        reason: riskMetrics.approval.reason,
+        riskScore: riskMetrics.orderRiskScore,
+        recommendations: riskMetrics.recommendations,
+        requiresManualReview: riskMetrics.approval.requiresManualReview
+      });
+    }
+
+    // Log risk warnings for high-risk approved orders
+    if (riskMetrics.approval.warnings && riskMetrics.approval.warnings.length > 0) {
+      console.warn(`⚠️ High-risk order approved with warnings:`, riskMetrics.approval.warnings);
+    }
+
+    console.log(`✅ Order risk approved: Score=${riskMetrics.orderRiskScore}, Amount=$${riskMetrics.orderValue}`);
+
+    // Place order only after risk approval
     const order = await alpaca.placeOrder(orderData);
     
     // Store order in database
@@ -2097,6 +2187,570 @@ router.post('/position-sizing', async (req, res) => {
       success: false,
       error: 'Failed to calculate position sizing',
       message: error.message
+    });
+  }
+});
+
+// Trade History endpoint with comprehensive logging and error handling
+router.get('/history', createValidationMiddleware(tradingValidationSchemas.tradeHistory), async (req, res) => {
+  const requestId = require('crypto').randomUUID().split('-')[0];
+  const requestStart = Date.now();
+  
+  try {
+    const userId = validateUserAuthentication(req);
+    console.log(`🚀 [${requestId}] Trade history request initiated`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!userId) {
+      console.error(`❌ [${requestId}] Authentication failure - no user ID found`);
+      return res.status(401).json({ 
+        success: false,
+        error: 'User authentication required',
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Parse query parameters with validation
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const symbol = req.query.symbol?.toUpperCase();
+    const status = req.query.status; // filled, canceled, pending, etc.
+    const startDate = req.query.start_date;
+    const endDate = req.query.end_date;
+    const orderType = req.query.order_type;
+    const side = req.query.side; // buy, sell
+    
+    console.log(`🔍 [${requestId}] Trade history parameters:`, {
+      page,
+      limit,
+      symbol,
+      status,
+      startDate,
+      endDate,
+      orderType,
+      side
+    });
+
+    // Get user's API credentials for Alpaca with comprehensive error handling
+    console.log(`🔑 [${requestId}] Retrieving user API credentials for trade history`);
+    const credentialsStart = Date.now();
+    
+    let credentials;
+    try {
+      credentials = await getUserApiKey(userId, 'alpaca');
+      const credentialsDuration = Date.now() - credentialsStart;
+      
+      if (!credentials) {
+        console.error(`❌ [${requestId}] No API credentials found after ${credentialsDuration}ms`, {
+          requestedProvider: 'alpaca',
+          userId: `${userId.substring(0, 8)}...`,
+          impact: 'Trade history will not be available from broker',
+          recommendation: 'User needs to configure Alpaca API keys in settings'
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'API credentials not configured',
+          message: 'Please configure your Alpaca API keys in Settings to view your trade history',
+          error_code: 'API_CREDENTIALS_MISSING',
+          provider: 'alpaca',
+          actions: [
+            'Go to Settings > API Keys',
+            'Add your Alpaca API credentials',
+            'Choose the correct environment (Paper Trading or Live Trading)',
+            'Test the connection to verify your credentials'
+          ],
+          request_info: {
+            request_id: requestId,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      console.log(`✅ [${requestId}] API credentials retrieved in ${credentialsDuration}ms`, {
+        provider: 'alpaca',
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        keyLength: credentials.apiKey ? credentials.apiKey.length : 0,
+        hasSecret: !!credentials.apiSecret
+      });
+      
+    } catch (credentialsError) {
+      const credentialsDuration = Date.now() - credentialsStart;
+      console.error(`❌ [${requestId}] Failed to retrieve API credentials after ${credentialsDuration}ms:`, {
+        error: credentialsError.message,
+        errorStack: credentialsError.stack,
+        provider: 'alpaca',
+        impact: 'Cannot access trade history from broker',
+        recommendation: 'Check API key configuration and database connectivity'
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve API credentials',
+        message: 'There was an error accessing your API credentials. Please try again or contact support.',
+        error_code: 'API_CREDENTIALS_ERROR',
+        details: process.env.NODE_ENV === 'development' ? credentialsError.message : 'Internal error',
+        request_info: {
+          request_id: requestId,
+          error_duration_ms: credentialsDuration,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // Initialize Alpaca service with comprehensive error handling
+    console.log(`🏭 [${requestId}] Initializing Alpaca service for trade history`);
+    const serviceInitStart = Date.now();
+    let alpaca;
+    
+    try {
+      alpaca = new AlpacaService(
+        credentials.apiKey,
+        credentials.apiSecret,
+        credentials.isSandbox
+      );
+      const serviceInitDuration = Date.now() - serviceInitStart;
+      
+      console.log(`✅ [${requestId}] Alpaca service initialized in ${serviceInitDuration}ms`, {
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        hasApiKey: !!credentials.apiKey,
+        hasSecret: !!credentials.apiSecret
+      });
+      
+    } catch (serviceError) {
+      const serviceInitDuration = Date.now() - serviceInitStart;
+      console.error(`❌ [${requestId}] Alpaca service initialization FAILED after ${serviceInitDuration}ms:`, {
+        error: serviceError.message,
+        errorStack: serviceError.stack,
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        impact: 'Cannot access trade history from broker',
+        recommendation: 'Check API key validity and Alpaca service status'
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to initialize trading service',
+        message: 'Unable to connect to your broker. Please verify your API credentials or try again later.',
+        error_code: 'TRADING_SERVICE_INIT_ERROR',
+        details: process.env.NODE_ENV === 'development' ? serviceError.message : 'Service initialization failed',
+        provider: 'alpaca',
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        actions: [
+          'Verify your API credentials are correct',
+          'Check if your API keys have sufficient permissions',
+          'Try switching between Paper Trading and Live Trading modes',
+          'Contact broker support if the issue persists'
+        ],
+        request_info: {
+          request_id: requestId,
+          error_duration_ms: serviceInitDuration,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // Prepare Alpaca API parameters
+    const alpacaParams = {
+      limit: Math.min(limit, 500), // Alpaca has its own limits
+      page_token: req.query.page_token // For pagination continuation
+    };
+
+    // Add optional filters
+    if (status) alpacaParams.status = status;
+    if (startDate) alpacaParams.after = startDate;
+    if (endDate) alpacaParams.until = endDate;
+    if (symbol) alpacaParams.symbols = symbol;
+    if (side) alpacaParams.side = side;
+    if (orderType) alpacaParams.order_type = orderType;
+
+    // Fetch orders from Alpaca with comprehensive error handling
+    console.log(`📊 [${requestId}] Fetching orders from Alpaca API with parameters:`, alpacaParams);
+    const ordersStart = Date.now();
+    let ordersResponse;
+    
+    try {
+      ordersResponse = await Promise.race([
+        alpaca.getOrders(alpacaParams),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Orders fetch timeout after 15 seconds')), 15000)
+        )
+      ]);
+      
+      const ordersDuration = Date.now() - ordersStart;
+      console.log(`✅ [${requestId}] Orders retrieved from Alpaca in ${ordersDuration}ms`, {
+        ordersCount: ordersResponse?.length || 0,
+        hasNextPage: ordersResponse?.next_page_token ? true : false,
+        environment: credentials.isSandbox ? 'sandbox' : 'live'
+      });
+      
+    } catch (ordersError) {
+      const ordersDuration = Date.now() - ordersStart;
+      console.error(`❌ [${requestId}] Failed to fetch orders after ${ordersDuration}ms:`, {
+        error: ordersError.message,
+        errorStack: ordersError.stack,
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        errorCode: ordersError.code,
+        statusCode: ordersError.status,
+        impact: 'Trade history unavailable from broker',
+        recommendation: 'Check API key permissions and Alpaca service status'
+      });
+      
+      // Check for specific API errors
+      if (ordersError.message?.includes('timeout')) {
+        return res.status(504).json({
+          success: false,
+          error: 'Broker API timeout',
+          message: 'The broker API is taking too long to respond. Please try again.',
+          error_code: 'BROKER_API_TIMEOUT',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          actions: [
+            'Try refreshing the page',
+            'Check your internet connection',
+            'Try again in a few minutes',
+            'Contact support if the issue persists'
+          ],
+          request_info: {
+            request_id: requestId,
+            timeout_duration_ms: ordersDuration,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      if (ordersError.status === 401 || ordersError.message?.includes('unauthorized')) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid API credentials',
+          message: 'Your API credentials appear to be invalid or expired. Please update them in Settings.',
+          error_code: 'BROKER_API_UNAUTHORIZED',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          actions: [
+            'Go to Settings > API Keys',
+            'Update your Alpaca API credentials',
+            'Ensure you\'re using the correct environment (Paper vs Live)',
+            'Verify your API keys have trading permissions'
+          ],
+          request_info: {
+            request_id: requestId,
+            error_duration_ms: ordersDuration,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      if (ordersError.status === 403 || ordersError.message?.includes('forbidden')) {
+        return res.status(403).json({
+          success: false,
+          error: 'Insufficient API permissions',
+          message: 'Your API credentials do not have permission to access trade history.',
+          error_code: 'BROKER_API_FORBIDDEN',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          actions: [
+            'Check your API key permissions in your broker account',
+            'Ensure your API keys have trading read access',
+            'Contact your broker to verify account permissions',
+            'Try regenerating your API keys'
+          ],
+          request_info: {
+            request_id: requestId,
+            error_duration_ms: ordersDuration,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Generic API error
+      return res.status(502).json({
+        success: false,
+        error: 'Broker API error',
+        message: 'Unable to retrieve trade history from your broker. Please try again later.',
+        error_code: 'BROKER_API_ERROR',
+        details: process.env.NODE_ENV === 'development' ? ordersError.message : 'External service error',
+        provider: 'alpaca',
+        environment: credentials.isSandbox ? 'sandbox' : 'live',
+        actions: [
+          'Try refreshing the page',
+          'Check broker service status',
+          'Verify your API credentials',
+          'Contact support if the issue persists'
+        ],
+        request_info: {
+          request_id: requestId,
+          error_duration_ms: ordersDuration,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // Also fetch executions/fills for more detailed trade history with enhanced error handling
+    console.log(`📊 [${requestId}] Fetching trade executions from Alpaca`);
+    const executionsStart = Date.now();
+    let executions = [];
+    
+    try {
+      const executionParams = { ...alpacaParams };
+      delete executionParams.status; // Not applicable for executions
+      
+      executions = await Promise.race([
+        alpaca.getAccountActivities('FILL', executionParams),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Executions fetch timeout after 12 seconds')), 12000)
+        )
+      ]);
+      
+      const executionsDuration = Date.now() - executionsStart;
+      console.log(`✅ [${requestId}] Trade executions retrieved in ${executionsDuration}ms`, {
+        executionsCount: executions?.length || 0,
+        environment: credentials.isSandbox ? 'sandbox' : 'live'
+      });
+      
+    } catch (executionError) {
+      const executionsDuration = Date.now() - executionsStart;
+      console.warn(`⚠️ [${requestId}] Failed to fetch executions after ${executionsDuration}ms:`, {
+        error: executionError.message,
+        errorCode: executionError.code,
+        statusCode: executionError.status,
+        impact: 'Trade execution details will be limited',
+        note: 'Continuing with orders data only'
+      });
+      
+      // Don't fail the entire request for execution errors - just log and continue
+      executions = [];
+    }
+
+    // Check database for any locally stored trade records
+    console.log(`🗄️ [${requestId}] Checking database for local trade records`);
+    const dbStart = Date.now();
+    let dbTrades = [];
+    try {
+      // Check if trading_orders table exists
+      const tableExists = await query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'trading_orders'
+        )
+      `);
+
+      if (tableExists.rows[0].exists) {
+        let dbQuery = `
+          SELECT 
+            user_id,
+            alpaca_order_id,
+            symbol,
+            quantity,
+            side,
+            order_type,
+            order_status,
+            filled_price,
+            filled_qty,
+            created_at,
+            updated_at
+          FROM trading_orders 
+          WHERE user_id = $1
+        `;
+        
+        const dbParams = [userId];
+        let paramCount = 1;
+
+        // Add filters for database query
+        if (symbol) {
+          paramCount++;
+          dbQuery += ` AND symbol = $${paramCount}`;
+          dbParams.push(symbol);
+        }
+
+        if (status) {
+          paramCount++;
+          dbQuery += ` AND order_status = $${paramCount}`;
+          dbParams.push(status);
+        }
+
+        if (startDate) {
+          paramCount++;
+          dbQuery += ` AND created_at >= $${paramCount}`;
+          dbParams.push(startDate);
+        }
+
+        if (endDate) {
+          paramCount++;
+          dbQuery += ` AND created_at <= $${paramCount}`;
+          dbParams.push(endDate);
+        }
+
+        dbQuery += ` ORDER BY created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+        dbParams.push(limit, (page - 1) * limit);
+
+        const dbResult = await query(dbQuery, dbParams);
+        dbTrades = dbResult.rows;
+        
+        const dbDuration = Date.now() - dbStart;
+        console.log(`✅ [${requestId}] Database trades retrieved in ${dbDuration}ms`, {
+          dbTradesCount: dbTrades.length,
+          hasTable: true
+        });
+      } else {
+        console.warn(`⚠️ [${requestId}] trading_orders table does not exist - skipping database lookup`);
+      }
+    } catch (dbError) {
+      const dbDuration = Date.now() - dbStart;
+      console.error(`❌ [${requestId}] Database query failed after ${dbDuration}ms:`, {
+        error: dbError.message,
+        errorCode: dbError.code,
+        impact: 'Will return only Alpaca API data'
+      });
+    }
+
+    // Combine and format trade history data
+    console.log(`🔄 [${requestId}] Processing and combining trade history data`);
+    const processStart = Date.now();
+    
+    const formattedTrades = {
+      orders: ordersResponse || [],
+      executions: executions || [],
+      database_records: dbTrades || []
+    };
+
+    // Create unified trade history view
+    const unifiedHistory = [];
+    
+    // Process Alpaca orders
+    if (formattedTrades.orders.length > 0) {
+      formattedTrades.orders.forEach(order => {
+        unifiedHistory.push({
+          id: order.id,
+          source: 'alpaca_order',
+          symbol: order.symbol,
+          side: order.side,
+          order_type: order.order_type,
+          quantity: parseFloat(order.qty),
+          filled_quantity: parseFloat(order.filled_qty || 0),
+          price: parseFloat(order.limit_price || order.stop_price || 0),
+          filled_price: parseFloat(order.filled_avg_price || 0),
+          status: order.status,
+          time_in_force: order.time_in_force,
+          created_at: order.created_at,
+          updated_at: order.updated_at,
+          submitted_at: order.submitted_at,
+          filled_at: order.filled_at
+        });
+      });
+    }
+
+    // Process executions
+    if (formattedTrades.executions.length > 0) {
+      formattedTrades.executions.forEach(execution => {
+        unifiedHistory.push({
+          id: execution.id,
+          source: 'alpaca_execution',
+          symbol: execution.symbol,
+          side: execution.side,
+          order_type: execution.order_type || 'unknown',
+          quantity: parseFloat(execution.qty),
+          filled_quantity: parseFloat(execution.qty),
+          price: parseFloat(execution.price),
+          filled_price: parseFloat(execution.price),
+          status: 'filled',
+          created_at: execution.transaction_time,
+          execution_id: execution.id
+        });
+      });
+    }
+
+    // Sort by creation time
+    unifiedHistory.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const processDuration = Date.now() - processStart;
+    const totalDuration = Date.now() - requestStart;
+
+    console.log(`✅ [${requestId}] Trade history request completed in ${totalDuration}ms`, {
+      summary: {
+        totalRecords: unifiedHistory.length,
+        alpacaOrders: formattedTrades.orders.length,
+        alpacaExecutions: formattedTrades.executions.length,
+        databaseRecords: formattedTrades.database_records.length
+      },
+      performance: {
+        totalDuration: `${totalDuration}ms`,
+        credentialsDuration: `${credentialsDuration}ms`,
+        ordersDuration: `${ordersDuration}ms`,
+        processingDuration: `${processDuration}ms`
+      },
+      filters: {
+        symbol,
+        status,
+        startDate,
+        endDate,
+        page,
+        limit
+      },
+      status: 'SUCCESS'
+    });
+
+    // Return comprehensive trade history response
+    res.json({
+      success: true,
+      data: {
+        trades: unifiedHistory.slice(0, limit), // Apply client-side limit
+        raw_data: {
+          alpaca_orders: formattedTrades.orders.length,
+          alpaca_executions: formattedTrades.executions.length,
+          database_records: formattedTrades.database_records.length
+        },
+        pagination: {
+          page,
+          limit,
+          total_records: unifiedHistory.length,
+          has_more: unifiedHistory.length >= limit,
+          next_page_token: ordersResponse?.next_page_token
+        },
+        filters: {
+          symbol,
+          status,
+          start_date: startDate,
+          end_date: endDate,
+          order_type: orderType,
+          side
+        },
+        account_info: {
+          is_sandbox: credentials.isSandbox,
+          data_sources: ['alpaca_api', 'database']
+        },
+        request_info: {
+          request_id: requestId,
+          total_duration_ms: totalDuration,
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+
+  } catch (error) {
+    const errorDuration = Date.now() - requestStart;
+    console.error(`❌ [${requestId}] Trade history request FAILED after ${errorDuration}ms:`, {
+      error: error.message,
+      errorStack: error.stack,
+      errorCode: error.code,
+      impact: 'Trade history request failed completely',
+      recommendation: 'Check Alpaca API connectivity and credentials'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trade history',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      request_info: {
+        request_id: requestId,
+        error_duration_ms: errorDuration,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { query } = require('./database');
+const timeoutHelper = require('./timeoutHelper');
 
 class NewsAnalyzer {
   constructor() {
@@ -70,14 +71,19 @@ class NewsAnalyzer {
 
   async fetchFromAlphaVantage() {
     try {
-      // AlphaVantage has a free news API
-      const response = await axios.get('https://www.alphavantage.co/query', {
-        params: {
-          function: 'NEWS_SENTIMENT',
-          apikey: process.env.ALPHAVANTAGE_API_KEY || 'demo',
-          limit: 50
-        },
-        timeout: 10000
+      // AlphaVantage has a free news API with improved timeout handling
+      const response = await timeoutHelper.newsApiCall(async () => {
+        return axios.get('https://www.alphavantage.co/query', {
+          params: {
+            function: 'NEWS_SENTIMENT',
+            apikey: process.env.ALPHAVANTAGE_API_KEY || 'demo',
+            limit: 50
+          },
+          timeout: 8000
+        });
+      }, {
+        operation: 'alphavantage-news',
+        retries: 1
       });
       
       if (response.data && response.data.feed) {
@@ -105,13 +111,18 @@ class NewsAnalyzer {
 
   async fetchFromPolygon() {
     try {
-      // Polygon has a free tier
-      const response = await axios.get('https://api.polygon.io/v2/reference/news', {
-        params: {
-          apikey: process.env.POLYGON_API_KEY || 'demo',
-          limit: 50
-        },
-        timeout: 10000
+      // Polygon has a free tier with improved timeout handling
+      const response = await timeoutHelper.newsApiCall(async () => {
+        return axios.get('https://api.polygon.io/v2/reference/news', {
+          params: {
+            apikey: process.env.POLYGON_API_KEY || 'demo',
+            limit: 50
+          },
+          timeout: 8000
+        });
+      }, {
+        operation: 'polygon-news',
+        retries: 1
       });
       
       if (response.data && response.data.results) {
@@ -149,7 +160,12 @@ class NewsAnalyzer {
       
       for (const feed of rssFeeds) {
         try {
-          const response = await axios.get(feed, { timeout: 10000 });
+          const response = await timeoutHelper.newsApiCall(async () => {
+            return axios.get(feed, { timeout: 8000 });
+          }, {
+            operation: 'yahoo-rss',
+            retries: 0
+          });
           // Parse RSS would require xml2js, for now return mock structure
           newsItems.push({
             title: 'Yahoo Finance Market Update',
@@ -178,14 +194,19 @@ class NewsAnalyzer {
 
   async fetchFromMarketaux() {
     try {
-      // Marketaux has a free tier
-      const response = await axios.get('https://api.marketaux.com/v1/news/all', {
-        params: {
-          api_token: process.env.MARKETAUX_API_KEY || 'demo',
-          limit: 50,
-          language: 'en'
-        },
-        timeout: 10000
+      // Marketaux has a free tier with improved timeout handling
+      const response = await timeoutHelper.newsApiCall(async () => {
+        return axios.get('https://api.marketaux.com/v1/news/all', {
+          params: {
+            api_token: process.env.MARKETAUX_API_KEY || 'demo',
+            limit: 50,
+            language: 'en'
+          },
+          timeout: 8000
+        });
+      }, {
+        operation: 'marketaux-news',
+        retries: 1
       });
       
       if (response.data && response.data.data) {
@@ -213,16 +234,21 @@ class NewsAnalyzer {
 
   async fetchFromNewsAPI() {
     try {
-      // NewsAPI has a free tier
-      const response = await axios.get('https://newsapi.org/v2/everything', {
-        params: {
-          apiKey: process.env.NEWS_API_KEY || 'demo',
-          q: 'stocks OR trading OR market OR finance',
-          language: 'en',
-          sortBy: 'publishedAt',
-          pageSize: 50
-        },
-        timeout: 10000
+      // NewsAPI has a free tier with improved timeout handling
+      const response = await timeoutHelper.newsApiCall(async () => {
+        return axios.get('https://newsapi.org/v2/everything', {
+          params: {
+            apiKey: process.env.NEWS_API_KEY || 'demo',
+            q: 'stocks OR trading OR market OR finance',
+            language: 'en',
+            sortBy: 'publishedAt',
+            pageSize: 50
+          },
+          timeout: 8000
+        });
+      }, {
+        operation: 'newsapi-news',
+        retries: 1
       });
       
       if (response.data && response.data.articles) {

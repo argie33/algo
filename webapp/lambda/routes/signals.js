@@ -1,7 +1,202 @@
 const express = require('express');
 const { query, safeQuery, tablesExist } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
+const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
+const SignalProcessor = require('../utils/signalProcessor');
+const AlpacaService = require('../utils/alpacaService');
+const apiKeyService = require('../utils/apiKeyService');
+const logger = require('../utils/logger');
+const { responseFormatter } = require('../utils/responseFormatter');
 
 const router = express.Router();
+
+// Apply authentication to all trading signals routes
+router.use(authenticateToken);
+
+// Initialize signal processor
+const signalProcessor = new SignalProcessor();
+
+// Validation schemas for signal endpoints
+const signalValidationSchemas = {
+  analyze: {
+    symbol: {
+      required: true,
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, trim: true }),
+      validator: (value) => /^[A-Z]{1,10}$/.test(value),
+      errorMessage: 'Symbol must be 1-10 uppercase letters'
+    },
+    timeframe: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 10, trim: true }),
+      validator: (value) => !value || ['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(value),
+      errorMessage: 'Timeframe must be one of: 1m, 5m, 15m, 30m, 1h, 4h, 1d'
+    },
+    patterns: {
+      type: 'string',
+      sanitizer: (value) => sanitizers.string(value, { maxLength: 50, trim: true }),
+      validator: (value) => !value || ['all', 'candlestick', 'chart', 'harmonic', 'volume'].includes(value),
+      errorMessage: 'Patterns must be one of: all, candlestick, chart, harmonic, volume'
+    },
+    lookback: {
+      type: 'integer',
+      sanitizer: (value) => sanitizers.integer(value, { min: 50, max: 500, defaultValue: 100 }),
+      validator: (value) => value >= 50 && value <= 500,
+      errorMessage: 'Lookback period must be between 50 and 500'
+    }
+  }
+};
+
+// Advanced signal analysis endpoint
+router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analyze), async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  const startTime = Date.now();
+  
+  try {
+    const userId = req.user.sub;
+    const { symbol, timeframe = '1d', patterns = 'all', lookback = 100 } = req.validated;
+    
+    logger.info(`📊 [${requestId}] Analyzing signals for symbol`, {
+      userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+      symbol: symbol,
+      timeframe: timeframe,
+      patterns: patterns,
+      lookback: lookback
+    });
+
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      const response = responseFormatter.error('API credentials required for signal analysis', 400);
+      return res.status(400).json(response);
+    }
+
+    // Initialize Alpaca service
+    const alpacaService = new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox);
+
+    // Get historical price data
+    const priceData = await alpacaService.getHistoricalBars(symbol, timeframe, lookback);
+    
+    if (!priceData || priceData.length < 50) {
+      const response = responseFormatter.error('Insufficient price data for signal analysis', 400);
+      return res.status(400).json(response);
+    }
+
+    // Process signals using SignalProcessor
+    const signalAnalysis = await signalProcessor.processSignals(priceData, symbol, {
+      timeframe: timeframe,
+      patterns: patterns
+    });
+
+    if (!signalAnalysis.success) {
+      const response = responseFormatter.error('Signal processing failed', 500);
+      return res.status(500).json(response);
+    }
+
+    // Prepare response data
+    const responseData = {
+      symbol: symbol,
+      timeframe: timeframe,
+      dataPoints: priceData.length,
+      analysis: {
+        primary: signalAnalysis.analysis.primary,
+        confidence: signalAnalysis.analysis.confidence,
+        strength: signalAnalysis.analysis.strength,
+        recommendation: signalAnalysis.analysis.recommendation
+      },
+      signals: signalAnalysis.signals.slice(0, 10),
+      patterns: signalAnalysis.patterns.slice(0, 10),
+      indicators: {
+        trend: signalAnalysis.indicators.trend,
+        momentum: signalAnalysis.indicators.momentum,
+        volatility: signalAnalysis.indicators.volatility
+      },
+      recommendations: signalAnalysis.recommendations,
+      metadata: {
+        processingTime: signalAnalysis.processingTime,
+        timestamp: signalAnalysis.timestamp
+      }
+    };
+
+    const response = responseFormatter.success(responseData, 'Signal analysis completed successfully');
+    
+    logger.info(`✅ [${requestId}] Signal analysis completed`, {
+      symbol: symbol,
+      primarySignal: signalAnalysis.analysis.primary?.type,
+      confidence: signalAnalysis.analysis.confidence,
+      patternsFound: signalAnalysis.patterns.length,
+      signalsGenerated: signalAnalysis.signals.length,
+      totalTime: Date.now() - startTime
+    });
+    
+    res.json(response);
+    
+  } catch (error) {
+    logger.error(`❌ [${requestId}] Signal analysis failed`, {
+      error: error.message,
+      errorStack: error.stack,
+      totalTime: Date.now() - startTime
+    });
+    
+    const response = responseFormatter.error(
+      'Failed to analyze signals',
+      500,
+      { details: error.message }
+    );
+    res.status(500).json(response);
+  }
+});
+
+// Get available signal types and patterns
+router.get('/types', async (req, res) => {
+  const requestId = res.locals.requestId || 'unknown';
+  
+  try {
+    logger.info(`📋 [${requestId}] Fetching available signal types`);
+    
+    const signalTypes = {
+      indicators: {
+        trend: ['sma', 'ema', 'bollinger_bands', 'trend_direction'],
+        momentum: ['rsi', 'macd', 'stochastic', 'williams_r'],
+        volatility: ['atr', 'volatility_ratio', 'price_volatility'],
+        volume: ['volume_sma', 'volume_ratio', 'obv']
+      },
+      patterns: {
+        candlestick: ['doji', 'hammer', 'engulfing', 'star', 'harami'],
+        chart: ['head_shoulders', 'double_top', 'double_bottom', 'triangles', 'flags'],
+        harmonic: ['gartley', 'butterfly', 'bat', 'crab'],
+        volume: ['volume_breakout', 'volume_climax', 'volume_dry_up']
+      },
+      signals: {
+        trend_following: ['moving_average_cross', 'trend_breakout', 'trend_continuation'],
+        momentum: ['rsi_divergence', 'macd_cross', 'momentum_surge'],
+        mean_reversion: ['bollinger_squeeze', 'oversold_bounce', 'overbought_decline'],
+        breakout: ['resistance_break', 'support_break', 'volume_breakout'],
+        pattern: ['pattern_completion', 'pattern_reversal', 'pattern_continuation']
+      },
+      timeframes: ['1m', '5m', '15m', '30m', '1h', '4h', '1d'],
+      recommendations: ['buy', 'sell', 'hold'],
+      strengths: ['weak', 'moderate', 'strong'],
+      riskLevels: ['low', 'medium', 'high']
+    };
+    
+    const response = responseFormatter.success(signalTypes, 'Signal types retrieved successfully');
+    res.json(response);
+    
+  } catch (error) {
+    logger.error(`❌ [${requestId}] Error retrieving signal types`, {
+      error: error.message,
+      errorStack: error.stack
+    });
+    
+    const response = responseFormatter.error(
+      'Failed to retrieve signal types',
+      500,
+      { details: error.message }
+    );
+    res.status(500).json(response);
+  }
+});
 
 // Get signals summary for health checks
 router.get('/summary', async (req, res) => {

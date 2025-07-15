@@ -1,5 +1,6 @@
 const express = require('express');
 const { query, safeQuery, tablesExist } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 const { 
   createValidationMiddleware, 
   rateLimitConfigs, 
@@ -10,6 +11,9 @@ const {
 const validator = require('validator');
 
 const router = express.Router();
+
+// Apply authentication to all technical analysis routes
+router.use(authenticateToken);
 
 // Technical analysis validation schemas
 const technicalValidationSchemas = {

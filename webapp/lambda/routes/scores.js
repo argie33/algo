@@ -1,7 +1,11 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Apply authentication to all scoring routes
+router.use(authenticateToken);
 
 // Basic ping endpoint
 router.get('/ping', (req, res) => {
