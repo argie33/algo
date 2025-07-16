@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# Updated: 2025-07-15 - Trigger deployment for news data loading
+# Updated: 2025-07-15 - Trigger deployment for news data loading - Database population v2
 import sys
 import time
 import logging
