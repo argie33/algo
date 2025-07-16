@@ -42,12 +42,12 @@ async function getDbCredentials() {
                 require: true,
                 rejectUnauthorized: false
             },
-            connectionTimeoutMillis: 30000, // Reduced from 60s to 30s
-            query_timeout: 60000, // Reduced from 120s to 60s
-            statement_timeout: 60000, // Reduced from 120s to 60s
-            idle_in_transaction_session_timeout: 30000, // Add to prevent hanging transactions
+            connectionTimeoutMillis: 15000, // Reduced to 15s
+            query_timeout: 30000, // Reduced to 30s
+            statement_timeout: 30000, // Reduced to 30s
+            idle_in_transaction_session_timeout: 15000, // Reduced to 15s
             keepAlive: true,
-            keepAliveInitialDelayMillis: 10000
+            keepAliveInitialDelayMillis: 5000
         };
     } catch (error) {
         log('error', 'Failed to get database credentials:', error.message);
@@ -1010,7 +1010,7 @@ async function connectWithRetry(dbConfig, maxRetries = 3) {
             // Set up connection timeout
             const connectPromise = client.connect();
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000);
+                setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000);
             });
             
             await Promise.race([connectPromise, timeoutPromise]);
@@ -1080,7 +1080,7 @@ async function testNetworkConnectivity(host, port) {
 }
 
 async function initializeWebappDatabase() {
-    log('info', '🚀 Starting webapp database initialization v1.3');
+    log('info', '🚀 Starting webapp database initialization v1.4 - TIMEOUT FIX');
     log('info', `Environment: ${process.env.ENVIRONMENT || 'unknown'}`);
     log('info', `AWS Region: ${process.env.AWS_REGION || 'unknown'}`);
     log('info', `DB Secret ARN: ${process.env.DB_SECRET_ARN ? 'set' : 'NOT SET'}`);
