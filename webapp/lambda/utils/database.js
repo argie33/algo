@@ -46,7 +46,7 @@ async function getDbConfig() {
             user: secret.username,
             password: secret.password,
             ssl: {
-                require: true,
+                require: false,
                 rejectUnauthorized: false
             },
             max: parseInt(process.env.DB_POOL_MAX) || 3,

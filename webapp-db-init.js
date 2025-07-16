@@ -1008,11 +1008,12 @@ ON CONFLICT (table_name) DO NOTHING;
 }
 
 async function connectWithRetry(dbConfig, maxRetries = 3) {
-    // Try different connection configurations
+    // Try different connection configurations - prioritize working configs
     const connectionConfigs = [
-        { ...dbConfig, ssl: false }, // No SSL first
-        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false } }, // SSL optional
-        { ...dbConfig, ssl: { require: true, rejectUnauthorized: false } }, // SSL required
+        { ...dbConfig, ssl: false }, // No SSL first - often works for AWS RDS
+        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false, checkServerIdentity: false } }, // SSL optional with identity bypass
+        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false, servername: false } }, // SSL with server name bypass
+        { ...dbConfig, ssl: { require: true, rejectUnauthorized: false, sslmode: 'prefer' } }, // SSL preferred mode
     ];
     log('info', '🔧 Database Connection Diagnostics');
     log('info', `   Host: ${dbConfig.host}`);
@@ -1024,12 +1025,14 @@ async function connectWithRetry(dbConfig, maxRetries = 3) {
     log('info', `   Connection Timeout: ${dbConfig.connectionTimeoutMillis}ms`);
     log('info', `   Max Retries: ${maxRetries}`);
     
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        log('info', `🔄 Connection attempt ${attempt}/${maxRetries}`);
+    for (let configIndex = 0; configIndex < connectionConfigs.length; configIndex++) {
+        const currentConfig = connectionConfigs[configIndex];
+        log('info', `🔄 Trying connection config ${configIndex + 1}/${connectionConfigs.length}`);
+        log('info', `   SSL Mode: ${JSON.stringify(currentConfig.ssl)}`);
         
-        // Create client with comprehensive logging
+        // Create client with current configuration
         const client = new Client({
-            ...dbConfig,
+            ...currentConfig,
             connectionTimeoutMillis: 30000, // 30 seconds - conservative
             query_timeout: 30000, // 30 seconds for queries
             statement_timeout: 30000 // 30 seconds for statements
@@ -1140,15 +1143,14 @@ async function connectWithRetry(dbConfig, maxRetries = 3) {
                 log('error', `⚠️ Error closing client: ${closeError.message}`);
             }
             
-            if (attempt === maxRetries) {
-                log('error', `🚫 All ${maxRetries} connection attempts failed`);
-                throw new Error(`Failed to connect after ${maxRetries} attempts. Last error: ${error.message}`);
+            if (configIndex === connectionConfigs.length - 1) {
+                log('error', `🚫 All ${connectionConfigs.length} connection configurations failed`);
+                throw new Error(`Failed to connect with any configuration. Last error: ${error.message}`);
             }
             
-            // Exponential backoff: wait 2^attempt seconds
-            const waitTime = Math.pow(2, attempt) * 1000;
-            log('info', `⏳ Waiting ${waitTime}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            // Brief wait before trying next configuration
+            log('info', `⏳ Waiting 2 seconds before trying next configuration...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
     }
 }
