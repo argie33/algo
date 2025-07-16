@@ -43,7 +43,7 @@ import {
   Settings,
   Security,
   Notifications,
-  Trading,
+  ShowChart,
   Visibility,
   VisibilityOff,
   Delete,
@@ -1039,7 +1039,7 @@ const SettingsManager = () => {
 
       <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
         <Tab label="API Keys" icon={<VpnKey />} />
-        <Tab label="Trading" icon={<Trading />} />
+        <Tab label="Trading" icon={<ShowChart />} />
         <Tab label="Notifications" icon={<Notifications />} />
         <Tab label="Display" icon={<ColorLens />} />
       </Tabs>
