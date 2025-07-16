@@ -710,23 +710,62 @@ jobs:
       - name: Get Cognito configuration
         id: cognito_config
         run: |
-          STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
+          # The webapp stack should contain Cognito resources
+          WEBAPP_STACK_NAME="${{ env.STACK_NAME }}"
+          INFRA_STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
           
-          # Get Cognito configuration from CloudFormation outputs
+          echo "🔍 Checking for Cognito configuration in stacks:"
+          echo "  Webapp Stack: $WEBAPP_STACK_NAME"
+          echo "  Infra Stack: $INFRA_STACK_NAME"
+          
+          # First try the webapp stack (this one should have Cognito)
+          echo "🔎 Checking webapp stack for Cognito resources..."
           USER_POOL_ID=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
+            --stack-name "$WEBAPP_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
             --output text 2>/dev/null || echo "")
           
           CLIENT_ID=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
+            --stack-name "$WEBAPP_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
             --output text 2>/dev/null || echo "")
           
           COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
+            --stack-name "$WEBAPP_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" \
             --output text 2>/dev/null || echo "")
+          
+          # If webapp stack doesn't have Cognito, try infra stack
+          if [[ -z "$USER_POOL_ID" || "$USER_POOL_ID" == "None" ]]; then
+            echo "⚠️ No Cognito found in webapp stack, checking infrastructure stack..."
+            USER_POOL_ID=$(aws cloudformation describe-stacks \
+              --stack-name "$INFRA_STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+              --output text 2>/dev/null || echo "")
+            
+            CLIENT_ID=$(aws cloudformation describe-stacks \
+              --stack-name "$INFRA_STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
+              --output text 2>/dev/null || echo "")
+            
+            COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+              --stack-name "$INFRA_STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" \
+              --output text 2>/dev/null || echo "")
+          fi
+          
+          # Debug: List all outputs from both stacks to understand what's available
+          echo "🔍 All outputs from webapp stack ($WEBAPP_STACK_NAME):"
+          aws cloudformation describe-stacks \
+            --stack-name "$WEBAPP_STACK_NAME" \
+            --query "Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}" \
+            --output table 2>/dev/null || echo "  Stack not found or no outputs"
+          
+          echo "🔍 All outputs from infra stack ($INFRA_STACK_NAME):"
+          aws cloudformation describe-stacks \
+            --stack-name "$INFRA_STACK_NAME" \
+            --query "Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}" \
+            --output table 2>/dev/null || echo "  Stack not found or no outputs"
           
           WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
           
