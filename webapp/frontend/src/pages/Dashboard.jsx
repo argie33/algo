@@ -64,6 +64,8 @@ import dataCache from '../services/dataCache';
 import MarketStatusBar from '../components/MarketStatusBar';
 import RealTimePriceWidget from '../components/RealTimePriceWidget';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
+import WelcomeOverlay from '../components/WelcomeOverlay';
+import PersonalizedDashboardHeader from '../components/PersonalizedDashboardHeader';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -762,6 +764,8 @@ const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [dashboardView, setDashboardView] = useState('overview');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
   
   const SYMBOL_OPTIONS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
   
@@ -832,8 +836,21 @@ const Dashboard = () => {
       ]
     : [];
 
+  // Check if user should see welcome overlay
+  const shouldShowWelcome = isAuthenticated && !hasSeenWelcome && showWelcome;
+
   return (
     <>
+      {/* Welcome Overlay */}
+      {shouldShowWelcome && (
+        <WelcomeOverlay 
+          onClose={() => {
+            setShowWelcome(false);
+            setHasSeenWelcome(true);
+          }}
+        />
+      )}
+
       {/* Market Status Bar */}
       <MarketStatusBar />
       
@@ -847,45 +864,25 @@ const Dashboard = () => {
             }}
           />
         </Box>
-        {/* Award-Winning Header */}
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
-        <Box>
-          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, background: 'linear-gradient(45deg, #1976d2, #43a047)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {BRAND_NAME}
-          </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
-            Elite Financial Intelligence Platform
-          </Typography>
-          <Box display="flex" gap={1} mt={1}>
-            <Chip icon={<Bolt />} label="Real-Time" color="success" size="small" />
-            <Chip icon={<Psychology />} label="AI-Powered" color="primary" size="small" />
-            <Chip icon={<Security />} label="Institutional" color="warning" size="small" />
-            <Chip icon={<Insights />} label="Advanced Analytics" color="info" size="small" />
-          </Box>
-        </Box>
-        
-        <Box display="flex" alignItems="center" gap={2}>
-          <Badge badgeContent={safeSignals.length} color="error">
-            <IconButton>
-              <Notifications />
-            </IconButton>
-          </Badge>
+
+        {/* Personalized Header */}
+        <PersonalizedDashboardHeader 
+          onNotificationClick={() => {
+            // Handle notification click
+            console.log('Notifications clicked');
+          }}
+        />
+
+        {/* Symbol Selection */}
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
           <Autocomplete
             options={SYMBOL_OPTIONS}
             value={selectedSymbol}
             onChange={(_, newValue) => newValue && setSelectedSymbol(newValue)}
-            sx={{ width: 180 }}
-            renderInput={(params) => <TextField {...params} label="Symbol" size="small" />}
+            sx={{ width: 300 }}
+            renderInput={(params) => <TextField {...params} label="Select Symbol" size="small" />}
           />
-          {user && (
-            <Tooltip title={user.email || user.name} arrow>
-              <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
-                {user.name ? user.name[0] : (user.email ? user.email[0] : 'U')}
-              </Avatar>
-            </Tooltip>
-          )}
         </Box>
-      </Box>
 
       {/* Executive Command Center */}
       {isAuthenticated && user && (
