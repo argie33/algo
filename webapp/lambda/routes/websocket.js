@@ -28,7 +28,7 @@ router.get('/health', (req, res) => {
 
 // Basic status endpoint
 router.get('/status', (req, res) => {
-  res.json(responseFormatter.success({
+  res.json(success({
     activeUsers: 0,
     cachedSymbols: 0,
     service: 'websocket',
@@ -97,18 +97,20 @@ router.get('/stream/:symbols', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       console.error(`❌ [${requestId}] Authentication failure - no authorization header provided`);
-      return res.status(401).json(responseFormatter.createErrorResponse(
+      return res.status(401).json(error(
         'No authorization token provided',
+        401,
         { requestId, timestamp: new Date().toISOString() }
-      ));
+      ).response);
     }
 
     if (!authHeader.startsWith('Bearer ')) {
       console.error(`❌ [${requestId}] Authentication failure - invalid authorization header format`);
-      return res.status(401).json(responseFormatter.createErrorResponse(
+      return res.status(401).json(error(
         'Invalid authorization header format',
+        401,
         { requestId, timestamp: new Date().toISOString() }
-      ));
+      ).response);
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -148,14 +150,15 @@ router.get('/stream/:symbols', async (req, res) => {
         recommendation: 'User needs to re-authenticate'
       });
       
-      return res.status(401).json(responseFormatter.createErrorResponse(
+      return res.status(401).json(error(
         'Invalid or expired authentication token',
+        401,
         { 
           requestId, 
           error: 'Authentication failed',
           timestamp: new Date().toISOString() 
         }
-      ));
+      ).response);
     }
 
     // Parse and validate symbols
@@ -170,10 +173,11 @@ router.get('/stream/:symbols', async (req, res) => {
         filteredSymbols: symbols,
         impact: 'No valid symbols to stream'
       });
-      return res.status(400).json(responseFormatter.createErrorResponse(
+      return res.status(400).json(error(
         'No valid symbols provided',
+        400,
         { requestId, timestamp: new Date().toISOString() }
-      ));
+      ).response);
     }
     
     console.log(`✅ [${requestId}] Symbols validated:`, {
@@ -479,7 +483,7 @@ router.get('/stream/:symbols', async (req, res) => {
       }
     };
 
-    res.json(responseFormatter.createSuccessResponse(responseData));
+    res.json(success(responseData));
 
   } catch (error) {
     const errorDuration = Date.now() - requestStart;
@@ -492,15 +496,16 @@ router.get('/stream/:symbols', async (req, res) => {
       recommendation: 'Check authentication, API credentials, and Alpaca service status'
     });
     
-    res.status(500).json(responseFormatter.createErrorResponse(
+    res.status(500).json(error(
       'Failed to stream market data',
+      500,
       {
         requestId,
         error_duration_ms: errorDuration,
         details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
         timestamp: new Date().toISOString()
       }
-    ));
+    ).response);
   }
 });
 
@@ -512,7 +517,7 @@ router.get('/trades/:symbols', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(responseFormatter.createErrorResponse('No authorization token provided'));
+      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -532,7 +537,7 @@ router.get('/trades/:symbols', async (req, res) => {
     // Get user's Alpaca credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(403).json(responseFormatter.createErrorResponse('No Alpaca API key configured'));
+      return res.status(403).json(((msg, details) => error(msg, 500, details).response)('No Alpaca API key configured'));
     }
 
     // Initialize Alpaca service
@@ -559,11 +564,11 @@ router.get('/trades/:symbols', async (req, res) => {
       }
     }
 
-    res.json(responseFormatter.createSuccessResponse(tradeData));
+    res.json(success(tradeData));
 
   } catch (error) {
     console.error('Trades endpoint error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get trade data'));
+    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get trade data'));
   }
 });
 
@@ -575,7 +580,7 @@ router.get('/bars/:symbols', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(responseFormatter.createErrorResponse('No authorization token provided'));
+      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -596,7 +601,7 @@ router.get('/bars/:symbols', async (req, res) => {
     // Get user's Alpaca credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(403).json(responseFormatter.createErrorResponse('No Alpaca API key configured'));
+      return res.status(403).json(((msg, details) => error(msg, 500, details).response)('No Alpaca API key configured'));
     }
 
     // Initialize Alpaca service
@@ -621,11 +626,11 @@ router.get('/bars/:symbols', async (req, res) => {
       }
     }
 
-    res.json(responseFormatter.createSuccessResponse(barsData));
+    res.json(success(barsData));
 
   } catch (error) {
     console.error('Bars endpoint error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get bars data'));
+    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get bars data'));
   }
 });
 
@@ -637,7 +642,7 @@ router.post('/subscribe', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(responseFormatter.createErrorResponse('No authorization token provided'));
+      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -654,14 +659,14 @@ router.post('/subscribe', async (req, res) => {
     const { symbols, dataTypes } = req.body;
     
     if (!symbols || !Array.isArray(symbols)) {
-      return res.status(400).json(responseFormatter.createErrorResponse('Invalid symbols array'));
+      return res.status(400).json(((msg, details) => error(msg, 500, details).response)('Invalid symbols array'));
     }
 
     // Update user subscriptions
     const userSymbols = symbols.map(s => s.toUpperCase());
     userSubscriptions.set(userId, new Set(userSymbols));
 
-    res.json(responseFormatter.createSuccessResponse({
+    res.json(success({
       subscribed: userSymbols,
       dataTypes: dataTypes || ['quotes'],
       message: `Subscribed to ${userSymbols.length} symbols`,
@@ -674,7 +679,7 @@ router.post('/subscribe', async (req, res) => {
 
   } catch (error) {
     console.error('Subscribe endpoint error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to subscribe'));
+    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to subscribe'));
   }
 });
 
@@ -686,7 +691,7 @@ router.get('/subscriptions', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(responseFormatter.createErrorResponse('No authorization token provided'));
+      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -702,7 +707,7 @@ router.get('/subscriptions', async (req, res) => {
 
     const subscriptions = Array.from(userSubscriptions.get(userId) || []);
 
-    res.json(responseFormatter.createSuccessResponse({
+    res.json(success({
       symbols: subscriptions,
       count: subscriptions.length,
       streamEndpoints: subscriptions.length > 0 ? {
@@ -714,7 +719,7 @@ router.get('/subscriptions', async (req, res) => {
 
   } catch (error) {
     console.error('Subscriptions endpoint error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get subscriptions'));
+    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get subscriptions'));
   }
 });
 
@@ -726,7 +731,7 @@ router.delete('/subscribe', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(responseFormatter.createErrorResponse('No authorization token provided'));
+      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -752,14 +757,14 @@ router.delete('/subscribe', async (req, res) => {
       userSubscriptions.delete(userId);
     }
 
-    res.json(responseFormatter.createSuccessResponse({
+    res.json(success({
       message: 'Unsubscribed successfully',
       remainingSubscriptions: Array.from(userSubscriptions.get(userId) || [])
     }));
 
   } catch (error) {
     console.error('Unsubscribe endpoint error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to unsubscribe'));
+    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to unsubscribe'));
   }
 });
 
@@ -771,7 +776,7 @@ router.get('/health', (req, res) => {
     totalSubscriptions: Array.from(userSubscriptions.values()).reduce((sum, set) => sum + set.size, 0)
   };
   
-  res.json(responseFormatter.createSuccessResponse({
+  res.json(success({
     status: 'operational',
     type: 'http_polling_realtime_data',
     updateInterval: UPDATE_INTERVAL,
@@ -795,7 +800,7 @@ router.get('/status', (req, res) => {
     };
   }
 
-  res.json(responseFormatter.createSuccessResponse({
+  res.json(success({
     activeUsers: userSubscriptions.size,
     cachedSymbols: realtimeDataCache.size,
     cacheDetails,
