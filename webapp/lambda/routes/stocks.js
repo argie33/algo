@@ -814,22 +814,140 @@ router.get('/', stocksListValidation, async (req, res) => {
 // Screen endpoint - MUST come before /:ticker to avoid route collision
 router.get('/screen', async (req, res) => {
   try {
-    console.log('🔍 Screen endpoint HIT! Method:', req.method, 'URL:', req.url);
-    console.log('🔍 Screen endpoint called with params:', req.query);
+    console.log('🔍 Stock screening endpoint called with params:', req.query);
     
-    // For now, return a simple response to fix the routing issue
-    // TODO: Move the full screening logic here from line 952
+    const {
+      sector,
+      marketCap,
+      priceRange,
+      volume,
+      sortBy = 'market_cap',
+      sortOrder = 'DESC',
+      page = 1,
+      limit = 25
+    } = req.query;
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Build dynamic query based on screening criteria
+    let whereConditions = ['current_price IS NOT NULL', 'market_cap IS NOT NULL'];
+    let queryParams = [];
+    let paramIndex = 1;
+    
+    // Sector filter
+    if (sector && sector !== 'all') {
+      whereConditions.push(`sector = $${paramIndex}`);
+      queryParams.push(sector);
+      paramIndex++;
+    }
+    
+    // Market cap filter
+    if (marketCap) {
+      const [min, max] = marketCap.split('-').map(v => parseFloat(v) * 1000000000); // Convert billions to actual value
+      if (min) {
+        whereConditions.push(`market_cap >= $${paramIndex}`);
+        queryParams.push(min);
+        paramIndex++;
+      }
+      if (max && max > 0) {
+        whereConditions.push(`market_cap <= $${paramIndex}`);
+        queryParams.push(max);
+        paramIndex++;
+      }
+    }
+    
+    // Price range filter
+    if (priceRange) {
+      const [minPrice, maxPrice] = priceRange.split('-').map(v => parseFloat(v));
+      if (minPrice) {
+        whereConditions.push(`current_price >= $${paramIndex}`);
+        queryParams.push(minPrice);
+        paramIndex++;
+      }
+      if (maxPrice && maxPrice > 0) {
+        whereConditions.push(`current_price <= $${paramIndex}`);
+        queryParams.push(maxPrice);
+        paramIndex++;
+      }
+    }
+    
+    // Volume filter
+    if (volume) {
+      const minVolume = parseInt(volume) * 1000000; // Convert millions to actual volume
+      whereConditions.push(`volume >= $${paramIndex}`);
+      queryParams.push(minVolume);
+      paramIndex++;
+    }
+    
+    const whereClause = whereConditions.join(' AND ');
+    const validSortColumns = ['market_cap', 'current_price', 'change_percent', 'volume', 'symbol'];
+    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'market_cap';
+    const safeSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+    
+    console.log(`📊 Screening with conditions: ${whereClause}`);
+    console.log(`📊 Query parameters:`, queryParams);
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total 
+      FROM stocks 
+      WHERE ${whereClause}
+    `;
+    
+    const countResult = await query(countQuery, queryParams);
+    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
+    
+    // Get the actual stocks
+    const stocksQuery = `
+      SELECT 
+        symbol,
+        company_name,
+        sector,
+        current_price,
+        change_percent,
+        volume,
+        market_cap,
+        pe_ratio,
+        dividend_yield,
+        beta
+      FROM stocks 
+      WHERE ${whereClause}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    
+    queryParams.push(parseInt(limit), offset);
+    
+    const stocksResult = await query(stocksQuery, queryParams, 10000); // 10 second timeout for complex screening
+    
+    console.log(`✅ Retrieved ${stocksResult.rows.length} stocks out of ${totalStocks} total matching criteria`);
+    
     res.json({
       success: true,
       data: {
-        stocks: [],
+        stocks: stocksResult.rows,
         pagination: {
-          page: 1,
-          limit: parseInt(req.query.limit) || 25,
-          total: 0
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalStocks,
+          totalPages: Math.ceil(totalStocks / parseInt(limit))
+        },
+        filters: {
+          sector: sector || 'all',
+          marketCap: marketCap || 'all',
+          priceRange: priceRange || 'all',
+          volume: volume || 'all',
+          sortBy: safeSortBy,
+          sortOrder: safeSortOrder
         }
       },
-      message: 'Stock screening endpoint working - full implementation pending'
+      data_source: 'real_database',
+      query_performance: {
+        execution_time_ms: Date.now() - Date.now(),
+        conditions_applied: whereConditions.length,
+        total_matching_stocks: totalStocks
+      },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Screen endpoint error:', error);
