@@ -25,6 +25,13 @@ async function loadEncryptionSecret() {
     const secretArn = process.env.API_KEY_ENCRYPTION_SECRET_ARN;
     if (!secretArn) {
       console.error('❌ API_KEY_ENCRYPTION_SECRET_ARN environment variable not set');
+      // Fallback to environment variable for development
+      const fallbackSecret = process.env.API_KEY_ENCRYPTION_SECRET;
+      if (fallbackSecret) {
+        console.log('🔧 Using fallback encryption secret from environment');
+        encryptionSecretCache = fallbackSecret;
+        return fallbackSecret;
+      }
       return null;
     }
 
@@ -158,20 +165,46 @@ class ApiKeyService {
         userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
         provider: provider || 'unknown',
         apiKeyLength: apiKey.length,
-        saltLength: userSalt.length
+        saltLength: userSalt.length,
+        algorithm: ALGORITHM
       });
 
+      // Generate key from secret + salt
+      logger.debug('🔑 Generating encryption key', {
+        secretKeyLength: this.secretKey.length,
+        saltLength: userSalt.length
+      });
+      
       const key = crypto.scryptSync(this.secretKey, userSalt, 32);
+      
+      logger.debug('🔑 Key generated, preparing cipher', {
+        keyLength: key.length,
+        algorithm: ALGORITHM
+      });
+      
       const iv = crypto.randomBytes(12); // GCM typically uses 12-byte IV
-      const cipher = crypto.createCipher('aes-256-cbc', key);
+      const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+      
+      logger.debug('🔐 Starting encryption process');
       
       let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+      
+      logger.debug('🔐 Encryption update complete, finalizing');
+      
       encrypted += cipher.final('hex');
+      
+      // Get auth tag for GCM mode
+      const authTag = cipher.getAuthTag();
+      
+      logger.debug('🔐 Encryption finalized', {
+        encryptedLength: encrypted.length,
+        authTagLength: authTag.length
+      });
       
       const result = {
         encrypted: encrypted,
         iv: iv.toString('hex'),
-        authTag: null  // Not used in CBC mode
+        authTag: authTag.toString('hex')
       };
       
       logger.info('✅ API key encrypted successfully', {
@@ -228,15 +261,47 @@ class ApiKeyService {
         provider: provider || 'unknown',
         encryptedLength: encryptedData.encrypted.length,
         ivLength: encryptedData.iv.length,
-        saltLength: userSalt.length
+        saltLength: userSalt.length,
+        hasAuthTag: !!encryptedData.authTag,
+        algorithm: ALGORITHM
       });
 
+      // Generate key from secret + salt
+      logger.debug('🔑 Generating decryption key', {
+        secretKeyLength: this.secretKey.length,
+        saltLength: userSalt.length
+      });
+      
       const key = crypto.scryptSync(this.secretKey, userSalt, 32);
+      
+      logger.debug('🔑 Key generated, preparing decipher', {
+        keyLength: key.length,
+        algorithm: ALGORITHM
+      });
+      
       const iv = Buffer.from(encryptedData.iv, 'hex');
-      const decipher = crypto.createDecipher('aes-256-cbc', key);
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+      
+      // Handle auth tag for GCM mode
+      if (encryptedData.authTag) {
+        logger.debug('🔐 Setting auth tag for GCM mode', {
+          authTagLength: encryptedData.authTag.length
+        });
+        decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+      }
+      
+      logger.debug('🔓 Starting decryption process');
       
       let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+      
+      logger.debug('🔓 Decryption update complete, finalizing');
+      
       decrypted += decipher.final('utf8');
+      
+      logger.debug('🔓 Decryption finalized', {
+        decryptedLength: decrypted.length,
+        firstChars: decrypted.substring(0, 4) + '...'
+      });
       
       // Validate decrypted result
       if (!decrypted || decrypted.length < 8) {
@@ -438,6 +503,122 @@ class ApiKeyService {
       console.error('Error getting active providers:', error.message); // Security: Only log error message
       return [];
     }
+  }
+
+  /**
+   * Validate API key format for different providers
+   * @param {string} provider - API provider name
+   * @param {string} apiKey - API key to validate
+   * @param {string} apiSecret - API secret to validate (optional)
+   * @returns {Object} Validation result with valid flag and error message
+   */
+  validateApiKeyFormat(provider, apiKey, apiSecret = null) {
+    if (!provider || !apiKey) {
+      return {
+        valid: false,
+        error: 'Provider and API key are required',
+        details: { provider, apiKey: apiKey ? '[PROVIDED]' : '[MISSING]' }
+      };
+    }
+
+    const providerLower = provider.toLowerCase().trim();
+    
+    switch (providerLower) {
+      case 'alpaca':
+        // Alpaca API key validation
+        if (apiKey.length < 20 || apiKey.length > 50) {
+          return {
+            valid: false,
+            error: 'Alpaca API key must be 20-50 characters',
+            details: { provider, length: apiKey.length }
+          };
+        }
+        
+        if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
+          return {
+            valid: false,
+            error: 'Alpaca API key must contain only alphanumeric characters',
+            details: { provider, pattern: 'alphanumeric' }
+          };
+        }
+        
+        // Alpaca API secret validation (if provided)
+        if (apiSecret) {
+          if (apiSecret.length < 20 || apiSecret.length > 80) {
+            return {
+              valid: false,
+              error: 'Alpaca API secret must be 20-80 characters',
+              details: { provider, secretLength: apiSecret.length }
+            };
+          }
+          
+          if (!/^[A-Za-z0-9/+=]+$/.test(apiSecret)) {
+            return {
+              valid: false,
+              error: 'Alpaca API secret contains invalid characters',
+              details: { provider, allowedChars: 'A-Z, a-z, 0-9, /, +, =' }
+            };
+          }
+        }
+        break;
+        
+      case 'tdameritrade':
+        // TD Ameritrade API key validation (more flexible length)
+        if (apiKey.length < 20 || apiKey.length > 40) {
+          return {
+            valid: false,
+            error: 'TD Ameritrade API key must be 20-40 characters',
+            details: { provider, length: apiKey.length, expected: '20-40' }
+          };
+        }
+        
+        if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
+          return {
+            valid: false,
+            error: 'TD Ameritrade API key must contain only alphanumeric characters',
+            details: { provider, pattern: 'alphanumeric' }
+          };
+        }
+        break;
+        
+      case 'interactivebrokers':
+        // Interactive Brokers API key validation (more lenient)
+        if (apiKey.length < 8 || apiKey.length > 100) {
+          return {
+            valid: false,
+            error: 'Interactive Brokers API key must be 8-100 characters',
+            details: { provider, length: apiKey.length }
+          };
+        }
+        break;
+        
+      default:
+        // Generic validation for unknown providers
+        if (apiKey.length < 8 || apiKey.length > 200) {
+          return {
+            valid: false,
+            error: 'API key must be 8-200 characters',
+            details: { provider, length: apiKey.length }
+          };
+        }
+        
+        // Reject obvious placeholder values
+        const placeholders = ['password', '123456', 'test', 'apikey', 'key'];
+        if (placeholders.includes(apiKey.toLowerCase())) {
+          return {
+            valid: false,
+            error: 'API key appears to be a placeholder value',
+            details: { provider, placeholder: apiKey.toLowerCase() }
+          };
+        }
+        break;
+    }
+
+    return {
+      valid: true,
+      error: null,
+      details: { provider, keyLength: apiKey.length }
+    };
   }
 }
 
