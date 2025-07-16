@@ -351,6 +351,57 @@ const logEntry = {
 - **Operational Empathy**: Understanding real-world service management challenges
 - **Continuous Learning Loop**: Each session should improve our operational understanding
 
+## 🎯 AUTONOMOUS WORK PATTERNS & LEARNING INTEGRATION
+
+### <autonomous_work_style>
+**How We Work Best Together**:
+- **Autonomous Execution**: When given direction, work independently for extended periods (30-60 minutes)
+- **Systematic Approach**: Break down complex problems into manageable todos and execute methodically
+- **Proactive Communication**: Update progress via todo system, document learnings in real-time
+- **Learning Integration**: When errors occur, immediately analyze root cause and update methodology
+- **Rapid Iteration**: Small commits with clear messages, deploy fixes quickly, test systematically
+
+**User Communication Preferences**:
+- **Minimal Interruption**: User provides direction, then I work autonomously until completion
+- **Progress Visibility**: Todo system shows real-time progress, no need for constant updates
+- **Error Transparency**: When issues arise, surface them immediately with proposed solutions
+- **Documentation Focus**: User values learning being captured in structured documentation
+- **Practical Solutions**: Focus on fixing issues, not just analyzing them
+</autonomous_work_style>
+
+### <error_handling_methodology>
+**Build Error Resolution Pattern**:
+1. **Immediate Response**: When build fails, stop all other work and focus on resolution
+2. **Root Cause Analysis**: Don't just fix symptoms - understand why the error occurred
+3. **Systematic Validation**: Check similar patterns across entire codebase
+4. **Preventive Measures**: Implement safeguards to prevent similar issues
+5. **Documentation Update**: Capture lessons learned in structured format
+
+**MUI Icon Error - Lessons Learned (2025-07-16)**:
+- **Problem**: `Trading` icon doesn't exist in @mui/icons-material package
+- **Root Cause**: Assumed icon exists without validation
+- **Solution**: Replace with `ShowChart` icon for similar visual meaning
+- **Prevention**: Validate all MUI imports before assuming availability
+- **Documentation**: Update import validation in TEST_PLAN.md
+</error_handling_methodology>
+
+### <dependency_management_learnings>
+**Frontend Build Dependencies**:
+- **Always Install First**: Don't assume dependencies exist - run `npm install` before building
+- **Version Compatibility**: MUI icons-material v5.11.11 - validate icon names against this version
+- **Build Validation**: Test builds early and often, especially after icon/import changes
+- **Fallback Strategy**: Have alternative icons ready for common cases (Trading → ShowChart)
+</dependency_management_learnings>
+
+### <documentation_approach>
+**Real-time Learning Capture**:
+- **Structured Tags**: Use XML-like tags `<category>content</category>` for easy parsing
+- **Immediate Updates**: Update CLAUDE.md as soon as patterns emerge
+- **Pattern Recognition**: Document "how we work best" patterns for future reference
+- **Error Categorization**: Classify errors by type (build, deployment, logic) for quick reference
+- **Solution Templates**: Create reusable approaches for common problem types
+</documentation_approach>
+
 ## CRITICAL SYSTEM INTEGRATION: Complete API Key Flow (2025-07-15)
 
 ### Major Integration Achievement
