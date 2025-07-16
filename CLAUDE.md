@@ -90,33 +90,32 @@
 - **File Naming**: kebab-case for scripts, camelCase for modules
 - **Imports**: Group AWS SDK, third-party, then local imports
 
-## Critical Authentication Deployment Issue - ACTIVE BLOCKER
+## Critical Database Connection Issue - ACTIVE BLOCKER (July 16, 2025)
 
-### Root Cause: Frontend Configuration Not Generated from CloudFormation
-The authentication flow is broken because the frontend `public/config.js` contains fallback values instead of real Cognito credentials:
+### Root Cause: AWS Secrets Manager JSON Parsing Error
+The database connection is failing with a JSON parsing error in both Lambda and ECS contexts:
 
-```javascript
-// BROKEN - Current config.js
-"COGNITO": {
-  "USER_POOL_ID": "us-east-1_FALLBACK",     // <- Fallback value, not real
-  "CLIENT_ID": "fallback-client-id",        // <- Fallback value, not real
-}
+```
+"Database connection failed: Database configuration failed: Unexpected token o in JSON at position 1"
 ```
 
 ### The Problem
-- **CloudFormation Template**: `template-webapp-lambda.yml` creates real Cognito User Pool + Client
-- **CloudFormation Outputs**: Exports `UserPoolId` and `UserPoolClientId` correctly  
-- **Deployment Gap**: The frontend build process doesn't extract these CloudFormation outputs
-- **Result**: Users see authentication window but it "just sits there" because it's trying to authenticate against non-existent fallback resources
+- **Lambda Database Service**: `utils/database.js` cannot parse AWS Secrets Manager response
+- **ECS Task Execution**: Tasks showing "Exit code: None" - never starting or completing
+- **JSON Parsing**: Error suggests malformed secret or response format issue
+- **Circuit Breaker**: Database service circuit breaker is OPEN, preventing retry attempts
 
-### The Solution (IaC Approach)
-The deployment workflow must be fixed to:
-1. Deploy CloudFormation stack (creates real Cognito resources)
-2. Extract CloudFormation outputs (get real UserPoolId + ClientId)
-3. Generate frontend config.js with real values
-4. Build and deploy frontend with proper Cognito configuration
+### Investigation Areas
+1. **AWS Secrets Manager**: Verify secret format is valid JSON with correct structure
+2. **ECS Task Configuration**: Compare failing task definitions with working ones
+3. **Network Connectivity**: Validate security groups allow ECS-to-RDS connections
+4. **Environment Variables**: Ensure all required variables are properly set
 
-**Reference**: `deploy-webapp-serverless.yml` shows the correct pattern - it extracts CloudFormation outputs and passes them to the frontend build process.
+### Authentication Infrastructure - RESOLVED ✅
+Frontend configuration now working with real Cognito values:
+- USER_POOL_ID: `us-east-1_ZqooNeQtV` (real)
+- CLIENT_ID: `243r98prucoickch12djkahrhk` (real)
+- CloudFormation output extraction working correctly
 
 ## Critical Architectural Issues Fixed
 ### Database Initialization Deployment
@@ -388,19 +387,29 @@ const logEntry = {
 4. **Preventive Measures**: Implement safeguards to prevent similar issues
 5. **Documentation Update**: Capture lessons learned in structured format
 
-**Database Connection Error - Lessons Learned (2025-07-16)**:
-- **Problem**: Persistent SSL connection reset errors in database initialization
-- **Root Cause**: SSL configuration mismatch - RDS in public subnet doesn't require SSL
-- **Solution**: Match working ECS task configuration with `ssl: false`
+**Chart.js Build Errors - RESOLVED (2025-07-16)**:
+- **Problem**: Build failures due to Chart.js and react-chartjs-2 imports after dependency removal
+- **Root Cause**: Dependencies removed from package.json but imports still existed in 4+ files
+- **Files Fixed**: LiveData.jsx, StockChart.jsx, AdminLiveData.jsx, LiveDataCentralized.jsx
+- **Solution**: Systematic migration to recharts with ResponsiveContainer, LineChart, AreaChart, PieChart
+- **Benefits**: 30% bundle size reduction (vendor: 547KB → 381KB), better React integration
+- **Status**: COMPLETE - All Chart.js dependencies eliminated, builds succeed consistently
+- **Prevention**: Use dependency search before removing packages, validate all imports across codebase
+
+**Database Connection Error - IN PROGRESS (2025-07-16)**:
+- **Problem**: Persistent SSL connection reset errors + JSON parsing error in AWS Secrets Manager
+- **Root Cause**: SSL configuration deployed but new error "Unexpected token o in JSON at position 1"
+- **Current Status**: ECS tasks showing "Exit code: None" - not starting or completing
+- **Investigation Needed**: AWS Secrets Manager secret format, ECS task definition comparison
 - **Prevention**: Always check existing working configurations before creating new ones
 - **Documentation**: Reference existing ECS task templates for network/security patterns
 
-**MUI Icon Error - Lessons Learned (2025-07-16)**:
+**MUI Icon Error - RESOLVED (2025-07-16)**:
 - **Problem**: `Trading` icon doesn't exist in @mui/icons-material package
 - **Root Cause**: Assumed icon exists without validation
 - **Solution**: Replace with `ShowChart` icon for similar visual meaning
+- **Status**: COMPLETE - All MUI icon imports validated
 - **Prevention**: Validate all MUI imports before assuming availability
-- **Documentation**: Update import validation in TEST_PLAN.md
 </error_handling_methodology>
 
 ### <dependency_management_learnings>
@@ -415,6 +424,8 @@ const logEntry = {
 - **Network Consistency**: Use same subnets/security groups as proven working tasks
 - **SSL Configuration**: RDS in public subnets typically uses `ssl: false` (no SSL required)
 - **Systematic Debugging**: Create diagnostic tools for persistent infrastructure issues
+- **AWS Secrets Manager**: Verify secret format is valid JSON before deployment
+- **ECS Task Debugging**: Compare task definitions, network configs, and resource allocation with working tasks
 </dependency_management_learnings>
 
 ### <documentation_approach>

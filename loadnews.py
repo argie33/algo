@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# DEPLOY: Data population phase - News and sentiment data loading for frontend features
+# DEPLOY: Database diagnostic phase - News loading v2 - Testing database connectivity
 import sys
 import time
 import logging

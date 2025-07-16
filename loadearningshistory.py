@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Updated for deployment verification test
-# Updated: 2025-07-16 - All routes working - Earnings history v4 - Data population phase
+# Updated: 2025-07-16 - Database diagnostic deployed - Earnings history v5 - Debug deployment
 import sys
 import time
 import logging
