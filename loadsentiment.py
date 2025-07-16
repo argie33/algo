@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEPLOY: Data population phase - Comprehensive sentiment analysis for frontend dashboard
+DEPLOY: Data population phase v2 - Comprehensive sentiment analysis for frontend dashboard
 
 This script loads comprehensive sentiment analysis data including:
 - Analyst sentiment (recommendations, price targets, revisions)
