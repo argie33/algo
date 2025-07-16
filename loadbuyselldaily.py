@@ -1,4 +1,5 @@
 #!/usr/bin/env python3 
+# Buy/Sell daily signals - Trading signals data population v1 - Data loading phase
 import os
 import sys
 import json
