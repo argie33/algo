@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createTheme } from '@mui/material/styles';
+import { createSafeTheme, debugThemeCreation, checkMuiVersion } from '../utils/themeUtils';
 
 const ThemeContext = createContext();
 
@@ -12,113 +13,78 @@ export const useTheme = () => {
 };
 
 const createAppTheme = (mode) => {
-  const isDark = mode === 'dark';
+  console.log('🎨 Creating theme with mode:', mode);
   
-  return createTheme({
-    palette: {
-      mode,
-      primary: {
-        main: '#1976d2',
-        light: '#42a5f5',
-        dark: '#1565c0',
-      },
-      secondary: {
-        main: '#dc004e',
-        light: '#ff5983',
-        dark: '#9a0036',
-      },
-      background: {
-        default: isDark ? '#121212' : '#f5f5f5',
-        paper: isDark ? '#1e1e1e' : '#ffffff',
-      },
-      text: {
-        primary: isDark ? '#ffffff' : '#000000',
-        secondary: isDark ? '#b3b3b3' : '#666666',
-      },
-      success: {
-        main: '#2e7d32',
-        light: '#4caf50',
-        dark: '#1b5e20',
-      },
-      error: {
-        main: '#d32f2f',
-        light: '#ef5350',
-        dark: '#c62828',
-      },
-      warning: {
-        main: '#ed6c02',
-        light: '#ff9800',
-        dark: '#e65100',
-      },
-      info: {
-        main: '#0288d1',
-        light: '#03a9f4',
-        dark: '#01579b',
-      },
-    },
-    typography: {
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-      h1: { fontWeight: 600 },
-      h2: { fontWeight: 600 },
-      h3: { fontWeight: 600 },
-      h4: { fontWeight: 600 },
-      h5: { fontWeight: 600 },
-      h6: { fontWeight: 600 },
-    },
-    components: {
-      MuiButton: {
-        styleOverrides: {
-          root: {
-            textTransform: 'none',
-            fontWeight: 500,
+  // Run debug information
+  console.log('📋 MUI Version:', checkMuiVersion());
+  debugThemeCreation();
+  
+  try {
+    // Use the safe theme creation utility
+    const theme = createSafeTheme(mode);
+    console.log('✅ Safe theme created successfully');
+    console.log('🎨 Theme palette mode:', theme.palette.mode);
+    console.log('🎨 Theme primary color:', theme.palette.primary.main);
+    
+    return theme;
+    
+  } catch (error) {
+    console.error('❌ Safe theme creation failed:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    
+    // Last resort: create absolute minimal theme
+    console.log('🔄 Attempting last resort theme...');
+    try {
+      const lastResortTheme = createTheme({
+        palette: {
+          primary: {
+            main: '#1976d2',
           },
         },
-      },
-      MuiCard: {
-        styleOverrides: {
-          root: {
-            boxShadow: isDark 
-              ? '0 2px 8px rgba(0,0,0,0.3)' 
-              : '0 2px 8px rgba(0,0,0,0.1)',
-            borderRadius: 12,
-            backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-          },
-        },
-      },
-      MuiPaper: {
-        styleOverrides: {
-          root: {
-            backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-          },
-        },
-      },
-      MuiAppBar: {
-        styleOverrides: {
-          root: {
-            backgroundColor: isDark ? '#1e1e1e' : '#1976d2',
-          },
-        },
-      },
-    },
-  });
+      });
+      console.log('✅ Last resort theme created successfully');
+      return lastResortTheme;
+    } catch (lastResortError) {
+      console.error('❌ Even last resort theme failed:', lastResortError);
+      throw lastResortError;
+    }
+  }
 };
 
 export const ThemeProvider = ({ children }) => {
+  console.log('🚀 ThemeProvider rendering...');
+  
   // Get initial theme from localStorage or default to light
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('darkMode');
+      const result = saved ? JSON.parse(saved) : false;
+      console.log('💾 Loaded theme from localStorage:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error loading theme from localStorage:', error);
+      return false;
+    }
   });
 
   // Update localStorage when theme changes
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+    try {
+      localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+      console.log('💾 Saved theme to localStorage:', isDarkMode);
+    } catch (error) {
+      console.error('❌ Error saving theme to localStorage:', error);
+    }
   }, [isDarkMode]);
 
   const toggleDarkMode = () => {
+    console.log('🔄 Toggling dark mode from:', isDarkMode, 'to:', !isDarkMode);
     setIsDarkMode(!isDarkMode);
   };
 
+  console.log('🎨 About to create theme with isDarkMode:', isDarkMode);
   const theme = createAppTheme(isDarkMode ? 'dark' : 'light');
 
   const value = {
@@ -126,6 +92,8 @@ export const ThemeProvider = ({ children }) => {
     toggleDarkMode,
     theme,
   };
+
+  console.log('✅ ThemeProvider value created successfully');
 
   return (
     <ThemeContext.Provider value={value}>

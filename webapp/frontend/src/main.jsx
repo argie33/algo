@@ -6,6 +6,7 @@ import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import ThemeErrorBoundary from './components/ThemeErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
@@ -65,9 +66,11 @@ try {
     <ErrorBoundary>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <AppWithTheme />
-          </ThemeProvider>
+          <ThemeErrorBoundary>
+            <ThemeProvider>
+              <AppWithTheme />
+            </ThemeProvider>
+          </ThemeErrorBoundary>
         </QueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
