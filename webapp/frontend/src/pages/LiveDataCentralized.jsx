@@ -67,37 +67,23 @@ import {
   DataUsage,
   Memory
 } from '@mui/icons-material';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip as ChartTooltip,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   Legend,
-  TimeScale
-} from 'chart.js';
-import 'chartjs-adapter-date-fns';
+  ResponsiveContainer
+} from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  TimeScale
-);
+// Chart.js registration removed - using recharts instead
 
 /**
  * Centralized Live Data Service Dashboard
@@ -270,30 +256,17 @@ const LiveDataCentralized = () => {
     }
   };
 
-  // Metrics visualization data
-  const connectionMetricsData = {
-    labels: ['Active Connections', 'Total Subscribers', 'Cached Symbols'],
-    datasets: [{
-      data: [
-        serviceMetrics.activeConnections,
-        serviceMetrics.totalSubscribers,
-        subscribedSymbols.size
-      ],
-      backgroundColor: ['#1976d2', '#2e7d32', '#ed6c02'],
-      borderWidth: 0
-    }]
-  };
+  // Metrics visualization data for recharts
+  const connectionMetricsData = [
+    { name: 'Active Connections', value: serviceMetrics.activeConnections, color: '#1976d2' },
+    { name: 'Total Subscribers', value: serviceMetrics.totalSubscribers, color: '#2e7d32' },
+    { name: 'Cached Symbols', value: subscribedSymbols.size, color: '#ed6c02' }
+  ];
 
-  const latencyData = {
-    labels: Array.from({length: 10}, (_, i) => i + 1),
-    datasets: [{
-      label: 'Latency (ms)',
-      data: [45, 38, 42, 35, 48, 41, 39, 44, 37, serviceMetrics.dataLatency || 40],
-      borderColor: '#1976d2',
-      backgroundColor: 'rgba(25, 118, 210, 0.1)',
-      tension: 0.4
-    }]
-  };
+  const latencyData = Array.from({length: 10}, (_, i) => ({
+    time: i + 1,
+    latency: [45, 38, 42, 35, 48, 41, 39, 44, 37, serviceMetrics.dataLatency || 40][i]
+  }));
 
   return (
     <Box sx={{ p: 3 }}>
@@ -441,16 +414,24 @@ const LiveDataCentralized = () => {
               <CardHeader title="Connection Distribution" />
               <CardContent>
                 <Box sx={{ height: 300 }}>
-                  <Doughnut 
-                    data={connectionMetricsData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: { position: 'bottom' }
-                      }
-                    }}
-                  />
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={connectionMetricsData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        label={({name, value}) => `${name}: ${value}`}
+                      >
+                        {connectionMetricsData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </Box>
               </CardContent>
             </Card>
@@ -461,19 +442,22 @@ const LiveDataCentralized = () => {
               <CardHeader title="Real-time Latency" />
               <CardContent>
                 <Box sx={{ height: 300 }}>
-                  <Line 
-                    data={latencyData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          title: { display: true, text: 'Latency (ms)' }
-                        }
-                      }
-                    }}
-                  />
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={latencyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="latency" 
+                        stroke="#1976d2" 
+                        strokeWidth={2}
+                        dot={{ fill: '#1976d2' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </Box>
               </CardContent>
             </Card>

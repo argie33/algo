@@ -68,33 +68,11 @@ import {
   Group,
   AttachMoney
 } from '@mui/icons-material';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  TimeScale
-} from 'chart.js';
-import 'chartjs-adapter-date-fns';
+// Chart.js replaced with recharts for better React integration
 import adminLiveDataService from '../services/adminLiveDataService';
 import { useAuth } from '../contexts/AuthContext';
 
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  TimeScale
-);
+// Chart.js registration removed - using recharts instead
 
 /**
  * Admin Live Data Management
