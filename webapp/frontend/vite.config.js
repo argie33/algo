@@ -97,9 +97,9 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: [
-        '@uiw/react-codemirror',
-        '@codemirror/lang-javascript',
-        '@codemirror/lang-python'
+        'recharts',
+        'framer-motion',
+        'react-beautiful-dnd'
       ],
       force: true,
       // Reduce the number of files opened during optimization

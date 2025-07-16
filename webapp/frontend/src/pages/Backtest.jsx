@@ -136,9 +136,7 @@ import {
   PolarRadiusAxis,
   Radar
 } from 'recharts';
-import CodeMirror from '@uiw/react-codemirror';
-import { python } from '@codemirror/lang-python';
-import { javascript } from '@codemirror/lang-javascript';
+// CodeMirror removed to reduce bundle size - using TextField instead
 
 
 
@@ -853,6 +851,36 @@ export default function Backtest() {
                     label="Monte Carlo Simulation"
                   />
                 </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={useCustomStrategy}
+                        onChange={(e) => setUseCustomStrategy(e.target.checked)}
+                      />
+                    }
+                    label="Use Custom Strategy Code"
+                  />
+                </Grid>
+                {useCustomStrategy && (
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Custom Strategy Code"
+                      multiline
+                      rows={12}
+                      fullWidth
+                      value={customCode}
+                      onChange={(e) => setCustomCode(e.target.value)}
+                      placeholder="# Enter your custom strategy code here&#10;# Example:&#10;if rsi < 30:&#10;    signal = 'BUY'&#10;elif rsi > 70:&#10;    signal = 'SELL'"
+                      sx={{
+                        '& .MuiInputBase-input': {
+                          fontFamily: 'monospace',
+                          fontSize: '0.875rem'
+                        }
+                      }}
+                    />
+                  </Grid>
+                )}
                 <Grid item xs={12}>
                   <FormControlLabel
                     control={
