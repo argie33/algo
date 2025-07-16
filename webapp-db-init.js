@@ -1395,4 +1395,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initializeWebappDatabase };# Database initialization trigger - SSL fix validation
+module.exports = { initializeWebappDatabase };

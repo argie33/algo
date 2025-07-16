@@ -2185,42 +2185,10 @@ router.get('/screen/stats', async (req, res) => {
     
   } catch (error) {
     console.error('Error in screen stats endpoint:', error);
-    
-    // Return mock data if everything fails
-    const fallbackStats = {
-      total_stocks: 8500,
-      ranges: {
-        market_cap: {
-          min: 50000000,
-          max: 3000000000000
-        },
-        pe_ratio: {
-          min: 5,
-          max: 100
-        },
-        price_to_book: {
-          min: 0.1,
-          max: 20
-        },
-        roe: {
-          min: -50,
-          max: 100
-        },
-        revenue_growth: {
-          min: -50,
-          max: 200
-        },
-        analyst_rating: {
-          min: 1,
-          max: 5
-        }
-      }
-    };
-    
-    res.json({
-      success: true,
-      data: fallbackStats,
-      note: 'Using fallback data due to database connectivity',
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve screener statistics',
+      details: error.message,
       timestamp: new Date().toISOString()
     });
   }
