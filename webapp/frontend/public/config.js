@@ -7,8 +7,8 @@ window.__CONFIG__ = {
   "VERSION": "1.0.0",
   "ENVIRONMENT": "production",
   "COGNITO": {
-    "USER_POOL_ID": "us-east-1_MISSING",
-    "CLIENT_ID": "missing-client-id",
+    "USER_POOL_ID": "us-east-1_PLACEHOLDER",
+    "CLIENT_ID": "placeholder-client-id",
     "REGION": "us-east-1",
     "DOMAIN": null,
     "REDIRECT_SIGN_IN": "https://d1zb7knau41vl9.cloudfront.net",
