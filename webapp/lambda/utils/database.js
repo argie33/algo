@@ -45,10 +45,7 @@ async function getDbConfig() {
             database: secret.dbname || 'stocks',
             user: secret.username,
             password: secret.password,
-            ssl: {
-                require: false,
-                rejectUnauthorized: false
-            },
+            ssl: false, // NO SSL - RDS in public subnet, matches working ECS tasks
             max: parseInt(process.env.DB_POOL_MAX) || 3,
             idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
             connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000

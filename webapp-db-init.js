@@ -38,10 +38,7 @@ async function getDbCredentials() {
             database: secret.dbname || 'postgres',
             user: secret.username,
             password: secret.password,
-            ssl: {
-                require: false,
-                rejectUnauthorized: false
-            },
+            ssl: false, // NO SSL - RDS in public subnet typically doesn't require SSL
             // MASSIVELY INCREASED TIMEOUTS FOR CONNECTIVITY ISSUES
             connectionTimeoutMillis: 60000, // 60 seconds
             query_timeout: 120000, // 2 minutes
@@ -1008,12 +1005,24 @@ ON CONFLICT (table_name) DO NOTHING;
 }
 
 async function connectWithRetry(dbConfig, maxRetries = 3) {
-    // Try different connection configurations - prioritize working configs
+    // Try different connection configurations - prioritize RDS public subnet configs
     const connectionConfigs = [
-        { ...dbConfig, ssl: false }, // No SSL first - often works for AWS RDS
-        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false, checkServerIdentity: false } }, // SSL optional with identity bypass
-        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false, servername: false } }, // SSL with server name bypass
-        { ...dbConfig, ssl: { require: true, rejectUnauthorized: false, sslmode: 'prefer' } }, // SSL preferred mode
+        { 
+            ...dbConfig, 
+            ssl: false,
+            connectionTimeoutMillis: 20000 
+        }, // No SSL - RDS public subnet standard
+        { 
+            ...dbConfig, 
+            ssl: false,
+            connectionTimeoutMillis: 30000,
+            keepAlive: true
+        }, // No SSL with keep-alive
+        { 
+            ...dbConfig, 
+            ssl: { require: false, rejectUnauthorized: false },
+            connectionTimeoutMillis: 25000
+        }, // SSL optional fallback
     ];
     log('info', '🔧 Database Connection Diagnostics');
     log('info', `   Host: ${dbConfig.host}`);
