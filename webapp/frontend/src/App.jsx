@@ -102,6 +102,7 @@ import GreeksMonitor from './pages/options/GreeksMonitor'
 import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import LiveData from './pages/LiveData'
+import SystemHealthMonitor from './components/SystemHealthMonitor'
 
 const drawerWidth = 240
 
@@ -369,6 +370,11 @@ function App() {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>
+          
+          {/* System Health Monitor - Compact view in header */}
+          <Box sx={{ mr: 2 }}>
+            <SystemHealthMonitor compact={true} showDetails={false} />
+          </Box>
           
           {/* Authentication UI */}
           {isAuthenticated ? (
