@@ -4,10 +4,22 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Apply authentication to all sentiment analysis routes
-router.use(authenticateToken);
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'sentiment',
+    timestamp: new Date().toISOString(),
+    message: 'Sentiment analysis service is running'
+  });
+});
 
-// Basic ping endpoint
+// Apply authentication to protected routes only
+const authRouter = express.Router();
+authRouter.use(authenticateToken);
+
+// Basic ping endpoint (public)
 router.get('/ping', (req, res) => {
   res.json({
     status: 'ok',

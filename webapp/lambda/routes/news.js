@@ -5,8 +5,20 @@ const { query } = require('../utils/database');
 const NewsAnalyzer = require('../utils/newsAnalyzer');
 const SentimentEngine = require('../utils/sentimentEngine');
 
-// Apply authentication to all routes
-router.use(authenticateToken);
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'news',
+    timestamp: new Date().toISOString(),
+    message: 'News service is running'
+  });
+});
+
+// Apply authentication to protected routes only
+const authRouter = express.Router();
+authRouter.use(authenticateToken);
 
 // Initialize news analyzer and sentiment engine
 const newsAnalyzer = new NewsAnalyzer();
