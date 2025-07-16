@@ -181,8 +181,8 @@ const SettingsManager = () => {
     loadSettings();
   }, []);
 
-  // Save API key to backend
-  const saveApiKey = async (provider, apiKeyData) => {
+  // Save API key to backend (local function)
+  const saveApiKeyLocal = async (provider, apiKeyData) => {
     try {
       console.log('💾 Saving API key for provider:', provider);
       
@@ -429,7 +429,7 @@ const SettingsManager = () => {
                   />
                   <Button
                     variant="contained"
-                    onClick={() => saveApiKey('alpaca', settings.apiKeys.alpaca)}
+                    onClick={() => saveApiKeyLocal('alpaca', settings.apiKeys.alpaca)}
                     disabled={!settings.apiKeys.alpaca.keyId || !settings.apiKeys.alpaca.secretKey}
                     sx={{ mr: 1 }}
                   >
@@ -513,7 +513,7 @@ const SettingsManager = () => {
                   />
                   <Button
                     variant="contained"
-                    onClick={() => saveApiKey('polygon', settings.apiKeys.polygon)}
+                    onClick={() => saveApiKeyLocal('polygon', settings.apiKeys.polygon)}
                     disabled={!settings.apiKeys.polygon.apiKey}
                     sx={{ mr: 1 }}
                   >
