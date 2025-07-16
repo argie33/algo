@@ -2,6 +2,7 @@
 """
 Latest Buy/Sell Weekly Signals - Incremental Loading
 Efficiently updates only the most recent weekly buy/sell signals.
+Updated with SSL fix for database connectivity.
 """
 import os
 import sys
