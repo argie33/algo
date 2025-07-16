@@ -47,7 +47,7 @@ const websocketValidationSchemas = {
         if (typeof value !== 'string') return '';
         // Split by comma, clean each symbol, and rejoin
         return value.split(',')
-          .map(s => sanitizers.symbol(s.trim()))
+          .map(s => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''))
           .filter(s => s.length > 0)
           .slice(0, 20) // Limit to 20 symbols max for real-time
           .join(',');
