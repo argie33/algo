@@ -80,6 +80,7 @@ import Settings from './pages/Settings'
 import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
+import AuthFallback from './components/AuthFallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import SectorAnalysis from './pages/SectorAnalysis'
 import TestApiPage from './pages/TestApiPage'
@@ -182,6 +183,20 @@ function App() {
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  
+  // Check if Cognito is misconfigured
+  const cognitoConfig = window.__CONFIG__?.COGNITO;
+  const isCognitoMisconfigured = !cognitoConfig?.USER_POOL_ID || 
+                                cognitoConfig.USER_POOL_ID.includes('MISSING') ||
+                                cognitoConfig.CLIENT_ID.includes('missing');
+  
+  // Show auth fallback if Cognito is broken and user not authenticated
+  if (isCognitoMisconfigured && !isAuthenticated) {
+    return <AuthFallback onLogin={(user) => {
+      // This would trigger the auth context to update
+      window.location.reload();
+    }} />;
+  }
   
   // Mock premium status - replace with actual premium check
   const isPremium = user?.isPremium || false

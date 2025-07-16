@@ -29,18 +29,45 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'react-router-dom'],
-            mui: ['@mui/material', '@mui/icons-material', '@mui/lab', '@mui/x-data-grid', '@mui/x-date-pickers'],
-            charts: ['recharts', 'chart.js', 'react-chartjs-2'],
-            aws: ['aws-amplify', '@aws-amplify/auth', '@aws-amplify/core', '@aws-amplify/ui-react'],
-            utils: ['axios', 'lodash', 'numeral', 'date-fns'],
-            'react-query': ['@tanstack/react-query'],
-            animations: ['framer-motion'],
-            dnd: ['react-beautiful-dnd']
+          manualChunks(id) {
+            // Split into smaller, more specific chunks
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+                return 'react-core';
+              }
+              if (id.includes('@mui/material')) {
+                return 'mui-core';
+              }
+              if (id.includes('@mui/icons-material')) {
+                return 'mui-icons';
+              }
+              if (id.includes('recharts')) {
+                return 'charts';
+              }
+              if (id.includes('aws-amplify') || id.includes('@aws-amplify')) {
+                return 'aws';
+              }
+              if (id.includes('@tanstack/react-query')) {
+                return 'react-query';
+              }
+              if (id.includes('lodash') || id.includes('date-fns') || id.includes('numeral')) {
+                return 'utils';
+              }
+              // Everything else goes to vendor
+              return 'vendor';
+            }
+            
+            // Split our own code by page/feature
+            if (id.includes('/pages/')) {
+              const page = id.split('/pages/')[1].split('/')[0].split('.')[0];
+              return `page-${page}`;
+            }
+            if (id.includes('/components/')) {
+              return 'components';
+            }
           }
         },
         // Limit concurrent operations to prevent EMFILE
