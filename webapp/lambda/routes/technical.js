@@ -268,10 +268,10 @@ router.get('/:timeframe', createValidationMiddleware(technicalValidationSchemas.
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    const finalParams = [...params, maxLimit, offset];
+    const finalParams = [...params, limit, offset];
     const dataResult = await query(dataQuery, finalParams);
 
-    const totalPages = Math.ceil(total / maxLimit);
+    const totalPages = Math.ceil(total / limit);
 
     if (!dataResult || !Array.isArray(dataResult.rows) || dataResult.rows.length === 0) {
       return res.json({
@@ -368,32 +368,11 @@ router.get('/:timeframe/summary', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback summary`);
-      // Return fallback summary data
-      return res.json({
-        timeframe,
-        summary: {
-          totalRecords: 1000,
-          uniqueSymbols: 50,
-          dateRange: {
-            earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            latest: new Date().toISOString().split('T')[0]
-          },
-          averages: {
-            rsi: '45.2',
-            macd: '0.1250',
-            sma20: '150.25',
-            volume: 2500000
-          }
-        },
-        topSymbols: [
-          { symbol: 'AAPL', recordCount: 252 },
-          { symbol: 'MSFT', recordCount: 252 },
-          { symbol: 'GOOGL', recordCount: 252 },
-          { symbol: 'TSLA', recordCount: 252 },
-          { symbol: 'NVDA', recordCount: 252 }
-        ],
-        fallback: true
+      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      return res.status(404).json({
+        success: false,
+        error: `Technical data table for ${timeframe} timeframe not available`,
+        message: `Table ${tableName} does not exist. Please ensure technical data has been loaded.`
       });
     }
 
@@ -449,32 +428,11 @@ router.get('/:timeframe/summary', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching technical summary:', error);
-    // Return fallback data on error
-    res.json({
-      timeframe,
-      summary: {
-        totalRecords: 1000,
-        uniqueSymbols: 50,
-        dateRange: {
-          earliest: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          latest: new Date().toISOString().split('T')[0]
-        },
-        averages: {
-          rsi: '45.2',
-          macd: '0.1250',
-          sma20: '150.25',
-          volume: 2500000
-        }
-      },
-      topSymbols: [
-        { symbol: 'AAPL', recordCount: 252 },
-        { symbol: 'MSFT', recordCount: 252 },
-        { symbol: 'GOOGL', recordCount: 252 },
-        { symbol: 'TSLA', recordCount: 252 },
-        { symbol: 'NVDA', recordCount: 252 }
-      ],
-      fallback: true,
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical summary',
+      details: error.message,
+      timeframe
     });
   }
 });
@@ -503,57 +461,12 @@ router.get('/', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback overview data`);
-      // Return fallback overview data
-      const fallbackData = [];
-      const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX', 'SPY', 'QQQ'];
-      
-      for (let i = 0; i < Math.min(50, symbols.length); i++) {
-        const symbol = symbols[i];
-        const date = new Date();
-        date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-        
-        fallbackData.push({
-          symbol,
-          date: date.toISOString().split('T')[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
-        });
-      }
-
-      return res.json({
-        success: true,
-        data: fallbackData,
-        count: fallbackData.length,
-        metadata: {
-          timeframe,
-          timestamp: new Date().toISOString(),
-          fallback: true
-        }
+      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      return res.status(404).json({
+        success: false,
+        error: `Technical data table for ${timeframe} timeframe not available`,
+        message: `Table ${tableName} does not exist. Please ensure technical data has been loaded.`,
+        timeframe
       });
     }
     
@@ -581,58 +494,11 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in technical overview endpoint:', error);
-    // Return fallback data on error instead of 500
-    console.log('Error occurred, returning fallback technical overview data');
-    const fallbackData = [];
-    const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-    
-    for (let i = 0; i < 5; i++) {
-      const symbol = symbols[i];
-      const date = new Date();
-      date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-      
-      fallbackData.push({
-        symbol,
-        date: date.toISOString().split('T')[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
-      });
-    }
-
-    res.json({
-      success: true,
-      data: fallbackData,
-      count: fallbackData.length,
-      metadata: {
-        timeframe: req.query.timeframe || 'daily',
-        timestamp: new Date().toISOString(),
-        fallback: true,
-        error: error.message
-      }
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical overview',
+      details: error.message,
+      timeframe: req.query.timeframe || 'daily'
     });
   }
 });
@@ -653,44 +519,12 @@ router.get('/data/:symbol', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback data for ${symbol}`);
-      // Return fallback data
-      const fallbackData = {
-        symbol: symbol.toUpperCase(),
-        date: new Date().toISOString().split('T')[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
-      };
-
-      return res.json({
-        success: true,
-        data: fallbackData,
-        symbol: symbol.toUpperCase(),
-        fallback: true
+      console.log(`Technical data table not found for ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Technical data table not available',
+        message: 'Technical data table does not exist. Please ensure technical data has been loaded.',
+        symbol: symbol.toUpperCase()
       });
     }
 
@@ -747,45 +581,11 @@ router.get('/data/:symbol', async (req, res) => {
     });
   } catch (error) {
     console.error(`❌ [TECHNICAL] Error fetching technical data for ${symbol}:`, error);
-    // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical data for ${symbol}`);
-    const fallbackData = {
-      symbol: symbol.toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
-      open: 150 + Math.random() * 50,
-      high: 160 + Math.random() * 50,
-      low: 140 + Math.random() * 50,
-      close: 150 + Math.random() * 50,
-      volume: 1000000 + Math.random() * 5000000,
-      rsi: 30 + Math.random() * 40,
-      macd: -2 + Math.random() * 4,
-      macd_signal: -1 + Math.random() * 2,
-      macd_histogram: -1 + Math.random() * 2,
-      sma_20: 145 + Math.random() * 10,
-      sma_50: 140 + Math.random() * 15,
-      ema_12: 148 + Math.random() * 8,
-      ema_26: 142 + Math.random() * 12,
-      bollinger_upper: 155 + Math.random() * 10,
-      bollinger_lower: 145 + Math.random() * 10,
-      bollinger_middle: 150 + Math.random() * 5,
-      stochastic_k: 20 + Math.random() * 60,
-      stochastic_d: 25 + Math.random() * 50,
-      williams_r: -80 + Math.random() * 40,
-      cci: -100 + Math.random() * 200,
-      adx: 15 + Math.random() * 25,
-      atr: 2 + Math.random() * 3,
-      obv: 1000000 + Math.random() * 5000000,
-      mfi: 20 + Math.random() * 60,
-      roc: -5 + Math.random() * 10,
-      momentum: -2 + Math.random() * 4
-    };
-
-    res.json({
-      success: true,
-      data: fallbackData,
-      symbol: symbol.toUpperCase(),
-      fallback: true,
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical data',
+      details: error.message,
+      symbol: symbol.toUpperCase()
     });
   }
 });
@@ -806,46 +606,12 @@ router.get('/indicators/:symbol', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback indicators for ${symbol}`);
-      // Return fallback indicators data
-      const fallbackData = [];
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        fallbackData.push({
-          symbol: symbol.toUpperCase(),
-          date: date.toISOString().split('T')[0],
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
-        });
-      }
-
-      return res.json({
-        success: true,
-        data: fallbackData,
-        count: fallbackData.length,
-        symbol: symbol.toUpperCase(),
-        fallback: true
+      console.log(`Technical data table not found for ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Technical data table not available',
+        message: 'Technical data table does not exist. Please ensure technical data has been loaded.',
+        symbol: symbol.toUpperCase()
       });
     }
 
@@ -898,47 +664,11 @@ router.get('/indicators/:symbol', async (req, res) => {
     });
   } catch (error) {
     console.error(`❌ [TECHNICAL] Error fetching technical indicators for ${symbol}:`, error);
-    // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical indicators for ${symbol}`);
-    const fallbackData = [];
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      
-      fallbackData.push({
-        symbol: symbol.toUpperCase(),
-        date: date.toISOString().split('T')[0],
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
-      });
-    }
-
-    res.json({
-      success: true,
-      data: fallbackData,
-      count: fallbackData.length,
-      symbol: symbol.toUpperCase(),
-      fallback: true,
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical indicators',
+      details: error.message,
+      symbol: symbol.toUpperCase()
     });
   }
 });
@@ -960,54 +690,12 @@ router.get('/history/:symbol', async (req, res) => {
     `, []);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found, returning fallback history for ${symbol}`);
-      // Return fallback history data
-      const fallbackData = [];
-      const numDays = Math.min(parseInt(days), 90);
-      
-      for (let i = 0; i < numDays; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        fallbackData.push({
-          symbol: symbol.toUpperCase(),
-          date: date.toISOString().split('T')[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4
-        });
-      }
-
-      return res.json({
-        success: true,
-        data: fallbackData,
-        count: fallbackData.length,
-        symbol: symbol.toUpperCase(),
-        period_days: numDays,
-        fallback: true
+      console.log(`Technical data table not found for ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Technical data table not available',
+        message: 'Technical data table does not exist. Please ensure technical data has been loaded.',
+        symbol: symbol.toUpperCase()
       });
     }
 
@@ -1066,55 +754,11 @@ router.get('/history/:symbol', async (req, res) => {
     });
   } catch (error) {
     console.error(`❌ [TECHNICAL] Error fetching technical history for ${symbol}:`, error);
-    // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback technical history for ${symbol}`);
-    const fallbackData = [];
-    const numDays = Math.min(parseInt(days), 90);
-    
-    for (let i = 0; i < numDays; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      
-      fallbackData.push({
-        symbol: symbol.toUpperCase(),
-        date: date.toISOString().split('T')[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4
-      });
-    }
-
-    res.json({
-      success: true,
-      data: fallbackData,
-      count: fallbackData.length,
-      symbol: symbol.toUpperCase(),
-      period_days: numDays,
-      fallback: true,
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical history',
+      details: error.message,
+      symbol: symbol.toUpperCase()
     });
   }
 });
@@ -1145,28 +789,13 @@ router.get('/support-resistance/:symbol', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback support-resistance for ${symbol}`);
-      // Return fallback support-resistance data
-      const currentPrice = 150 + Math.random() * 50;
-      const support = currentPrice * 0.9;
-      const resistance = currentPrice * 1.1;
-      
-      return res.json({
+      console.log(`Technical data table for ${timeframe} timeframe not found for ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: `Technical data table for ${timeframe} timeframe not available`,
+        message: `Table ${tableName} does not exist. Please ensure technical data has been loaded.`,
         symbol: symbol.toUpperCase(),
-        timeframe,
-        current_price: currentPrice,
-        support_levels: [
-          { level: support, type: 'dynamic', strength: 'strong' },
-          { level: support * 0.95, type: 'bollinger', strength: 'medium' },
-          { level: support * 0.85, type: 'moving_average', strength: 'strong' }
-        ],
-        resistance_levels: [
-          { level: resistance, type: 'dynamic', strength: 'strong' },
-          { level: resistance * 1.05, type: 'bollinger', strength: 'medium' },
-          { level: resistance * 1.15, type: 'moving_average', strength: 'medium' }
-        ],
-        last_updated: new Date().toISOString().split('T')[0],
-        fallback: true
+        timeframe
       });
     }
     
@@ -1225,29 +854,12 @@ router.get('/support-resistance/:symbol', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching support resistance levels:', error);
-    // Return fallback data on error instead of 500
-    console.log(`Error occurred, returning fallback support-resistance for ${req.params.symbol}`);
-    const currentPrice = 150 + Math.random() * 50;
-    const support = currentPrice * 0.9;
-    const resistance = currentPrice * 1.1;
-    
-    res.json({
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch support resistance levels',
+      details: error.message,
       symbol: req.params.symbol.toUpperCase(),
-      timeframe: req.query.timeframe || 'daily',
-      current_price: currentPrice,
-      support_levels: [
-        { level: support, type: 'dynamic', strength: 'strong' },
-        { level: support * 0.95, type: 'bollinger', strength: 'medium' },
-        { level: support * 0.85, type: 'moving_average', strength: 'strong' }
-      ],
-      resistance_levels: [
-        { level: resistance, type: 'dynamic', strength: 'strong' },
-        { level: resistance * 1.05, type: 'bollinger', strength: 'medium' },
-        { level: resistance * 1.15, type: 'moving_average', strength: 'medium' }
-      ],
-      last_updated: new Date().toISOString().split('T')[0],
-      fallback: true,
-      error: error.message
+      timeframe: req.query.timeframe || 'daily'
     });
   }
 });
@@ -1320,87 +932,12 @@ router.get('/data', async (req, res) => {
     `, [tableName]);
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found, returning fallback filtered data`);
-      // Return fallback filtered data
-      const fallbackData = [];
-      const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-      
-      for (let i = 0; i < Math.min(maxLimit, 25); i++) {
-        const symbol = symbols[i % symbols.length];
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        fallbackData.push({
-          symbol,
-          date: date.toISOString().split('T')[0],
-          open: 150 + Math.random() * 50,
-          high: 160 + Math.random() * 50,
-          low: 140 + Math.random() * 50,
-          close: 150 + Math.random() * 50,
-          volume: 1000000 + Math.random() * 5000000,
-          rsi: 30 + Math.random() * 40,
-          macd: -2 + Math.random() * 4,
-          macd_signal: -1 + Math.random() * 2,
-          macd_histogram: -1 + Math.random() * 2,
-          sma_10: 145 + Math.random() * 10,
-          sma_20: 145 + Math.random() * 10,
-          sma_50: 140 + Math.random() * 15,
-          sma_150: 135 + Math.random() * 20,
-          sma_200: 130 + Math.random() * 25,
-          ema_4: 148 + Math.random() * 8,
-          ema_9: 146 + Math.random() * 9,
-          ema_21: 144 + Math.random() * 11,
-          ema_12: 148 + Math.random() * 8,
-          ema_26: 142 + Math.random() * 12,
-          bollinger_upper: 155 + Math.random() * 10,
-          bollinger_lower: 145 + Math.random() * 10,
-          bollinger_middle: 150 + Math.random() * 5,
-          stochastic_k: 20 + Math.random() * 60,
-          stochastic_d: 25 + Math.random() * 50,
-          williams_r: -80 + Math.random() * 40,
-          cci: -100 + Math.random() * 200,
-          adx: 15 + Math.random() * 25,
-          atr: 2 + Math.random() * 3,
-          obv: 1000000 + Math.random() * 5000000,
-          mfi: 20 + Math.random() * 60,
-          roc: -5 + Math.random() * 10,
-          momentum: -2 + Math.random() * 4,
-          ad: 1000000 + Math.random() * 5000000,
-          cmf: -0.5 + Math.random(),
-          td_sequential: Math.floor(Math.random() * 10),
-          td_combo: Math.floor(Math.random() * 10),
-          marketwatch: Math.floor(Math.random() * 10),
-          dm: Math.floor(Math.random() * 10),
-          pivot_high: 155 + Math.random() * 10,
-          pivot_low: 145 + Math.random() * 10,
-          pivot_high_triggered: Math.random() > 0.5,
-          pivot_low_triggered: Math.random() > 0.5
-        });
-      }
-
-      return res.json({
-        success: true,
-        data: fallbackData,
-        total: fallbackData.length,
-        pagination: {
-          page: parseInt(page),
-          limit: maxLimit,
-          total: fallbackData.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        },
-        filters: {
-          symbol: symbol || null,
-          timeframe,
-          startDate: startDate || null,
-          endDate: endDate || null
-        },
-        sorting: {
-          sortBy: sortBy,
-          sortOrder: sortOrder
-        },
-        fallback: true
+      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      return res.status(404).json({
+        success: false,
+        error: `Technical data table for ${timeframe} timeframe not available`,
+        message: `Table ${tableName} does not exist. Please ensure technical data has been loaded.`,
+        timeframe
       });
     }
 
@@ -1534,88 +1071,11 @@ router.get('/data', async (req, res) => {
 
   } catch (error) {
     console.error('❌ [TECHNICAL] Technical data error:', error);
-    // Return fallback data on error instead of 500
-    console.log('Error occurred, returning fallback technical filtered data');
-    const fallbackData = [];
-    const symbols = symbol ? [symbol.toUpperCase()] : ['AAPL', 'MSFT', 'GOOGL'];
-    
-    for (let i = 0; i < Math.min(parseInt(limit) || 25, 10); i++) {
-      const symbol = symbols[i % symbols.length];
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      
-      fallbackData.push({
-        symbol,
-        date: date.toISOString().split('T')[0],
-        open: 150 + Math.random() * 50,
-        high: 160 + Math.random() * 50,
-        low: 140 + Math.random() * 50,
-        close: 150 + Math.random() * 50,
-        volume: 1000000 + Math.random() * 5000000,
-        rsi: 30 + Math.random() * 40,
-        macd: -2 + Math.random() * 4,
-        macd_signal: -1 + Math.random() * 2,
-        macd_histogram: -1 + Math.random() * 2,
-        sma_10: 145 + Math.random() * 10,
-        sma_20: 145 + Math.random() * 10,
-        sma_50: 140 + Math.random() * 15,
-        sma_150: 135 + Math.random() * 20,
-        sma_200: 130 + Math.random() * 25,
-        ema_4: 148 + Math.random() * 8,
-        ema_9: 146 + Math.random() * 9,
-        ema_21: 144 + Math.random() * 11,
-        ema_12: 148 + Math.random() * 8,
-        ema_26: 142 + Math.random() * 12,
-        bollinger_upper: 155 + Math.random() * 10,
-        bollinger_lower: 145 + Math.random() * 10,
-        bollinger_middle: 150 + Math.random() * 5,
-        stochastic_k: 20 + Math.random() * 60,
-        stochastic_d: 25 + Math.random() * 50,
-        williams_r: -80 + Math.random() * 40,
-        cci: -100 + Math.random() * 200,
-        adx: 15 + Math.random() * 25,
-        atr: 2 + Math.random() * 3,
-        obv: 1000000 + Math.random() * 5000000,
-        mfi: 20 + Math.random() * 60,
-        roc: -5 + Math.random() * 10,
-        momentum: -2 + Math.random() * 4,
-        ad: 1000000 + Math.random() * 5000000,
-        cmf: -0.5 + Math.random(),
-        td_sequential: Math.floor(Math.random() * 10),
-        td_combo: Math.floor(Math.random() * 10),
-        marketwatch: Math.floor(Math.random() * 10),
-        dm: Math.floor(Math.random() * 10),
-        pivot_high: 155 + Math.random() * 10,
-        pivot_low: 145 + Math.random() * 10,
-        pivot_high_triggered: Math.random() > 0.5,
-        pivot_low_triggered: Math.random() > 0.5
-      });
-    }
-
-    res.json({
-      success: true,
-      data: fallbackData,
-      total: fallbackData.length,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit) || 25,
-        total: fallbackData.length,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false
-      },
-      filters: {
-        symbol: symbol || null,
-        timeframe,
-        startDate: startDate || null,
-        endDate: endDate || null
-      },
-      sorting: {
-        sortBy: sortBy,
-        sortOrder: sortOrder
-      },
-      fallback: true,
-      error: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch technical data',
+      details: error.message,
+      timeframe
     });
   }
 });
