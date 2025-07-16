@@ -12,6 +12,9 @@ const router = express.Router();
 
 // Infrastructure health check - tests database connectivity only
 router.get('/', async (req, res) => {
+  const startTime = Date.now();
+  const maxTimeout = 10000; // 10 second max timeout
+  
   try {
     // Quick health check without database
     if (req.query.quick === 'true') {
@@ -33,8 +36,13 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Full health check with comprehensive database table analysis
-    const dbHealth = await getComprehensiveDbHealth();
+    // Full health check with timeout protection
+    const dbHealthPromise = getComprehensiveDbHealth();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Health check timeout')), maxTimeout)
+    );
+    
+    const dbHealth = await Promise.race([dbHealthPromise, timeoutPromise]);
     const isHealthy = dbHealth.status === 'connected';
 
     if (isHealthy) {
@@ -62,12 +70,30 @@ router.get('/', async (req, res) => {
     }
 
   } catch (error) {
+    const duration = Date.now() - startTime;
     console.error('Health check failed:', error);
+    
+    // Handle timeout specifically
+    if (error.message === 'Health check timeout') {
+      return res.status(408).json({
+        status: 'timeout',
+        healthy: false,
+        message: 'Health check timed out after 10 seconds',
+        database: { status: 'timeout', error: 'Database health check exceeded timeout' },
+        api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
+        duration: duration,
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     res.serverError('Health check failed', {
       status: 'unhealthy',
       healthy: false,
       database: { status: 'error', error: error.message },
       api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
+      duration: duration,
       memory: process.memoryUsage(),
       uptime: process.uptime()
     });
