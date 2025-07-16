@@ -39,7 +39,7 @@ async function getDbCredentials() {
             user: secret.username,
             password: secret.password,
             ssl: {
-                require: true,
+                require: false,
                 rejectUnauthorized: false
             },
             // MASSIVELY INCREASED TIMEOUTS FOR CONNECTIVITY ISSUES
@@ -1008,6 +1008,12 @@ ON CONFLICT (table_name) DO NOTHING;
 }
 
 async function connectWithRetry(dbConfig, maxRetries = 3) {
+    // Try different connection configurations
+    const connectionConfigs = [
+        { ...dbConfig, ssl: false }, // No SSL first
+        { ...dbConfig, ssl: { require: false, rejectUnauthorized: false } }, // SSL optional
+        { ...dbConfig, ssl: { require: true, rejectUnauthorized: false } }, // SSL required
+    ];
     log('info', '🔧 Database Connection Diagnostics');
     log('info', `   Host: ${dbConfig.host}`);
     log('info', `   Port: ${dbConfig.port}`);
