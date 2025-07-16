@@ -444,29 +444,87 @@ router.get('/market-context', async (req, res) => {
   const userId = req.user.sub;
 
   try {
-    // This would typically fetch real market data
-    // For now, providing mock data structure
+    // Fetch real market data from database
+    console.log('📊 AI Assistant: Fetching real market context data for user:', userId);
+    
+    // Get major indices data
+    const indicesQuery = await query(`
+      SELECT symbol, current_price, change_percent, volume
+      FROM stocks 
+      WHERE symbol IN ('SPY', 'QQQ', 'DIA')
+      ORDER BY symbol
+    `);
+    
+    // Get sector performance data
+    const sectorsQuery = await query(`
+      SELECT sector, AVG(change_percent) as avg_change, COUNT(*) as stock_count
+      FROM stocks 
+      WHERE sector IS NOT NULL 
+      GROUP BY sector 
+      ORDER BY avg_change DESC
+      LIMIT 10
+    `);
+    
+    // Get market sentiment indicators
+    const sentimentQuery = await query(`
+      SELECT value, indicator_name
+      FROM market_indicators 
+      WHERE indicator_name IN ('VIX', 'FEAR_GREED_INDEX', 'PUT_CALL_RATIO')
+      AND date = CURRENT_DATE
+    `);
+    
+    // Process indices data
+    const indices = {};
+    indicesQuery.rows.forEach(row => {
+      const indexName = row.symbol === 'SPY' ? 'sp500' : 
+                       row.symbol === 'QQQ' ? 'nasdaq' : 'dow';
+      indices[indexName] = {
+        value: parseFloat(row.current_price || 0),
+        change: parseFloat(row.change_percent || 0),
+        volume: parseFloat(row.volume || 0) > 1000000 ? 'high' : 'normal'
+      };
+    });
+    
+    // Process sector data
+    const sectors = {};
+    sectorsQuery.rows.forEach(row => {
+      const sectorName = row.sector.toLowerCase().replace(/\s+/g, '');
+      sectors[sectorName] = {
+        performance: parseFloat(row.avg_change || 0),
+        sentiment: parseFloat(row.avg_change || 0) > 1 ? 'positive' : 
+                  parseFloat(row.avg_change || 0) > -1 ? 'neutral' : 'negative'
+      };
+    });
+    
+    // Process sentiment indicators
+    const sentimentData = {};
+    sentimentQuery.rows.forEach(row => {
+      if (row.indicator_name === 'VIX') sentimentData.vix = parseFloat(row.value || 20);
+      if (row.indicator_name === 'FEAR_GREED_INDEX') sentimentData.fearGreedIndex = parseFloat(row.value || 50);
+      if (row.indicator_name === 'PUT_CALL_RATIO') sentimentData.putCallRatio = parseFloat(row.value || 1.0);
+    });
+    
     const marketContext = {
-      indices: {
-        sp500: { value: 4150.5, change: 0.3, volume: 'normal' },
-        nasdaq: { value: 12800.2, change: 0.8, volume: 'high' },
-        dow: { value: 33500.1, change: -0.1, volume: 'normal' }
+      indices: Object.keys(indices).length > 0 ? indices : {
+        note: 'Market indices data not available - database query returned no results'
       },
-      sectors: {
-        technology: { performance: 1.2, sentiment: 'positive' },
-        healthcare: { performance: 0.8, sentiment: 'neutral' },
-        energy: { performance: -0.5, sentiment: 'negative' }
+      sectors: Object.keys(sectors).length > 0 ? sectors : {
+        note: 'Sector performance data not available - database query returned no results'
       },
       volatility: {
-        vix: 18.5,
-        level: 'moderate',
-        trend: 'stable'
+        vix: sentimentData.vix || null,
+        level: sentimentData.vix ? (sentimentData.vix > 25 ? 'high' : sentimentData.vix > 15 ? 'moderate' : 'low') : 'unknown',
+        trend: 'data_required'
       },
       sentiment: {
-        overall: 'cautiously optimistic',
-        fearGreedIndex: 55,
-        putCallRatio: 0.8
-      }
+        overall: sentimentData.fearGreedIndex ? 
+          (sentimentData.fearGreedIndex > 70 ? 'greedy' : 
+           sentimentData.fearGreedIndex > 30 ? 'neutral' : 'fearful') : 'unknown',
+        fearGreedIndex: sentimentData.fearGreedIndex || null,
+        putCallRatio: sentimentData.putCallRatio || null
+      },
+      dataSource: 'real_database',
+      queriesExecuted: 3
     };
 
     res.json({

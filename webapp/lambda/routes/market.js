@@ -885,21 +885,15 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     let fearGreedData = [];
+    let fearGreedError = null;
     try {
       const fearGreedResult = await query(fearGreedQuery);
       fearGreedData = fearGreedResult.rows;
+      console.log(`✅ Retrieved ${fearGreedData.length} fear & greed records from database`);
     } catch (e) {
-      console.log('Fear & greed table not available, using fallback data');
-      // Generate fallback fear & greed data
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        fearGreedData.push({
-          date: date.toISOString(),
-          value: Math.floor(Math.random() * 100),
-          classification: ['Extreme Fear', 'Fear', 'Neutral', 'Greed', 'Extreme Greed'][Math.floor(Math.random() * 5)]
-        });
-      }
+      console.error('❌ Fear & greed table not available:', e.message);
+      fearGreedError = `Fear & greed data unavailable: ${e.message}`;
+      // NO FALLBACK DATA - return error information instead
     }
 
     // Get NAAIM data
@@ -916,65 +910,73 @@ router.get('/sentiment/history', async (req, res) => {
     `;
 
     let naaimData = [];
+    let naaimError = null;
     try {
       const naaimResult = await query(naaimQuery);
       naaimData = naaimResult.rows;
+      console.log(`✅ Retrieved ${naaimData.length} NAAIM records from database`);
     } catch (e) {
-      console.log('NAAIM table not available, using fallback data');
-      // Generate fallback NAAIM data
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        naaimData.push({
-          date: date.toISOString(),
-          exposure_index: Math.floor(Math.random() * 100),
-          long_exposure: Math.floor(Math.random() * 100),
-          short_exposure: Math.floor(Math.random() * 50)
-        });
-      }
+      console.error('❌ NAAIM table not available:', e.message);
+      naaimError = `NAAIM data unavailable: ${e.message}`;
+      // NO FALLBACK DATA - return error information instead
     }
 
     res.json({
       data: {
         fear_greed_history: fearGreedData,
         naaim_history: naaimData,
-        aaii_history: [] // TODO: Add AAII historical data if needed
+        aaii_history: [] // AAII data implementation pending - requires table creation
       },
       count: fearGreedData.length + naaimData.length,
-      period_days: days
+      period_days: days,
+      errors: {
+        fear_greed: fearGreedError,
+        naaim: naaimError,
+        aaii: 'AAII historical data not yet implemented - table structure needed'
+      },
+      data_source: 'database_query',
+      diagnostic: {
+        fear_greed_available: fearGreedData.length > 0,
+        naaim_available: naaimData.length > 0,
+        aaii_available: false,
+        troubleshooting: fearGreedError || naaimError ? 
+          'Database connectivity or missing tables. Check data loading processes.' : 
+          'All available data sources functioning normally'
+      }
     });
   } catch (error) {
-    console.error('Error fetching sentiment history:', error);
-    // Return fallback data on error
-    const fallbackData = {
-      fear_greed_history: [],
-      naaim_history: [],
-      aaii_history: []
-    };
+    console.error('❌ Critical error fetching sentiment history:', error);
     
-    // Generate fallback data
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      fallbackData.fear_greed_history.push({
-        date: date.toISOString(),
-        value: Math.floor(Math.random() * 100),
-        classification: ['Extreme Fear', 'Fear', 'Neutral', 'Greed', 'Extreme Greed'][Math.floor(Math.random() * 5)]
-      });
-      fallbackData.naaim_history.push({
-        date: date.toISOString(),
-        exposure_index: Math.floor(Math.random() * 100),
-        mean_exposure: Math.floor(Math.random() * 100),
-        average: Math.floor(Math.random() * 100)
-      });
-    }
-    
-    res.json({
-      data: fallbackData,
-      count: 60,
-      period_days: days,
-      error: 'Database error, using fallback data',
-      details: error.message
+    res.status(500).json({
+      success: false,
+      error: 'Sentiment history data unavailable',
+      details: error.message,
+      data: {
+        fear_greed_history: [],
+        naaim_history: [],
+        aaii_history: []
+      },
+      diagnostic: {
+        issue: 'Database query execution failed',
+        potential_causes: [
+          'Database connection timeout',
+          'Missing required tables (fear_greed_index, naaim)',
+          'Database authentication failure',
+          'SQL query syntax error'
+        ],
+        troubleshooting: [
+          'Check database connectivity',
+          'Verify table existence: fear_greed_index, naaim',
+          'Review data loading processes',
+          'Check AWS RDS security groups and VPC configuration'
+        ],
+        system_checks: {
+          query_attempted: true,
+          tables_required: ['fear_greed_index', 'naaim', 'aaii'],
+          fallback_data: false
+        }
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
