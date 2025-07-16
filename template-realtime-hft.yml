@@ -1,0 +1,750 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Real-time HFT Data Infrastructure Stack - World-class low-latency architecture
+  with cost optimization. Uses ElastiCache, DynamoDB, Kinesis Data Streams, 
+  API Gateway WebSocket, and Lambda for microsecond-level performance.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+  
+  ElastiCacheInstanceType:
+    Type: String
+    Default: cache.r6g.large
+    AllowedValues: 
+      - cache.r6g.large    # 13.07 GB RAM, $0.151/hour
+      - cache.r6g.xlarge   # 26.32 GB RAM, $0.302/hour
+      - cache.r6g.2xlarge  # 52.82 GB RAM, $0.604/hour
+    Description: ElastiCache instance type for ultra-low latency caching
+  
+  DynamoDBBillingMode:
+    Type: String
+    Default: PAY_PER_REQUEST
+    AllowedValues: [PAY_PER_REQUEST, PROVISIONED]
+    Description: DynamoDB billing mode
+  
+  KinesisShardCount:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 10
+    Description: Number of shards for Kinesis streams (affects cost)
+  
+  TimeStreamRetentionHours:
+    Type: Number
+    Default: 168  # 7 days
+    Description: TimeStream data retention in hours
+
+Resources:
+
+  #############################################################################
+  # LAMBDA EXECUTION ROLES
+  #############################################################################
+  
+  WebSocketLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-websocket-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WebSocketPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                  - apigateway:GET
+                  - apigateway:DELETE
+                Resource: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${WebSocketApi}/stages/${Environment}/connections/*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt ConnectionsTable.Arn
+                  - !GetAtt MarketDataTable.Arn
+                  - !GetAtt TickDataTable.Arn
+              - Effect: Allow
+                Action:
+                  - elasticache:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListStreams
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                Resource: 
+                  - !GetAtt MarketDataStream.Arn
+                  - !GetAtt TickDataStream.Arn
+              - Effect: Allow
+                Action:
+                  - timestream:WriteRecords
+                  - timestream:DescribeTable
+                Resource: 
+                  - !GetAtt TimeStreamTable.Arn
+
+  #############################################################################
+  # ELASTICACHE REDIS CLUSTER - ULTRA LOW LATENCY CACHING
+  #############################################################################
+  
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for ElastiCache Redis cluster
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+  
+  ElastiCacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ElastiCache Redis cluster
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Redis access from Lambda functions
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-elasticache-sg'
+
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: 'HFT Ultra-low latency Redis cluster'
+      ReplicationGroupId: !Sub '${AWS::StackName}-hft-cache'
+      CacheNodeType: !Ref ElastiCacheInstanceType
+      Engine: redis
+      EngineVersion: '7.0'
+      NumCacheClusters: 2
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      SecurityGroupIds:
+        - !Ref ElastiCacheSecurityGroup
+      CacheParameterGroupName: default.redis7
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-hft-cache'
+        - Key: Purpose
+          Value: HFT-RealTime-Cache
+
+  #############################################################################
+  # DYNAMODB TABLES - HIGH PERFORMANCE NOSQL
+  #############################################################################
+  
+  # Connection tracking table
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-connections'
+      BillingMode: !Ref DynamoDBBillingMode
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-connections'
+
+  # Market data table for latest quotes
+  MarketDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-market-data'
+      BillingMode: !Ref DynamoDBBillingMode
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data'
+
+  # Tick data table for HFT (high frequency updates)
+  TickDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-tick-data'
+      BillingMode: !Ref DynamoDBBillingMode
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: tick_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: tick_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: TimestampIndex
+          KeySchema:
+            - AttributeName: symbol
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-tick-data'
+
+  #############################################################################
+  # AMAZON TIMESTREAM - TIME SERIES DATABASE
+  #############################################################################
+  
+  TimeStreamDatabase:
+    Type: AWS::Timestream::Database
+    Properties:
+      DatabaseName: !Sub '${AWS::StackName}-hft-timeseries'
+      
+  TimeStreamTable:
+    Type: AWS::Timestream::Table
+    Properties:
+      TableName: market-data
+      DatabaseName: !Ref TimeStreamDatabase
+      RetentionProperties:
+        MemoryStoreRetentionPeriodInHours: 24
+        MagneticStoreRetentionPeriodInDays: !Ref TimeStreamRetentionHours
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data-timeseries'
+
+  #############################################################################
+  # KINESIS DATA STREAMS - REAL-TIME DATA INGESTION
+  #############################################################################
+  
+  MarketDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub '${AWS::StackName}-market-data-stream'
+      ShardCount: !Ref KinesisShardCount
+      StreamModeDetails:
+        StreamMode: PROVISIONED
+      RetentionPeriodHours: 24
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data-stream'
+        - Key: Purpose
+          Value: HFT-Market-Data-Ingestion
+
+  TickDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub '${AWS::StackName}-tick-data-stream'
+      ShardCount: !Ref KinesisShardCount
+      StreamModeDetails:
+        StreamMode: PROVISIONED
+      RetentionPeriodHours: 24
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-tick-data-stream'
+        - Key: Purpose
+          Value: HFT-Tick-Data-Ingestion
+
+  #############################################################################
+  # API GATEWAY WEBSOCKET API
+  #############################################################################
+  
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-websocket-api'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+      Description: HFT Real-time WebSocket API for market data
+      Tags:
+        Name: !Sub '${AWS::StackName}-websocket-api'
+        Purpose: HFT-Real-Time-WebSocket
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      StageName: !Ref Environment
+      Description: WebSocket API stage
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5000
+        ThrottlingRateLimit: 2000
+      Tags:
+        Name: !Sub '${AWS::StackName}-websocket-stage'
+
+  #############################################################################
+  # LAMBDA FUNCTIONS
+  #############################################################################
+  
+  # Security group for Lambda functions
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: All outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-lambda-sg'
+
+  # WebSocket connection handler
+  ConnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-websocket-connect'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt WebSocketLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          from datetime import datetime, timedelta
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          dynamodb = boto3.resource('dynamodb')
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          
+          # Redis connection for ultra-low latency
+          redis_client = redis.Redis(
+              host=os.environ['ELASTICACHE_ENDPOINT'],
+              port=int(os.environ['ELASTICACHE_PORT']),
+              decode_responses=True,
+              socket_connect_timeout=1,
+              socket_timeout=1
+          )
+          
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              user_id = event.get('queryStringParameters', {}).get('userId', 'anonymous')
+              
+              try:
+                  # Store connection in DynamoDB
+                  ttl = int((datetime.now() + timedelta(hours=24)).timestamp())
+                  connections_table.put_item(
+                      Item={
+                          'connectionId': connection_id,
+                          'userId': user_id,
+                          'connectedAt': datetime.now().isoformat(),
+                          'ttl': ttl
+                      }
+                  )
+                  
+                  # Cache active connection in Redis for ultra-fast lookup
+                  redis_client.sadd('active_connections', connection_id)
+                  redis_client.hset(f'connection:{connection_id}', 'userId', user_id)
+                  redis_client.expire(f'connection:{connection_id}', 86400)  # 24 hours
+                  
+                  logger.info(f"Connected: {connection_id} for user: {user_id}")
+                  return {'statusCode': 200}
+                  
+              except Exception as e:
+                  logger.error(f"Connection failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-websocket-connect'
+
+  # WebSocket disconnect handler
+  DisconnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-websocket-disconnect'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt WebSocketLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          dynamodb = boto3.resource('dynamodb')
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          
+          redis_client = redis.Redis(
+              host=os.environ['ELASTICACHE_ENDPOINT'],
+              port=int(os.environ['ELASTICACHE_PORT']),
+              decode_responses=True,
+              socket_connect_timeout=1,
+              socket_timeout=1
+          )
+          
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              
+              try:
+                  # Remove from DynamoDB
+                  connections_table.delete_item(Key={'connectionId': connection_id})
+                  
+                  # Remove from Redis cache
+                  redis_client.srem('active_connections', connection_id)
+                  redis_client.delete(f'connection:{connection_id}')
+                  
+                  logger.info(f"Disconnected: {connection_id}")
+                  return {'statusCode': 200}
+                  
+              except Exception as e:
+                  logger.error(f"Disconnect failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-websocket-disconnect'
+
+  # Market data processor and broadcaster
+  MarketDataProcessor:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-market-data-processor'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt WebSocketLambdaRole.Arn
+      Timeout: 900
+      MemorySize: 3008  # Max memory for best performance
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          MARKET_DATA_TABLE: !Ref MarketDataTable
+          TICK_DATA_TABLE: !Ref TickDataTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          TIMESTREAM_DATABASE: !Ref TimeStreamDatabase
+          TIMESTREAM_TABLE: !Ref TimeStreamTable
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          import time
+          from datetime import datetime
+          from decimal import Decimal
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          # AWS clients
+          dynamodb = boto3.resource('dynamodb')
+          apigateway = boto3.client('apigatewaymanagementapi', 
+                                  endpoint_url=os.environ['WEBSOCKET_API_ENDPOINT'])
+          timestream = boto3.client('timestream-write')
+          
+          # Redis for ultra-low latency
+          redis_client = redis.Redis(
+              host=os.environ['ELASTICACHE_ENDPOINT'],
+              port=int(os.environ['ELASTICACHE_PORT']),
+              decode_responses=True,
+              socket_connect_timeout=1,
+              socket_timeout=1
+          )
+          
+          def lambda_handler(event, context):
+              start_time = time.time()
+              
+              # Process Kinesis records
+              for record in event['Records']:
+                  try:
+                      # Decode market data
+                      payload = json.loads(record['kinesis']['data'])
+                      symbol = payload['symbol']
+                      
+                      # Cache in Redis for microsecond access
+                      redis_client.hset(f'market:{symbol}', mapping=payload)
+                      redis_client.expire(f'market:{symbol}', 300)  # 5 min expiry
+                      
+                      # Store in TimeStream for analytics
+                      timestream.write_records(
+                          DatabaseName=os.environ['TIMESTREAM_DATABASE'],
+                          TableName=os.environ['TIMESTREAM_TABLE'],
+                          Records=[{
+                              'Dimensions': [
+                                  {'Name': 'symbol', 'Value': symbol},
+                                  {'Name': 'type', 'Value': 'market_data'}
+                              ],
+                              'MeasureName': 'price',
+                              'MeasureValue': str(payload['price']),
+                              'MeasureValueType': 'DOUBLE',
+                              'Time': str(int(payload['timestamp'] * 1000))
+                          }]
+                      )
+                      
+                      # Broadcast to WebSocket connections
+                      broadcast_to_subscribers(symbol, payload)
+                      
+                  except Exception as e:
+                      logger.error(f"Error processing record: {str(e)}")
+              
+              processing_time = (time.time() - start_time) * 1000
+              logger.info(f"Processed {len(event['Records'])} records in {processing_time:.2f}ms")
+              
+              return {'statusCode': 200}
+          
+          def broadcast_to_subscribers(symbol, data):
+              try:
+                  # Get active connections from Redis
+                  connections = redis_client.smembers('active_connections')
+                  
+                  message = json.dumps({
+                      'type': 'market_data',
+                      'symbol': symbol,
+                      'data': data,
+                      'timestamp': time.time()
+                  })
+                  
+                  for connection_id in connections:
+                      try:
+                          apigateway.post_to_connection(
+                              ConnectionId=connection_id,
+                              Data=message
+                          )
+                      except Exception as e:
+                          # Remove stale connection
+                          redis_client.srem('active_connections', connection_id)
+                          logger.warning(f"Removed stale connection: {connection_id}")
+                          
+              except Exception as e:
+                  logger.error(f"Broadcast failed: {str(e)}")
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data-processor'
+
+  #############################################################################
+  # WEBSOCKET ROUTES
+  #############################################################################
+  
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ConnectIntegration}'
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${DisconnectIntegration}'
+
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations'
+
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectFunction.Arn}/invocations'
+
+  #############################################################################
+  # LAMBDA PERMISSIONS
+  #############################################################################
+  
+  ConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ConnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+
+  DisconnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DisconnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+
+  #############################################################################
+  # KINESIS EVENT SOURCE MAPPING
+  #############################################################################
+  
+  MarketDataStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt MarketDataStream.Arn
+      FunctionName: !Ref MarketDataProcessor
+      StartingPosition: LATEST
+      BatchSize: 100
+      MaximumBatchingWindowInSeconds: 1
+      ParallelizationFactor: 10
+
+#############################################################################
+# OUTPUTS
+#############################################################################
+
+Outputs:
+  WebSocketApiId:
+    Description: WebSocket API ID
+    Value: !Ref WebSocketApi
+    Export:
+      Name: !Sub '${AWS::StackName}-WebSocketApiId'
+
+  WebSocketApiEndpoint:
+    Description: WebSocket API endpoint
+    Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebSocketApiEndpoint'
+
+  ElastiCacheEndpoint:
+    Description: ElastiCache Redis endpoint
+    Value: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-ElastiCacheEndpoint'
+
+  MarketDataStreamName:
+    Description: Market data Kinesis stream name
+    Value: !Ref MarketDataStream
+    Export:
+      Name: !Sub '${AWS::StackName}-MarketDataStreamName'
+
+  TickDataStreamName:
+    Description: Tick data Kinesis stream name
+    Value: !Ref TickDataStream
+    Export:
+      Name: !Sub '${AWS::StackName}-TickDataStreamName'
+
+  TimeStreamDatabase:
+    Description: TimeStream database name
+    Value: !Ref TimeStreamDatabase
+    Export:
+      Name: !Sub '${AWS::StackName}-TimeStreamDatabase'
+
+  TimeStreamTable:
+    Description: TimeStream table name
+    Value: !Ref TimeStreamTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TimeStreamTable'
+
+  ConnectionsTableName:
+    Description: Connections DynamoDB table name
+    Value: !Ref ConnectionsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ConnectionsTableName'
+
+  MarketDataTableName:
+    Description: Market data DynamoDB table name
+    Value: !Ref MarketDataTable
+    Export:
+      Name: !Sub '${AWS::StackName}-MarketDataTableName'
+
+  TickDataTableName:
+    Description: Tick data DynamoDB table name
+    Value: !Ref TickDataTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TickDataTableName'

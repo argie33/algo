@@ -1,0 +1,511 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Automated Data Pipeline Scheduling with EventBridge
+  Implements institutional-grade data collection and scoring system automation
+  Based on Financial Platform Blueprint Phase 1 implementation
+
+Parameters:
+  # Existing ECS Infrastructure
+  ECSClusterName:
+    Type: String
+    Default: "stocks-cluster"
+    Description: "Name of the ECS cluster"
+  
+  TaskExecutionRoleArn:
+    Type: String
+    Description: "ARN of the ECS task execution role"
+  
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: "List of subnet IDs for ECS tasks"
+  
+  SecurityGroupId:
+    Type: String
+    Description: "Security group ID for ECS tasks"
+  
+  # New Scoring System Image Tags
+  QualityScoresImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for quality scores calculator image"
+  
+  ValueScoresImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for value scores calculator image"
+  
+  # Existing Data Loader Image Tags (for reference)
+  StockSymbolsImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for stock symbols loader image"
+  
+  PriceImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for price data loader image"
+  
+  LoadInfoImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for company info loader image"
+  
+  TechnicalsDailyImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for daily technicals loader image"
+
+Resources:
+
+  ########################################
+  # IAM ROLES FOR EVENTBRIDGE
+  ########################################
+  
+  EventBridgeECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EventBridge-ECS-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EventBridgeECSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StopTask
+                  - ecs:DescribeTasks
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Ref TaskExecutionRoleArn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  ########################################
+  # ECS TASK DEFINITIONS FOR SCORING
+  ########################################
+
+  QualityScoresTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: calculate-quality-scores
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: quality-scores-calculator
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-quality-scores:${QualityScoresImageTag}"
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref QualityScoresLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: WEBAPP_AWS_REGION
+              Value: !Ref AWS::Region
+
+  ValueScoresTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: calculate-value-scores
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: value-scores-calculator
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stocks-value-scores:${ValueScoresImageTag}"
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ValueScoresLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: WEBAPP_AWS_REGION
+              Value: !Ref AWS::Region
+
+  ########################################
+  # CLOUDWATCH LOG GROUPS
+  ########################################
+
+  QualityScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calculate-quality-scores
+      RetentionInDays: 30
+
+  ValueScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calculate-value-scores
+      RetentionInDays: 30
+
+  DataPipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/data-pipeline-orchestration
+      RetentionInDays: 30
+
+  ########################################
+  # EVENTBRIDGE RULES - DATA COLLECTION
+  ########################################
+
+  # Daily Data Collection (Post-Market Close: 4:30 PM ET = 21:30 UTC)
+  DailyDataCollectionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-data-collection
+      Description: "Collect daily price, volume, and market data after market close"
+      ScheduleExpression: "cron(30 21 ? * MON-FRI)"  # 4:30 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "DailyPriceDataTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/price-daily:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Daily Technical Analysis (30 minutes after price data)
+  DailyTechnicalsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-technicals-calculation
+      Description: "Calculate daily technical indicators after price data collection"
+      ScheduleExpression: "cron(0 22 ? * MON-FRI)"  # 5:00 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "DailyTechnicalsTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/technicals-daily:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # EVENTBRIDGE RULES - SCORING SYSTEM
+  ########################################
+
+  # Quality Scores Calculation (Daily at 6:00 PM ET)
+  QualityScoresRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: calculate-quality-scores
+      Description: "Calculate institutional-grade quality scores for all stocks"
+      ScheduleExpression: "cron(0 23 ? * MON-FRI)"  # 6:00 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "QualityScoresTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref QualityScoresTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Value Scores Calculation (Daily at 6:30 PM ET)
+  ValueScoresRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: calculate-value-scores
+      Description: "Calculate institutional-grade value scores using DCF and multiples analysis"
+      ScheduleExpression: "cron(30 23 ? * MON-FRI)"  # 6:30 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "ValueScoresTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref ValueScoresTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # WEEKLY DATA COLLECTION
+  ########################################
+
+  # Weekly Data Collection (Sundays at 6:00 AM ET)
+  WeeklyDataCollectionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: weekly-data-collection
+      Description: "Collect weekly data including analyst estimates, sentiment, and fundamentals"
+      ScheduleExpression: "cron(0 11 ? * SUN)"  # 6:00 AM ET on Sundays
+      State: ENABLED
+      Targets:
+        # Stock Symbols Update
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "WeeklyStockSymbolsTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stock-symbols:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Company Information Update (Sundays at 7:00 AM ET)
+  WeeklyCompanyInfoRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: weekly-company-info-update
+      Description: "Update company profiles, analyst estimates, and fundamental data"
+      ScheduleExpression: "cron(0 12 ? * SUN)"  # 7:00 AM ET on Sundays
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "WeeklyCompanyInfoTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/loadinfo:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Weekly Technical Analysis (Sundays at 8:00 AM ET)
+  WeeklyTechnicalsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: weekly-technicals-calculation
+      Description: "Calculate weekly technical indicators and patterns"
+      ScheduleExpression: "cron(0 13 ? * SUN)"  # 8:00 AM ET on Sundays
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "WeeklyTechnicalsTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/technicals-weekly:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # MONTHLY DATA COLLECTION
+  ########################################
+
+  # Monthly Financial Statements Update (1st Sunday of each month at 9:00 AM ET)
+  MonthlyFinancialsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: monthly-financials-update
+      Description: "Update financial statements and comprehensive fundamental analysis"
+      ScheduleExpression: "cron(0 14 ? * SUN#1)"  # 9:00 AM ET on first Sunday of month
+      State: ENABLED
+      Targets:
+        # Quarterly Financial Statements
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "MonthlyQuarterlyIncomeTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quarterly-income-statement:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # SENTIMENT DATA COLLECTION
+  ########################################
+
+  # Daily Sentiment Collection (7:00 PM ET)
+  DailySentimentRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-sentiment-collection
+      Description: "Collect daily sentiment data from multiple sources"
+      ScheduleExpression: "cron(0 0 ? * MON-SAT)"  # 7:00 PM ET, Monday-Saturday (to capture weekend sentiment)
+      State: ENABLED
+      Targets:
+        # Fear & Greed Index
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "DailyFearGreedTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/fear-greed:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Economic Data Collection (Weekdays at 8:30 AM ET - when most data is released)
+  EconomicDataRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: economic-data-collection
+      Description: "Collect economic indicators and FRED data"
+      ScheduleExpression: "cron(30 13 ? * MON-FRI)"  # 8:30 AM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "EconomicDataTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/econ-data:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # DATA QUALITY MONITORING
+  ########################################
+
+  # Daily Data Quality Check (8:00 PM ET)
+  DataQualityRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-data-quality-check
+      Description: "Run comprehensive data quality validation and health monitoring"
+      ScheduleExpression: "cron(0 1 ? * MON-SAT)"  # 8:00 PM ET daily
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "DataQualityTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/data-quality-validator:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  ########################################
+  # ALERTING AND MONITORING
+  ########################################
+
+  # CloudWatch Alarm for Failed ECS Tasks
+  ECSTaskFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ECS-Task-Failures
+      AlarmDescription: "Alert when ECS tasks fail"
+      MetricName: TaskFailures
+      Namespace: AWS/ECS
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+
+  # SNS Topic for Failure Notifications
+  FailureNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: data-pipeline-failures
+      DisplayName: "Data Pipeline Failure Notifications"
+
+  ########################################
+  # OUTPUTS
+  ########################################
+
+Outputs:
+  QualityScoresTaskDefinitionArn:
+    Description: "ARN of the Quality Scores task definition"
+    Value: !Ref QualityScoresTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-QualityScoresTaskDefinition"
+
+  ValueScoresTaskDefinitionArn:
+    Description: "ARN of the Value Scores task definition"
+    Value: !Ref ValueScoresTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-ValueScoresTaskDefinition"
+
+  EventBridgeRoleArn:
+    Description: "ARN of the EventBridge ECS execution role"
+    Value: !GetAtt EventBridgeECSRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-EventBridgeECSRole"
+
+  DataPipelineScheduleStatus:
+    Description: "Status of the automated data pipeline"
+    Value: "ENABLED - Daily data collection at 4:30 PM ET, Weekly updates on Sundays, Monthly financials on first Sunday"
+
+  ScoringSystemScheduleStatus:
+    Description: "Status of the automated scoring system"
+    Value: "ENABLED - Quality scores at 6:00 PM ET, Value scores at 6:30 PM ET, daily Monday-Friday"
+
+  MonitoringTopicArn:
+    Description: "SNS Topic for pipeline failure notifications"
+    Value: !Ref FailureNotificationTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-FailureNotificationTopic"

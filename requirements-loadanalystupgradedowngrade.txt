@@ -1,0 +1,4 @@
+yfinance
+psycopg2-binary
+boto3
+# Updated for loadanalystupgradedowngrade v4 deployment - July 2025

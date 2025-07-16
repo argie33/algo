@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+# Updated to trigger workflow test
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libxml2-dev \
+    libxslt-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements-loadnaaim.txt .
+RUN pip install --no-cache-dir -r requirements-loadnaaim.txt
+
+# Copy the script
+COPY loadnaaim.py .
+
+# Make script executable
+RUN chmod +x loadnaaim.py
+
+# Run the script
+CMD ["python", "loadnaaim.py"] 

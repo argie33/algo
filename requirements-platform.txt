@@ -1,0 +1,101 @@
+# Financial Platform Requirements
+# Comprehensive list of dependencies for all platform components
+
+# Core Data and Analysis
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+yfinance>=0.1.70
+
+# Machine Learning and Statistics
+scikit-learn>=1.0.0
+statsmodels>=0.13.0
+
+# Natural Language Processing (Sentiment Analysis)
+textblob>=0.17.1
+nltk>=3.7
+# transformers>=4.15.0  # For FinBERT (optional)
+# torch>=1.10.0         # For PyTorch models (optional)
+
+# Technical Analysis and Pattern Recognition
+ta-lib>=0.4.24
+# pyti>=0.2.2          # Alternative technical indicators
+
+# Portfolio Optimization
+cvxpy>=1.2.0          # For advanced optimization
+# cvxopt>=1.2.7        # Alternative optimization library
+
+# Data Quality and Validation
+great-expectations>=0.15.0  # Optional: Advanced data validation
+
+# System Monitoring
+psutil>=5.8.0         # System metrics
+# prometheus-client>=0.12.0  # Optional: Metrics export
+
+# Web Framework (for API/webapp)
+flask>=2.0.0
+flask-cors>=3.0.10
+gunicorn>=20.1.0
+
+# Database
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+# pymongo>=4.0.0        # MongoDB adapter (optional)
+
+# Caching
+redis>=4.0.0
+
+# Email and Notifications
+smtplib3>=0.1.4       # Email alerts (built-in alternative available)
+# twilio>=7.15.0       # SMS alerts (optional)
+
+# Configuration and Environment
+python-dotenv>=0.19.0
+pyyaml>=6.0
+
+# Logging and Debugging
+structlog>=21.5.0
+# sentry-sdk>=1.5.0    # Error tracking (optional)
+
+# Data Fetching and APIs
+requests>=2.27.0
+urllib3>=1.26.0
+# alpha-vantage>=2.3.1 # Alternative data source
+# quandl>=3.7.0        # Alternative data source
+
+# Time Series Analysis
+# fbprophet>=0.7.1     # Time series forecasting (optional)
+# arch>=5.3.0          # GARCH models (optional)
+
+# Visualization (for charts and graphs)
+matplotlib>=3.5.0
+seaborn>=0.11.0
+plotly>=5.5.0
+
+# Backtesting and Strategy Testing
+# backtrader>=1.9.76  # Backtesting framework (optional)
+# zipline>=1.4.1      # Quantitative trading (optional)
+
+# Development and Testing
+pytest>=6.2.0
+pytest-cov>=3.0.0
+black>=22.0.0         # Code formatting
+flake8>=4.0.0        # Linting
+mypy>=0.931          # Type checking
+
+# Documentation
+sphinx>=4.4.0        # Documentation generation
+
+# Production and Deployment
+# docker>=5.0.0       # Docker client (optional)
+# kubernetes>=18.20.0 # Kubernetes client (optional)
+
+# Performance and Profiling
+# line-profiler>=3.5.0  # Performance profiling (optional)
+# memory-profiler>=0.60.0  # Memory profiling (optional)
+
+# Alternative/Additional Libraries
+# quantlib>=1.26      # Quantitative finance library
+# QuantStats>=0.0.54  # Portfolio analytics
+# pyfolio>=0.9.2      # Portfolio analysis
+# empyrical>=0.5.5    # Financial metrics

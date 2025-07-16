@@ -1,0 +1,6 @@
+yfinance
+psycopg2-binary
+boto3
+pandas
+numpy
+requests

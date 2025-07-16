@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Serverless SPA → CloudFront + HTTP API Gateway + Lambda (RDS)
+  — imports S3, network & IAM from core infra; DB Secret ARN from stocks-infra-stack.
+
+Parameters:
+  LambdaCodeKey:
+    Type: String
+    Description: S3 key for the API Lambda zip (e.g. api.zip)
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN (us-east-1) for CloudFront
+
+Conditions:
+  UseCert:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref CertificateArn
+          - ''
+
+Resources:
+
+  ## 1) Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: stocks-webapp-user-pool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      PasswordPolicy:
+        MinimumLength: 8
+        RequireUppercase: true
+        RequireLowercase: true
+        RequireNumbers: true
+        RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+      UserPoolTags:
+        Project: stocks-platform
+        Environment: production
+
+  ## 2) Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: stocks-webapp-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${SPACloudFront.DomainName}'
+        - 'http://localhost:5173'
+      LogoutURLs:
+        - !Sub 'https://${SPACloudFront.DomainName}'
+        - 'http://localhost:5173'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  ## 3) Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'stocks-webapp-${AWS::AccountId}'
+
+  ## 3.5) Cognito Configuration Secret
+  CognitoConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-cognito-config'
+      Description: Cognito configuration for the webapp
+      SecretString: !Sub |
+        {
+          "userPoolId": "${UserPool}",
+          "clientId": "${UserPoolClient}",
+          "domain": "stocks-webapp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com",
+          "region": "${AWS::Region}"
+        }
+
+  ## 4) Origin Access Identity
+  OAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access SPA bucket
+
+  ## 2) Bucket policy for SPA bucket
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !ImportValue StocksCore-SiteCodeBucketName
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt OAI.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !ImportValue StocksCore-SiteCodeBucketName
+                  - '/*'
+
+  ## 3) CloudFront distribution
+  SPACloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: SPA
+            DomainName: !Sub 
+              - "${BucketName}.s3.amazonaws.com"
+              - BucketName: !ImportValue StocksCore-SiteCodeBucketName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OAI}"
+        DefaultCacheBehavior:
+          TargetOriginId: SPA
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        ViewerCertificate:
+          Fn::If:
+            - UseCert
+            - AcmCertificateArn: !Ref CertificateArn
+              SslSupportMethod: sni-only
+            - CloudFrontDefaultCertificate: true
+
+  ## 4) API Lambda backed by RDS (via Secret) - Enhanced configuration
+  ApiLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-ApiFunction'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !ImportValue StocksCore-LambdaExecutionRoleArn
+      Code:
+        S3Bucket: !ImportValue StocksCore-CodeBucketName
+        S3Key: !Ref LambdaCodeKey
+      Timeout: 60
+      MemorySize: 256
+      # NO VpcConfig - Lambda runs in AWS managed VPC with internet access
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
+          COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
+          NODE_ENV: !Ref EnvironmentName
+          ENVIRONMENT: !Ref EnvironmentName
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          DB_CONNECT_TIMEOUT: '30000'
+          DB_POOL_MAX: '3'
+          DB_POOL_IDLE_TIMEOUT: '30000'
+          # API key encryption secret
+          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+      Tags:
+        - Key: Name
+          Value: stocks-webapp-api-lambda
+
+  ## 5) HTTP API (API Gateway v2)
+  StocksApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: stocks-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+        AllowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID']
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref StocksApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ApiLambda.Arn
+      PayloadFormatVersion: '2.0'
+
+  ApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StocksApi
+      RouteKey: 'GET /'
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  # Add catch-all route for all API paths
+  ApiCatchAllRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref StocksApi
+      RouteKey: 'ANY /{proxy+}'
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  ApiDeploy:
+    Type: AWS::ApiGatewayV2::Deployment
+    Properties:
+      ApiId: !Ref StocksApi
+    DependsOn: 
+      - ApiRoute
+      - ApiCatchAllRoute
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref StocksApi
+      StageName: 'dev'
+      DeploymentId: !Ref ApiDeploy
+      AutoDeploy: true
+
+  ## 6) Lambda permission for API Gateway
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ApiLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${StocksApi}/*/*'
+
+Outputs:
+  SPAUrl:
+    Description: CloudFront URL for SPA
+    Value: !GetAtt SPACloudFront.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-SPAUrl'
+
+  ApiEndpoint:
+    Description: HTTP API invoke URL
+    Value: !Sub 'https://${StocksApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiEndpoint'
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Sub 'stocks-webapp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  CognitoConfigSecretArn:
+    Description: ARN of the Cognito configuration secret
+    Value: !Ref CognitoConfigSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoConfigSecretArn'

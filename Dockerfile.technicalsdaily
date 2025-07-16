@@ -1,0 +1,25 @@
+# Dockerfile.technicalsdaily - Optimized for ECS
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies for psycopg2 and memory monitoring
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install Python dependencies
+COPY requirements-loadtechnicalsdaily.txt .
+RUN pip install --no-cache-dir -r requirements-loadtechnicalsdaily.txt \
+    && pip cache purge
+
+# Copy script
+COPY loadtechnicalsdaily.py .
+
+# Set memory limits for Python
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONMALLOC=malloc
+
+ENTRYPOINT ["python", "loadtechnicalsdaily.py"]

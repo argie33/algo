@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Database initialization using ECS task (runs once during deployment)
+
+Parameters:
+  DBInitImageTag:
+    Type: String
+    Description: Docker image tag for database initialization
+
+Resources:
+  # Log Group for DB Init
+  DBInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/db-init
+      RetentionInDays: 7
+
+  # Task Definition for DB Initialization
+  DBInitTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: db-init
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: db-init
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref DBInitImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: NODE_ENV
+              Value: production
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/db-init
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  # Lambda role for triggering ECS task
+  DBInitTriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ECSTaskRunPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:DescribeTasks
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !ImportValue StocksApp-EcsTaskExecutionRoleArn
+
+  # Lambda function to trigger ECS task
+  DBInitTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-db-init-trigger'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt DBInitTriggerRole.Arn
+      Timeout: 900  # 15 minutes
+      Environment:
+        Variables:
+          CLUSTER_ARN: !ImportValue StocksApp-ClusterArn
+          TASK_DEFINITION: !Ref DBInitTaskDefinition
+          SUBNET_1: !ImportValue StocksCore-PublicSubnet1Id
+          SUBNET_2: !ImportValue StocksCore-PublicSubnet2Id
+          SECURITY_GROUP: !ImportValue StocksApp-EcsTasksSecurityGroupId
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+          import logging
+          import time
+          import os
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          ecs = boto3.client('ecs')
+          
+          def handler(event, context):
+              logger.info(f"Event: {json.dumps(event)}")
+              
+              try:
+                  request_type = event['RequestType']
+                  
+                  if request_type == 'Delete':
+                      # Nothing to do on delete
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                      return
+                  
+                  # Get environment variables
+                  cluster_arn = os.environ['CLUSTER_ARN']
+                  task_definition = os.environ['TASK_DEFINITION']
+                  subnet_1 = os.environ['SUBNET_1']
+                  subnet_2 = os.environ['SUBNET_2']
+                  security_group = os.environ['SECURITY_GROUP']
+                  
+                  # Run the ECS task
+                  logger.info("Starting database initialization ECS task")
+                  response = ecs.run_task(
+                      cluster=cluster_arn,
+                      taskDefinition=task_definition,
+                      launchType='FARGATE',
+                      networkConfiguration={
+                          'awsvpcConfiguration': {
+                              'subnets': [subnet_1, subnet_2],
+                              'securityGroups': [security_group],
+                              'assignPublicIp': 'ENABLED'
+                          }
+                      }
+                  )
+                  
+                  if not response['tasks']:
+                      raise Exception("Failed to start ECS task")
+                  
+                  task_arn = response['tasks'][0]['taskArn']
+                  logger.info(f"Started ECS task: {task_arn}")
+                  
+                  # Wait for task to complete
+                  waiter = ecs.get_waiter('tasks_stopped')
+                  waiter.wait(
+                      cluster=cluster_arn,
+                      tasks=[task_arn],
+                      WaiterConfig={
+                          'Delay': 10,
+                          'MaxAttempts': 90  # 15 minutes max
+                      }
+                  )
+                  
+                  # Check task status
+                  tasks = ecs.describe_tasks(
+                      cluster=cluster_arn,
+                      tasks=[task_arn]
+                  )
+                  
+                  if tasks['tasks']:
+                      task = tasks['tasks'][0]
+                      exit_code = task.get('containers', [{}])[0].get('exitCode')
+                      
+                      if exit_code == 0:
+                          logger.info("Database initialization completed successfully")
+                          cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                              'TaskArn': task_arn,
+                              'Message': 'Database initialized successfully'
+                          })
+                      elif exit_code is None:
+                          raise Exception("Task failed to complete - no exit code available")
+                      else:
+                          raise Exception(f"Task failed with exit code: {exit_code}")
+                  else:
+                      raise Exception("Task not found")
+                  
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+
+  # Custom resource to trigger DB initialization
+  DBInitTrigger:
+    Type: Custom::DBInit
+    DependsOn: DBInitTaskDefinition
+    Properties:
+      ServiceToken: !GetAtt DBInitTriggerFunction.Arn
+      Timestamp: !Sub '${AWS::StackName}-${AWS::StackId}'  # Force update on stack update
+
+Outputs:
+  DBInitTaskDefinitionArn:
+    Description: ARN of the DB initialization task definition
+    Value: !Ref DBInitTaskDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-DBInitTaskDefArn'
+  
+  DBInitLogGroup:
+    Description: CloudWatch log group for DB initialization
+    Value: !Ref DBInitLogGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DBInitLogGroup'

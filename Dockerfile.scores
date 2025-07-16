@@ -1,0 +1,26 @@
+FROM arm64v8/python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directory for scoring engine
+RUN mkdir -p /opt/scoring
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python packages
+COPY requirements-scores.txt .
+RUN pip install --no-cache-dir -r requirements-scores.txt
+
+# Copy the unified scoring script
+COPY loadscores.py .
+
+# Copy the scoring engine module
+COPY webapp/api/scoring_engine.py /opt/scoring/
+
+# Run the unified scoring script
+CMD ["python", "loadscores.py"]

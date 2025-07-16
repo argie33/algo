@@ -1,0 +1,1033 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Alpaca-Integrated Real-time WebSocket Infrastructure for HFT
+  Supports multiple data feeds: quotes, trades, bars, news, crypto
+  User-friendly subscription management with ultra-low latency
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+  
+  AlpacaApiKey:
+    Type: String
+    NoEcho: true
+    Description: Alpaca API Key (stored in AWS Secrets Manager)
+  
+  AlpacaApiSecret:
+    Type: String
+    NoEcho: true
+    Description: Alpaca API Secret (stored in AWS Secrets Manager)
+  
+  AlpacaDataFeed:
+    Type: String
+    Default: iex
+    AllowedValues: [iex, sip, otc]
+    Description: Alpaca data feed (iex=free, sip=premium, otc=crypto)
+
+Resources:
+
+  #############################################################################
+  # SECRETS MANAGER - ALPACA CREDENTIALS
+  #############################################################################
+  
+  AlpacaCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-alpaca-credentials'
+      Description: Alpaca API credentials for market data
+      SecretString: !Sub |
+        {
+          "api_key": "${AlpacaApiKey}",
+          "api_secret": "${AlpacaApiSecret}",
+          "data_feed": "${AlpacaDataFeed}",
+          "base_url": "https://paper-api.alpaca.markets",
+          "data_url": "https://data.alpaca.markets"
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alpaca-credentials'
+
+  #############################################################################
+  # LAMBDA EXECUTION ROLE
+  #############################################################################
+  
+  AlpacaWebSocketRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-alpaca-websocket-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: AlpacaWebSocketPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                  - apigateway:GET
+                  - apigateway:DELETE
+                Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/*/*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt ConnectionsTable.Arn
+                  - !GetAtt SubscriptionsTable.Arn
+                  - !GetAtt MarketDataTable.Arn
+                  - !Sub '${ConnectionsTable.Arn}/index/*'
+                  - !Sub '${SubscriptionsTable.Arn}/index/*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AlpacaCredentials
+              - Effect: Allow
+                Action:
+                  - elasticache:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                Resource: 
+                  - !GetAtt MarketDataStream.Arn
+                  - !GetAtt TickDataStream.Arn
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AlpacaWebSocketApi}/*/*'
+
+  #############################################################################
+  # ELASTICACHE REDIS - ULTRA LOW LATENCY
+  #############################################################################
+  
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for ElastiCache Redis cluster
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+  
+  ElastiCacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ElastiCache Redis cluster
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: Redis access from Lambda functions
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-elasticache-sg'
+
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: 'Alpaca HFT Redis cluster'
+      ReplicationGroupId: !Sub '${AWS::StackName}-hft-cache'
+      CacheNodeType: cache.r6g.large  # High performance for HFT
+      Engine: redis
+      EngineVersion: '7.0'
+      NumCacheClusters: 2
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      SecurityGroupIds:
+        - !Ref ElastiCacheSecurityGroup
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-hft-cache'
+        - Key: Purpose
+          Value: Alpaca-HFT-Cache
+
+  #############################################################################
+  # KINESIS DATA STREAMS - REAL-TIME DATA INGESTION
+  #############################################################################
+  
+  MarketDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub '${AWS::StackName}-market-data-stream'
+      ShardCount: 3
+      StreamModeDetails:
+        StreamMode: PROVISIONED
+      RetentionPeriodHours: 24
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data-stream'
+        - Key: Purpose
+          Value: Alpaca-Market-Data-Ingestion
+
+  TickDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub '${AWS::StackName}-tick-data-stream'
+      ShardCount: 5  # More shards for high-frequency tick data
+      StreamModeDetails:
+        StreamMode: PROVISIONED
+      RetentionPeriodHours: 24
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-tick-data-stream'
+        - Key: Purpose
+          Value: Alpaca-Tick-Data-Ingestion
+
+  #############################################################################
+  # DYNAMODB TABLES
+  #############################################################################
+  
+  # WebSocket connections
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-connections'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-connections'
+
+  # User subscriptions with flexible data types
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-subscriptions'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: subscriptionId
+          AttributeType: S
+        - AttributeName: dataType
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: subscriptionId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: DataTypeIndex
+          KeySchema:
+            - AttributeName: dataType
+              KeyType: HASH
+            - AttributeName: subscriptionId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-subscriptions'
+
+  # Market data cache
+  MarketDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-market-data'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: dataType
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: dataType
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: TimestampIndex
+          KeySchema:
+            - AttributeName: dataType
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-market-data'
+
+  #############################################################################
+  # API GATEWAY WEBSOCKET
+  #############################################################################
+  
+  AlpacaWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-alpaca-websocket-api'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+      Description: Alpaca-integrated WebSocket API for HFT market data
+      Tags:
+        Name: !Sub '${AWS::StackName}-alpaca-websocket-api'
+        Purpose: Alpaca-HFT-WebSocket
+
+  AlpacaWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      StageName: !Ref Environment
+      Description: Alpaca WebSocket API stage
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 10000  # High throughput for HFT
+        ThrottlingRateLimit: 5000
+      Tags:
+        Name: !Sub '${AWS::StackName}-alpaca-websocket-stage'
+
+  #############################################################################
+  # LAMBDA FUNCTIONS
+  #############################################################################
+  
+  # Security group for Lambda functions
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: All outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-lambda-sg'
+
+  # Connection handler
+  ConnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-alpaca-connect'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt AlpacaWebSocketRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          from datetime import datetime, timedelta
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          dynamodb = boto3.resource('dynamodb')
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          subscriptions_table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+          
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              user_id = event.get('queryStringParameters', {}).get('userId', f'user_{connection_id[:8]}')
+              
+              try:
+                  # Store connection
+                  ttl = int((datetime.now() + timedelta(hours=24)).timestamp())
+                  connections_table.put_item(
+                      Item={
+                          'connectionId': connection_id,
+                          'userId': user_id,
+                          'connectedAt': datetime.now().isoformat(),
+                          'ttl': ttl,
+                          'status': 'connected'
+                      }
+                  )
+                  
+                  # Cache in Redis
+                  try:
+                      redis_client = redis.Redis(
+                          host=os.environ['ELASTICACHE_ENDPOINT'],
+                          port=int(os.environ['ELASTICACHE_PORT']),
+                          decode_responses=True,
+                          socket_connect_timeout=2,
+                          socket_timeout=2
+                      )
+                      redis_client.sadd('active_connections', connection_id)
+                      redis_client.hset(f'connection:{connection_id}', 'userId', user_id)
+                      redis_client.expire(f'connection:{connection_id}', 86400)
+                  except Exception as redis_error:
+                      logger.warning(f"Redis caching failed: {redis_error}")
+                  
+                  logger.info(f"Alpaca WebSocket connected: {connection_id} for user: {user_id}")
+                  return {'statusCode': 200}
+                  
+              except Exception as e:
+                  logger.error(f"Connection failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alpaca-connect'
+
+  # Message handler with flexible subscription system
+  MessageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-alpaca-message'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt AlpacaWebSocketRole.Arn
+      Timeout: 30
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          MARKET_DATA_TABLE: !Ref MarketDataTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+          ALPACA_CREDENTIALS: !Ref AlpacaCredentials
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          from datetime import datetime, timedelta
+          import uuid
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          dynamodb = boto3.resource('dynamodb')
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          subscriptions_table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+          secretsmanager = boto3.client('secretsmanager')
+          
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              
+              try:
+                  # Get user ID from connection
+                  connection = connections_table.get_item(Key={'connectionId': connection_id})
+                  if 'Item' not in connection:
+                      return {'statusCode': 404, 'body': 'Connection not found'}
+                  
+                  user_id = connection['Item']['userId']
+                  body = json.loads(event['body'])
+                  action = body.get('action')
+                  
+                  if action == 'subscribe':
+                      return handle_subscribe(user_id, connection_id, body)
+                  elif action == 'unsubscribe':
+                      return handle_unsubscribe(user_id, connection_id, body)
+                  elif action == 'list_subscriptions':
+                      return handle_list_subscriptions(user_id, connection_id)
+                  elif action == 'get_available_feeds':
+                      return handle_get_available_feeds(connection_id)
+                  elif action == 'ping':
+                      return handle_ping(connection_id)
+                  else:
+                      return {'statusCode': 400, 'body': 'Unknown action'}
+                      
+              except Exception as e:
+                  logger.error(f"Message handling failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+          
+          def handle_subscribe(user_id, connection_id, body):
+              """
+              Subscribe to Alpaca data feeds
+              Supports: quotes, trades, bars, news, crypto
+              """
+              symbols = body.get('symbols', [])
+              data_type = body.get('dataType', 'quotes')  # quotes, trades, bars, news, crypto
+              frequency = body.get('frequency', '1Min')  # For bars: 1Min, 5Min, 15Min, 1Hour, 1Day
+              
+              # Validate data type
+              valid_types = ['quotes', 'trades', 'bars', 'news', 'crypto']
+              if data_type not in valid_types:
+                  return {'statusCode': 400, 'body': f'Invalid data type. Must be one of: {valid_types}'}
+              
+              # Create subscription
+              subscription_id = str(uuid.uuid4())
+              ttl = int((datetime.now() + timedelta(hours=24)).timestamp())
+              
+              subscriptions_table.put_item(
+                  Item={
+                      'userId': user_id,
+                      'subscriptionId': subscription_id,
+                      'connectionId': connection_id,
+                      'dataType': data_type,
+                      'symbols': symbols,
+                      'frequency': frequency,
+                      'createdAt': datetime.now().isoformat(),
+                      'status': 'active',
+                      'ttl': ttl
+                  }
+              )
+              
+              # Cache subscription in Redis for fast lookup
+              try:
+                  redis_client = redis.Redis(
+                      host=os.environ['ELASTICACHE_ENDPOINT'],
+                      port=int(os.environ['ELASTICACHE_PORT']),
+                      decode_responses=True,
+                      socket_connect_timeout=2,
+                      socket_timeout=2
+                  )
+                  
+                  # Add to subscription sets
+                  for symbol in symbols:
+                      redis_client.sadd(f'subscribers:{data_type}:{symbol}', connection_id)
+                  
+                  # Store subscription details
+                  redis_client.hset(f'subscription:{subscription_id}', mapping={
+                      'userId': user_id,
+                      'connectionId': connection_id,
+                      'dataType': data_type,
+                      'symbols': json.dumps(symbols),
+                      'frequency': frequency
+                  })
+                  redis_client.expire(f'subscription:{subscription_id}', 86400)
+                  
+              except Exception as redis_error:
+                  logger.warning(f"Redis subscription failed: {redis_error}")
+              
+              logger.info(f"Subscribed {user_id} to {data_type} for {symbols}")
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'action': 'subscribed',
+                      'subscriptionId': subscription_id,
+                      'dataType': data_type,
+                      'symbols': symbols,
+                      'frequency': frequency
+                  })
+              }
+          
+          def handle_unsubscribe(user_id, connection_id, body):
+              subscription_id = body.get('subscriptionId')
+              
+              if subscription_id:
+                  # Remove specific subscription
+                  subscriptions_table.delete_item(
+                      Key={'userId': user_id, 'subscriptionId': subscription_id}
+                  )
+              else:
+                  # Remove all subscriptions for user
+                  response = subscriptions_table.query(
+                      KeyConditionExpression='userId = :userId',
+                      ExpressionAttributeValues={':userId': user_id}
+                  )
+                  
+                  for item in response['Items']:
+                      subscriptions_table.delete_item(
+                          Key={'userId': user_id, 'subscriptionId': item['subscriptionId']}
+                      )
+              
+              logger.info(f"Unsubscribed {user_id} from {subscription_id or 'all'}")
+              return {'statusCode': 200, 'body': 'Unsubscribed'}
+          
+          def handle_list_subscriptions(user_id, connection_id):
+              response = subscriptions_table.query(
+                  KeyConditionExpression='userId = :userId',
+                  ExpressionAttributeValues={':userId': user_id}
+              )
+              
+              subscriptions = []
+              for item in response['Items']:
+                  subscriptions.append({
+                      'subscriptionId': item['subscriptionId'],
+                      'dataType': item['dataType'],
+                      'symbols': item['symbols'],
+                      'frequency': item.get('frequency', '1Min'),
+                      'createdAt': item['createdAt']
+                  })
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'action': 'subscriptions_list',
+                      'subscriptions': subscriptions
+                  })
+              }
+          
+          def handle_get_available_feeds(connection_id):
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'action': 'available_feeds',
+                      'feeds': {
+                          'quotes': {
+                              'description': 'Real-time quotes (bid/ask)',
+                              'symbols': 'Any US equity symbol',
+                              'frequency': 'Real-time'
+                          },
+                          'trades': {
+                              'description': 'Live trade executions',
+                              'symbols': 'Any US equity symbol',
+                              'frequency': 'Real-time'
+                          },
+                          'bars': {
+                              'description': 'OHLCV bars',
+                              'symbols': 'Any US equity symbol',
+                              'frequency': ['1Min', '5Min', '15Min', '1Hour', '1Day']
+                          },
+                          'news': {
+                              'description': 'Real-time news feed',
+                              'symbols': 'Any US equity symbol',
+                              'frequency': 'Real-time'
+                          },
+                          'crypto': {
+                              'description': 'Cryptocurrency data',
+                              'symbols': 'BTC, ETH, LTC, etc.',
+                              'frequency': 'Real-time'
+                          }
+                      }
+                  })
+              }
+          
+          def handle_ping(connection_id):
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'action': 'pong',
+                      'timestamp': datetime.now().isoformat()
+                  })
+              }
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alpaca-message'
+
+  # Alpaca data connector (the core HFT engine)
+  AlpacaDataConnector:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-alpaca-data-connector'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt AlpacaWebSocketRole.Arn
+      Timeout: 900  # 15 minutes
+      MemorySize: 3008  # Maximum memory for best performance
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          MARKET_DATA_TABLE: !Ref MarketDataTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${AlpacaWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+          ALPACA_CREDENTIALS: !Ref AlpacaCredentials
+          MARKET_DATA_STREAM: !Ref MarketDataStream
+          TICK_DATA_STREAM: !Ref TickDataStream
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          import asyncio
+          import websockets
+          import time
+          from datetime import datetime
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          # AWS clients
+          dynamodb = boto3.resource('dynamodb')
+          apigateway = boto3.client('apigatewaymanagementapi', 
+                                  endpoint_url=os.environ['WEBSOCKET_API_ENDPOINT'])
+          kinesis = boto3.client('kinesis')
+          secretsmanager = boto3.client('secretsmanager')
+          
+          def lambda_handler(event, context):
+              """
+              This is the core Alpaca data connector that will be enhanced for HFT
+              For now, it's a placeholder that will be fully implemented
+              """
+              logger.info("Alpaca Data Connector started")
+              
+              # Get Alpaca credentials
+              try:
+                  secret_response = secretsmanager.get_secret_value(
+                      SecretId=os.environ['ALPACA_CREDENTIALS']
+                  )
+                  alpaca_creds = json.loads(secret_response['SecretString'])
+                  
+                  # Initialize Redis connection
+                  redis_client = redis.Redis(
+                      host=os.environ['ELASTICACHE_ENDPOINT'],
+                      port=int(os.environ['ELASTICACHE_PORT']),
+                      decode_responses=True,
+                      socket_connect_timeout=2,
+                      socket_timeout=2
+                  )
+                  
+                  # Get active subscriptions
+                  subscriptions = get_active_subscriptions()
+                  
+                  # For now, simulate some data
+                  simulate_market_data(redis_client, subscriptions)
+                  
+                  logger.info("Alpaca Data Connector completed successfully")
+                  return {'statusCode': 200, 'body': 'Data connector executed'}
+                  
+              except Exception as e:
+                  logger.error(f"Alpaca connector failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+          
+          def get_active_subscriptions():
+              """Get all active subscriptions from DynamoDB"""
+              subscriptions_table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+              
+              # Scan for active subscriptions
+              response = subscriptions_table.scan(
+                  FilterExpression='#status = :status',
+                  ExpressionAttributeNames={'#status': 'status'},
+                  ExpressionAttributeValues={':status': 'active'}
+              )
+              
+              return response['Items']
+          
+          def simulate_market_data(redis_client, subscriptions):
+              """Simulate market data for testing (will be replaced with real Alpaca data)"""
+              import random
+              
+              for subscription in subscriptions:
+                  symbols = subscription.get('symbols', [])
+                  data_type = subscription.get('dataType', 'quotes')
+                  connection_id = subscription.get('connectionId')
+                  
+                  for symbol in symbols:
+                      # Generate simulated data
+                      if data_type == 'quotes':
+                          data = {
+                              'symbol': symbol,
+                              'bid': round(random.uniform(100, 500), 2),
+                              'ask': round(random.uniform(100, 500), 2),
+                              'timestamp': time.time()
+                          }
+                      elif data_type == 'trades':
+                          data = {
+                              'symbol': symbol,
+                              'price': round(random.uniform(100, 500), 2),
+                              'size': random.randint(100, 10000),
+                              'timestamp': time.time()
+                          }
+                      else:
+                          continue
+                      
+                      # Cache in Redis
+                      redis_client.hset(f'market:{data_type}:{symbol}', mapping=data)
+                      redis_client.expire(f'market:{data_type}:{symbol}', 300)
+                      
+                      # Send to WebSocket
+                      try:
+                          message = json.dumps({
+                              'type': 'market_data',
+                              'dataType': data_type,
+                              'symbol': symbol,
+                              'data': data
+                          })
+                          
+                          apigateway.post_to_connection(
+                              ConnectionId=connection_id,
+                              Data=message
+                          )
+                      except Exception as e:
+                          logger.warning(f"Failed to send to {connection_id}: {str(e)}")
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alpaca-data-connector'
+
+  # Disconnect handler
+  DisconnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-alpaca-disconnect'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt AlpacaWebSocketRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+          ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import redis
+          import logging
+          import os
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          dynamodb = boto3.resource('dynamodb')
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          subscriptions_table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+          
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              
+              try:
+                  # Get connection details
+                  connection = connections_table.get_item(Key={'connectionId': connection_id})
+                  if 'Item' in connection:
+                      user_id = connection['Item']['userId']
+                      
+                      # Remove all subscriptions for this user
+                      response = subscriptions_table.query(
+                          KeyConditionExpression='userId = :userId',
+                          ExpressionAttributeValues={':userId': user_id}
+                      )
+                      
+                      for item in response['Items']:
+                          subscriptions_table.delete_item(
+                              Key={'userId': user_id, 'subscriptionId': item['subscriptionId']}
+                          )
+                  
+                  # Remove connection
+                  connections_table.delete_item(Key={'connectionId': connection_id})
+                  
+                  # Clean up Redis cache
+                  try:
+                      redis_client = redis.Redis(
+                          host=os.environ['ELASTICACHE_ENDPOINT'],
+                          port=int(os.environ['ELASTICACHE_PORT']),
+                          decode_responses=True,
+                          socket_connect_timeout=2,
+                          socket_timeout=2
+                      )
+                      redis_client.srem('active_connections', connection_id)
+                      redis_client.delete(f'connection:{connection_id}')
+                  except Exception as redis_error:
+                      logger.warning(f"Redis cleanup failed: {redis_error}")
+                  
+                  logger.info(f"Alpaca WebSocket disconnected: {connection_id}")
+                  return {'statusCode': 200}
+                  
+              except Exception as e:
+                  logger.error(f"Disconnect failed: {str(e)}")
+                  return {'statusCode': 500, 'body': str(e)}
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alpaca-disconnect'
+
+  #############################################################################
+  # WEBSOCKET ROUTES
+  #############################################################################
+  
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ConnectIntegration}'
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${DisconnectIntegration}'
+
+  MessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      RouteKey: $default
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${MessageIntegration}'
+
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations'
+
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectFunction.Arn}/invocations'
+
+  MessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref AlpacaWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MessageFunction.Arn}/invocations'
+
+  #############################################################################
+  # LAMBDA PERMISSIONS
+  #############################################################################
+  
+  ConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ConnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AlpacaWebSocketApi}/*/*'
+
+  DisconnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DisconnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AlpacaWebSocketApi}/*/*'
+
+  MessagePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MessageFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AlpacaWebSocketApi}/*/*'
+
+  #############################################################################
+  # EVENTBRIDGE RULE FOR DATA CONNECTOR
+  #############################################################################
+  
+  DataConnectorSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${AWS::StackName}-data-connector-schedule'
+      Description: Trigger Alpaca data connector every minute for data updates
+      ScheduleExpression: 'rate(1 minute)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AlpacaDataConnector.Arn
+          Id: AlpacaDataConnectorTarget
+
+  DataConnectorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AlpacaDataConnector
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DataConnectorSchedule.Arn
+
+#############################################################################
+# OUTPUTS
+#############################################################################
+
+Outputs:
+  AlpacaWebSocketApiId:
+    Description: Alpaca WebSocket API ID
+    Value: !Ref AlpacaWebSocketApi
+    Export:
+      Name: !Sub '${AWS::StackName}-AlpacaWebSocketApiId'
+
+  AlpacaWebSocketApiEndpoint:
+    Description: Alpaca WebSocket API endpoint
+    Value: !Sub 'wss://${AlpacaWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-AlpacaWebSocketApiEndpoint'
+
+  ElastiCacheEndpoint:
+    Description: ElastiCache Redis endpoint for HFT
+    Value: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-ElastiCacheEndpoint'
+
+  MarketDataStreamName:
+    Description: Market data Kinesis stream
+    Value: !Ref MarketDataStream
+    Export:
+      Name: !Sub '${AWS::StackName}-MarketDataStreamName'
+
+  TickDataStreamName:
+    Description: Tick data Kinesis stream for HFT
+    Value: !Ref TickDataStream
+    Export:
+      Name: !Sub '${AWS::StackName}-TickDataStreamName'
+
+  AlpacaCredentialsSecret:
+    Description: Alpaca credentials secret ARN
+    Value: !Ref AlpacaCredentials
+    Export:
+      Name: !Sub '${AWS::StackName}-AlpacaCredentialsSecret'

@@ -1,0 +1,249 @@
+{
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "totalTime": 1662,
+    "timestamp": "2025-07-14T19:12:06.684Z"
+  },
+  "readiness": {
+    "database": false,
+    "encryption": true,
+    "endpoints": true,
+    "overall": false
+  },
+  "infrastructure": {
+    "encryptionData": {
+      "secretsStatus": {
+        "initialized": true,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "usingTempEncryption": true,
+        "usingTempJwt": false,
+        "cachedSecrets": 1
+      },
+      "environment": {
+        "hasApiKeySecret": true,
+        "hasJwtSecret": false,
+        "hasDbSecret": true,
+        "region": "us-east-1"
+      },
+      "timestamp": "2025-07-14T19:12:05.297Z"
+    },
+    "dbData": {
+      "error": "Authentication required",
+      "message": "Access token is missing from Authorization header"
+    },
+    "retrievalData": {
+      "error": "Authentication failed",
+      "message": "Could not verify authentication token"
+    },
+    "creationData": {
+      "error": "Authentication failed",
+      "message": "Could not verify authentication token"
+    },
+    "portfolioData": {
+      "success": true,
+      "data": {
+        "system": "Portfolio Management API",
+        "version": "1.0.0",
+        "status": "operational",
+        "available_endpoints": [
+          "/portfolio/holdings - Portfolio holdings data",
+          "/portfolio/performance - Performance metrics and charts",
+          "/portfolio/analytics - Advanced portfolio analytics",
+          "/portfolio/allocations - Asset allocation breakdown",
+          "/portfolio/import - Import portfolio data from brokers"
+        ],
+        "features": [
+          "Real-time portfolio tracking via broker API integration",
+          "Performance analytics",
+          "Risk assessment",
+          "Asset allocation analysis",
+          "Multi-broker integration"
+        ],
+        "last_updated": "2025-07-14T19:12:06.480Z"
+      },
+      "status": "operational",
+      "timestamp": "2025-07-14T19:12:06.480Z"
+    },
+    "marketData": {
+      "success": true,
+      "data": {
+        "indices": {
+          "sp500": {
+            "value": 4567.23,
+            "change": 0.85,
+            "change_percent": 0.019
+          },
+          "nasdaq": {
+            "value": 14234.12,
+            "change": -0.34,
+            "change_percent": -0.002
+          },
+          "dow": {
+            "value": 34789.45,
+            "change": 1.23,
+            "change_percent": 0.004
+          }
+        },
+        "sentiment": {
+          "fear_greed": {
+            "value": 75.2857142857143,
+            "value_text": "extreme greed",
+            "timestamp": "2025-07-14T19:12:06.672Z"
+          },
+          "vix": {
+            "value": 18.45,
+            "change": -0.23,
+            "timestamp": "2025-07-14T19:12:06.662Z"
+          }
+        },
+        "sectors": [
+          {
+            "name": "Technology",
+            "change_percent": 1.2
+          },
+          {
+            "name": "Healthcare",
+            "change_percent": 0.8
+          },
+          {
+            "name": "Finance",
+            "change_percent": -0.3
+          }
+        ],
+        "market_breadth": {
+          "advancing": 1845,
+          "declining": 1234,
+          "unchanged": 321,
+          "total_stocks": 3400,
+          "advance_decline_ratio": 1.5
+        },
+        "market_status": "open",
+        "timestamp": "2025-07-14T19:12:06.662Z"
+      }
+    }
+  },
+  "tests": [
+    {
+      "name": "Encryption Service",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "initialized": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:12:05.316Z"
+    },
+    {
+      "name": "Database Tables Created",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "structure": 0
+      },
+      "error": "Database tables not ready: 401",
+      "timestamp": "2025-07-14T19:12:05.695Z"
+    },
+    {
+      "name": "API Key Retrieval",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "apiKeysCount": 0
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:12:05.980Z"
+    },
+    {
+      "name": "API Key Creation Endpoint",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "hasApiKey": false
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:12:06.235Z"
+    },
+    {
+      "name": "Portfolio Endpoints",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "hasPortfolio": false
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:12:06.492Z"
+    },
+    {
+      "name": "Market Data Endpoints",
+      "passed": {
+        "success": true,
+        "data": {
+          "indices": {
+            "sp500": {
+              "value": 4567.23,
+              "change": 0.85,
+              "change_percent": 0.019
+            },
+            "nasdaq": {
+              "value": 14234.12,
+              "change": -0.34,
+              "change_percent": -0.002
+            },
+            "dow": {
+              "value": 34789.45,
+              "change": 1.23,
+              "change_percent": 0.004
+            }
+          },
+          "sentiment": {
+            "fear_greed": {
+              "value": 75.2857142857143,
+              "value_text": "extreme greed",
+              "timestamp": "2025-07-14T19:12:06.672Z"
+            },
+            "vix": {
+              "value": 18.45,
+              "change": -0.23,
+              "timestamp": "2025-07-14T19:12:06.662Z"
+            }
+          },
+          "sectors": [
+            {
+              "name": "Technology",
+              "change_percent": 1.2
+            },
+            {
+              "name": "Healthcare",
+              "change_percent": 0.8
+            },
+            {
+              "name": "Finance",
+              "change_percent": -0.3
+            }
+          ],
+          "market_breadth": {
+            "advancing": 1845,
+            "declining": 1234,
+            "unchanged": 321,
+            "total_stocks": 3400,
+            "advance_decline_ratio": 1.5
+          },
+          "market_status": "open",
+          "timestamp": "2025-07-14T19:12:06.662Z"
+        }
+      },
+      "details": {
+        "statusCode": 200,
+        "hasMarketData": false,
+        "indices": 0,
+        "sectors": 0
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:12:06.683Z"
+    }
+  ]
+}

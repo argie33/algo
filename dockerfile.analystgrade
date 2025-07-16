@@ -1,0 +1,15 @@
+# Use the same Python version as your Lambda for consistency
+FROM python:3.9-slim
+
+# set working dir
+WORKDIR /app
+
+# copy & install dependencies
+COPY requirements-loadanalystupgradedowngrade.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# copy your script (and any other modules)
+COPY loadanalystupgradedowngrade.py .
+
+# default command: run the loader once
+CMD ["python", "loadanalystupgradedowngrade.py"]

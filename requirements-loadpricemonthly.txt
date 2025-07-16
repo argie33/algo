@@ -1,0 +1,6 @@
+# requirements-loadpricemonthly.txt
+
+psycopg2-binary
+boto3
+pandas
+yfinance

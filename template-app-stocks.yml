@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Application stack – RDS (public), Secrets (DB creds),
+  ECS cluster, and ECS task execution role. Updated for new account deployment - trigger deployment.
+
+Parameters:
+  RDSUsername:
+    Type: String
+    Description: RDS master username
+  RDSPassword:
+    Type: String
+    NoEcho: true
+    Description: RDS master password
+  FREDApiKey:
+    Type: String
+    NoEcho: true
+    Description: FRED API key for econ-data loader
+
+Resources:
+
+  ### 1) RDS Subnet Group (public) ### 
+  StocksDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      DBSubnetGroupDescription: Public subnet group for RDS
+      SubnetIds:
+        - !ImportValue StocksCore-PublicSubnet1Id
+        - !ImportValue StocksCore-PublicSubnet2Id
+  ### 2) RDS Security Group ###
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres access from Lambda and private networks
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "10.0.0.0/16"
+          Description: "Allow Postgres traffic from VPC private networks"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "10.0.0.0/8"
+          Description: "Allow Postgres traffic from all private IP ranges"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow public access for Lambda outside VPC"
+      Tags:
+        - Key: Name
+          Value: stocks-db-security-group
+
+  ### 3) RDS Instance ###
+  StocksDBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
+    DependsOn:
+      - StocksDBSubnetGroup
+      - StocksDBSecurityGroup
+    Properties:
+      DBInstanceIdentifier: stocks
+      DBName: stocks
+      Engine: postgres
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      VPCSecurityGroups:
+        - !Ref StocksDBSecurityGroup
+      DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      PubliclyAccessible: true
+      MultiAZ: false
+      DeletionProtection: false
+  ### 4) Secrets Manager: DB creds ###
+  DBCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    DependsOn: StocksDBInstance
+    Properties:
+      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-001
+      Description: JSON with username, password, host, port, dbname
+      SecretString:
+        Fn::Join:
+          - ""
+          - - '{"username":"'
+            - !Ref RDSUsername
+            - '","password":"'
+            - !Ref RDSPassword
+            - '","host":"'
+            - !GetAtt StocksDBInstance.Endpoint.Address
+            - '","port":"'
+            - !GetAtt StocksDBInstance.Endpoint.Port
+            - '","dbname":"stocks"}'
+  
+  ### 4.1) API Key Encryption Secret ###
+  ApiKeyEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub 'stocks-app-api-key-encryption-${AWS::StackName}'
+      Description: 'AES-256-GCM encryption key for broker API key storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption"}'
+        GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '@/\`'
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'api-key-encryption'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+
+  ### 4.2) JWT Secret ###
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub 'stocks-app-jwt-secret-${AWS::StackName}'
+      Description: 'JWT signing key for authentication'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing"}'
+        GenerateStringKey: 'JWT_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '@/\`'
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'jwt-signing'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+
+  ### 5) ECS Cluster ###
+  StocksEcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stocks-cluster
+
+  ### 5.1) ECS Tasks Security Group ###
+  EcsTasksSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+
+  ### 6) ECS Task Execution Role ###
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ecs-task-execution-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: AllowGetSecretValue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: 
+                  - !Ref DBCredentialsSecret
+                  - !Ref ApiKeyEncryptionSecret
+                  - !Ref JwtSecret
+
+Outputs:
+  DBEndpoint:
+    Description: RDS endpoint address
+    Value: !GetAtt StocksDBInstance.Endpoint.Address
+    Export:
+      Name: StocksApp-DBEndpoint
+
+  DBPort:
+    Description: RDS endpoint port
+    Value: !GetAtt StocksDBInstance.Endpoint.Port
+    Export:
+      Name: StocksApp-DBPort
+
+  DBName:
+    Description: Database name
+    Value: stocks
+    Export:
+      Name: StocksApp-DBName
+
+  DBUsername:
+    Description: Master username
+    Value: !Ref RDSUsername
+    Export:
+      Name: StocksApp-DBUsername
+
+  SecretArn:
+    Description: ARN of DB credentials secret
+    Value: !Ref DBCredentialsSecret
+    Export:
+      Name: StocksApp-SecretArn
+
+  ApiKeyEncryptionSecretArn:
+    Description: ARN of API key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: StocksApp-ApiKeyEncryptionSecretArn
+
+  ApiKeyEncryptionSecretName:
+    Description: Name of API key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: StocksApp-ApiKeyEncryptionSecretName
+
+  JwtSecretArn:
+    Description: ARN of JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: StocksApp-JwtSecretArn
+
+  JwtSecretName:
+    Description: Name of JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: StocksApp-JwtSecretName
+
+  ClusterArn:
+    Description: ARN of ECS cluster
+    Value: !GetAtt StocksEcsCluster.Arn
+    Export:
+      Name: StocksApp-ClusterArn
+  EcsTaskExecutionRoleArn:
+    Description: ARN of ECS Task Execution Role
+    Value: !GetAtt EcsTaskExecutionRole.Arn
+    Export:
+      Name: StocksApp-EcsTaskExecutionRoleArn
+      
+  EcsTasksSecurityGroupId:
+    Description: ID of Security Group for ECS Tasks
+    Value: !GetAtt EcsTasksSecurityGroup.GroupId
+    Export:
+      Name: StocksApp-EcsTasksSecurityGroupId
+
+  RDSSecurityGroupId:
+    Description: ID of RDS Security Group
+    Value: !Ref StocksDBSecurityGroup
+    Export:
+      Name: StocksApp-RDSSecurityGroupId

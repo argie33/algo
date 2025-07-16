@@ -1,0 +1,107 @@
+{
+  "summary": {
+    "passed": 4,
+    "failed": 2,
+    "totalTime": 1765,
+    "timestamp": "2025-07-14T19:25:50.837Z"
+  },
+  "infrastructure": {
+    "secretsStatus": {
+      "secretsStatus": {
+        "initialized": true,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "usingTempEncryption": true,
+        "usingTempJwt": false,
+        "cachedSecrets": 1
+      },
+      "environment": {
+        "hasApiKeySecret": true,
+        "hasJwtSecret": false,
+        "hasDbSecret": true,
+        "region": "us-east-1"
+      },
+      "timestamp": "2025-07-14T19:25:49.940Z"
+    },
+    "dbStatus": {
+      "error": "Authentication required",
+      "message": "Access token is missing from Authorization header"
+    },
+    "apiKeyStatus": {
+      "error": "Authentication failed",
+      "message": "Could not verify authentication token"
+    }
+  },
+  "tests": [
+    {
+      "name": "Health Endpoint",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "responseTime": "measured",
+        "status": "healthy"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:25:49.432Z"
+    },
+    {
+      "name": "CORS Configuration",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "allowOrigin": "*",
+        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:25:49.748Z"
+    },
+    {
+      "name": "Secrets Status Endpoint",
+      "passed": {
+        "initialized": true,
+        "hasApiKeyEncryption": true,
+        "hasJwtSecret": false,
+        "usingTempEncryption": true,
+        "usingTempJwt": false,
+        "cachedSecrets": 1
+      },
+      "details": {
+        "statusCode": 200,
+        "hasApiKeySecret": true,
+        "hasJwtSecret": false,
+        "secretsInitialized": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:25:49.954Z"
+    },
+    {
+      "name": "API Keys Endpoint - Unauthorized",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "error": "Authentication required"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:25:50.280Z"
+    },
+    {
+      "name": "API Keys Endpoint - No Encryption",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "message": "Could not verify authentication token"
+      },
+      "error": "Expected graceful degradation, got 401",
+      "timestamp": "2025-07-14T19:25:50.514Z"
+    },
+    {
+      "name": "Database Connectivity",
+      "passed": false,
+      "details": {
+        "statusCode": 401
+      },
+      "error": "Database connectivity test failed: 401",
+      "timestamp": "2025-07-14T19:25:50.836Z"
+    }
+  ]
+}

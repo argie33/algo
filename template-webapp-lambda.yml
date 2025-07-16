@@ -1,0 +1,595 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Financial Dashboard Webapp - Serverless backend with Lambda functions and frontend deployment
+  Uses SAM for API Gateway + Lambda deployment with RDS connectivity. Updated for verified deployment.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming and configuration
+
+  DatabaseSecretArn:
+    Type: String
+    Description: ARN of the RDS database secret (imported from stocks app stack)
+
+  DatabaseEndpoint:
+    Type: String
+    Description: RDS database endpoint (imported from stocks app stack)
+
+  # Frontend URL parameters for different environments
+  FrontendDevUrl:
+    Type: String
+    Default: 'http://localhost:5173'
+    Description: Development frontend URL (Vite dev server)
+
+  FrontendDevUrlAlt:
+    Type: String
+    Default: 'http://localhost:3000'
+    Description: Alternative development frontend URL (React dev server)
+
+  FrontendProdUrl:
+    Type: String
+    Default: ''
+    Description: Production frontend URL (CloudFront distribution) - will be auto-populated
+
+  IncludeDevUrls:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Whether to include development URLs in Cognito callback/logout URLs
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs18.x
+
+Conditions:
+  IncludeDevUrls: !Equals [!Ref IncludeDevUrls, 'true']
+  HasProdUrl: !Equals [!Ref FrontendProdUrl, '']
+
+Resources:
+  # Cognito User Pool for authentication
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'financial-dashboard-user-pool-${EnvironmentName}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+      UserPoolTags:
+        Project: financial-dashboard
+        Environment: !Ref EnvironmentName
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs: !Split
+        - ','
+        - !Sub
+          - '${DevUrls}${ProdUrl}'
+          - DevUrls: !If
+              - IncludeDevUrls
+              - !Sub '${FrontendDevUrl},${FrontendDevUrlAlt},'
+              - ''
+            ProdUrl: !If
+              - HasProdUrl
+              - !Sub 'https://${CloudFrontDistribution.DomainName}'
+              - !Ref FrontendProdUrl
+      LogoutURLs: !Split
+        - ','
+        - !Sub
+          - '${DevUrls}${ProdUrl}'
+          - DevUrls: !If
+              - IncludeDevUrls
+              - !Sub '${FrontendDevUrl},${FrontendDevUrlAlt},'
+              - ''
+            ProdUrl: !If
+              - HasProdUrl
+              - !Sub 'https://${CloudFrontDistribution.DomainName}'
+              - !Ref FrontendProdUrl
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'financial-dashboard-${EnvironmentName}-${AWS::AccountId}'
+  # S3 Bucket for frontend hosting
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'financial-dashboard-frontend-${EnvironmentName}-${AWS::AccountId}'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  # Origin Access Control for CloudFront (newer than OAI)
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${EnvironmentName}-frontend-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # Log Group for Database Initialization
+  DatabaseInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/webapp-db-init-${EnvironmentName}'
+      RetentionInDays: 14
+
+  # ECS Task Definition for Database Initialization
+  DatabaseInitTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub 'webapp-db-init-${EnvironmentName}'
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue StocksApp-EcsTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: webapp-db-init
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, "webapp-db-init-latest"]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: ENVIRONMENT
+              Value: !Ref EnvironmentName
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatabaseInitLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  # Main API Lambda function (handles all routes)
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      CodeUri: webapp/lambda/
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      # No VPC config needed - RDS is publicly accessible
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: !Ref DatabaseEndpoint
+          ENVIRONMENT: !Ref EnvironmentName
+          NODE_ENV: !Ref EnvironmentName
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          # Enhanced database connection settings
+          DB_CONNECT_TIMEOUT: '30000'
+          DB_POOL_MAX: '3'
+          DB_POOL_IDLE_TIMEOUT: '30000'
+          # API key encryption secret
+          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref EnvironmentSpecificApi
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+            RestApiId: !Ref EnvironmentSpecificApi
+
+  # CloudWatch Log Group for Lambda
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
+      RetentionInDays: 14
+
+  # Explicit API Gateway with environment-specific stage
+  EnvironmentSpecificApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      StageName: !Ref EnvironmentName
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,X-Session-ID'"
+        AllowOrigin: "'*'"
+        AllowCredentials: false
+      Variables:
+        ENVIRONMENT: !Ref EnvironmentName
+
+
+
+
+
+
+  # IAM Role for Lambda execution
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DatabaseAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: 
+                  - !Ref DatabaseSecretArn
+                  - !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBClusters
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:AdminDeleteUser
+                Resource: !GetAtt UserPool.Arn
+
+  # CloudWatch Alarm for Lambda performance
+  LambdaPerformanceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
+      AlarmDescription: Lambda function duration is high
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiFunction
+
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig: {}
+            OriginAccessControlId: !Ref OriginAccessControl
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  # Custom Resource Lambda to update Cognito User Pool Client with CloudFront URL
+  CognitoUpdateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-cognito-update'
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt CognitoUpdateRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import urllib3
+          
+          def handler(event, context):
+              try:
+                  print(f"Event: {json.dumps(event)}")
+                  
+                  if event['RequestType'] == 'Delete':
+                      return send_response(event, context, 'SUCCESS', {})
+                  
+                  cognito = boto3.client('cognito-idp')
+                  
+                  user_pool_id = event['ResourceProperties']['UserPoolId']
+                  client_id = event['ResourceProperties']['ClientId']
+                  cloudfront_domain = event['ResourceProperties']['CloudFrontDomain']
+                  
+                  # Get current client configuration
+                  response = cognito.describe_user_pool_client(
+                      UserPoolId=user_pool_id,
+                      ClientId=client_id
+                  )
+                  
+                  client_config = response['UserPoolClient']
+                  
+                  # Update callback and logout URLs
+                  frontend_dev_url = event['ResourceProperties']['FrontendDevUrl']
+                  frontend_dev_url_alt = event['ResourceProperties']['FrontendDevUrlAlt']
+                  include_dev_urls = event['ResourceProperties']['IncludeDevUrls'] == 'true'
+                  
+                  callback_urls = [
+                      f'https://{cloudfront_domain}',
+                      f'https://{cloudfront_domain}/callback'
+                  ]
+                  
+                  logout_urls = [
+                      f'https://{cloudfront_domain}',
+                      f'https://{cloudfront_domain}/logout'
+                  ]
+                  
+                  # Add development URLs if enabled
+                  if include_dev_urls:
+                      callback_urls.extend([frontend_dev_url, frontend_dev_url_alt])
+                      logout_urls.extend([frontend_dev_url, frontend_dev_url_alt])
+                  
+                  # Update the client
+                  cognito.update_user_pool_client(
+                      UserPoolId=user_pool_id,
+                      ClientId=client_id,
+                      ClientName=client_config['ClientName'],
+                      ExplicitAuthFlows=client_config['ExplicitAuthFlows'],
+                      SupportedIdentityProviders=client_config['SupportedIdentityProviders'],
+                      CallbackURLs=callback_urls,
+                      LogoutURLs=logout_urls,
+                      AllowedOAuthFlows=client_config['AllowedOAuthFlows'],
+                      AllowedOAuthScopes=client_config['AllowedOAuthScopes'],
+                      AllowedOAuthFlowsUserPoolClient=client_config['AllowedOAuthFlowsUserPoolClient']
+                  )
+                  
+                  print(f"Updated Cognito client with CloudFront domain: {cloudfront_domain}")
+                  
+                  return send_response(event, context, 'SUCCESS', {
+                      'CloudFrontDomain': cloudfront_domain,
+                      'CallbackURLs': callback_urls,
+                      'LogoutURLs': logout_urls
+                  })
+                  
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  return send_response(event, context, 'FAILED', {'Error': str(e)})
+          
+          def send_response(event, context, status, data):
+              response_body = {
+                  'Status': status,
+                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data
+              }
+              
+              json_response = json.dumps(response_body)
+              print(f"Response: {json_response}")
+              
+              http = urllib3.PoolManager()
+              response = http.request(
+                  'PUT',
+                  event['ResponseURL'],
+                  body=json_response,
+                  headers={'Content-Type': 'application/json'}
+              )
+              
+              return response.status
+
+  # IAM Role for Cognito Update Lambda
+  CognitoUpdateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoUpdatePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                Resource: !GetAtt UserPool.Arn
+
+  # Custom Resource to trigger the update
+  CognitoUpdate:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CognitoUpdateFunction.Arn
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref UserPoolClient
+      CloudFrontDomain: !GetAtt CloudFrontDistribution.DomainName
+      FrontendDevUrl: !Ref FrontendDevUrl
+      FrontendDevUrlAlt: !Ref FrontendDevUrlAlt
+      IncludeDevUrls: !Ref IncludeDevUrls
+    DependsOn:
+      - CloudFrontDistribution
+      - UserPoolClient
+
+Outputs:
+  # Required outputs for the workflow
+  FrontendBucketName:
+    Description: Name of the S3 bucket for frontend hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucketName'
+
+  CloudFrontDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  ApiGatewayUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${EnvironmentSpecificApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+      
+  # Additional debugging outputs
+  ApiGatewayId:
+    Description: API Gateway REST API ID
+    Value: !Ref EnvironmentSpecificApi
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'
+      
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref ApiFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionName'
+      
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ApiFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
+      
+  ApiGatewayStageName:
+    Description: API Gateway stage name
+    Value: !Ref EnvironmentName
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayStageName'
+
+  WebsiteURL:
+    Description: CloudFront URL for the website
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebsiteURL'
+      
+  EnvironmentName:
+    Description: Environment name
+    Value: !Ref EnvironmentName
+    Export:
+      Name: !Sub '${AWS::StackName}-Environment'
+
+  StackName:
+    Description: Stack name
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub '${AWS::StackName}-StackName'
+
+  # Cognito outputs for frontend configuration
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  DatabaseInitTaskDefArn:
+    Description: ARN of the database initialization ECS task definition
+    Value: !Ref DatabaseInitTaskDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-DatabaseInitTaskDefArn'
+

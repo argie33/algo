@@ -1,0 +1,19 @@
+FROM python:3.9-slim-bullseye
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first to leverage Docker cache
+COPY requirements-loadcalendar.txt .
+RUN pip install --no-cache-dir -r requirements-loadcalendar.txt
+
+# Copy script
+COPY loadcalendar.py .
+
+CMD ["python", "loadcalendar.py"]

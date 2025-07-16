@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+# Trigger deploy-app-stocks workflow - fix ECS task None exit code v8
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc \
+      libpq-dev \
+      libssl-dev \
+      libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements-loadsymbols.txt .
+RUN pip install --no-cache-dir -r requirements-loadsymbols.txt
+
+COPY loadsymbols.py .
+CMD ["python", "loadsymbols.py"]

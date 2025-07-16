@@ -1,0 +1,845 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Step Functions Orchestration for Data Pipeline
+  Implements proper dependency management for data loading and metrics calculation
+  Replaces EventBridge scheduling with workflow-based orchestration
+
+Parameters:
+  # Existing ECS Infrastructure (can be imported from existing stacks)
+  ECSClusterName:
+    Type: String
+    Default: "stocks-cluster"
+    Description: "Name of the ECS cluster"
+  
+  TaskExecutionRoleArn:
+    Type: String
+    Description: "ARN of the ECS task execution role"
+  
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: "List of subnet IDs for ECS tasks"
+  
+  SecurityGroupId:
+    Type: String
+    Description: "Security group ID for ECS tasks"
+  
+  # Integration with existing stacks (optional - can use imports instead)
+  UseStackImports:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "Whether to use CloudFormation imports for infrastructure references"
+  
+  CoreStackName:
+    Type: String
+    Default: "StocksCore"
+    Description: "Name of the core infrastructure stack for imports"
+  
+  AppStackName:
+    Type: String
+    Default: "StocksApp"
+    Description: "Name of the app infrastructure stack for imports"
+  
+  # Note: Metrics image tags are handled in template-app-ecs-tasks.yml
+
+Conditions:
+  UseImports: !Equals [!Ref UseStackImports, "true"]
+
+Resources:
+
+  ########################################
+  # IAM ROLES FOR STEP FUNCTIONS
+  ########################################
+
+  StepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StepFunctions-DataPipeline-ExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsECSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StopTask
+                  - ecs:DescribeTasks
+                  - ecs:ListTasks
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Ref TaskExecutionRoleArn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource: "*"
+
+  EventBridgeStepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EventBridge-StepFunctions-ExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EventBridgeStepFunctionsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: 
+                  - !Ref DailyDataPipelineStateMachine
+                  - !Ref WeeklyDataPipelineStateMachine
+                  - !Ref MonthlyDataPipelineStateMachine
+
+  ########################################
+  # NOTE: ECS TASK DEFINITIONS FOR METRICS
+  # are defined in template-app-ecs-tasks.yml
+  # This template references them by ARN
+  ########################################
+
+  ########################################
+  # CLOUDWATCH LOG GROUPS
+  ########################################
+
+  QualityMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calculate-quality-metrics
+      RetentionInDays: 30
+
+  ValueMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calculate-value-metrics
+      RetentionInDays: 30
+
+  DataPipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/stepfunctions/data-pipeline
+      RetentionInDays: 30
+
+  ########################################
+  # STEP FUNCTIONS STATE MACHINES
+  ########################################
+
+  DailyDataPipelineStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: daily-data-pipeline-orchestration
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      LoggingConfiguration:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt DataPipelineLogGroup.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Daily Data Pipeline with Proper Dependency Management",
+          "StartAt": "ParallelDataCollection",
+          "States": {
+            "ParallelDataCollection": {
+              "Type": "Parallel",
+              "Comment": "Collect basic data in parallel - these can run simultaneously",
+              "Branches": [
+                {
+                  "StartAt": "LoadPriceData",
+                  "States": {
+                    "LoadPriceData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/pricedaily-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadCompanyInfo",
+                  "States": {
+                    "LoadCompanyInfo": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/loadinfo-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadEarningsData",
+                  "States": {
+                    "LoadEarningsData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/earningsestimate-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "CalculateTechnicals"
+            },
+            "CalculateTechnicals": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Calculate technical indicators after price data is loaded",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/technicalsdaily-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Next": "ParallelMetricsCalculation"
+            },
+            "ParallelMetricsCalculation": {
+              "Type": "Parallel",
+              "Comment": "Calculate metrics in parallel after all data is loaded",
+              "Branches": [
+                {
+                  "StartAt": "CalculateQualityMetrics",
+                  "States": {
+                    "CalculateQualityMetrics": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quality-metrics-calculator",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "CalculateValueMetrics",
+                  "States": {
+                    "CalculateValueMetrics": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/value-metrics-calculator",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "PipelineComplete"
+            },
+            "PipelineComplete": {
+              "Type": "Succeed",
+              "Comment": "Daily data pipeline completed successfully"
+            }
+          }
+        }
+
+  WeeklyDataPipelineStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: weekly-data-pipeline-orchestration
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      LoggingConfiguration:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt DataPipelineLogGroup.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Weekly Data Pipeline for Comprehensive Data Updates",
+          "StartAt": "UpdateStockSymbols",
+          "States": {
+            "UpdateStockSymbols": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Update stock symbols list first",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stocksymbols-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Next": "ParallelWeeklyDataCollection"
+            },
+            "ParallelWeeklyDataCollection": {
+              "Type": "Parallel",
+              "Comment": "Collect weekly data in parallel",
+              "Branches": [
+                {
+                  "StartAt": "LoadWeeklyPrices",
+                  "States": {
+                    "LoadWeeklyPrices": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/priceweekly-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadEarningsHistory",
+                  "States": {
+                    "LoadEarningsHistory": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/earningshistory-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadSentimentData",
+                  "States": {
+                    "LoadSentimentData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/feargreeddata-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "CalculateWeeklyTechnicals"
+            },
+            "CalculateWeeklyTechnicals": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Calculate weekly technical indicators",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/technicalsweekly-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Next": "WeeklyPipelineComplete"
+            },
+            "WeeklyPipelineComplete": {
+              "Type": "Succeed",
+              "Comment": "Weekly data pipeline completed successfully"
+            }
+          }
+        }
+
+  MonthlyDataPipelineStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: monthly-data-pipeline-orchestration
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+      LoggingConfiguration:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt DataPipelineLogGroup.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Monthly Data Pipeline for Financial Statements and Comprehensive Analysis",
+          "StartAt": "ParallelFinancialStatementsCollection",
+          "States": {
+            "ParallelFinancialStatementsCollection": {
+              "Type": "Parallel",
+              "Comment": "Load financial statements in parallel",
+              "Branches": [
+                {
+                  "StartAt": "LoadQuarterlyIncomeStatements",
+                  "States": {
+                    "LoadQuarterlyIncomeStatements": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quarterlyincomestatement-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadQuarterlyBalanceSheets",
+                  "States": {
+                    "LoadQuarterlyBalanceSheets": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quarterlybalancesheet-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "LoadQuarterlyCashFlows",
+                  "States": {
+                    "LoadQuarterlyCashFlows": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quarterlycashflow-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "LoadMonthlyPrices"
+            },
+            "LoadMonthlyPrices": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Load monthly price data",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/pricemonthly-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Next": "CalculateMonthlyTechnicals"
+            },
+            "CalculateMonthlyTechnicals": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Calculate monthly technical indicators",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/technicalsmonthly-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Next": "MonthlyPipelineComplete"
+            },
+            "MonthlyPipelineComplete": {
+              "Type": "Succeed",
+              "Comment": "Monthly data pipeline completed successfully"
+            }
+          }
+        }
+
+  ########################################
+  # EVENTBRIDGE RULES FOR STEP FUNCTIONS
+  ########################################
+
+  # Daily Pipeline Trigger (Post-Market Close: 4:30 PM ET = 21:30 UTC)
+  DailyPipelineTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-pipeline-trigger
+      Description: "Trigger daily data pipeline with Step Functions orchestration"
+      ScheduleExpression: "cron(30 21 ? * MON-FRI)"  # 4:30 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Ref DailyDataPipelineStateMachine
+          Id: "DailyPipelineTarget"
+          RoleArn: !GetAtt EventBridgeStepFunctionsRole.Arn
+
+  # Weekly Pipeline Trigger (Sundays at 6:00 AM ET)
+  WeeklyPipelineTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: weekly-pipeline-trigger
+      Description: "Trigger weekly data pipeline with Step Functions orchestration"
+      ScheduleExpression: "cron(0 11 ? * SUN)"  # 6:00 AM ET on Sundays
+      State: ENABLED
+      Targets:
+        - Arn: !Ref WeeklyDataPipelineStateMachine
+          Id: "WeeklyPipelineTarget"
+          RoleArn: !GetAtt EventBridgeStepFunctionsRole.Arn
+
+  # Monthly Pipeline Trigger (1st Sunday of each month at 9:00 AM ET)
+  MonthlyPipelineTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: monthly-pipeline-trigger
+      Description: "Trigger monthly data pipeline with Step Functions orchestration"
+      ScheduleExpression: "cron(0 14 ? * SUN#1)"  # 9:00 AM ET on first Sunday of month
+      State: ENABLED
+      Targets:
+        - Arn: !Ref MonthlyDataPipelineStateMachine
+          Id: "MonthlyPipelineTarget"
+          RoleArn: !GetAtt EventBridgeStepFunctionsRole.Arn
+
+  ########################################
+  # CLOUDWATCH ALARMS FOR MONITORING
+  ########################################
+
+  StepFunctionsExecutionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: StepFunctions-Pipeline-Failures
+      AlarmDescription: "Alert when Step Functions executions fail"
+      MetricName: ExecutionsFailed
+      Namespace: AWS/States
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref DailyDataPipelineStateMachine
+      AlarmActions:
+        - !Ref PipelineFailureNotificationTopic
+
+  # SNS Topic for Failure Notifications
+  PipelineFailureNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: step-functions-pipeline-failures
+      DisplayName: "Step Functions Pipeline Failure Notifications"
+
+  ########################################
+  # OUTPUTS
+  ########################################
+
+Outputs:
+  DailyPipelineStateMachineArn:
+    Description: "ARN of the Daily Data Pipeline State Machine"
+    Value: !Ref DailyDataPipelineStateMachine
+    Export:
+      Name: !Sub "${AWS::StackName}-DailyPipelineStateMachine"
+
+  WeeklyPipelineStateMachineArn:
+    Description: "ARN of the Weekly Data Pipeline State Machine"
+    Value: !Ref WeeklyDataPipelineStateMachine
+    Export:
+      Name: !Sub "${AWS::StackName}-WeeklyPipelineStateMachine"
+
+  MonthlyPipelineStateMachineArn:
+    Description: "ARN of the Monthly Data Pipeline State Machine"
+    Value: !Ref MonthlyDataPipelineStateMachine
+    Export:
+      Name: !Sub "${AWS::StackName}-MonthlyPipelineStateMachine"
+
+  QualityMetricsTaskDefinitionArn:
+    Description: "ARN of the Quality Metrics task definition (from ECS tasks stack)"
+    Value: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/quality-metrics-calculator"
+
+  ValueMetricsTaskDefinitionArn:
+    Description: "ARN of the Value Metrics task definition (from ECS tasks stack)"
+    Value: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/value-metrics-calculator"
+
+  StepFunctionsExecutionRoleArn:
+    Description: "ARN of the Step Functions execution role"
+    Value: !GetAtt StepFunctionsExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StepFunctionsExecutionRole"
+
+  PipelineOrchestrationStatus:
+    Description: "Status of the Step Functions pipeline orchestration"
+    Value: "ENABLED - Daily pipeline at 4:30 PM ET (Mon-Fri), Weekly at 6:00 AM ET (Sundays), Monthly at 9:00 AM ET (1st Sunday)"
+
+  FailureNotificationTopicArn:
+    Description: "SNS Topic for pipeline failure notifications"
+    Value: !Ref PipelineFailureNotificationTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-PipelineFailureNotificationTopic"
+
+  IntegrationNotes:
+    Description: "Integration approach with existing infrastructure"
+    Value: !Sub |
+      This Step Functions orchestration template is designed to work with your existing ECS tasks.
+      
+      Integration Options:
+      1. Use CloudFormation imports (recommended): Set UseStackImports=true and ensure your core/app stacks export the required values
+      2. Direct parameter values: Set UseStackImports=false and provide ECSClusterName, TaskExecutionRoleArn, SubnetIds, SecurityGroupId directly
+      
+      The Step Functions workflows reference ECS task definitions from your existing template-app-ecs-tasks.yml.
+      This modular approach keeps the complex ECS definitions separate while adding orchestration capabilities.
+      
+      Key Benefits:
+      - Proper dependency management (data loading → metrics calculation)
+      - Parallel execution where possible
+      - Built-in retry logic and error handling
+      - CloudWatch logging for all executions
+      - EventBridge triggers for automated scheduling

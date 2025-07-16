@@ -1,0 +1,13 @@
+# Quality Score Calculation Requirements
+pandas==2.1.4
+numpy==1.24.3
+psycopg2-binary==2.9.9
+boto3==1.34.144
+yfinance==0.2.64
+
+# AWS SDK for secrets management
+botocore==1.34.144
+
+# Logging and utilities
+python-dateutil==2.8.2
+pytz==2023.3

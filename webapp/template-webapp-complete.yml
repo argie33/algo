@@ -1,0 +1,301 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Financial Dashboard - Complete Serverless Stack with Runtime Configuration
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for deployment
+
+  DatabaseSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing database credentials
+    
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID for authentication
+    
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID for authentication
+    
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional custom domain name for CloudFront (requires ACM certificate)
+    
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN for custom domain (must be in us-east-1)
+
+Conditions:
+  UseCustomDomain: !Not [!Equals [!Ref DomainName, '']]
+
+Globals:
+  Function:
+    Timeout: 45
+    MemorySize: 512
+    Runtime: nodejs18.x
+    Environment:
+      Variables:
+        NODE_ENV: !Ref EnvironmentName
+        DB_SECRET_ARN: !Ref DatabaseSecretArn
+        WEBAPP_AWS_REGION: !Ref AWS::Region
+        COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        COGNITO_CLIENT_ID: !Ref CognitoClientId
+        API_KEY_ENCRYPTION_SECRET_ARN: !Ref ApiKeyEncryptionSecret
+        JWT_SECRET_ARN: !Ref JwtSecret
+
+Resources:
+  # S3 Bucket for Frontend
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'financial-dashboard-frontend-${EnvironmentName}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FinancialDashboard
+
+  # Bucket Policy for CloudFront
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # CloudFront Origin Access Control
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'financial-dashboard-oac-${EnvironmentName}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # API Key Encryption Secret
+  ApiKeyEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-stocks-app-api-key-encryption'
+      Description: 'AES-256-GCM encryption key for broker API key storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"AES-256-GCM","purpose":"api-key-encryption"}'
+        GenerateStringKey: 'API_KEY_ENCRYPTION_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\`'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FinancialDashboard
+        - Key: Purpose
+          Value: api-key-encryption
+
+  # JWT Secret for authentication
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-stocks-app-jwt-secret'
+      Description: 'JWT signing key for authentication'
+      GenerateSecretString:
+        SecretStringTemplate: '{"algorithm":"HS256","purpose":"jwt-signing"}'
+        GenerateStringKey: 'JWT_SECRET'
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\`'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FinancialDashboard
+        - Key: Purpose
+          Value: jwt-signing
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'Financial Dashboard Frontend - ${EnvironmentName}'
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          Fn::If:
+            - UseCustomDomain
+            - AcmCertificateArn: !Ref CertificateArn
+              MinimumProtocolVersion: TLSv1.2_2021
+              SslSupportMethod: sni-only
+            - CloudFrontDefaultCertificate: true
+        Aliases:
+          Fn::If:
+            - UseCustomDomain
+            - - !Ref DomainName
+            - !Ref AWS::NoValue
+        Tags:
+          - Key: Environment
+            Value: !Ref EnvironmentName
+
+  # API Lambda Function
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      CodeUri: lambda/
+      Handler: index.handler
+      Description: Financial Dashboard API Lambda Function
+      Policies:
+        - SecretsManagerReadWrite
+      Events:
+        ApiGateway:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            ApiId: !Ref HttpApi
+
+  # HTTP API Gateway
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref EnvironmentName
+      Description: Financial Dashboard HTTP API
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub 'https://${CloudFrontDistribution.DomainName}'
+          - Fn::If:
+              - UseCustomDomain
+              - !Sub 'https://${DomainName}'
+              - !Ref AWS::NoValue
+          - 'http://localhost:3000'
+          - 'http://localhost:5173'
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - '*'
+        MaxAge: 600
+        AllowCredentials: false
+
+  # Note: Lambda runs in AWS managed VPC to connect to existing public RDS
+  # No VPC configuration needed - Lambda will use AWS managed infrastructure
+
+  # SSM Parameters for easy access
+  ApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/financial-dashboard/${EnvironmentName}/api-url'
+      Type: String
+      Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+      Description: API Gateway URL for the Financial Dashboard
+
+  WebsiteUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/financial-dashboard/${EnvironmentName}/website-url'
+      Type: String
+      Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+      Description: CloudFront URL for the Financial Dashboard
+
+Outputs:
+  WebsiteURL:
+    Description: CloudFront Distribution URL
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebsiteURL'
+
+  ApiGatewayUrl:
+    Description: HTTP API Gateway URL
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  FrontendBucketName:
+    Description: S3 Bucket name for frontend files
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontId'
+
+  LambdaFunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt ApiFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  ApiKeyEncryptionSecretArn:
+    Description: ARN of the API Key encryption secret
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKeyEncryptionSecretArn'
+
+  JwtSecretArn:
+    Description: ARN of the JWT secret
+    Value: !Ref JwtSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-JwtSecretArn'
+
+  DeploymentInstructions:
+    Description: Deployment instructions
+    Value: !Sub |
+      To deploy the frontend:
+      1. Build frontend: cd webapp/frontend && npm run build
+      2. Update config.js with API URL: ${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}
+      3. Sync to S3: aws s3 sync dist/ s3://${FrontendBucket}/ --delete
+      4. Invalidate CloudFront: aws cloudfront create-invalidation --distribution-id ${CloudFrontDistribution} --paths "/*"

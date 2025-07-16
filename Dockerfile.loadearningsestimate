@@ -1,0 +1,13 @@
+# Dockerfile.loadearningsestimate - Updated for deployment verification
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY Dockerfile.loadearningsestimate requirements-loadearningsestimate.txt loadearningsestimate.py ./
+
+RUN pip install --no-cache-dir -r requirements-loadearningsestimate.txt
+
+# Run as non-root
+USER 1000
+
+ENTRYPOINT ["python", "loadearningsestimate.py"]

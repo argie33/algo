@@ -1,0 +1,181 @@
+{
+  "summary": {
+    "passed": 14,
+    "failed": 1,
+    "totalTime": 5807,
+    "timestamp": "2025-07-14T19:24:38.335Z"
+  },
+  "analysis": {
+    "authTestsPassed": 14,
+    "consistentAuth": 11,
+    "authSystemWorking": false
+  },
+  "tests": [
+    {
+      "name": "No Auth Header Rejection",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "errorMessage": "Authentication required",
+        "hasAuthRequiredMessage": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:33.190Z"
+    },
+    {
+      "name": "Invalid Auth Format: Malformed JWT",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "Malformed JWT",
+        "errorMessage": "Authentication failed"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:34.465Z"
+    },
+    {
+      "name": "Invalid Auth Format: Empty Token",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "Empty Token",
+        "errorMessage": "Authentication required"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:34.686Z"
+    },
+    {
+      "name": "Invalid Auth Format: No Bearer Prefix",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "No Bearer Prefix",
+        "errorMessage": "Authentication required"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:35.025Z"
+    },
+    {
+      "name": "Invalid Auth Format: Wrong Auth Type",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "Wrong Auth Type",
+        "errorMessage": "Authentication failed"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:35.454Z"
+    },
+    {
+      "name": "Invalid Auth Format: Expired JWT",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "Expired JWT",
+        "errorMessage": "Authentication failed"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:35.737Z"
+    },
+    {
+      "name": "Invalid Auth Format: Wrong Signature JWT",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "authMethod": "Wrong Signature JWT",
+        "errorMessage": "Authentication failed"
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:36.030Z"
+    },
+    {
+      "name": "Valid JWT Format (Invalid Signature)",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "errorMessage": "Authentication failed",
+        "bodyLength": 83
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:36.561Z"
+    },
+    {
+      "name": "Auth Consistency: GET /settings/api-keys",
+      "passed": true,
+      "details": {
+        "endpoint": "GET /settings/api-keys",
+        "statusCode": 401,
+        "hasAuthError": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:36.860Z"
+    },
+    {
+      "name": "Auth Consistency: POST /settings/api-keys",
+      "passed": true,
+      "details": {
+        "endpoint": "POST /settings/api-keys",
+        "statusCode": 401,
+        "hasAuthError": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:37.073Z"
+    },
+    {
+      "name": "Auth Consistency: GET /settings/profile",
+      "passed": true,
+      "details": {
+        "endpoint": "GET /settings/profile",
+        "statusCode": 401,
+        "hasAuthError": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:37.313Z"
+    },
+    {
+      "name": "Auth Consistency: GET /portfolio",
+      "passed": false,
+      "details": {
+        "endpoint": "GET /portfolio",
+        "statusCode": 200,
+        "hasAuthError": false
+      },
+      "error": "Expected 401 for GET /portfolio, got 200",
+      "timestamp": "2025-07-14T19:24:37.507Z"
+    },
+    {
+      "name": "Auth Consistency: GET /portfolio/holdings",
+      "passed": true,
+      "details": {
+        "endpoint": "GET /portfolio/holdings",
+        "statusCode": 401,
+        "hasAuthError": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:37.829Z"
+    },
+    {
+      "name": "JWT Validation Logic Test",
+      "passed": true,
+      "details": {
+        "statusCode": 404,
+        "hasValidationResults": false,
+        "endpointExists": false
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:38.094Z"
+    },
+    {
+      "name": "Cognito-Style JWT Handling",
+      "passed": true,
+      "details": {
+        "statusCode": 401,
+        "errorMessage": "Authentication failed",
+        "isProperValidationError": false,
+        "hasStructuredError": true
+      },
+      "error": null,
+      "timestamp": "2025-07-14T19:24:38.333Z"
+    }
+  ]
+}

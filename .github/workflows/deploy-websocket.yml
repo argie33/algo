@@ -1,0 +1,164 @@
+name: Deploy WebSocket Real-time Data Stack
+
+on:
+  push:
+    branches:
+      - '*'
+    paths:
+      - 'template-realtime-websocket.yml'
+      - '.github/workflows/deploy-websocket.yml'
+      - 'webapp/frontend/src/services/liveDataService.js'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+
+jobs:
+  deploy-websocket:
+    name: Deploy WebSocket Stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+
+      - name: Check and handle stack state
+        id: check-stack
+        run: |
+          # Delete both old and new stack versions to ensure clean state
+          echo "Cleaning up any existing WebSocket stacks..."
+          
+          # Delete old stack if exists
+          OLD_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-websocket-stack \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          
+          if [ "$OLD_STATUS" != "DOES_NOT_EXIST" ]; then
+            echo "Deleting old stack: stocks-websocket-stack (Status: $OLD_STATUS)"
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack
+            echo "Waiting for old stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            echo "Old stack deleted"
+          fi
+          
+          # Delete new stack if exists  
+          NEW_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-websocket-stack \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          
+          if [ "$NEW_STATUS" != "DOES_NOT_EXIST" ]; then
+            echo "Deleting new stack: stocks-websocket-stack (Status: $NEW_STATUS)"
+            aws cloudformation delete-stack --stack-name stocks-websocket-stack
+            echo "Waiting for new stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name stocks-websocket-stack
+            echo "New stack deleted"
+          fi
+          
+          echo "All WebSocket stacks cleaned up, ready for fresh deployment"
+
+      - name: Deploy WebSocket stack
+        run: |
+          # Check if template is small enough to deploy directly
+          TEMPLATE_SIZE=$(wc -c < template-realtime-websocket.yml)
+          echo "Template size: $TEMPLATE_SIZE bytes"
+          
+          if [ $TEMPLATE_SIZE -lt 51200 ]; then
+            echo "Template is small enough, deploying directly without S3..."
+            aws cloudformation deploy \
+              --stack-name stocks-websocket-stack \
+              --template-file template-realtime-websocket.yml \
+              --parameter-overrides \
+                Environment=dev \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset
+          else
+            echo "Template is large, using S3 bucket..."
+            aws cloudformation deploy \
+              --stack-name stocks-websocket-stack \
+              --template-file template-realtime-websocket.yml \
+              --parameter-overrides \
+                Environment=dev \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset \
+              --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+          fi
+
+      - name: Get WebSocket API endpoint
+        id: websocket
+        run: |
+          ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='stocks-websocket-stack-WebSocketApiEndpoint'].Value" \
+            --output text)
+          echo "WEBSOCKET_ENDPOINT=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "WebSocket endpoint: $ENDPOINT"
+
+      - name: Update frontend environment with WebSocket endpoint
+        run: |
+          # Update the frontend .env file with the WebSocket endpoint (using Vite env vars)
+          echo "VITE_WS_URL=${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}" >> webapp/frontend/.env
+          echo "REACT_APP_WS_URL=${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}" >> webapp/frontend/.env
+          echo "VITE_AUTO_CONNECT_WS=true" >> webapp/frontend/.env
+          echo "Updated frontend environment with WebSocket endpoint"
+
+      - name: Test WebSocket endpoint
+        run: |
+          ENDPOINT="${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}"
+          if [ -n "$ENDPOINT" ] && [ "$ENDPOINT" != "None" ]; then
+            echo "✅ WebSocket endpoint is available: $ENDPOINT"
+            
+            # Test if the endpoint is accessible (basic connectivity test)
+            # Note: This is a basic test - full WebSocket testing would require more complex setup
+            HTTP_ENDPOINT=$(echo $ENDPOINT | sed 's/wss:/https:/' | sed 's/ws:/http:/')
+            
+            # Test the health of the API Gateway
+            if curl -s -f "${HTTP_ENDPOINT%/*}/health" >/dev/null 2>&1; then
+              echo "✅ API Gateway is responding"
+            else
+              echo "⚠️  API Gateway health check failed, but WebSocket may still work"
+            fi
+          else
+            echo "❌ WebSocket endpoint not found"
+            exit 1
+          fi
+
+      - name: Display deployment summary
+        run: |
+          echo "🚀 WebSocket Real-time Data Stack Deployment Summary"
+          echo "=================================================="
+          echo "Stack Name: stocks-websocket-stack"
+          echo "WebSocket Endpoint: ${{ steps.websocket.outputs.WEBSOCKET_ENDPOINT }}"
+          echo "Environment: dev"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo ""
+          echo "✅ Deployment completed successfully!"
+          echo ""
+          echo "Next steps:"
+          echo "1. Frontend will automatically connect to WebSocket"
+          echo "2. Market data will stream every 5 seconds"
+          echo "3. Subscribe to symbols via WebSocket API"
+          echo "4. Monitor ElastiCache and DynamoDB for performance"

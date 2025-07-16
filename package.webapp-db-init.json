@@ -1,0 +1,24 @@
+{
+  "name": "webapp-db-init",
+  "version": "1.0.0",
+  "description": "ECS-based database initialization script for webapp tables",
+  "main": "webapp-db-init.js",
+  "scripts": {
+    "start": "node webapp-db-init.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.454.0",
+    "pg": "^8.11.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "database",
+    "initialization",
+    "postgresql",
+    "webapp"
+  ],
+  "author": "Stocks App Team",
+  "license": "MIT"
+}

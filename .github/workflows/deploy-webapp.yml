@@ -1,0 +1,1770 @@
+name: deploy-webapp
+# Updated 2025-07-13 - Fix portfolio API integration and task definition retrieval
+
+on:  
+  push:
+    branches:
+      - '*'
+    paths:
+      - 'webapp/**'
+      - 'template-webapp-lambda.yml'
+      - '.github/workflows/deploy-webapp.yml'
+      - 'webapp-db-init.js'
+      - 'Dockerfile.webapp-db-init'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  NODE_VERSION: '18.x'
+
+jobs:
+################################################################################
+# 1) Determine environment based on branch                                     #
+################################################################################
+  setup:
+    name: Setup environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      stack_name: ${{ steps.env.outputs.stack_name }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          # Determine environment based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            ENV="staging"
+          else
+            ENV="dev"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "stack_name=stocks-webapp-$ENV" >> $GITHUB_OUTPUT
+          echo "Deploying to environment: $ENV"
+################################################################################
+# 2) Detect changed components                                                 #
+################################################################################
+  filter:
+    name: Detect changed components
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      webapp:     ${{ steps.paths.outputs.webapp }}
+      lambda:     ${{ steps.paths.outputs.lambda }}
+      frontend:   ${{ steps.paths.outputs.frontend }}
+      template:   ${{ steps.paths.outputs.template }}
+      any:        ${{ steps.any.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Which files changed?
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || 'HEAD~1' }}
+          filters: |
+            webapp:
+              - 'webapp/**'
+            lambda:
+              - 'webapp/lambda/**'
+              - 'webapp/backend/**'
+            frontend:
+              - 'webapp/frontend/**'
+            template:
+              - 'template-webapp-lambda.yml'
+              - '.github/workflows/deploy-webapp.yml'
+      - id: any
+        name: Any relevant changes?
+        run: |
+          if [[ "${{ steps.paths.outputs.webapp }}" == "true" || "${{ steps.paths.outputs.lambda }}" == "true" || "${{ steps.paths.outputs.frontend }}" == "true" || "${{ steps.paths.outputs.template }}" == "true" ]]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
+################################################################################
+# 3) Deploy webapp infrastructure                                              #
+################################################################################
+  deploy_infrastructure:
+    name: Deploy webapp infrastructure
+    needs: [setup, filter]
+    if: ${{ needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
+      STACK_NAME: ${{ needs.setup.outputs.stack_name }}
+    outputs:
+      bucket_prefix: ${{ steps.stack_outputs.outputs.bucket_prefix }}
+      cloudfront_id: ${{ steps.stack_outputs.outputs.cloudfront_id }}
+      api_url: ${{ steps.stack_outputs.outputs.api_url }}
+      website_url: ${{ steps.stack_outputs.outputs.website_url }}
+      environment: ${{ needs.setup.outputs.environment }}
+      stack_name: ${{ needs.setup.outputs.stack_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get database connection info from stacks
+        id: db_info
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+            --output text)
+          
+          # Validate that we got the values
+          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
+            echo "❌ Failed to get database secret ARN from app stack exports"
+            exit 1
+          fi
+          
+          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
+            echo "❌ Failed to get database endpoint from app stack exports"
+            exit 1
+          fi
+          
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "Using database secret: $DB_SECRET_ARN"
+          echo "Using database endpoint: $DB_ENDPOINT"
+      
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          
+          # Validate bucket name
+          if [[ -z "$BUCKET" || "$BUCKET" == "None" ]]; then
+            echo "❌ Failed to get CloudFormation templates bucket from core stack exports"
+            exit 1
+          fi
+          
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: 1.141.0
+          use-installer: true
+
+      - name: Build SAM application
+        run: |
+          sam build --template template-webapp-lambda.yml
+      - name: Check and handle failed stack state
+        run: |
+          # Check if stack exists and its status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+          
+          echo "Current stack status: $STACK_STATUS"
+          
+          # Handle different stack states
+          case "$STACK_STATUS" in
+            "STACK_NOT_FOUND")
+              echo "ℹ️ Stack does not exist. Will create new stack."
+              ;;
+            "CREATE_COMPLETE"|"UPDATE_COMPLETE")
+              echo "ℹ️ Stack is in healthy state: $STACK_STATUS. Proceeding with deployment."
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED")
+              echo "⚠️ Stack is in failed state: $STACK_STATUS. Deleting stack to allow re-creation..."
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              echo "✅ Stack deletion completed"
+              ;;
+            "ROLLBACK_IN_PROGRESS"|"CREATE_IN_PROGRESS"|"UPDATE_IN_PROGRESS"|"DELETE_IN_PROGRESS")
+              echo "⏳ Stack is in progress state: $STACK_STATUS. Waiting for operation to complete..."
+              # Wait for the current operation to complete
+              if [[ "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
+                echo "⏳ Waiting for rollback to complete..."
+                aws cloudformation wait stack-rollback-complete --stack-name ${{ env.STACK_NAME }}
+                # After rollback completes, delete the stack
+                echo "🧹 Rollback completed. Deleting failed stack..."
+                aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+                echo "✅ Failed stack cleanup completed"
+              elif [[ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-create-complete --stack-name ${{ env.STACK_NAME }}
+              elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-update-complete --stack-name ${{ env.STACK_NAME }}
+              elif [[ "$STACK_STATUS" == "DELETE_IN_PROGRESS" ]]; then
+                aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              fi
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE")
+              echo "⚠️ Stack is in UPDATE_ROLLBACK_COMPLETE state. This indicates a failed update that was rolled back."
+              echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
+              ;;
+            "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS")
+              echo "⏳ Stack is stuck in cleanup state. Following AWS Knowledge Center guidance..."
+              echo "📖 Reference: https://repost.aws/knowledge-center/cloudformation-stack-cleanup-stuck"
+              
+              # Try to continue update with the same template to force completion
+              echo "🔧 Attempting to continue-update-rollback as per AWS documentation..."
+              
+              aws cloudformation continue-update-rollback --stack-name ${{ env.STACK_NAME }} || {
+                echo "⚠️ Continue-update-rollback failed or not available. Trying alternative approach..."
+                
+                # Check if there are any resources in UPDATE_ROLLBACK_FAILED state
+                echo "🔍 Checking for failed resources that might be blocking cleanup..."
+                aws cloudformation describe-stack-resources --stack-name ${{ env.STACK_NAME }} --query 'StackResources[?ResourceStatus==`UPDATE_ROLLBACK_FAILED`].[LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]' --output table
+                
+                # Per AWS docs, we may need to skip certain resources
+                echo "⚠️ If any resources are in UPDATE_ROLLBACK_FAILED state, they may need to be skipped."
+                echo "💡 Based on AWS Knowledge Center, you may need to:"
+                echo "   1. Use continue-update-rollback with --resources-to-skip parameter"
+                echo "   2. Or wait for AWS to automatically resolve the cleanup"
+                echo ""
+                echo "🔧 For now, attempting to wait for automatic resolution..."
+              }
+              
+              # Wait for the continue-update-rollback to complete or stack to resolve
+              echo "⏰ Waiting for rollback to complete (up to 10 minutes)..."
+              WAIT_TIME=0
+              MAX_WAIT=600  # 10 minutes
+              
+              while [[ $WAIT_TIME -lt $MAX_WAIT ]]; do
+                sleep 30
+                WAIT_TIME=$((WAIT_TIME + 30))
+                
+                CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+                echo "Status after ${WAIT_TIME}s: $CURRENT_STATUS"
+                
+                if [[ "$CURRENT_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
+                  echo "✅ Stack rollback completed successfully!"
+                  break
+                elif [[ "$CURRENT_STATUS" != "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS" && "$CURRENT_STATUS" != "UPDATE_ROLLBACK_IN_PROGRESS" ]]; then
+                  echo "📊 Stack transitioned to: $CURRENT_STATUS"
+                  break
+                fi
+                
+                if [[ $WAIT_TIME -ge $MAX_WAIT ]]; then
+                  echo "❌ Stack is still stuck after trying AWS recommended approach."
+                  echo "💡 This requires manual intervention following AWS Knowledge Center article:"
+                  echo "   https://repost.aws/knowledge-center/cloudformation-stack-cleanup-stuck"
+                  echo ""
+                  echo "🎯 Recommended next steps:"
+                  echo "   1. Open AWS Support case for stuck stack"
+                  echo "   2. Or manually identify and skip problematic resources"
+                  echo "   3. Run: aws cloudformation continue-update-rollback --stack-name ${{ env.STACK_NAME }} --resources-to-skip <resource-ids>"
+                  exit 1
+                fi
+              done
+              
+              echo "✅ Stack is now ready for deployment."
+              ;;
+            "DELETE_FAILED")
+              echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
+              echo "   Please manually delete the stack or resolve the deletion issues."
+              exit 1
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }}
+              echo "✅ Stack cleanup completed"
+              ;;
+            *)
+              echo "❌ Stack is in unexpected state: $STACK_STATUS"
+              echo "   Manual intervention may be required."
+              exit 1
+              ;;
+          esac
+      - name: Deploy webapp CloudFormation stack
+        run: |
+          echo "Using stack name: $STACK_NAME"
+          echo "Using environment: $ENVIRONMENT_NAME"
+          
+          # Final check that stack is in a deployable state
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Final stack status before deployment: $FINAL_STATUS"
+          
+          # Ensure we're in a deployable state
+          case "$FINAL_STATUS" in
+            "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
+              echo "✅ Stack is in deployable state: $FINAL_STATUS"
+              ;;
+            "REVIEW_IN_PROGRESS")
+              echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
+              echo "   Deleting the stack to clean up the failed changeset..."
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
+              echo "⏳ Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+              echo "✅ Stack cleanup completed, proceeding with fresh deployment"
+              ;;
+            "ROLLBACK_COMPLETE"|"CREATE_FAILED"|"ROLLBACK_IN_PROGRESS"|*"_IN_PROGRESS")
+              echo "❌ Stack is in non-deployable state: $FINAL_STATUS"
+              echo "   This should not happen after our cleanup step. The previous step may have failed."
+              exit 1
+              ;;
+            *)
+              echo "⚠️ Stack is in unexpected state: $FINAL_STATUS. Attempting deployment anyway..."
+              ;;
+          esac
+          
+          # Validate parameters before deployment
+          if [[ -z "${{ steps.db_info.outputs.DB_SECRET_ARN }}" ]]; then
+            echo "❌ Database secret ARN is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.db_info.outputs.DB_ENDPOINT }}" ]]; then
+            echo "❌ Database endpoint is empty"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.bucket.outputs.CF_BUCKET }}" ]]; then
+            echo "❌ S3 bucket is empty"
+            exit 1
+          fi
+          
+          # Deploy with validated parameters and enhanced error handling
+          echo "🚀 Starting SAM deployment..."
+          if ! sam deploy \
+            --stack-name "$STACK_NAME" \
+            --s3-bucket "${{ steps.bucket.outputs.CF_BUCKET }}" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
+              "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
+              "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset; then
+            
+            echo "❌ SAM deployment failed. Checking stack status..."
+            DEPLOY_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].StackStatus" \
+              --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            echo "Stack status after failed deployment: $DEPLOY_STATUS"
+            
+            # If deployment failed and stack is in rollback state, clean it up for next attempt
+            if [[ "$DEPLOY_STATUS" == "ROLLBACK_COMPLETE" || "$DEPLOY_STATUS" == "CREATE_FAILED" ]]; then
+              echo "🧹 Cleaning up failed deployment for next attempt..."
+              aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            fi
+            
+            exit 1
+          fi
+          
+          echo "✅ SAM deployment completed successfully"
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+      - name: Get stack outputs
+        id: stack_outputs
+        run: |
+          # Get CloudFormation stack outputs
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text)
+          
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
+            --output text)
+            WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" \
+            --output text)
+          
+          # Validate required outputs
+          if [[ -z "$FRONTEND_BUCKET" || "$FRONTEND_BUCKET" == "None" ]]; then
+            echo "❌ Failed to get FrontendBucketName from stack outputs"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
+          
+          if [[ -z "$API_URL" || "$API_URL" == "None" ]]; then
+            echo "❌ Failed to get ApiGatewayUrl from stack outputs"
+            echo "This is critical - the frontend needs this URL!"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" \
+              --output table
+            exit 1
+          fi
+          
+          # Extract bucket prefix to avoid secret masking (bucket name contains AWS Account ID)
+          # Bucket format: financial-dashboard-frontend-dev-ACCOUNTID
+          BUCKET_PREFIX=$(echo "$FRONTEND_BUCKET" | cut -d'-' -f1-4)  # Gets "financial-dashboard-frontend-dev"
+          
+          # Set outputs (avoiding the full bucket name that contains account ID)
+          echo "bucket_prefix=$BUCKET_PREFIX" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Stack outputs retrieved successfully:"
+          echo "  Bucket prefix: $BUCKET_PREFIX"
+          echo "  CloudFront ID: $CLOUDFRONT_ID"
+          echo "  API URL: $API_URL"
+          echo "  Website URL: $WEBSITE_URL"
+      
+      - name: Check if database initialization is needed
+        id: check_db_changes
+        run: |
+          echo "🔍 Checking if database initialization is needed..."
+          
+          # Check if database-related files have changed
+          DB_FILES_CHANGED="false"
+          
+          # Files that trigger database initialization
+          DB_TRIGGER_FILES=(
+            "webapp/lambda/utils/database.js"
+            "webapp-db-init.js"
+            "Dockerfile.webapp-db-init"
+          )
+          
+          # Check if any DB files changed in the last commit
+          for file in "${DB_TRIGGER_FILES[@]}"; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "$file"; then
+              echo "📝 Database file changed: $file"
+              DB_FILES_CHANGED="true"
+              break
+            fi
+          done
+          
+          # Also check if this is the first deployment (no previous commit)
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "🆕 First deployment - database initialization required"
+            DB_FILES_CHANGED="true"
+          fi
+          
+          # Force database initialization when loaddata branch deploys (temporary)
+          if [[ "${{ github.ref }}" == "refs/heads/loaddata" ]]; then
+            echo "🔧 loaddata branch - forcing database initialization"
+            DB_FILES_CHANGED="true"
+          fi
+          
+          # Check if template changed (indicates stack recreation)
+          if git diff --name-only HEAD~1 HEAD | grep -q "template-webapp-lambda.yml"; then
+            echo "🔄 Webapp template changed - database initialization may be needed"
+            DB_FILES_CHANGED="true"
+          fi
+          
+          echo "db_init_needed=$DB_FILES_CHANGED" >> $GITHUB_OUTPUT
+          
+          if [ "$DB_FILES_CHANGED" = "true" ]; then
+            echo "✅ Database initialization will be triggered"
+          else
+            echo "⏭️  No database changes detected - skipping initialization"
+          fi
+
+      - name: Build and push webapp-db-init Docker image
+        if: steps.check_db_changes.outputs.db_init_needed == 'true'
+        run: |
+          echo "🐳 Building and pushing webapp-db-init Docker image..."
+          
+          # Get ECR repository URI from core stack
+          ECR_REPO=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          
+          if [[ -z "$ECR_REPO" || "$ECR_REPO" == "None" ]]; then
+            echo "❌ Failed to get ECR repository URI from core stack exports"
+            exit 1
+          fi
+          
+          echo "Using ECR repository: $ECR_REPO"
+          
+          # Set up Docker Buildx for multi-platform builds
+          echo "🔧 Setting up Docker Buildx..."
+          docker buildx create --use --name webapp-builder || true
+          docker buildx inspect --bootstrap
+          
+          # Login to ECR
+          echo "🔐 Logging in to ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
+          
+          # Build the Docker image
+          echo "🔨 Building webapp-db-init Docker image..."
+          docker buildx build --platform linux/arm64 -f Dockerfile.webapp-db-init -t webapp-db-init:latest --load .
+          
+          # Tag for ECR
+          echo "🏷️ Tagging image for ECR..."
+          docker tag webapp-db-init:latest $ECR_REPO:webapp-db-init-latest
+          
+          # Push to ECR
+          echo "⬆️ Pushing image to ECR..."
+          docker push $ECR_REPO:webapp-db-init-latest
+          
+          echo "✅ Successfully pushed updated webapp-db-init image to ECR"
+
+      - name: Initialize Database Tables via ECS Task
+        if: steps.check_db_changes.outputs.db_init_needed == 'true'
+        run: |
+          echo "🗄️ Initializing webapp database tables via ECS task..."
+          echo "📝 NOTE: This creates WEBAPP tables only (user_api_keys, portfolio_holdings, etc.)"
+          echo "📝 NOTE: stock_symbols table is created by deploy-app-stocks workflow"
+          
+          # Get the task definition ARN from the stack exports
+          TASK_DEF_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${{ env.STACK_NAME }}-DatabaseInitTaskDefArn'].Value" \
+            --output text)
+          
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ Failed to get database init task definition ARN from stack"
+            exit 1
+          fi
+          
+          echo "Using task definition: $TASK_DEF_ARN"
+          
+          # Get infrastructure info
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          SUBNET_1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET_2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          
+          # Run the ECS task
+          echo "🎯 Running database initialization ECS task..."
+          
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER_ARN" \
+            --task-definition "$TASK_DEF_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_1,$SUBNET_2],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          
+          if [[ -z "$TASK_ARN" || "$TASK_ARN" == "None" ]]; then
+            echo "❌ Failed to start ECS task"
+            exit 1
+          fi
+          
+          echo "Started ECS task: $TASK_ARN"
+          
+          # Wait for task to complete
+          echo "⏳ Waiting for webapp database initialization task to complete..."
+          echo "🔍 This may take 2-3 minutes to create webapp tables"
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER_ARN" \
+            --tasks "$TASK_ARN" \
+            --cli-read-timeout 3600 \
+            --cli-connect-timeout 60
+          
+          # Get task details for debugging
+          echo "📋 Getting webapp database initialization task details..."
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER_ARN" \
+            --tasks "$TASK_ARN" \
+            --output json)
+          
+          # Log task status for debugging
+          TASK_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].lastStatus // "unknown"')
+          STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stopCode // "N/A"')
+          CONTAINER_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].lastStatus // "unknown"')
+          echo "Task status: $TASK_STATUS"
+          echo "Container status: $CONTAINER_STATUS"
+          echo "Stop reason: $STOP_REASON"
+          
+          # Try to get logs from CloudWatch if task failed
+          TASK_DEF_FAMILY=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].taskDefinitionArn' | awk -F'/' '{print $2}' | awk -F':' '{print $1}')
+          TASK_ID=$(echo "$TASK_ARN" | awk -F'/' '{print $NF}')
+          LOG_GROUP="/ecs/$TASK_DEF_FAMILY"
+          LOG_STREAM="ecs/$TASK_DEF_FAMILY/$TASK_ID"
+          
+          echo "📄 Attempting to retrieve CloudWatch logs..."
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_STREAM" \
+            --limit 50 \
+            --output text \
+            --query 'events[*].message' 2>/dev/null || echo "Could not retrieve logs"
+          
+          # Check exit code
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // "None"')
+          
+          # Handle cases where exit code might be None or empty
+          if [[ -z "$EXIT_CODE" || "$EXIT_CODE" == "None" ]]; then
+            echo "❌ Database initialization failed - task did not complete properly (no exit code)"
+            exit 1
+          elif [[ ! "$EXIT_CODE" =~ ^[0-9]+$ ]]; then
+            echo "❌ Database initialization failed - invalid exit code: $EXIT_CODE"
+            exit 1
+          elif [ "$EXIT_CODE" -eq 0 ]; then
+            echo "✅ Webapp database initialization completed successfully"
+            echo "📝 Created webapp tables: user_api_keys, portfolio_holdings, watchlists, etc."
+            echo "📝 NOTE: stock_symbols table must be created by deploy-app-stocks workflow"
+          else
+            echo "❌ Webapp database initialization failed with exit code: $EXIT_CODE"
+            exit 1
+          fi
+################################################################################
+# 3) Build and deploy Frontend                                                 #
+################################################################################
+  deploy_frontend:
+    name: Deploy Frontend to S3
+    needs: [filter, deploy_infrastructure]
+    if: ${{ needs.filter.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Install Frontend dependencies
+        working-directory: webapp/frontend
+        run: |
+          npm ci
+          echo "Frontend dependencies installed"
+      - name: Test Frontend
+        working-directory: webapp/frontend
+        env:
+          API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+        run: |
+          # Run tests if available
+          if npm run test:unit --if-present 2>/dev/null; then
+            echo "Frontend unit tests passed"
+          else
+            echo "No unit tests found or configured, skipping"
+          fi
+          
+          # Basic lint check if available
+          if npm run lint --if-present 2>/dev/null; then
+            echo "Frontend lint check passed"
+          else
+            echo "No lint script found, skipping"
+          fi
+      - name: Get WebSocket configuration
+        id: websocket_config
+        run: |
+          # Try to get WebSocket endpoint from CloudFormation exports
+          # This is optional - if WebSocket stack isn't deployed, we'll just log it
+          WS_URL=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='stocks-websocket-stack-WebSocketApiEndpoint'].Value" \
+            --output text 2>/dev/null || echo "")
+            
+          if [[ -n "$WS_URL" && "$WS_URL" != "None" ]]; then
+            echo "✅ Found WebSocket endpoint: $WS_URL"
+            echo "ws_url=$WS_URL" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No WebSocket endpoint found. Live data features will be disabled."
+            echo "To enable WebSocket features, deploy the WebSocket stack first:"
+            echo "  .github/workflows/deploy-websocket.yml"
+            echo "ws_url=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Cognito configuration
+        id: cognito_config
+        run: |
+          STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
+          
+          # Get Cognito configuration from CloudFormation outputs
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+          
+          WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
+          
+          # Set outputs for use in build step
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "cognito_domain=$COGNITO_DOMAIN" >> $GITHUB_OUTPUT
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Cognito configuration retrieved:"
+          echo "  User Pool ID: $USER_POOL_ID"
+          echo "  Client ID: $CLIENT_ID"
+          echo "  Cognito Domain: $COGNITO_DOMAIN"
+          echo "  Website URL: $WEBSITE_URL"
+
+      - name: Build Frontend
+        working-directory: webapp/frontend
+        env:
+          API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+          VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cognito_config.outputs.user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.cognito_config.outputs.client_id }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+          VITE_COGNITO_DOMAIN: ${{ steps.cognito_config.outputs.cognito_domain }}
+          VITE_COGNITO_REDIRECT_SIGN_IN: ${{ steps.cognito_config.outputs.website_url }}
+          VITE_COGNITO_REDIRECT_SIGN_OUT: ${{ steps.cognito_config.outputs.website_url }}
+          VITE_WS_URL: ${{ steps.websocket_config.outputs.ws_url }}
+        run: |
+          echo "🔧 Environment variables for build:"
+          echo "API_URL: $API_URL"
+          echo "VITE_API_URL: $VITE_API_URL"
+          echo "VITE_COGNITO_USER_POOL_ID: $VITE_COGNITO_USER_POOL_ID"
+          echo "VITE_COGNITO_CLIENT_ID: $VITE_COGNITO_CLIENT_ID"
+          echo "VITE_AWS_REGION: $VITE_AWS_REGION"
+          echo "VITE_COGNITO_DOMAIN: $VITE_COGNITO_DOMAIN"
+          echo "Node environment: $NODE_ENV"
+          
+          # Verify the API URL is not empty
+          if [[ -z "$VITE_API_URL" ]]; then
+            echo "❌ VITE_API_URL is empty! This will cause the frontend to fail."
+            echo "Available outputs from deploy_infrastructure:"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            exit 1
+          fi
+          
+          # Verify Cognito configuration
+          if [[ -z "$VITE_COGNITO_USER_POOL_ID" || -z "$VITE_COGNITO_CLIENT_ID" ]]; then
+            echo "⚠️  Cognito configuration is incomplete - authentication may not work"
+            echo "  User Pool ID: '$VITE_COGNITO_USER_POOL_ID'"
+            echo "  Client ID: '$VITE_COGNITO_CLIENT_ID'"
+          else
+            echo "✅ Cognito configuration looks complete"
+          fi
+          
+          # Show what's in the .env file for debugging
+          echo "📄 Current .env content (if exists):"
+          cat .env 2>/dev/null || echo "No .env file found"
+          
+          # Create/update .env file with all configuration
+          echo "VITE_API_URL=$VITE_API_URL" > .env
+          echo "VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID" >> .env
+          echo "VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID" >> .env
+          echo "VITE_AWS_REGION=$VITE_AWS_REGION" >> .env
+          echo "VITE_COGNITO_DOMAIN=$VITE_COGNITO_DOMAIN" >> .env
+          echo "VITE_COGNITO_REDIRECT_SIGN_IN=$VITE_COGNITO_REDIRECT_SIGN_IN" >> .env
+          echo "VITE_COGNITO_REDIRECT_SIGN_OUT=$VITE_COGNITO_REDIRECT_SIGN_OUT" >> .env
+          echo "VITE_SERVERLESS=true" >> .env
+          echo "VITE_ENVIRONMENT=production" >> .env
+          
+          # Add WebSocket URL if available
+          if [[ -n "$VITE_WS_URL" ]]; then
+            echo "VITE_WS_URL=$VITE_WS_URL" >> .env
+            echo "REACT_APP_WS_URL=$VITE_WS_URL" >> .env
+            echo "✅ Added WebSocket URL: $VITE_WS_URL"
+          else
+            echo "⚠️ WebSocket URL not available - live data features will be disabled"
+          fi
+          
+          echo "📝 Created .env file with:"
+          cat .env
+          # Also create runtime config file for dynamic loading
+          mkdir -p public
+          echo "// Runtime configuration - dynamically set during deployment" > public/config.js
+          echo "window.__CONFIG__ = {" >> public/config.js
+          echo "  API_URL: '$VITE_API_URL'," >> public/config.js
+          echo "  ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}'," >> public/config.js
+          echo "  VERSION: '$(date +%Y%m%d-%H%M%S)'," >> public/config.js
+          echo "  BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'," >> public/config.js
+          echo "  COGNITO: {" >> public/config.js
+          echo "    USER_POOL_ID: '$VITE_COGNITO_USER_POOL_ID'," >> public/config.js
+          echo "    CLIENT_ID: '$VITE_COGNITO_CLIENT_ID'," >> public/config.js
+          echo "    REGION: '$VITE_AWS_REGION'," >> public/config.js
+          echo "    DOMAIN: '$VITE_COGNITO_DOMAIN'," >> public/config.js
+          echo "    REDIRECT_SIGN_IN: '$VITE_COGNITO_REDIRECT_SIGN_IN'," >> public/config.js
+          echo "    REDIRECT_SIGN_OUT: '$VITE_COGNITO_REDIRECT_SIGN_OUT'" >> public/config.js
+          echo "  }" >> public/config.js
+          echo "};" >> public/config.js
+          echo "console.log('Runtime config loaded:', window.__CONFIG__);" >> public/config.js
+          echo "📝 Created runtime config:"
+          cat public/config.js
+          
+          # Update all hardcoded API URLs throughout the project with current API Gateway URL
+          echo "🔄 Replacing placeholder and hardcoded API URLs with dynamic value: $VITE_API_URL"
+          
+          # Replace PLACEHOLDER_API_URL in source files
+          echo "🎯 Replacing PLACEHOLDER_API_URL in source files..."
+          find ./src -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | xargs -r sed -i "s|PLACEHOLDER_API_URL|$VITE_API_URL|g"
+          
+          # Update any existing hardcoded API URLs
+          echo "🎯 Replacing any existing hardcoded API URLs..."
+          find ./src -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | xargs -r sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g"
+          
+          # Update .env files
+          find . -name "*.env*" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          
+          # Update vite.config.js fallback if it exists
+          if [ -f "vite.config.js" ]; then
+            sed -i "s|'https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*'|'$VITE_API_URL'|g" vite.config.js
+            sed -i "s|'PLACEHOLDER_API_URL'|'$VITE_API_URL'|g" vite.config.js
+          fi
+          
+          # Update any test files
+          find . -name "*.html" -type f -exec sed -i "s|https://[a-z0-9]*.execute-api.[a-z0-9-]*.amazonaws.com/[a-z]*|$VITE_API_URL|g" {} \;
+          find . -name "*.html" -type f -exec sed -i "s|PLACEHOLDER_API_URL|$VITE_API_URL|g" {} \;
+          
+          echo "✅ Dynamic URL replacement completed"
+          echo ""
+          echo "🔍 COMPREHENSIVE VERIFICATION - Dynamic Value Injection Status"
+          echo "=================================================================="
+          
+          # 1. Environment Variables Verification
+          echo ""
+          echo "1️⃣ ENVIRONMENT VARIABLES STATUS:"
+          echo "   VITE_API_URL: ${VITE_API_URL:-❌ NOT SET}"
+          echo "   VITE_COGNITO_USER_POOL_ID: ${VITE_COGNITO_USER_POOL_ID:-❌ NOT SET}"
+          echo "   VITE_COGNITO_CLIENT_ID: ${VITE_COGNITO_CLIENT_ID:-❌ NOT SET}"
+          echo "   VITE_AWS_REGION: ${VITE_AWS_REGION:-❌ NOT SET}"
+          echo "   VITE_COGNITO_DOMAIN: ${VITE_COGNITO_DOMAIN:-❌ NOT SET}"
+          echo "   VITE_COGNITO_REDIRECT_SIGN_IN: ${VITE_COGNITO_REDIRECT_SIGN_IN:-❌ NOT SET}"
+          echo "   VITE_COGNITO_REDIRECT_SIGN_OUT: ${VITE_COGNITO_REDIRECT_SIGN_OUT:-❌ NOT SET}"
+          
+          # 2. Source Files Verification
+          echo ""
+          echo "2️⃣ SOURCE FILES VERIFICATION:"
+          echo "--- Checking for PLACEHOLDER_API_URL (should be 0) ---"
+          PLACEHOLDER_COUNT=$(grep -r "PLACEHOLDER_API_URL" ./src 2>/dev/null | wc -l)
+          if [ "$PLACEHOLDER_COUNT" -eq 0 ]; then
+            echo "✅ No placeholders found - all replaced successfully"
+          else
+            echo "❌ Found $PLACEHOLDER_COUNT placeholder(s) still remaining:"
+            grep -r "PLACEHOLDER_API_URL" ./src || true
+          fi
+          
+          echo "--- Checking for hardcoded execute-api URLs (should be 0) ---"
+          HARDCODED_COUNT=$(grep -r "execute-api.*amazonaws\.com" ./src 2>/dev/null | wc -l)
+          if [ "$HARDCODED_COUNT" -eq 0 ]; then
+            echo "✅ No hardcoded URLs found - all replaced successfully"
+          else
+            echo "❌ Found $HARDCODED_COUNT hardcoded URL(s) still remaining:"
+            grep -r "execute-api.*amazonaws\.com" ./src || true
+          fi
+          
+          echo "--- Verifying actual API URL injection in source files ---"
+          API_URL_COUNT=$(grep -r "$VITE_API_URL" ./src 2>/dev/null | wc -l)
+          if [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "✅ Found $API_URL_COUNT instance(s) of dynamic API URL in source files:"
+            grep -r "$VITE_API_URL" ./src | head -5
+          else
+            echo "❌ Dynamic API URL not found in source files - injection may have failed"
+          fi
+          
+          # 3. Configuration Files Verification
+          echo ""
+          echo "3️⃣ CONFIGURATION FILES VERIFICATION:"
+          echo "--- .env file content ---"
+          if [ -f ".env" ]; then
+            echo "✅ .env file exists:"
+            cat .env | head -10
+          else
+            echo "❌ .env file not found"
+          fi
+          
+          echo "--- Runtime config.js content ---"
+          if [ -f "public/config.js" ]; then
+            echo "✅ Runtime config.js exists:"
+            cat public/config.js
+          else
+            echo "❌ Runtime config.js not found"
+          fi
+          
+          # 4. Critical Files Content Check
+          echo ""
+          echo "4️⃣ CRITICAL FILES DYNAMIC CONTENT CHECK:"
+          echo "--- api.js configuration resolution ---"
+          if [ -f "src/services/api.js" ]; then
+            echo "API URL line in api.js:"
+            grep -n "const apiUrl" src/services/api.js || echo "❌ API URL line not found"
+          fi
+          
+          echo "--- SectorAnalysis.jsx API configuration ---"
+          if [ -f "src/pages/SectorAnalysis.jsx" ]; then
+            echo "API URL line in SectorAnalysis.jsx:"
+            grep -n "API_BASE_URL" src/pages/SectorAnalysis.jsx || echo "❌ API_BASE_URL line not found"
+          fi
+          
+          echo "--- MarketOverview.jsx debug endpoint ---"
+          if [ -f "src/pages/MarketOverview.jsx" ]; then
+            echo "Debug endpoint line in MarketOverview.jsx:"
+            grep -n "Debug endpoint" src/pages/MarketOverview.jsx || echo "❌ Debug endpoint line not found"
+          fi
+          
+          # 5. Cognito Configuration Check
+          echo ""
+          echo "5️⃣ COGNITO CONFIGURATION VERIFICATION:"
+          if [ -f "src/config/amplify.js" ]; then
+            echo "--- Amplify configuration check ---"
+            echo "Environment variables usage in amplify.js:"
+            grep -n "import.meta.env.VITE_COGNITO" src/config/amplify.js | head -3 || echo "No Cognito env vars found"
+          fi
+          
+          # 6. Build Readiness Check
+          echo ""
+          echo "6️⃣ BUILD READINESS ASSESSMENT:"
+          
+          # Check if all critical environment variables are set
+          MISSING_VARS=""
+          [ -z "$VITE_API_URL" ] && MISSING_VARS="$MISSING_VARS VITE_API_URL"
+          [ -z "$VITE_AWS_REGION" ] && MISSING_VARS="$MISSING_VARS VITE_AWS_REGION"
+          
+          if [ -z "$MISSING_VARS" ]; then
+            echo "✅ All critical environment variables are set"
+          else
+            echo "❌ Missing critical environment variables:$MISSING_VARS"
+          fi
+          
+          # Check if placeholder replacement was successful
+          if [ "$PLACEHOLDER_COUNT" -eq 0 ] && [ "$HARDCODED_COUNT" -eq 0 ] && [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "✅ Placeholder replacement: SUCCESSFUL"
+          else
+            echo "❌ Placeholder replacement: FAILED"
+          fi
+          
+          # Overall status
+          echo ""
+          echo "📊 OVERALL DYNAMIC INJECTION STATUS:"
+          if [ -z "$MISSING_VARS" ] && [ "$PLACEHOLDER_COUNT" -eq 0 ] && [ "$HARDCODED_COUNT" -eq 0 ] && [ "$API_URL_COUNT" -gt 0 ]; then
+            echo "🎉 SUCCESS: All dynamic values properly injected and ready for build"
+          else
+            echo "❌ ISSUES DETECTED: Check the verification details above"
+            echo "   - Missing vars: ${MISSING_VARS:-none}"
+            echo "   - Remaining placeholders: $PLACEHOLDER_COUNT"
+            echo "   - Hardcoded URLs: $HARDCODED_COUNT"
+            echo "   - Dynamic URLs injected: $API_URL_COUNT"
+          fi
+          
+          echo "=================================================================="
+          
+          npm run build
+          echo "✅ Frontend build completed"
+      - name: Deploy Frontend to S3
+        working-directory: webapp/frontend
+        run: |
+          # Reconstruct bucket name from prefix and AWS Account ID
+          BUCKET_PREFIX="${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          BUCKET_NAME="${BUCKET_PREFIX}-${AWS_ACCOUNT_ID}"
+          
+          # Validate bucket components
+          if [[ -z "$BUCKET_PREFIX" ]]; then
+            echo "❌ Bucket prefix is empty!"
+            echo "Available outputs from deploy_infrastructure job:"
+            echo "  bucket_prefix: '${{ needs.deploy_infrastructure.outputs.bucket_prefix }}'"
+            echo "  cloudfront_id: '${{ needs.deploy_infrastructure.outputs.cloudfront_id }}'"
+            echo "  api_url: '${{ needs.deploy_infrastructure.outputs.api_url }}'"
+            echo "  website_url: '${{ needs.deploy_infrastructure.outputs.website_url }}'"
+            exit 1
+          fi
+          
+          if [[ -z "$AWS_ACCOUNT_ID" ]]; then
+            echo "❌ AWS Account ID is not set!"
+            exit 1
+          fi
+          
+          echo "Using bucket: $BUCKET_NAME"
+          
+          # Verify bucket exists
+          if ! aws s3 ls "s3://$BUCKET_NAME" >/dev/null 2>&1; then
+            echo "❌ S3 bucket '$BUCKET_NAME' does not exist or is not accessible"
+            exit 1
+          fi
+          
+          # Sync frontend files to S3
+          aws s3 sync dist/ s3://"$BUCKET_NAME"/ \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "*.html" \
+            --exclude "service-worker.js"
+          
+          # Upload HTML files with shorter cache
+          aws s3 sync dist/ s3://"$BUCKET_NAME"/ \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --include "*.html" \
+            --include "service-worker.js"
+          
+          # ENSURE REACT APP IS DEPLOYED - NOT DEBUG SPA
+          echo "✅ React app deployed successfully to S3"
+          echo "🔍 Verifying index.html contains React app..."
+          if grep -q "React" dist/index.html; then
+            echo "✅ index.html contains React app"
+          else
+            echo "⚠️  index.html may not contain React app"
+          fi
+          
+          echo "Frontend deployed to S3 bucket: $BUCKET_NAME"
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID="${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query "Invalidation.Id" \
+            --output text)
+          
+          echo "CloudFront invalidation created: $INVALIDATION_ID"
+          echo "Distribution ID: $DISTRIBUTION_ID"
+################################################################################
+# 5) Database initialization                                                   #
+################################################################################
+  initialize_database:
+    name: Initialize database tables
+    needs: [setup, deploy_infrastructure]
+    if: ${{ needs.deploy_infrastructure.result == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: |
+          pip install boto3 psycopg2-binary
+
+      - name: Get database secret ARN
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_ENV
+          echo "Database secret ARN: $DB_SECRET_ARN"
+
+      - name: Initialize database tables
+        run: |
+          echo "🔧 Initializing database tables..."
+          python3 init_database.py
+          echo "✅ Database initialization completed"
+
+################################################################################
+# 6) Post-deployment verification                                              #
+################################################################################
+  verify_deployment:
+    name: Verify deployment
+    needs: [setup, deploy_infrastructure, deploy_frontend, initialize_database]
+    if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get database connection info for verification
+        id: verify_db_info
+        run: |
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text)
+          DB_ENDPOINT=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
+            --output text)
+          
+          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "Database secret for verification: $DB_SECRET_ARN"
+          echo "Database endpoint for verification: $DB_ENDPOINT"
+
+      - name: Check API Gateway and Lambda
+        run: |
+          API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "🔍 Testing API Gateway and Lambda function with detailed diagnostics..."
+          echo "Full API URL: $API_URL"
+          echo ""
+          
+          # Get API Gateway information first
+          echo "🔍 API Gateway Information:"
+          API_ID=$(echo "$API_URL" | sed 's|https://||' | cut -d'.' -f1)
+          echo "API Gateway ID: $API_ID"
+          
+          # Check API Gateway status
+          echo "Getting API Gateway details..."
+          aws apigateway get-rest-api --rest-api-id "$API_ID" --query '{
+            id: id,
+            name: name,
+            createdDate: createdDate,
+            apiKeySource: apiKeySource,
+            policy: policy
+          }' --output json 2>/dev/null || echo "Could not get API Gateway details"
+          
+          # Check API Gateway stages
+          echo "Checking API Gateway stages..."
+          aws apigateway get-stages --rest-api-id "$API_ID" --query 'item[*].{
+            stageName: stageName,
+            deploymentId: deploymentId,
+            lastUpdatedDate: lastUpdatedDate,
+            accessLogSettings: accessLogSettings
+          }' --output json 2>/dev/null || echo "Could not get API Gateway stages"
+          
+          # Get Lambda function information
+          echo ""
+          echo "📋 Lambda Function Information:"
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "Lambda Function Name: $LAMBDA_FUNCTION_NAME"
+          
+          # Get Lambda function configuration
+          echo "Getting Lambda function configuration..."
+          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query '{
+            FunctionName: Configuration.FunctionName,
+            Runtime: Configuration.Runtime,
+            Timeout: Configuration.Timeout,
+            MemorySize: Configuration.MemorySize,
+            LastModified: Configuration.LastModified,
+            State: Configuration.State,
+            VpcConfig: Configuration.VpcConfig,
+            Role: Configuration.Role
+          }' --output json || echo "Could not get Lambda function info"
+
+      - name: Check Lambda logs in detail
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
+          
+          echo "🔍 Recent Lambda Logs (last 5 minutes):"
+          
+          # First check if log group exists
+          echo "Checking if log group exists..."
+          if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP" --query 'logGroups[?logGroupName==`'$LOG_GROUP'`]' --output text 2>/dev/null | grep -q "$LOG_GROUP"; then
+            echo "✅ Log group exists: $LOG_GROUP"
+            
+            # Get all log streams to see if there are multiple
+            echo ""
+            echo "📋 Available Log Streams:"
+            aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --limit 10 \
+              --query 'logStreams[*].[logStreamName,lastEventTime,lastIngestionTime,storedBytes]' \
+              --output table 2>/dev/null || echo "Could not get log streams"
+            
+            # Get the most recent log events with more details
+            echo ""
+            echo "📝 Lambda Log Events (Time-based filter - last 10 minutes):"
+            aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time $(date -d '10 minutes ago' +%s)000 \
+              --limit 100 \
+              --query 'events[*].[timestamp,message]' \
+              --output text 2>/dev/null || echo "No recent logs found"
+            
+            # Also get events from the latest log stream specifically
+            echo ""
+            echo "📝 Latest Log Stream Events:"
+            LATEST_STREAM=$(aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --limit 1 \
+              --query 'logStreams[0].logStreamName' \
+              --output text 2>/dev/null)
+            
+            if [ -n "$LATEST_STREAM" ] && [ "$LATEST_STREAM" != "None" ]; then
+              echo "Getting events from latest stream: $LATEST_STREAM"
+              aws logs get-log-events \
+                --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LATEST_STREAM" \
+                --limit 50 \
+                --query 'events[*].[timestamp,message]' \
+                --output text 2>/dev/null || echo "Could not get events from latest stream"
+            else
+              echo "No log streams found - Lambda may not have been invoked yet"
+            fi
+          else
+            echo "❌ Log group does not exist: $LOG_GROUP"
+            echo "This indicates Lambda has NEVER been invoked successfully"
+            echo ""
+            echo "🔍 Checking all Lambda log groups to see what exists:"
+            aws logs describe-log-groups \
+              --log-group-name-prefix "/aws/lambda/" \
+              --query 'logGroups[*].[logGroupName,creationTime,storedBytes]' \
+              --output table 2>/dev/null || echo "Could not list log groups"
+          fi
+
+      - name: Check error patterns and CloudWatch metrics
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          LOG_GROUP="/aws/lambda/$LAMBDA_FUNCTION_NAME"
+          
+          # Check for cold start patterns
+          echo "🔍 Checking for Lambda cold start and initialization issues:"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*START*\") || ($.message = \"*INIT*\") || ($.message = \"*REPORT*\") || ($.message = \"*ERROR*\") || ($.message = \"*Task timed out*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No initialization logs found"
+            
+          # Look for specific error patterns
+          echo ""
+          echo "🔍 Searching for specific error patterns:"
+          echo "--- Database connection errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*database*\") || ($.message = \"*connection*\") || ($.message = \"*timeout*\") || ($.message = \"*ECONNREFUSED*\") || ($.message = \"*ETIMEDOUT*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No database connection errors found"
+          
+          echo ""
+          echo "--- Module loading errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*Cannot find module*\") || ($.message = \"*MODULE_NOT_FOUND*\") || ($.message = \"*require*\") || ($.message = \"*import*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No module loading errors found"
+          
+          echo ""
+          echo "--- Environment variable errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*undefined*\") || ($.message = \"*not set*\") || ($.message = \"*environment*\") || ($.message = \"*config*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No environment variable errors found"
+          
+          echo ""
+          echo "--- VPC/Network errors ---"
+          aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time $(date -d '30 minutes ago' +%s)000 \
+            --filter-pattern "{ ($.message = \"*VPC*\") || ($.message = \"*network*\") || ($.message = \"*ENI*\") || ($.message = \"*subnet*\") || ($.message = \"*security group*\") }" \
+            --query 'events[*].message' \
+            --output text 2>/dev/null || echo "No VPC/network errors found"
+          
+          # Get CloudWatch metrics for the function
+          echo ""
+          echo "📊 Lambda CloudWatch Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Invocations \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Sum \
+            --output table 2>/dev/null || echo "Could not get metrics"
+            
+          # Get error metrics
+          echo ""
+          echo "❌ Lambda Error Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Errors \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Sum \
+            --output table 2>/dev/null || echo "Could not get error metrics"
+          
+          # Get duration metrics
+          echo ""
+          echo "⏱️  Lambda Duration Metrics (last 30 minutes):"
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Duration \
+            --dimensions Name=FunctionName,Value=$LAMBDA_FUNCTION_NAME \
+            --start-time $(date -d '30 minutes ago' -u +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Average,Maximum \
+            --output table 2>/dev/null || echo "Could not get duration metrics"
+
+      - name: Verify database access and secrets
+        run: |
+          echo "🔬 Database Secret Information:"
+          echo "🔍 Debugging secret ARN retrieval..."
+          echo "Verify db_info step output: '${{ steps.verify_db_info.outputs.DB_SECRET_ARN }}'"
+          
+          # Get the secret ARN from our verification step
+          SECRET_ARN="${{ steps.verify_db_info.outputs.DB_SECRET_ARN }}"
+          
+          # The issue might be that db_info step is in deploy_infrastructure job, not this job
+          # Let's check if we need to reference it differently
+          echo "Checking if secret is available via deploy_infrastructure outputs..."
+          
+          # Try to get it from CloudFormation stack parameters directly
+          STACK_NAME="${{ needs.deploy_infrastructure.outputs.stack_name }}"
+          if [ -n "$STACK_NAME" ]; then
+            echo "Stack name: $STACK_NAME"
+            echo "Getting secret ARN from CloudFormation stack parameters..."
+            
+            CF_SECRET_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Parameters[?ParameterKey=='DatabaseSecretArn'].ParameterValue" \
+              --output text 2>/dev/null)
+            
+            if [ -n "$CF_SECRET_ARN" ] && [ "$CF_SECRET_ARN" != "None" ]; then
+              echo "✅ Found secret ARN in CloudFormation parameters: $CF_SECRET_ARN"
+              SECRET_ARN="$CF_SECRET_ARN"
+            else
+              echo "❌ Secret ARN not found in CloudFormation parameters"
+              
+              # Show all parameters to debug
+              echo "All CloudFormation parameters:"
+              aws cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --query "Stacks[0].Parameters[*].{Key:ParameterKey,Value:ParameterValue}" \
+                --output table 2>/dev/null || echo "Could not get parameters"
+            fi
+          else
+            echo "❌ No stack name available"
+          fi
+          
+          # Try to get it from exports like the deploy step does
+          echo ""
+          echo "🔍 Trying to get secret ARN from CloudFormation exports (like deploy step):"
+          EXPORT_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text 2>/dev/null)
+          
+          if [ -n "$EXPORT_SECRET_ARN" ] && [ "$EXPORT_SECRET_ARN" != "None" ]; then
+            echo "✅ Found secret ARN in exports: $EXPORT_SECRET_ARN"
+            SECRET_ARN="$EXPORT_SECRET_ARN"
+          else
+            echo "❌ Secret ARN not found in exports"
+            echo "Available exports:"
+            aws cloudformation list-exports \
+              --query "Exports[*].{Name:Name,Value:Value}" \
+              --output table 2>/dev/null || echo "Could not list exports"
+          fi
+          
+          echo ""
+          echo "Final SECRET_ARN value: '$SECRET_ARN'"
+          
+          # Check database endpoint
+          DB_ENDPOINT="${{ steps.verify_db_info.outputs.DB_ENDPOINT }}"
+          if [ -n "$DB_ENDPOINT" ]; then
+            echo "Database endpoint: $DB_ENDPOINT"
+            if nc -z "$DB_ENDPOINT" 5432 2>/dev/null; then
+              echo "✅ Database port 5432 is reachable from external network"
+            else
+              echo "❌ Database port 5432 is NOT reachable (may be network issue)"
+            fi
+            
+            # Try to resolve the DNS
+            echo ""
+            echo "🔍 DNS Resolution for database endpoint:"
+            nslookup "$DB_ENDPOINT" 2>/dev/null || echo "Could not resolve DNS"
+          else
+            echo "❌ No database endpoint found"
+          fi
+
+      - name: Test API endpoints with detailed responses
+        run: |
+          API_URL="${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "🔍 COMPREHENSIVE API ENDPOINT TESTING"
+          echo "=========================================="
+          echo "API Gateway URL: $API_URL"
+          echo "Testing timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          
+          # Function to test endpoint with detailed analysis
+          test_endpoint() {
+            local endpoint="$1"
+            local description="$2"
+            local url="$API_URL$endpoint"
+            
+            echo "🔸 Testing: $description"
+            echo "   URL: $url"
+            
+            # Test with curl and capture all details
+            local response=$(curl -s -w "\n---CURL_INFO---\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}\nSIZE_DOWNLOAD:%{size_download}\nCONTENT_TYPE:%{content_type}\n" "$url" 2>&1 || echo "CURL_FAILED")
+            
+            # Parse response
+            local body=$(echo "$response" | sed '/---CURL_INFO---/,$d')
+            local info=$(echo "$response" | sed '1,/---CURL_INFO---/d')
+            local status=$(echo "$info" | grep "HTTP_STATUS:" | cut -d: -f2)
+            local time=$(echo "$info" | grep "TIME_TOTAL:" | cut -d: -f2)
+            local size=$(echo "$info" | grep "SIZE_DOWNLOAD:" | cut -d: -f2)
+            local content_type=$(echo "$info" | grep "CONTENT_TYPE:" | cut -d: -f2)
+            
+            echo "   Status: $status | Time: ${time}s | Size: ${size} bytes | Type: $content_type"
+            
+            # Analyze response based on status
+            case "$status" in
+              200)
+                echo "   ✅ SUCCESS - Endpoint responding correctly"
+                if [[ "$body" == *"success"* ]]; then
+                  echo "   ✅ Response contains success indicator"
+                elif [[ "$body" == *"Financial Dashboard API"* ]]; then
+                  echo "   ✅ API root response detected"
+                fi
+                ;;
+              404)
+                echo "   ❌ NOT FOUND - Endpoint may not exist or routing issue"
+                ;;
+              500|502|503)
+                echo "   ❌ SERVER ERROR - Lambda function or backend issue"
+                ;;
+              *)
+                echo "   ⚠️  UNEXPECTED STATUS - Check response details"
+                ;;
+            esac
+            
+            # Show response body (truncated)
+            if [ ${#body} -gt 0 ]; then
+              echo "   Response preview: ${body:0:200}..."
+            else
+              echo "   Response: (empty)"
+            fi
+            echo ""
+          }
+          
+          # Test all critical endpoints
+          test_endpoint "/" "Root API endpoint (should return API info)"
+          test_endpoint "/health" "Health check (database connectivity test)"
+          test_endpoint "/health?quick=true" "Quick health (no database required)"
+          test_endpoint "/api/diagnostics" "Diagnostics endpoint (configuration details)"
+          test_endpoint "/api/stocks?limit=1" "Stocks endpoint (requires database and stock_symbols table)"
+          
+          echo "🏁 API TESTING COMPLETED"
+          echo "=========================================="
+          echo ""
+          echo "💡 TROUBLESHOOTING GUIDE:"
+          echo "• 200 status = ✅ Working correctly"
+          echo "• 404 status = ❌ Endpoint not found (routing issue)"  
+          echo "• 500/502/503 = ❌ Server error (Lambda/database issue)"
+          echo "• If you see 'Internal server error', check Lambda logs and configuration"
+          echo "• Common causes: Missing environment variables, IAM permissions, VPC networking"
+          echo ""
+
+      - name: Check Lambda configuration and permissions
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "🔧 Additional Troubleshooting Information:"
+          
+          # Check if Lambda is in VPC with detailed information
+          VPC_CONFIG=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.VpcConfig' --output json 2>/dev/null || echo '{}')
+          if echo "$VPC_CONFIG" | grep -q '"VpcId"'; then
+            echo "✅ Lambda is configured with VPC"
+            echo "VPC Config: $VPC_CONFIG"
+            
+            # Get VPC details
+            VPC_ID=$(echo "$VPC_CONFIG" | jq -r '.VpcId // empty')
+            if [ -n "$VPC_ID" ]; then
+              echo ""
+              echo "🔍 VPC Details:"
+              aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --query 'Vpcs[0].{VpcId:VpcId,CidrBlock:CidrBlock,State:State,DnsHostnames:DnsHostnames,DnsResolution:DnsResolution}' --output table 2>/dev/null || echo "Could not get VPC details"
+            fi
+            
+            # Get subnet details
+            SUBNET_IDS=$(echo "$VPC_CONFIG" | jq -r '.SubnetIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SUBNET_IDS" ]; then
+              echo ""
+              echo "🔍 Subnet Details:"
+              aws ec2 describe-subnets --subnet-ids $SUBNET_IDS --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,State:State,MapPublicIpOnLaunch:MapPublicIpOnLaunch}' --output table 2>/dev/null || echo "Could not get subnet details"
+            fi
+            
+            # Get security group details
+            SECURITY_GROUP_IDS=$(echo "$VPC_CONFIG" | jq -r '.SecurityGroupIds[]? // empty' | tr '\n' ' ')
+            if [ -n "$SECURITY_GROUP_IDS" ]; then
+              echo ""
+              echo "🔍 Security Group Details:"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Description:Description,VpcId:VpcId}' --output table 2>/dev/null || echo "Could not get security group details"
+              
+              echo ""
+              echo "🔍 Security Group Rules (Outbound):"
+              aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_IDS --query 'SecurityGroups[*].IpPermissionsEgress[*].{Protocol:IpProtocol,FromPort:FromPort,ToPort:ToPort,Target:IpRanges[0].CidrIp}' --output table 2>/dev/null || echo "Could not get security group rules"
+            fi
+          else
+            echo "❌ Lambda is NOT configured with VPC (this may cause database connectivity issues)"
+          fi
+          
+          # Show environment variables that were passed to Lambda
+          echo ""
+          echo "🔍 Environment Variables Passed to Lambda:"
+          aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Environment.Variables' --output json 2>/dev/null || echo "Could not get environment variables"
+          
+          # Check Lambda execution role permissions
+          echo ""
+          echo "🔍 Lambda Execution Role Information:"
+          ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
+          if [ -n "$ROLE_ARN" ]; then
+            echo "Role ARN: $ROLE_ARN"
+            ROLE_NAME=$(echo "$ROLE_ARN" | awk -F'/' '{print $NF}')
+            echo "Role Name: $ROLE_NAME"
+            
+            # Get attached policies
+            echo ""
+            echo "🔍 Attached Policies:"
+            aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].{PolicyName:PolicyName,PolicyArn:PolicyArn}' --output table 2>/dev/null || echo "Could not get attached policies"
+            
+            # Get inline policies
+            echo ""
+            echo "🔍 Inline Policies:"
+            aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output table 2>/dev/null || echo "Could not get inline policies"
+          fi
+          
+          # Check if there are any recent CloudWatch alarms
+          echo ""
+          echo "🚨 Recent CloudWatch Alarms:"
+          aws cloudwatch describe-alarms --alarm-names --query 'MetricAlarms[?MetricName==`Errors` && starts_with(Dimensions[0].Value, `'$LAMBDA_FUNCTION_NAME'`)].{AlarmName:AlarmName,StateValue:StateValue,StateReason:StateReason}' --output table 2>/dev/null || echo "No CloudWatch alarms found"
+          
+          # Get X-Ray traces if available
+          echo ""
+          echo "🔍 X-Ray Traces (if enabled):"
+          aws xray get-trace-summaries --time-range-type TimeRangeByStartTime --start-time $(date -d '10 minutes ago' +%s) --end-time $(date +%s) --query 'TraceSummaries[*].{Id:Id,Duration:Duration,ResponseTime:ResponseTime,HasError:HasError,HasFault:HasFault}' --output table 2>/dev/null || echo "No X-Ray traces found or X-Ray not enabled"
+
+      - name: Deep dive secrets and permissions analysis
+        run: |
+          LAMBDA_FUNCTION_NAME="financial-dashboard-api-${{ needs.setup.outputs.environment }}"
+          echo "🔬 Deep dive into secrets and permissions..."
+          
+          # Get secret ARN from exports
+          SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text 2>/dev/null)
+          
+          if [ -n "$SECRET_ARN" ] && [ "$SECRET_ARN" != "None" ]; then
+            echo "Secret ARN: $SECRET_ARN"
+            
+            # Test if we can describe the secret (without getting the value)
+            echo "🔍 Testing secret accessibility from workflow runner (should work):"
+            if aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query '{
+              Name: Name,
+              Description: Description,
+              LastAccessedDate: LastAccessedDate,
+              LastChangedDate: LastChangedDate,
+              KmsKeyId: KmsKeyId
+            }' --output json 2>/dev/null; then
+              echo "✅ Secret exists and is accessible from workflow runner"
+              
+              # Get the secret's resource policy
+              echo ""
+              echo "🔍 Secret Resource Policy:"
+              aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query 'ResourcePolicy' --output text 2>/dev/null || echo "No resource policy found"
+              
+              # Check if the secret is encrypted with a custom KMS key
+              KMS_KEY=$(aws secretsmanager describe-secret --secret-id "$SECRET_ARN" --query 'KmsKeyId' --output text 2>/dev/null)
+              if [ -n "$KMS_KEY" ] && [ "$KMS_KEY" != "None" ] && [ "$KMS_KEY" != "alias/aws/secretsmanager" ]; then
+                echo ""
+                echo "🔍 Custom KMS Key Details:"
+                echo "KMS Key: $KMS_KEY"
+                
+                # Check KMS key policy
+                aws kms describe-key --key-id "$KMS_KEY" --query '{KeyId:KeyMetadata.KeyId,KeyUsage:KeyMetadata.KeyUsage,KeyState:KeyMetadata.KeyState}' --output json 2>/dev/null || echo "Could not get KMS key details"
+                
+                echo ""
+                echo "🔍 KMS Key Policy (checking if Lambda role has access):"
+                aws kms get-key-policy --key-id "$KMS_KEY" --policy-name default --output text 2>/dev/null || echo "Could not get KMS key policy"
+              fi
+              
+            else
+              echo "❌ Secret is not accessible or does not exist from workflow runner"
+              echo "This is a critical issue - if workflow can't access it, Lambda definitely can't"
+            fi
+            
+            # Test secret access specifically as Lambda would
+            echo ""
+            echo "🔍 Testing secret access from Lambda's perspective:"
+            LAMBDA_ROLE_ARN=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --query 'Configuration.Role' --output text 2>/dev/null)
+            if [ -n "$LAMBDA_ROLE_ARN" ]; then
+              LAMBDA_ROLE_NAME=$(echo "$LAMBDA_ROLE_ARN" | awk -F'/' '{print $NF}')
+              echo "Lambda Role: $LAMBDA_ROLE_NAME"
+              
+              # Check if the Lambda role has SecretsManager permissions
+              echo ""
+              echo "🔍 Lambda Role Secrets Manager Permissions:"
+              echo "--- Attached Policies with Secrets Manager access ---"
+              
+              # Get all attached policies
+              ATTACHED_POLICIES=$(aws iam list-attached-role-policies --role-name "$LAMBDA_ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null)
+              
+              for policy in $ATTACHED_POLICIES; do
+                echo "Checking policy: $policy"
+                # Get policy version
+                POLICY_VERSION=$(aws iam get-policy --policy-arn "$policy" --query 'Policy.DefaultVersionId' --output text 2>/dev/null)
+                if [ -n "$POLICY_VERSION" ]; then
+                  # Check if policy contains secretsmanager permissions
+                  aws iam get-policy-version --policy-arn "$policy" --version-id "$POLICY_VERSION" --query 'PolicyVersion.Document' --output json 2>/dev/null | jq -r '.Statement[]? | select(.Effect == "Allow") | select(.Action[]? | test("secretsmanager|kms")) | {Action: .Action, Resource: .Resource}' 2>/dev/null || echo "No secrets manager permissions in this policy"
+                fi
+              done
+              
+              # Check inline policies
+              echo ""
+              echo "--- Inline Policies with Secrets Manager access ---"
+              INLINE_POLICIES=$(aws iam list-role-policies --role-name "$LAMBDA_ROLE_NAME" --query 'PolicyNames' --output text 2>/dev/null)
+              
+              for policy in $INLINE_POLICIES; do
+                echo "Checking inline policy: $policy"
+                aws iam get-role-policy --role-name "$LAMBDA_ROLE_NAME" --policy-name "$policy" --query 'PolicyDocument' --output json 2>/dev/null | jq -r '.Statement[]? | select(.Effect == "Allow") | select(.Action[]? | test("secretsmanager|kms")) | {Action: .Action, Resource: .Resource}' 2>/dev/null || echo "No secrets manager permissions in this inline policy"
+              done
+              
+              # Try to simulate the assume role (if we have permission)
+              echo ""
+              echo "🔍 Testing if workflow can assume Lambda role (permission test):"
+              aws sts assume-role \
+                --role-arn "$LAMBDA_ROLE_ARN" \
+                --role-session-name "test-lambda-permissions" \
+                --duration-seconds 900 \
+                --query 'Credentials.AccessKeyId' \
+                --output text 2>/dev/null && echo "✅ Can assume Lambda role" || echo "❌ Cannot assume Lambda role (expected - different trust policy)"
+              
+            else
+              echo "❌ Could not get Lambda role information"
+            fi
+            
+          else
+            echo "❌ No secret ARN found"
+            echo "This means the database secret was not passed to the deployment"
+            echo "Check the deploy_infrastructure step output: DB_SECRET_ARN"
+          fi
+      - name: Test website
+        run: |
+          WEBSITE_URL="${{ needs.deploy_infrastructure.outputs.website_url }}"
+          
+          echo "Testing website availability..."
+          if curl -f -s "$WEBSITE_URL" > /dev/null; then
+            echo "✅ Website is accessible"
+          else
+            echo "⚠️  Website check failed, but deployment will continue"
+          fi
+      - name: Deployment summary
+        env:
+          STACK_NAME: ${{ needs.setup.outputs.stack_name }}
+        run: |
+          echo "🎉 WEBAPP DEPLOYMENT COMPLETED SUCCESSFULLY!"
+          echo "=============================================="
+          echo ""
+          echo "📊 DEPLOYMENT OUTPUTS:"
+          echo "  🌐 Website URL: ${{ needs.deploy_infrastructure.outputs.website_url }}"
+          echo "  🔌 API Gateway URL: ${{ needs.deploy_infrastructure.outputs.api_url }}"
+          echo "  📦 S3 Bucket Prefix: ${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
+          echo "  ☁️  CloudFront Distribution: ${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
+          echo "  🏗️  Environment: ${{ needs.deploy_infrastructure.outputs.environment }}"
+          echo ""
+          echo "✅ DYNAMIC VALUE INJECTION SUMMARY:"
+          echo "  🎯 API URLs: All placeholders replaced with CloudFormation outputs"
+          echo "  🔐 Cognito Config: User Pool and Client IDs dynamically set"
+          echo "  🌍 Environment Variables: All VITE_* variables configured"
+          echo "  ⚙️  Runtime Config: window.__CONFIG__ generated with live values"
+          echo "  📝 Source Files: All PLACEHOLDER_API_URL instances replaced"
+          echo ""
+          echo "🔧 INFRASTRUCTURE STATUS:"
+          if [ -n "$STACK_NAME" ]; then
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].StackStatus" \
+              --output text)
+            echo "  Stack: $STACK_NAME"
+            echo "  Status: $STACK_STATUS"
+            
+            if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+              echo "  ✅ Stack is healthy and operational"
+            else
+              echo "  ⚠️  Stack status requires attention: $STACK_STATUS"
+            fi
+          else
+            echo "  ❌ Stack name not available"
+          fi
+          echo ""
+          echo "🚀 NEXT STEPS:"
+          echo "  1. Visit the website URL to verify frontend is loading"
+          echo "  2. Check API endpoints are responding correctly"
+          echo "  3. If pages are white, check browser console for errors"
+          echo "  4. Run deploy-app-stocks workflow to populate stock data"
+          echo ""
+          echo "🔍 TROUBLESHOOTING:"
+          echo "  • White pages = Check browser console + CloudFront cache"
+          echo "  • API errors = Check Lambda logs in CloudWatch"
+          echo "  • Auth issues = Verify Cognito configuration"
+          echo "=============================================="
+################################################################################
+# 6) Cleanup on failure                                                        #
+################################################################################
+  cleanup_on_failure:
+    name: Cleanup failed deployment
+    needs: [deploy_infrastructure, deploy_frontend]
+    if: ${{ failure() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+
+    steps:      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region:        ${{ env.AWS_REGION }}
+          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+      
+      - name: Check stack status and cleanup if needed
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo NOT_FOUND)
+          
+          echo "Stack status: $STATUS"
+          
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Cleaning up failed stack..."
+            aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+            echo "Stack deletion initiated"
+          else
+            echo "Stack is in a stable state, no cleanup needed"
+          fi

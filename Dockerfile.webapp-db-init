@@ -1,0 +1,23 @@
+FROM node:18-alpine
+
+# Install system dependencies for PostgreSQL
+RUN apk add --no-cache postgresql-client
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and install dependencies
+COPY package.webapp-db-init.json ./package.json
+RUN npm install --only=production && npm cache clean --force
+
+# Copy initialization script
+COPY webapp-db-init.js ./
+
+# Ensure proper permissions and verify script exists
+RUN ls -la webapp-db-init.js && chmod +x webapp-db-init.js
+
+# Verify dependencies are installed
+RUN node -e "console.log('Testing dependencies:'); const { Client } = require('pg'); const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager'); console.log('✅ All dependencies loaded successfully');"
+
+# Run the initialization script
+CMD ["node", "webapp-db-init.js"]

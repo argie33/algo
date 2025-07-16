@@ -1,0 +1,664 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Ultra-Low Latency HFT System Infrastructure - AWS Optimized'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+    Description: Environment name
+
+  InstanceType:
+    Type: String
+    Default: c6in.8xlarge
+    AllowedValues: [c6in.4xlarge, c6in.8xlarge, c6in.16xlarge, c6in.24xlarge]
+    Description: EC2 instance type for trading servers
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH access
+
+  AlertEmail:
+    Type: String
+    Description: Email for critical alerts
+    Default: alerts@yourcompany.com
+
+  MarketDataVendor:
+    Type: String
+    Default: reuters
+    AllowedValues: [reuters, bloomberg, nasdaq]
+    Description: Primary market data vendor
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, production]
+  IsStaging: !Equals [!Ref Environment, staging]
+
+Resources:
+  # =====================================
+  # VPC and Networking (Minimal)
+  # =====================================
+  
+  # Only create VPC for components that absolutely require it
+  HFTMinimalVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: dedicated  # Dedicated tenancy for performance
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-VPC-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Internet Gateway for direct connectivity
+  HFTInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-IGW-${Environment}'
+
+  HFTVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref HFTMinimalVPC
+      InternetGatewayId: !Ref HFTInternetGateway
+
+  # Minimal subnets only for services that require VPC
+  DatabaseSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref HFTMinimalVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-DB-Subnet-1-${Environment}'
+
+  DatabaseSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref HFTMinimalVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-DB-Subnet-2-${Environment}'
+
+  # Route table for database subnets
+  DatabaseRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref HFTMinimalVPC
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-DB-RT-${Environment}'
+
+  DatabaseRoute:
+    Type: AWS::EC2::Route
+    DependsOn: HFTVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref DatabaseRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref HFTInternetGateway
+
+  DatabaseSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnet1
+      RouteTableId: !Ref DatabaseRouteTable
+
+  DatabaseSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref DatabaseSubnet2
+      RouteTableId: !Ref DatabaseRouteTable
+
+  # =====================================
+  # Placement Groups for Low Latency
+  # =====================================
+  
+  TradingClusterPlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      GroupName: !Sub 'HFT-Trading-Cluster-${Environment}'
+      Strategy: cluster
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Trading-PG-${Environment}'
+
+  MarketDataPlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      GroupName: !Sub 'HFT-MarketData-Cluster-${Environment}'
+      Strategy: cluster
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-MarketData-PG-${Environment}'
+
+  # =====================================
+  # Security Groups
+  # =====================================
+
+  # Security group for trading servers (EC2-Classic style, minimal restrictions)
+  TradingServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for HFT trading servers
+      VpcId: !Ref HFTMinimalVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/8  # Internal only
+          Description: SSH access
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8090
+          CidrIp: 10.0.0.0/8
+          Description: Internal APIs
+        - IpProtocol: udp
+          FromPort: 10000
+          ToPort: 20000
+          CidrIp: 0.0.0.0/0  # Market data feeds
+          Description: Market data multicast
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0  # Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Trading-SG-${Environment}'
+
+  # Database security group
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for HFT databases
+      VpcId: !Ref HFTMinimalVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref TradingServerSecurityGroup
+          Description: PostgreSQL from trading servers
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref TradingServerSecurityGroup
+          Description: Redis from trading servers
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Database-SG-${Environment}'
+
+  # =====================================
+  # IAM Roles and Policies
+  # =====================================
+
+  # Trading server IAM role
+  TradingServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'HFT-Trading-Role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: HFTTradingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB access for order tracking
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt OrdersTable.Arn
+                  - !GetAtt PositionsTable.Arn
+                  - !GetAtt RiskEventsTable.Arn
+                  - !Sub '${OrdersTable.Arn}/index/*'
+                  - !Sub '${PositionsTable.Arn}/index/*'
+              # SNS for alerts
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref AlertsTopic
+              # CloudWatch metrics
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              # Kinesis for market data
+              - Effect: Allow
+                Action:
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListStreams
+                Resource: !GetAtt MarketDataStream.Arn
+              # S3 for historical data
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub '${MarketDataBucket}/*'
+                  - !Sub '${BackupBucket}/*'
+
+  TradingServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref TradingServerRole
+
+  # =====================================
+  # DynamoDB Tables
+  # =====================================
+
+  # Orders table with global secondary indexes
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'hft-orders-${Environment}'
+      BillingMode: ON_DEMAND  # Auto-scaling for variable workloads
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: symbol_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+        - AttributeName: strategy_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: symbol-timestamp-index
+          KeySchema:
+            - AttributeName: symbol_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: strategy-timestamp-index
+          KeySchema:
+            - AttributeName: strategy_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Orders-${Environment}'
+
+  # Positions table
+  PositionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'hft-positions-${Environment}'
+      BillingMode: ON_DEMAND
+      AttributeDefinitions:
+        - AttributeName: symbol_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: symbol_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Positions-${Environment}'
+
+  # Risk events table
+  RiskEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'hft-risk-events-${Environment}'
+      BillingMode: ON_DEMAND
+      AttributeDefinitions:
+        - AttributeName: event_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: event_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true  # Auto-delete old risk events
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Risk-Events-${Environment}'
+
+  # =====================================
+  # Kinesis for Real-time Data Streaming
+  # =====================================
+
+  MarketDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub 'hft-market-data-${Environment}'
+      ShardCount: !If [IsProduction, 10, 2]
+      RetentionPeriodHours: 24
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-MarketData-Stream-${Environment}'
+
+  # =====================================
+  # RDS for Operational Data
+  # =====================================
+
+  # Database subnet group
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for HFT operational database
+      SubnetIds:
+        - !Ref DatabaseSubnet1
+        - !Ref DatabaseSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-DB-SubnetGroup-${Environment}'
+
+  # PostgreSQL for operational data
+  OperationalDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: !If [IsProduction, Snapshot, Delete]
+    Properties:
+      DBInstanceIdentifier: !Sub 'hft-operational-${Environment}'
+      DBInstanceClass: !If [IsProduction, db.r6i.xlarge, db.r6i.large]
+      Engine: postgres
+      EngineVersion: '14.9'
+      AllocatedStorage: !If [IsProduction, 1000, 100]
+      StorageType: io1
+      Iops: !If [IsProduction, 10000, 1000]
+      StorageEncrypted: true
+      DBName: hft_operational
+      MasterUsername: hft_admin
+      ManageMasterUserPassword: true  # AWS managed password
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      MultiAZ: !If [IsProduction, true, false]
+      BackupRetentionPeriod: !If [IsProduction, 30, 7]
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      EnablePerformanceInsights: !If [IsProduction, true, false]
+      PerformanceInsightsRetentionPeriod: !If [IsProduction, 7, 7]
+      DeletionProtection: !If [IsProduction, true, false]
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Operational-DB-${Environment}'
+
+  # =====================================
+  # ElastiCache Redis for High-Speed Cache
+  # =====================================
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for HFT Redis cache
+      SubnetIds:
+        - !Ref DatabaseSubnet1
+        - !Ref DatabaseSubnet2
+
+  RedisCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub 'hft-redis-${Environment}'
+      Description: High-performance Redis cluster for HFT system
+      NodeType: !If [IsProduction, cache.r6g.xlarge, cache.r6g.large]
+      Port: 6379
+      ParameterGroupName: default.redis7
+      NumCacheClusters: !If [IsProduction, 3, 1]
+      Engine: redis
+      EngineVersion: '7.0'
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      SecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      AutomaticFailoverEnabled: !If [IsProduction, true, false]
+      MultiAZEnabled: !If [IsProduction, true, false]
+      SnapshotRetentionLimit: !If [IsProduction, 7, 1]
+      SnapshotWindow: '03:00-05:00'
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Redis-${Environment}'
+
+  # =====================================
+  # S3 Buckets for Data Storage
+  # =====================================
+
+  MarketDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'hft-market-data-${Environment}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: !If [IsProduction, Enabled, Suspended]
+      LifecycleConfiguration:
+        Rules:
+          - Id: ArchiveOldData
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+              - TransitionInDays: 365
+                StorageClass: DEEP_ARCHIVE
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-MarketData-${Environment}'
+
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'hft-backups-${Environment}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldBackups
+            Status: Enabled
+            ExpirationInDays: !If [IsProduction, 2555, 90]  # 7 years for production
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub 'HFT-Backups-${Environment}'
+
+  # =====================================
+  # SNS for Alerts
+  # =====================================
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'hft-alerts-${Environment}'
+      DisplayName: HFT System Alerts
+      KmsMasterKeyId: alias/aws/sns
+
+  AlertsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref AlertsTopic
+      Endpoint: !Ref AlertEmail
+
+  # =====================================
+  # CloudWatch Dashboard
+  # =====================================
+
+  HFTDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'HFT-System-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["HFT/Trading", "SignalsGenerated"],
+                  [".", "OrdersSent"],
+                  [".", "OrdersFilled"],
+                  [".", "RealizedPnL"]
+                ],
+                "period": 60,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Trading Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["HFT/Risk", "RiskChecksPerformed"],
+                  [".", "RiskChecksFailed"],
+                  [".", "GrossExposure"],
+                  [".", "NetExposure"]
+                ],
+                "period": 60,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Risk Metrics"
+              }
+            }
+          ]
+        }
+
+  # =====================================
+  # CloudWatch Alarms
+  # =====================================
+
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'HFT-High-Latency-${Environment}'
+      AlarmDescription: Alert when trading latency exceeds threshold
+      MetricName: AverageLatency
+      Namespace: HFT/Trading
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 100000  # 100 microseconds
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertsTopic
+      TreatMissingData: notBreaching
+
+  RiskLimitAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'HFT-Risk-Limit-Breach-${Environment}'
+      AlarmDescription: Alert when risk limits are breached
+      MetricName: RiskChecksFailed
+      Namespace: HFT/Risk
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertsTopic
+
+Outputs:
+  VPCId:
+    Description: VPC ID for HFT system
+    Value: !Ref HFTMinimalVPC
+    Export:
+      Name: !Sub '${Environment}-HFT-VPC-ID'
+
+  TradingPlacementGroup:
+    Description: Placement group for trading servers
+    Value: !Ref TradingClusterPlacementGroup
+    Export:
+      Name: !Sub '${Environment}-HFT-Trading-PG'
+
+  DatabaseEndpoint:
+    Description: RDS database endpoint
+    Value: !GetAtt OperationalDatabase.Endpoint.Address
+    Export:
+      Name: !Sub '${Environment}-HFT-DB-Endpoint'
+
+  RedisEndpoint:
+    Description: Redis cluster endpoint
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+    Export:
+      Name: !Sub '${Environment}-HFT-Redis-Endpoint'
+
+  MarketDataStreamName:
+    Description: Kinesis stream for market data
+    Value: !Ref MarketDataStream
+    Export:
+      Name: !Sub '${Environment}-HFT-MarketData-Stream'
+
+  MarketDataBucketName:
+    Description: S3 bucket for market data storage
+    Value: !Ref MarketDataBucket
+    Export:
+      Name: !Sub '${Environment}-HFT-MarketData-Bucket'
+
+  AlertsTopicArn:
+    Description: SNS topic for alerts
+    Value: !Ref AlertsTopic
+    Export:
+      Name: !Sub '${Environment}-HFT-Alerts-Topic'
