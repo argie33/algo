@@ -9,11 +9,19 @@ try {
   alpacaService = require('../utils/alpacaService');
   const validation = require('../middleware/validation');
   validationMiddleware = validation.createValidationMiddleware;
-} catch (error) {
-  console.warn('Some websocket dependencies not available:', error.message);
+} catch (loadError) {
+  console.warn('Some websocket dependencies not available:', loadError.message);
 }
 
 const router = express.Router();
+
+// Simple error response helper
+const createErrorResponse = (message, details = {}) => ({
+  success: false,
+  error: message,
+  ...details,
+  timestamp: new Date().toISOString()
+});
 
 // Basic health endpoint for websocket service
 router.get('/health', (req, res) => {
@@ -485,27 +493,25 @@ router.get('/stream/:symbols', async (req, res) => {
 
     res.json(success(responseData));
 
-  } catch (error) {
+  } catch (streamError) {
     const errorDuration = Date.now() - requestStart;
     console.error(`❌ [${requestId}] Live data stream FAILED after ${errorDuration}ms:`, {
-      error: error.message,
-      errorStack: error.stack,
-      errorCode: error.code,
+      error: streamError.message,
+      errorStack: streamError.stack,
+      errorCode: streamError.code,
       symbols: req.params.symbols,
       impact: 'Live data stream request failed completely',
       recommendation: 'Check authentication, API credentials, and Alpaca service status'
     });
     
-    res.status(500).json(error(
+    res.status(500).json(createErrorResponse(
       'Failed to stream market data',
-      500,
       {
         requestId,
         error_duration_ms: errorDuration,
-        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-        timestamp: new Date().toISOString()
+        details: process.env.NODE_ENV === 'development' ? streamError.message : 'Internal server error'
       }
-    ).response);
+    ));
   }
 });
 
@@ -517,7 +523,7 @@ router.get('/trades/:symbols', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
+      return res.status(401).json(createErrorResponse('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -537,7 +543,7 @@ router.get('/trades/:symbols', async (req, res) => {
     // Get user's Alpaca credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(403).json(((msg, details) => error(msg, 500, details).response)('No Alpaca API key configured'));
+      return res.status(403).json(createErrorResponse('No Alpaca API key configured'));
     }
 
     // Initialize Alpaca service
@@ -568,7 +574,7 @@ router.get('/trades/:symbols', async (req, res) => {
 
   } catch (error) {
     console.error('Trades endpoint error:', error);
-    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get trade data'));
+    res.status(500).json(createErrorResponse('Failed to get trade data'));
   }
 });
 
@@ -580,7 +586,7 @@ router.get('/bars/:symbols', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
+      return res.status(401).json(createErrorResponse('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -601,7 +607,7 @@ router.get('/bars/:symbols', async (req, res) => {
     // Get user's Alpaca credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      return res.status(403).json(((msg, details) => error(msg, 500, details).response)('No Alpaca API key configured'));
+      return res.status(403).json(createErrorResponse('No Alpaca API key configured'));
     }
 
     // Initialize Alpaca service
@@ -630,7 +636,7 @@ router.get('/bars/:symbols', async (req, res) => {
 
   } catch (error) {
     console.error('Bars endpoint error:', error);
-    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get bars data'));
+    res.status(500).json(createErrorResponse('Failed to get bars data'));
   }
 });
 
@@ -642,7 +648,7 @@ router.post('/subscribe', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
+      return res.status(401).json(createErrorResponse('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -659,7 +665,7 @@ router.post('/subscribe', async (req, res) => {
     const { symbols, dataTypes } = req.body;
     
     if (!symbols || !Array.isArray(symbols)) {
-      return res.status(400).json(((msg, details) => error(msg, 500, details).response)('Invalid symbols array'));
+      return res.status(400).json(createErrorResponse('Invalid symbols array'));
     }
 
     // Update user subscriptions
@@ -679,7 +685,7 @@ router.post('/subscribe', async (req, res) => {
 
   } catch (error) {
     console.error('Subscribe endpoint error:', error);
-    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to subscribe'));
+    res.status(500).json(createErrorResponse('Failed to subscribe'));
   }
 });
 
@@ -691,7 +697,7 @@ router.get('/subscriptions', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
+      return res.status(401).json(createErrorResponse('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -719,7 +725,7 @@ router.get('/subscriptions', async (req, res) => {
 
   } catch (error) {
     console.error('Subscriptions endpoint error:', error);
-    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to get subscriptions'));
+    res.status(500).json(createErrorResponse('Failed to get subscriptions'));
   }
 });
 
@@ -731,7 +737,7 @@ router.delete('/subscribe', async (req, res) => {
     // Verify authentication
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json(((msg, details) => error(msg, 500, details).response)('No authorization token provided'));
+      return res.status(401).json(createErrorResponse('No authorization token provided'));
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -764,7 +770,7 @@ router.delete('/subscribe', async (req, res) => {
 
   } catch (error) {
     console.error('Unsubscribe endpoint error:', error);
-    res.status(500).json(((msg, details) => error(msg, 500, details).response)('Failed to unsubscribe'));
+    res.status(500).json(createErrorResponse('Failed to unsubscribe'));
   }
 });
 
