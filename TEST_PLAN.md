@@ -33,6 +33,30 @@
   - Multi-environment configuration validation
 - **Success Criteria**: Correct API URLs in all environments, proper Cognito integration, no hardcoded values
 
+### ✅ INFRASTRUCTURE DEBUGGING METHODOLOGY (July 16, 2025)
+
+**INFRA_DEBUG_001: Systematic Database Connection Testing**
+- **Test Coverage**: Step-by-step database connectivity diagnosis and resolution
+- **Test Implementation**:
+  1. **DNS Resolution Test**: Verify hostname resolves to correct IP addresses
+  2. **TCP Connectivity Test**: Test raw socket connection to database port
+  3. **SSL Configuration Matrix**: Test multiple SSL configurations systematically
+  4. **Authentication Validation**: Verify credentials and user permissions
+  5. **Network Configuration Audit**: Compare with working ECS task configurations
+- **Success Criteria**: Database connection established with optimal configuration
+- **Key Learning**: Always match working ECS task network/SSL configurations
+
+**INFRA_DEBUG_002: CloudFormation Output Extraction Testing**
+- **Test Coverage**: Validation of CloudFormation stack output retrieval for frontend configuration
+- **Test Implementation**:
+  - Stack existence validation
+  - Output key validation (UserPoolId, UserPoolClientId, etc.)
+  - Multi-stack output source testing (webapp vs infrastructure stacks)
+  - Environment variable propagation testing
+  - Frontend configuration generation validation
+- **Success Criteria**: Real Cognito values extracted and used (not fallback values)
+- **Key Learning**: Debug by listing all stack outputs to identify missing resources
+
 ### ✅ INFRASTRUCTURE HARDENING TESTING COMPLETE
 
 **HARDENING_001: Mock Data Elimination Testing**
@@ -223,9 +247,21 @@
   - Database operation logging
   - External API call logging
 - **Status**: COMPLETED - StructuredLogger implemented across all Lambda endpoints
-- **Success Criteria**: All operations logged with correlation IDs and comprehensive context
-  - Route availability monitoring
-- **Success Criteria**: Routes automatically exit emergency mode when issues resolve
+
+**DEPLOY_007: Frontend Bundle Optimization Testing**
+- **Test Coverage**: Frontend performance optimization and dependency management
+- **Test Implementation**:
+  - Bundle size analysis and chunking validation
+  - Unused dependency removal testing
+  - Code splitting effectiveness measurement
+  - Browser loading performance testing
+  - Component lazy loading validation
+- **Key Optimizations Applied**:
+  - Removed chart.js, styled-components, @uiw/react-codemirror, lucide-react
+  - Replaced CodeMirror with TextField for code editing
+  - Optimized Vite bundle splitting configuration
+  - Enhanced error boundaries for crash protection
+- **Success Criteria**: Bundle size reduction >500KB, faster initial load times, no broken components
 
 **DEPLOY_006: Database Pool Connection Limits**
 - **Test Coverage**: Connection pool optimization and monitoring
