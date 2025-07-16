@@ -1,5 +1,5 @@
 const express = require('express');
-const responseFormatter = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
 let jwt, apiKeyService, alpacaService, validationMiddleware;
@@ -17,7 +17,7 @@ const router = express.Router();
 
 // Basic health endpoint for websocket service
 router.get('/health', (req, res) => {
-  res.json(responseFormatter.success({
+  res.json(success({
     status: 'operational',
     service: 'websocket',
     timestamp: new Date().toISOString(),
