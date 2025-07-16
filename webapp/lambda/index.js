@@ -147,6 +147,7 @@ const routes = [
   { path: './routes/portfolio', name: 'Portfolio', mount: '/api/portfolio' },
   { path: './routes/market', name: 'Market', mount: '/api/market' },
   { path: './routes/market-data', name: 'Market Data', mount: '/api/market-data' },
+  { path: './routes/data', name: 'Data Management', mount: '/api/data' },
   
   // User & Settings Routes
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
@@ -157,6 +158,7 @@ const routes = [
   { path: './routes/dashboard', name: 'Dashboard', mount: '/api/dashboard' },
   { path: './routes/screener', name: 'Stock Screener', mount: '/api/screener' },
   { path: './routes/watchlist', name: 'Watchlist', mount: '/api/watchlist' },
+  { path: './routes/metrics', name: 'Metrics', mount: '/api/metrics' },
   
   // Advanced Features
   { path: './routes/alerts', name: 'Alerts', mount: '/api/alerts' },
