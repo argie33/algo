@@ -5,6 +5,7 @@ const schemaValidator = require('../utils/schemaValidator');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
+const apiKeyService = require('../utils/apiKeyService');
 
 const router = express.Router();
 
@@ -283,45 +284,20 @@ const require2FA = async (req, res, next) => {
 };
 
 // Use apiKeyService for consistent encryption across the application
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+// NOTE: apiKeyService is already imported at the top of the file
 
-function encryptApiKey(apiKey, userSalt) {
+async function encryptApiKey(apiKey, userSalt, userId, provider) {
   try {
-    if (!apiKeyService.isEnabled) {
-      console.error('❌ CRITICAL: API key service is disabled. Cannot securely encrypt API keys.');
-      throw new Error('API key encryption service is not available. Check API_KEY_ENCRYPTION_SECRET configuration.');
-    }
-
-    // Use the same encryption as apiKeyService (AES-256-GCM)
-    const secretKey = process.env.API_KEY_ENCRYPTION_SECRET;
-    if (!secretKey) {
-      throw new Error('API_KEY_ENCRYPTION_SECRET environment variable is required');
-    }
-    const key = crypto.scryptSync(secretKey, userSalt, 32);
-    const iv = crypto.randomBytes(16);
-    
-    const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
-    cipher.setAAD(Buffer.from(userSalt));
-    
-    let encrypted = cipher.update(apiKey, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag();
-    
-    return {
-      encrypted: encrypted,
-      iv: iv.toString('hex'),
-      authTag: authTag.toString('hex')
-    };
+    return await apiKeyService.encryptApiKey(apiKey, userSalt, userId, provider);
   } catch (error) {
     console.error('❌ CRITICAL: Encryption failed:', error);
     throw new Error('Failed to encrypt API key. Check encryption service configuration.');
   }
 }
 
-async function decryptApiKey(encryptedData, userSalt) {
+async function decryptApiKey(encryptedData, userSalt, userId, provider) {
   try {
-    // Only support proper AES-256-GCM encryption
-    return await apiKeyService.decryptApiKey(encryptedData, userSalt);
+    return await apiKeyService.decryptApiKey(encryptedData, userSalt, userId, provider);
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt API key');
@@ -669,8 +645,8 @@ router.post('/api-keys', async (req, res) => {
     let encryptedApiKey, encryptedApiSecret;
     try {
       const encryptionStart = Date.now();
-      encryptedApiKey = encryptApiKey(apiKey, userSalt);
-      encryptedApiSecret = apiSecret ? encryptApiKey(apiSecret, userSalt) : null;
+      encryptedApiKey = await encryptApiKey(apiKey, userSalt, userId, provider);
+      encryptedApiSecret = apiSecret ? await encryptApiKey(apiSecret, userSalt, userId, provider) : null;
       console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
     } catch (encryptError) {
       console.error(`❌ [${requestId}] Failed to encrypt API credentials:`, encryptError);
@@ -1254,18 +1230,18 @@ router.get('/api-keys/:provider/credentials', async (req, res) => {
 
     const keyData = result.rows[0];
     
-    // Decrypt API credentials
-    const apiKey = decryptApiKey({
+    // Decrypt API credentials using the API key service
+    const apiKey = await apiKeyService.decryptApiKey({
       encrypted: keyData.encrypted_api_key,
       iv: keyData.key_iv,
       authTag: keyData.key_auth_tag
-    }, keyData.user_salt);
+    }, keyData.user_salt, userId, provider);
 
-    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+    const apiSecret = keyData.encrypted_api_secret ? await apiKeyService.decryptApiKey({
       encrypted: keyData.encrypted_api_secret,
       iv: keyData.secret_iv,
       authTag: keyData.secret_auth_tag
-    }, keyData.user_salt) : null;
+    }, keyData.user_salt, userId, provider) : null;
 
     // Update last_used timestamp
     await query(`
