@@ -66,6 +66,9 @@ import RealTimePriceWidget from '../components/RealTimePriceWidget';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 import WelcomeOverlay from '../components/WelcomeOverlay';
 import PersonalizedDashboardHeader from '../components/PersonalizedDashboardHeader';
+import NotificationSystem from '../components/NotificationSystem';
+import DashboardCustomization from '../components/DashboardCustomization';
+import DashboardErrorBoundary from '../components/DashboardErrorBoundary';
 
 // Logo import with fallback 
 let logoSrc = null;
@@ -840,7 +843,7 @@ const Dashboard = () => {
   const shouldShowWelcome = isAuthenticated && !hasSeenWelcome && showWelcome;
 
   return (
-    <>
+    <DashboardErrorBoundary>
       {/* Welcome Overlay */}
       {shouldShowWelcome && (
         <WelcomeOverlay 
@@ -870,6 +873,14 @@ const Dashboard = () => {
           onNotificationClick={() => {
             // Handle notification click
             console.log('Notifications clicked');
+          }}
+        />
+
+        {/* Dashboard Customization */}
+        <DashboardCustomization 
+          onSettingsChange={(settings) => {
+            console.log('Dashboard settings updated:', settings);
+            // Apply settings to dashboard layout
           }}
         />
 
@@ -1601,7 +1612,7 @@ const Dashboard = () => {
         </Typography>
       </Box>
       </Container>
-    </>
+    </DashboardErrorBoundary>
   );
 };
 

@@ -4,9 +4,10 @@ import {
   Card, CardContent, Grow, Fade, Button, Stack
 } from '@mui/material';
 import {
-  Notifications, TrendingUp, Psychology, Security, Insights,
+  TrendingUp, Psychology, Security, Insights,
   Timeline, AutoGraph, Speed, Bolt, Star, LocalFireDepartment
 } from '@mui/icons-material';
+import NotificationSystem from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
 
 const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
@@ -126,17 +127,15 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Badge badgeContent={3} color="error">
-                  <IconButton 
-                    onClick={onNotificationClick}
-                    sx={{ 
-                      backgroundColor: 'rgba(255,255,255,0.1)',
-                      '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' }
-                    }}
-                  >
-                    <Notifications sx={{ color: 'white' }} />
-                  </IconButton>
-                </Badge>
+                <Box sx={{ 
+                  '& .MuiIconButton-root': { 
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' }
+                  },
+                  '& .MuiSvgIcon-root': { color: 'white' }
+                }}>
+                  <NotificationSystem />
+                </Box>
                 
                 <Avatar 
                   sx={{ 
