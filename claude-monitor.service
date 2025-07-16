@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude Code Token Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=stocks
+WorkingDirectory=/home/stocks/algo
+ExecStart=/home/stocks/algo/claude-monitor-config.sh
+Restart=always
+RestartSec=10
+Environment=PATH=/home/stocks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
