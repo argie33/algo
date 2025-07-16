@@ -565,4 +565,4 @@ class CryptoDataLoader:
 
 if __name__ == "__main__":
     loader = CryptoDataLoader()
-    loader.run()
+    loader.run()# Deploy crypto data loader - Wed Jul 16 15:36:24 CDT 2025
