@@ -91,7 +91,8 @@ def get_db_connection():
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
-        database=DB_NAME
+        database=DB_NAME,
+        sslmode="require"
     )
 
 def create_tables():

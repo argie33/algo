@@ -51,6 +51,7 @@ def get_db_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
+        sslmode="require",
         options='-c statement_timeout=60000'  # 60 seconds for scoring calculations
     )
     return conn

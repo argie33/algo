@@ -49,7 +49,8 @@ DB_CONFIG = {
     "port": int(creds.get("port", 5432)),
     "user": creds["username"],
     "password": creds["password"],
-    "dbname": creds["dbname"]
+    "dbname": creds["dbname"],
+    "sslmode": "require"
 }
 
 def get_db_connection():
