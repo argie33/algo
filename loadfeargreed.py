@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Fear & Greed Index loader - market sentiment indicators  
-# Trigger deploy-app-stocks workflow - loadfeargreed update v5.3 - ECR URI ERROR HANDLING
+# Trigger deploy-app-stocks workflow - loadfeargreed update v5.4 - Data population for dashboard
 import sys
 import time
 import logging
