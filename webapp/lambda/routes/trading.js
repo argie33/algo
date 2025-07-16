@@ -1,5 +1,26 @@
 const express = require('express');
 const router = express.Router();
+
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'trading',
+    timestamp: new Date().toISOString(),
+    message: 'Trading service is running'
+  });
+});
+
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Trading API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
 const { query } = require('../utils/database');
 const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 const { authenticateToken } = require('../middleware/auth');

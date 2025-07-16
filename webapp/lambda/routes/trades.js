@@ -1,5 +1,26 @@
 const express = require('express');
 const router = express.Router();
+
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'trades',
+    timestamp: new Date().toISOString(),
+    message: 'Trade History service is running'
+  });
+});
+
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Trade History API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
 const { authenticateToken } = require('../middleware/auth');
 const { query, transaction } = require('../utils/database');
 const TradeAnalyticsService = require('../services/tradeAnalyticsService');

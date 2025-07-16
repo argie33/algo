@@ -4,6 +4,27 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'sectors',
+    timestamp: new Date().toISOString(),
+    message: 'Sectors service is running'
+  });
+});
+
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Sectors API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
+
 // Apply authentication to all sector analysis routes
 router.use(authenticateToken);
 

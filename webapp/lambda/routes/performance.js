@@ -8,6 +8,27 @@ const router = express.Router();
 const { performanceMonitor } = require('../utils/performanceMonitor');
 const { authenticateToken } = require('../middleware/auth');
 
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'performance-analytics',
+    timestamp: new Date().toISOString(),
+    message: 'Performance Analytics service is running'
+  });
+});
+
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Performance Analytics API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
+
 /**
  * Get current performance metrics
  */

@@ -3,6 +3,27 @@ const { query } = require('../utils/database');
 
 const router = express.Router();
 
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'economic-calendar',
+    timestamp: new Date().toISOString(),
+    message: 'Economic Calendar service is running'
+  });
+});
+
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Economic Calendar API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
+
 // Debug endpoint to check calendar table status
 router.get('/debug', async (req, res) => {
   try {

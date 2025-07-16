@@ -2,6 +2,17 @@ const express = require('express');
 
 const router = express.Router();
 
+// Health endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'operational',
+    service: 'commodities',
+    timestamp: new Date().toISOString(),
+    message: 'Commodities service is running'
+  });
+});
+
 // Root commodities endpoint for health checks
 router.get('/', (req, res) => {
   res.json({

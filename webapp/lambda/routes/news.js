@@ -16,6 +16,16 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Basic root endpoint (public)
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'News API - Ready',
+    timestamp: new Date().toISOString(),
+    status: 'operational'
+  });
+});
+
 // Apply authentication to protected routes only
 const authRouter = express.Router();
 authRouter.use(authenticateToken);
