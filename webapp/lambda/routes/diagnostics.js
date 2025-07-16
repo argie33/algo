@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { diagnosticSecretsManager } = require('../debug-secrets-local');
 const { checkCloudFormationStatus } = require('../check-cloudformation-status');
+const { resetAllCircuitBreakers, getCircuitBreakerStatus } = require('../utils/circuitBreakerReset');
 
 /**
  * Infrastructure Diagnostics Routes
@@ -231,6 +232,43 @@ router.get('/all', async (req, res) => {
     } catch (error) {
         console.error('❌ All diagnostics route error:', error);
         res.error('Failed to run all diagnostics', {
+            error: error.message,
+            correlationId: req.correlationId
+        });
+    }
+});
+
+// Circuit breaker management endpoints
+router.get('/circuit-breaker/status', async (req, res) => {
+    try {
+        console.log('🔍 Getting circuit breaker status...');
+        const status = getCircuitBreakerStatus();
+        
+        res.success({
+            message: 'Circuit breaker status retrieved',
+            ...status
+        });
+    } catch (error) {
+        console.error('❌ Circuit breaker status error:', error);
+        res.error('Failed to get circuit breaker status', {
+            error: error.message,
+            correlationId: req.correlationId
+        });
+    }
+});
+
+router.post('/circuit-breaker/reset', async (req, res) => {
+    try {
+        console.log('🔄 Resetting all circuit breakers...');
+        const result = resetAllCircuitBreakers();
+        
+        res.success({
+            message: 'Circuit breakers reset successfully',
+            ...result
+        });
+    } catch (error) {
+        console.error('❌ Circuit breaker reset error:', error);
+        res.error('Failed to reset circuit breakers', {
             error: error.message,
             correlationId: req.correlationId
         });
