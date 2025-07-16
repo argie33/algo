@@ -1,7 +1,7 @@
 #!/usr/bin/env python3  
 # Daily technicals loader - deployment test v13 - trigger workflow with fixed secrets
 # Updated 2025-07-15: Ready for production deployment with optimized technical indicators
-# Deployment trigger: Enhanced technical loading workflow - Database population v3 - Post Lambda database fix
+# Deployment trigger: Enhanced technical loading workflow - Database population v4 - Frontend data phase
 import sys
 import time
 import logging

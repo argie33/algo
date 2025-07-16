@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEPLOY: Lambda emergency mode fix - Force complete deployment NOW
+DEPLOY: Data population phase - Comprehensive sentiment analysis for frontend dashboard
 
 This script loads comprehensive sentiment analysis data including:
 - Analyst sentiment (recommendations, price targets, revisions)

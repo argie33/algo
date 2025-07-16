@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Updated for deployment verification test
-# Updated: 2025-07-16 - All routes working - Earnings history v3 - Post middleware fix
+# Updated: 2025-07-16 - All routes working - Earnings history v4 - Data population phase
 import sys
 import time
 import logging

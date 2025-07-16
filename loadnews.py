@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# DEPLOY: Critical database timeout fix - webapp-db-init.js timeout resolution - Force deployment
+# DEPLOY: Data population phase - News and sentiment data loading for frontend features
 import sys
 import time
 import logging
