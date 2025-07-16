@@ -80,7 +80,7 @@ const UPDATE_INTERVAL = 5000; // 5 seconds
  * Get real-time market data for subscribed symbols with comprehensive authentication logging
  * This endpoint replaces WebSocket functionality with HTTP polling for Lambda compatibility
  */
-router.get('/stream/:symbols', createValidationMiddleware(websocketValidationSchemas.stream), async (req, res) => {
+router.get('/stream/:symbols', async (req, res) => {
   const requestId = require('crypto').randomUUID().split('-')[0];
   const requestStart = Date.now();
   
