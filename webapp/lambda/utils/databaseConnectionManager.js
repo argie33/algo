@@ -28,7 +28,8 @@ class DatabaseConnectionManager {
       console.log('🔍 Loading database configuration...');
       const config = await secretsLoader.getSecret(process.env.DB_SECRET_ARN);
       
-      const dbConfig = JSON.parse(config);
+      // Config is already parsed by secretsLoader - no need to parse again
+      const dbConfig = typeof config === 'string' ? JSON.parse(config) : config;
       
       return {
         host: dbConfig.host || process.env.DB_ENDPOINT,
