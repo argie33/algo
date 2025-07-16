@@ -1,5 +1,6 @@
 // FINANCIAL DASHBOARD API - PRODUCTION READY
-console.log('🚀 FINANCIAL DASHBOARD API STARTING - Full production functionality...');
+// Enhanced SSL configuration for database connectivity - v2.1
+console.log('🚀 FINANCIAL DASHBOARD API STARTING - Full production functionality with enhanced SSL...');
 
 const serverless = require('serverless-http');
 const express = require('express');
