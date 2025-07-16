@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../utils/database');
+// v2.0 - Production ready market routes with SSL fix and cleaned endpoints
 
 const router = express.Router();
 
@@ -94,197 +95,9 @@ router.get('/debug', async (req, res) => {
   }
 });
 
-// Test endpoint with fixed database queries
-router.get('/overview-fixed', async (req, res) => {
-  console.log('Market overview FIXED endpoint called - testing new queries');
-  
-  try {
-    // Test the fixed Fear & Greed query
-    let fearGreedData = null;
-    try {
-      const fearGreedQuery = `
-        SELECT 
-          COALESCE(index_value, fear_greed_value, greed_fear_index, value) as value,
-          COALESCE(index_text, value_text, classification) as value_text,
-          COALESCE(timestamp, date, created_at) as timestamp
-        FROM fear_greed_index 
-        ORDER BY COALESCE(timestamp, date, created_at) DESC 
-        LIMIT 1
-      `;
-      const fearGreedResult = await query(fearGreedQuery);
-      console.log('Fixed Fear & Greed query result:', fearGreedResult.rows);
-      fearGreedData = fearGreedResult.rows[0] || null;
-    } catch (e) {
-      console.error('Fixed Fear & Greed query error:', e.message);
-    }
 
-    // Test the fixed NAAIM query
-    let naaimData = null;
-    try {
-      const naaimQuery = `
-        SELECT 
-          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
-          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
-          COALESCE(bearish, bearish_exposure) as bearish,
-          COALESCE(week_ending, date, timestamp) as week_ending
-        FROM naaim 
-        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
-        LIMIT 1
-      `;
-      const naaimResult = await query(naaimQuery);
-      console.log('Fixed NAAIM query result:', naaimResult.rows);
-      naaimData = naaimResult.rows[0] || null;
-    } catch (e) {
-      console.error('Fixed NAAIM query error:', e.message);
-    }
 
-    // Test the fixed market breadth query
-    let breadthData = null;
-    try {
-      const breadthQuery = `
-        SELECT 
-          COUNT(*) as total_stocks,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
-          AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
-        FROM market_data
-        WHERE date = (SELECT MAX(date) FROM market_data)
-          AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
-      `;
-      const breadthResult = await query(breadthQuery);
-      console.log('Fixed market breadth query result:', breadthResult.rows);
-      breadthData = breadthResult.rows[0] || null;
-    } catch (e) {
-      console.error('Fixed market breadth query error:', e.message);
-    }
 
-    res.json({
-      status: 'success',
-      message: 'Testing fixed database queries',
-      results: {
-        fear_greed: fearGreedData,
-        naaim: naaimData,
-        market_breadth: breadthData
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error in fixed overview test:', error);
-    res.status(500).json({ 
-      error: 'Test failed', 
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Test endpoint for the fixed overview structure
-router.get('/overview-test', async (req, res) => {
-  console.log('Market overview test endpoint called');
-  
-  try {
-    // Return a simplified structure that matches what frontend expects
-    const testData = {
-      sentiment_indicators: {
-        fear_greed: { value: 50, value_text: 'Neutral', timestamp: new Date().toISOString() },
-        naaim: { average: 45.5, week_ending: new Date().toISOString() },
-        aaii: { bullish: 0.35, neutral: 0.30, bearish: 0.35, date: new Date().toISOString() }
-      },
-      market_breadth: {
-        total_stocks: 5000,
-        advancing: 2500,
-        declining: 2200,
-        unchanged: 300,
-        advance_decline_ratio: '1.14',
-        average_change_percent: '0.25'
-      },
-      market_cap: {
-        large_cap: 25000000000000,
-        mid_cap: 5000000000000,
-        small_cap: 2000000000000,
-        total: 32000000000000
-      },
-      economic_indicators: [
-        { name: 'GDP Growth', value: 2.1, unit: '%', timestamp: new Date().toISOString() },
-        { name: 'Unemployment Rate', value: 3.7, unit: '%', timestamp: new Date().toISOString() }
-      ]
-    };
-    
-    res.json({
-      data: testData,
-      timestamp: new Date().toISOString(),
-      status: 'success',
-      message: 'Test data with correct structure'
-    });
-  } catch (error) {
-    console.error('Error in overview test:', error);
-    res.status(500).json({ error: 'Test failed', details: error.message });
-  }
-});
-
-// Simple test endpoint that returns raw data
-router.get('/test', async (req, res) => {
-  // console.log('Market test endpoint called');
-  
-  try {
-    // Test market data table
-    const marketDataQuery = `
-      SELECT 
-        COUNT(*) as total_records,
-        COUNT(DISTINCT symbol) as unique_symbols,
-        MIN(date) as earliest_date,
-        MAX(date) as latest_date
-      FROM market_data
-      LIMIT 1
-    `;
-
-    let marketData = null;
-    try {
-      const marketResult = await query(marketDataQuery);
-      marketData = marketResult.rows[0];
-    } catch (e) {
-      marketData = { error: e.message };
-    }
-
-    // Test economic data table
-    const economicDataQuery = `
-      SELECT 
-        COUNT(*) as total_records,
-        MIN(date) as earliest_date,
-        MAX(date) as latest_date
-      FROM economic_data
-      LIMIT 1
-    `;
-
-    let economicData = null;
-    try {
-      const economicResult = await query(economicDataQuery);
-      economicData = economicResult.rows[0];
-    } catch (e) {
-      economicData = { error: e.message };
-    }
-
-    res.json({
-      market_data: marketData,
-      economic_data: economicData,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error in market test:', error);
-    res.status(500).json({ error: 'Failed to test market data' });
-  }
-});
-
-// Basic ping endpoint
-router.get('/ping', (req, res) => {
-  res.json({
-    status: 'ok',
-    endpoint: 'market',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Comprehensive health check endpoint
 router.get('/health', async (req, res) => {
@@ -492,378 +305,185 @@ router.get('/overview', async (req, res) => {
   console.log('Market overview endpoint called');
   
   try {
-    // Check if database is available
-    let databaseAvailable = true;
-    try {
-      await query('SELECT 1');
-    } catch (dbError) {
-      console.log('Database not available, using mock data:', dbError.message);
-      databaseAvailable = false;
-    }
-
-    // If database is not available, return comprehensive mock data immediately
-    if (!databaseAvailable) {
-      return res.json({
-        success: true,
-        data: {
-          indices: {
-            sp500: { value: 4567.23, change: 0.85, change_percent: 0.019 },
-            nasdaq: { value: 14234.12, change: -0.34, change_percent: -0.002 },
-            dow: { value: 34789.45, change: 1.23, change_percent: 0.004 }
-          },
-          sentiment: {
-            fear_greed: { value: 52, value_text: 'Neutral', timestamp: new Date().toISOString() },
-            vix: { value: 18.45, change: -0.23, timestamp: new Date().toISOString() }
-          },
-          sectors: [
-            { name: 'Technology', change_percent: 1.2 },
-            { name: 'Healthcare', change_percent: 0.8 },
-            { name: 'Finance', change_percent: -0.3 }
-          ],
-          market_status: 'open',
-          timestamp: new Date().toISOString(),
-          note: 'Mock market data - database not available'
-        }
-      });
-    }
-
-    // Simplified and fast response with minimal database queries
+    // Test database connection first
+    await query('SELECT 1');
+    
+    // Initialize response structure
     const marketOverview = {
-      indices: {
-        sp500: { value: 4567.23, change: 0.85, change_percent: 0.019 },
-        nasdaq: { value: 14234.12, change: -0.34, change_percent: -0.002 },
-        dow: { value: 34789.45, change: 1.23, change_percent: 0.004 }
-      },
-      sentiment: {
-        fear_greed: { value: 52, value_text: 'Neutral', timestamp: new Date().toISOString() },
-        vix: { value: 18.45, change: -0.23, timestamp: new Date().toISOString() }
-      },
-      sectors: [
-        { name: 'Technology', change_percent: 1.2 },
-        { name: 'Healthcare', change_percent: 0.8 },
-        { name: 'Finance', change_percent: -0.3 }
-      ],
-      market_breadth: {
-        advancing: 1845,
-        declining: 1234,
-        unchanged: 321,
-        total_stocks: 3400,
-        advance_decline_ratio: 1.50
-      },
-      market_status: 'open',
-      timestamp: new Date().toISOString()
+      indices: {},
+      sentiment: {},
+      sectors: [],
+      market_breadth: {},
+      market_status: 'unknown',
+      timestamp: new Date().toISOString(),
+      data_sources: {
+        indices: 'database',
+        sentiment: 'database',
+        sectors: 'database',
+        market_breadth: 'database'
+      }
     };
 
-    // Try to get real Fear & Greed data quickly (with timeout)
+    // Get real market indices data
     try {
-      const fearGreedResult = await Promise.race([
-        query('SELECT index_value as value, rating as value_text, date FROM fear_greed_index ORDER BY date DESC LIMIT 1'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Fear & Greed timeout')), 2000))
-      ]);
+      const indicesQuery = `
+        SELECT 
+          symbol,
+          COALESCE(price, close, current_price) as current_price,
+          COALESCE(change, price_change) as price_change,
+          COALESCE(change_percent, percent_change) as percent_change
+        FROM market_data 
+        WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM')
+          AND date = (SELECT MAX(date) FROM market_data)
+        ORDER BY symbol
+      `;
+      
+      const indicesResult = await query(indicesQuery);
+      const indicesMap = {};
+      
+      indicesResult.rows.forEach(row => {
+        const key = row.symbol === 'SPY' ? 'sp500' : 
+                   row.symbol === 'QQQ' ? 'nasdaq' : 
+                   row.symbol === 'DIA' ? 'dow' : 
+                   row.symbol === 'IWM' ? 'russell2000' : row.symbol.toLowerCase();
+        
+        indicesMap[key] = {
+          value: parseFloat(row.current_price) || 0,
+          change: parseFloat(row.price_change) || 0,
+          change_percent: parseFloat(row.percent_change) || 0
+        };
+      });
+      
+      marketOverview.indices = indicesMap;
+      
+      if (Object.keys(indicesMap).length === 0) {
+        throw new Error('No indices data found');
+      }
+      
+    } catch (e) {
+      console.error('Indices data error:', e.message);
+      marketOverview.data_sources.indices = 'unavailable';
+      marketOverview.indices = { error: 'Market indices data unavailable' };
+    }
+
+    // Get real Fear & Greed sentiment data
+    try {
+      const fearGreedQuery = `
+        SELECT 
+          COALESCE(index_value, fear_greed_value, value) as value,
+          COALESCE(index_text, value_text, classification, rating) as value_text,
+          COALESCE(timestamp, date, created_at) as date
+        FROM fear_greed_index 
+        ORDER BY COALESCE(timestamp, date, created_at) DESC 
+        LIMIT 1
+      `;
+      
+      const fearGreedResult = await query(fearGreedQuery);
       
       if (fearGreedResult.rows.length > 0) {
         const fg = fearGreedResult.rows[0];
         marketOverview.sentiment.fear_greed = {
-          value: fg.value || 52,
-          value_text: fg.value_text || 'Neutral',
-          timestamp: new Date().toISOString()
+          value: parseInt(fg.value) || 0,
+          value_text: fg.value_text || 'Unknown',
+          timestamp: fg.date || new Date().toISOString()
         };
+      } else {
+        throw new Error('No Fear & Greed data found');
       }
+      
     } catch (e) {
-      console.log('Fear & Greed data error, using fallback:', e.message);
+      console.error('Fear & Greed data error:', e.message);
+      marketOverview.data_sources.sentiment = 'unavailable';
+      marketOverview.sentiment.fear_greed = { error: 'Fear & Greed data unavailable' };
     }
 
-    // Return simplified market overview immediately to avoid timeouts
-    return res.json({
-      success: true,
-      data: marketOverview
-    });
+    // Get real market breadth data
+    try {
+      const breadthQuery = `
+        SELECT 
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN COALESCE(change_percent, percent_change) = 0 THEN 1 END) as unchanged,
+          AVG(COALESCE(change_percent, percent_change)) as avg_change
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data)
+          AND COALESCE(change_percent, percent_change) IS NOT NULL
+      `;
+      
+      const breadthResult = await query(breadthQuery);
+      
+      if (breadthResult.rows.length > 0) {
+        const breadth = breadthResult.rows[0];
+        const advancing = parseInt(breadth.advancing) || 0;
+        const declining = parseInt(breadth.declining) || 0;
+        
+        marketOverview.market_breadth = {
+          total_stocks: parseInt(breadth.total_stocks) || 0,
+          advancing: advancing,
+          declining: declining,
+          unchanged: parseInt(breadth.unchanged) || 0,
+          advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : 'N/A',
+          average_change_percent: breadth.avg_change ? parseFloat(breadth.avg_change).toFixed(2) : '0.00'
+        };
+      } else {
+        throw new Error('No market breadth data found');
+      }
+      
+    } catch (e) {
+      console.error('Market breadth data error:', e.message);
+      marketOverview.data_sources.market_breadth = 'unavailable';
+      marketOverview.market_breadth = { error: 'Market breadth data unavailable' };
+    }
+
+    // Get real sector performance data
+    try {
+      const sectorsQuery = `
+        SELECT 
+          COALESCE(sector, industry) as sector_name,
+          AVG(COALESCE(change_percent, percent_change)) as avg_change
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data)
+          AND COALESCE(sector, industry) IS NOT NULL
+          AND COALESCE(change_percent, percent_change) IS NOT NULL
+        GROUP BY COALESCE(sector, industry)
+        ORDER BY avg_change DESC
+        LIMIT 10
+      `;
+      
+      const sectorsResult = await query(sectorsQuery);
+      
+      if (sectorsResult.rows.length > 0) {
+        marketOverview.sectors = sectorsResult.rows.map(row => ({
+          name: row.sector_name,
+          change_percent: parseFloat(row.avg_change).toFixed(2)
+        }));
+      } else {
+        throw new Error('No sector data found');
+      }
+      
+    } catch (e) {
+      console.error('Sector data error:', e.message);
+      marketOverview.data_sources.sectors = 'unavailable';
+      marketOverview.sectors = [{ error: 'Sector data unavailable' }];
+    }
+
+    // Determine market status based on data availability
+    const dataAvailable = Object.values(marketOverview.data_sources).filter(source => source === 'database').length;
+    marketOverview.market_status = dataAvailable > 0 ? 'open' : 'data_unavailable';
+
+    return res.success(marketOverview);
 
   } catch (error) {
-    console.error('Error fetching market overview:', error);
-    res.json({ 
-      success: true,
-      data: {
-        indices: {
-          sp500: { value: 4567.23, change: 0.85, change_percent: 0.019 },
-          nasdaq: { value: 14234.12, change: -0.34, change_percent: -0.002 },
-          dow: { value: 34789.45, change: 1.23, change_percent: 0.004 }
-        },
-        sentiment: {
-          fear_greed: { value: 52, value_text: 'Neutral', timestamp: new Date().toISOString() },
-          vix: { value: 18.45, change: -0.23, timestamp: new Date().toISOString() }
-        },
-        sectors: [
-          { name: 'Technology', change_percent: 1.2 },
-          { name: 'Healthcare', change_percent: 0.8 },
-          { name: 'Finance', change_percent: -0.3 }
-        ],
-        market_status: 'open',
-        timestamp: new Date().toISOString(),
-        note: 'Fallback market data - error occurred'
-      }
+    console.error('Database connection failed in market overview:', error.message);
+    return res.error('Database connection failed', {
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 // Get sentiment history over time
-router.get('/sentiment/history', async (req, res) => {
-  try {
-    const days = parseInt(req.query.days) || 30;
-    console.log(`Fetching sentiment history for ${days} days`);
-    
-    const sentimentIndicators = {};
-    
-    try {
-      const naaimQuery = `
-        SELECT 
-          COALESCE(average, mean_exposure, exposure_index, exposure_average) as average,
-          COALESCE(bullish_8100, bullish_80_100, bullish) as bullish_8100,
-          COALESCE(bearish, bearish_exposure) as bearish,
-          COALESCE(week_ending, date, timestamp) as week_ending
-        FROM naaim 
-        ORDER BY COALESCE(week_ending, date, timestamp) DESC 
-        LIMIT 1
-      `;
-      const naaimResult = await query(naaimQuery);
-      console.log('NAAIM query result:', naaimResult.rows);
-      
-      if (naaimResult.rows.length > 0) {
-        const naaim = naaimResult.rows[0];
-        sentimentIndicators.naaim = {
-          average: naaim.average || naaim.mean_exposure || naaim.exposure_index,
-          bullish_8100: naaim.bullish_8100,
-          bearish: naaim.bearish,
-          week_ending: naaim.week_ending || naaim.date
-        };
-        console.log('NAAIM data processed:', sentimentIndicators.naaim);
-      } else {
-        console.log('No NAAIM data found, using realistic fallback');
-        sentimentIndicators.naaim = {
-          average: 47.2,
-          bullish_8100: 22.5,
-          bearish: 15.3,
-          week_ending: new Date().toISOString()
-        };
-      }
-    } catch (e) {
-      console.error('NAAIM data error:', e.message);
-      console.log('Using fallback NAAIM data');
-      sentimentIndicators.naaim = {
-        average: 47.2,
-        bullish_8100: 22.5,
-        bearish: 15.3,
-        week_ending: new Date().toISOString()
-      };
-    }
-
-    // Get AAII data (from aaii_sentiment table)
-    try {
-      console.log('Attempting to fetch AAII data...');
-      const aaiiQuery = `
-        SELECT bullish, neutral, bearish, date 
-        FROM aaii_sentiment 
-        ORDER BY date DESC 
-        LIMIT 1
-      `;
-      const aaiiResult = await query(aaiiQuery);
-      console.log(`AAII query returned ${aaiiResult.rows.length} rows`);
-      if (aaiiResult.rows.length > 0) {
-        console.log('AAII data found:', aaiiResult.rows[0]);
-        sentimentIndicators.aaii = {
-          bullish: aaiiResult.rows[0].bullish,
-          neutral: aaiiResult.rows[0].neutral,
-          bearish: aaiiResult.rows[0].bearish,
-          date: aaiiResult.rows[0].date
-        };
-      } else {
-        console.log('No AAII data found in table');
-      }
-    } catch (e) {
-      console.error('AAII data error:', e.message);
-      console.error('Full AAII error:', e);
-    }
-
-    // Optimize market data queries with parallel execution and timeouts
-    console.log('Fetching market breadth and cap data in parallel...');
-    
-    // Get latest date once to avoid repeated subqueries
-    let latestDate = null;
-    let marketBreadth = {};
-    let marketCap = {};
-    
-    try {
-      // Fast latest date lookup with timeout
-      const dateResult = await Promise.race([
-        query('SELECT MAX(date) as latest_date FROM market_data'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Date query timeout')), 3000))
-      ]);
-      
-      latestDate = dateResult.rows[0]?.latest_date;
-      console.log('Latest market data date:', latestDate);
-      
-      if (latestDate) {
-        // Run market breadth and market cap queries in parallel with timeouts
-        const [breadthResult, marketCapResult] = await Promise.allSettled([
-          // Optimized market breadth query
-          Promise.race([
-            query(`
-              SELECT 
-                COUNT(*) as total_stocks,
-                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) > 0 THEN 1 END) as advancing,
-                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) < 0 THEN 1 END) as declining,
-                COUNT(CASE WHEN COALESCE(change_percent, percent_change, pct_change, daily_change) = 0 THEN 1 END) as unchanged,
-                AVG(COALESCE(change_percent, percent_change, pct_change, daily_change)) as average_change_percent
-              FROM market_data
-              WHERE date = $1
-                AND COALESCE(change_percent, percent_change, pct_change, daily_change) IS NOT NULL
-            `, [latestDate]),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Market breadth timeout')), 8000))
-          ]),
-          
-          // Optimized market cap query
-          Promise.race([
-            query(`
-              SELECT 
-                SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
-                SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
-                SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
-                SUM(market_cap) as total
-              FROM market_data
-              WHERE date = $1 AND market_cap IS NOT NULL
-            `, [latestDate]),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Market cap timeout')), 8000))
-          ])
-        ]);
-        
-        // Process market breadth results
-        if (breadthResult.status === 'fulfilled' && breadthResult.value.rows.length > 0) {
-          const breadth = breadthResult.value.rows[0];
-          const advancing = parseInt(breadth.advancing) || 0;
-          const declining = parseInt(breadth.declining) || 0;
-          
-          marketBreadth = {
-            total_stocks: parseInt(breadth.total_stocks) || 0,
-            advancing: advancing,
-            declining: declining,
-            unchanged: parseInt(breadth.unchanged) || 0,
-            advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : 'N/A',
-            average_change_percent: breadth.average_change_percent ? parseFloat(breadth.average_change_percent).toFixed(2) : '0.00'
-          };
-          console.log('Market breadth data processed successfully');
-        } else {
-          console.log('Market breadth query failed or returned no data:', breadthResult.reason?.message);
-          throw new Error('No breadth data');
-        }
-        
-        // Process market cap results
-        if (marketCapResult.status === 'fulfilled' && marketCapResult.value.rows.length > 0) {
-          const cap = marketCapResult.value.rows[0];
-          marketCap = {
-            large_cap: parseFloat(cap.large_cap) || 0,
-            mid_cap: parseFloat(cap.mid_cap) || 0,
-            small_cap: parseFloat(cap.small_cap) || 0,
-            total: parseFloat(cap.total) || 0
-          };
-          console.log('Market cap data processed successfully');
-        } else {
-          console.log('Market cap query failed or returned no data:', marketCapResult.reason?.message);
-          throw new Error('No market cap data');
-        }
-        
-      } else {
-        throw new Error('No latest date found');
-      }
-      
-    } catch (e) {
-      console.log('Market data queries failed, using fallback data:', e.message);
-      
-      // Realistic fallback data
-      marketBreadth = {
-        total_stocks: 4800,
-        advancing: 2650,
-        declining: 1920,
-        unchanged: 230,
-        advance_decline_ratio: '1.38',
-        average_change_percent: '0.45'
-      };
-      
-      marketCap = {
-        large_cap: 42000000000000, // $42T
-        mid_cap: 8500000000000,    // $8.5T
-        small_cap: 3200000000000,  // $3.2T
-        total: 53700000000000      // $53.7T total
-      };
-    }
-
-    // Get economic indicators
-    let economicIndicators = [];
-    try {
-      const economicQuery = `
-        SELECT name, value, unit, timestamp 
-        FROM economic_data 
-        ORDER BY timestamp DESC 
-        LIMIT 10
-      `;
-      const economicResult = await query(economicQuery);
-      if (economicResult.rows.length > 0) {
-        economicIndicators = economicResult.rows.map(row => ({
-          name: row.name,
-          value: row.value,
-          unit: row.unit,
-          timestamp: row.timestamp
-        }));
-      } else {
-        console.log('No economic data found, using realistic fallback');
-        // Provide realistic fallback economic indicators
-        const currentTime = new Date().toISOString();
-        economicIndicators = [
-          { name: 'GDP Growth Rate', value: 2.4, unit: '%', timestamp: currentTime },
-          { name: 'Unemployment Rate', value: 3.7, unit: '%', timestamp: currentTime },
-          { name: 'Inflation Rate (CPI)', value: 3.2, unit: '%', timestamp: currentTime },
-          { name: 'Federal Funds Rate', value: 5.25, unit: '%', timestamp: currentTime },
-          { name: 'Consumer Confidence', value: 102.3, unit: 'Index', timestamp: currentTime },
-          { name: '10-Year Treasury Yield', value: 4.15, unit: '%', timestamp: currentTime }
-        ];
-      }
-    } catch (e) {
-      console.log('Economic indicators error, using fallback:', e.message);
-      const currentTime = new Date().toISOString();
-      economicIndicators = [
-        { name: 'GDP Growth Rate', value: 2.4, unit: '%', timestamp: currentTime },
-        { name: 'Unemployment Rate', value: 3.7, unit: '%', timestamp: currentTime },
-        { name: 'Inflation Rate (CPI)', value: 3.2, unit: '%', timestamp: currentTime },
-        { name: 'Federal Funds Rate', value: 5.25, unit: '%', timestamp: currentTime }
-      ];
-    }
-
-    // Return comprehensive market overview
-    const responseData = {
-      sentiment_indicators: sentimentIndicators,
-      market_breadth: marketBreadth,
-      market_cap: marketCap,
-      economic_indicators: economicIndicators
-    };
-
-    console.log('Market overview response structure:', Object.keys(responseData));
-    console.log('Sentiment indicators in response:', Object.keys(sentimentIndicators));
-    console.log('AAII in sentiment indicators:', !!sentimentIndicators.aaii);
-    
-    res.json({
-      data: responseData,
-      timestamp: new Date().toISOString(),
-      status: 'success'
-    });
-    
-  } catch (error) {
-    console.error('Error fetching market overview:', error);
-    res.status(500).json({ 
-      error: 'Database error', 
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 // Get sentiment history over time
 router.get('/sentiment/history', async (req, res) => {
