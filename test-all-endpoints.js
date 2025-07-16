@@ -42,7 +42,7 @@ const ENDPOINTS = [
   { path: '/api/alerts', name: 'Alerts', public: false },
   { path: '/api/metrics', name: 'Metrics', public: false },
   { path: '/api/advanced', name: 'Advanced Trading', public: false },
-  { path: '/api/liveData', name: 'Live Data', public: false },
+  { path: '/api/live-data', name: 'Live Data', public: false },
   { path: '/api/websocket', name: 'WebSocket', public: false }
 ];
 
