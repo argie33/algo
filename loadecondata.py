@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Economic data loader - Fed data, inflation, employment, GDP
-# Trigger deploy-app-stocks workflow - loadecondata update v4.6 - Economic data for dashboard 
+# Trigger deploy-app-stocks workflow - loadecondata update v4.7 - Database diagnostic phase 
 import sys
 import os
 import json
