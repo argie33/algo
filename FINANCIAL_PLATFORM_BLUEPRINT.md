@@ -29,7 +29,43 @@ This blueprint defines the complete architecture, implementation, and technical 
 - **Circuit Breaker Pattern**: Automatic connection failure detection and recovery
 - **Connection Pool Optimization**: Dynamic pool sizing based on load patterns
 - **Security Group Architecture**: Proper subnet-to-subnet connectivity for ECS->RDS
+- **SSL Configuration**: Match working ECS task SSL settings (typically `ssl: false` for RDS in public subnets)
 - **Initialization Sequencing**: Dependency orchestration between database and application layers
+
+### 🚀 PRODUCTION DEPLOYMENT CHECKLIST
+
+**PRE-DEPLOYMENT VALIDATION**:
+1. **Database Configuration Audit**:
+   - ✅ Verify SSL configuration matches working ECS tasks (`ssl: false` for public subnet RDS)
+   - ✅ Confirm same subnets/security groups as working data loader tasks
+   - ✅ Test database connection with systematic diagnostic script
+   - ✅ Validate environment variables (DB_SECRET_ARN, AWS_REGION)
+
+2. **CloudFormation Stack Validation**:
+   - ✅ Confirm Cognito resources exist in target stack
+   - ✅ Validate CloudFormation outputs (UserPoolId, UserPoolClientId)
+   - ✅ Test output extraction in deployment workflow
+   - ✅ Debug by listing all stack outputs if values are empty
+
+3. **Frontend Bundle Optimization**:
+   - ✅ Remove unused dependencies (chart.js, styled-components, etc.)
+   - ✅ Optimize Vite bundle splitting configuration
+   - ✅ Validate component replacements (TextField for CodeMirror)
+   - ✅ Test error boundaries and fallback components
+
+**DEPLOYMENT EXECUTION**:
+1. **Infrastructure Deployment**: CloudFormation stacks in correct order
+2. **Database Initialization**: ECS task with SSL-free configuration
+3. **Lambda Deployment**: With real Cognito values extracted
+4. **Frontend Deployment**: Optimized bundles with real configuration
+5. **Data Loading**: Trigger ECS tasks for comprehensive data population
+
+**POST-DEPLOYMENT VALIDATION**:
+1. **Database Connectivity**: Validate SSL-free connection works
+2. **Authentication Flow**: Test real Cognito login/registration
+3. **API Endpoints**: Confirm real data (not mock) responses
+4. **Frontend Performance**: Validate bundle size reduction and load times
+5. **End-to-End Testing**: Complete user workflows with real data
 
 **Production-Ready Architecture**:
 - **Full Functionality**: Complete elimination of emergency mode logic - all systems operational
