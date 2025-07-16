@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# DEPLOY: Database diagnostic phase - News loading v2 - Testing database connectivity
+# DEPLOY: Database diagnostic phase - News loading v3 - Testing database connectivity pattern
 import sys
 import time
 import logging
