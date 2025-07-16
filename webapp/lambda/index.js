@@ -166,6 +166,7 @@ const routes = [
   { path: './routes/news', name: 'News', mount: '/api/news' },
   { path: './routes/sentiment', name: 'Sentiment', mount: '/api/sentiment' },
   { path: './routes/signals', name: 'Trading Signals', mount: '/api/signals' },
+  { path: './routes/crypto', name: 'Cryptocurrency', mount: '/api/crypto' },
   
   // Advanced Trading & Analytics
   { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' }
