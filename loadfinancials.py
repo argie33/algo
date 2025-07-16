@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Financial Metrics Loader Script - Database diagnostic phase - v10 - Financial data population
+Enhanced Financial Metrics Loader Script - Database diagnostic phase - v11 - Financial data population
 
 This script loads comprehensive financial metrics and ratios for stocks including:
 - Profitability metrics (ROE, ROA, ROIC, margins) with trend analysis

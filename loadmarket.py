@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Data Loader Script - Database diagnostic phase - v9 - Market data population
+Market Data Loader Script - Database diagnostic phase - v10 - Market data population
 
 This script loads comprehensive market data including:
 - Major market indices (S&P 500, NASDAQ, Dow Jones, etc.)
