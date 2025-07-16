@@ -39,7 +39,7 @@ async function getDbCredentials() {
             database: secret.dbname || 'postgres',
             user: secret.username,
             password: secret.password,
-            ssl: false, // NO SSL - RDS in public subnet typically doesn't require SSL
+            ssl: { rejectUnauthorized: false }, // SSL required for RDS but allow self-signed certs
             // MASSIVELY INCREASED TIMEOUTS FOR CONNECTIVITY ISSUES
             connectionTimeoutMillis: 60000, // 60 seconds
             query_timeout: 120000, // 2 minutes
@@ -1395,4 +1395,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initializeWebappDatabase };
+module.exports = { initializeWebappDatabase };# Database initialization trigger - SSL fix validation
