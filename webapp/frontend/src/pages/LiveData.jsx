@@ -57,34 +57,11 @@ import {
   Error,
   Info
 } from '@mui/icons-material';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  TimeScale
-} from 'chart.js';
-import 'chartjs-adapter-date-fns';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import liveDataIntegration from '../services/liveDataIntegration';
 import webSocketService from '../services/webSocketService';
 import { useAuth } from '../contexts/AuthContext';
 
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  TimeScale
-);
 
 // Professional Live Data Management - Integrated with deployed WebSocket infrastructure
 
@@ -185,25 +162,19 @@ const LiveData = () => {
       }
     }));
 
-    // Update chart data
+    // Update chart data (recharts format)
     setChartData(prev => {
-      const symbolChart = prev[symbol] || { labels: [], datasets: [{ data: [], label: symbol }] };
-      const newLabels = [...symbolChart.labels, new Date()].slice(-20); // Keep last 20 points
-      const newData = [...symbolChart.datasets[0].data, priceData.price].slice(-20);
+      const symbolChart = prev[symbol] || [];
+      const newPoint = {
+        time: new Date().toLocaleTimeString(),
+        price: priceData.price,
+        timestamp: Date.now()
+      };
+      const newData = [...symbolChart, newPoint].slice(-20); // Keep last 20 points
       
       return {
         ...prev,
-        [symbol]: {
-          labels: newLabels,
-          datasets: [{
-            label: symbol,
-            data: newData,
-            borderColor: priceData.change >= 0 ? '#4caf50' : '#f44336',
-            backgroundColor: priceData.change >= 0 ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
-            fill: true,
-            tension: 0.4
-          }]
-        }
+        [symbol]: newData
       };
     });
   }, []);
@@ -519,33 +490,31 @@ const LiveData = () => {
             <Typography variant="h6" gutterBottom>
               {symbol} - Real-time Price
             </Typography>
-            {chartData[symbol] ? (
-              <Line
-                data={chartData[symbol]}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    x: {
-                      type: 'time',
-                      display: false
-                    },
-                    y: {
-                      beginAtZero: false
-                    }
-                  },
-                  plugins: {
-                    legend: {
-                      display: false
-                    }
-                  },
-                  elements: {
-                    point: {
-                      radius: 2
-                    }
-                  }
-                }}
-              />
+            {chartData[symbol] && chartData[symbol].length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={chartData[symbol]}>
+                  <XAxis 
+                    dataKey="time" 
+                    tick={{ fontSize: 10 }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis 
+                    domain={['dataMin - 0.1', 'dataMax + 0.1']}
+                    tick={{ fontSize: 10 }}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value) => [`$${value?.toFixed(2)}`, 'Price']}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="price" 
+                    stroke={marketData[symbol]?.change >= 0 ? '#4caf50' : '#f44336'}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
               <Box 
                 display="flex" 
