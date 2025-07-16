@@ -21,69 +21,143 @@ router.get('/dashboard', async (req, res) => {
   try {
     console.log('Dashboard metrics endpoint called');
     
-    // Check database availability with immediate timeout
-    let dbAvailable = false;
+    console.log('📊 Dashboard metrics: Fetching real data from database for user:', req.user.sub);
+    
+    // Get real metrics from database
+    let totalStocks = null;
+    let totalAlerts = null;
+    let activeSymbols = null;
+    let portfolioValue = null;
+    let dailyChange = null;
+    let lastUpdate = null;
+    let errors = {};
+    
+    // Get stock count
     try {
-      await query('SELECT 1', [], 2000); // 2 second timeout
-      dbAvailable = true;
-    } catch (dbError) {
-      console.log('Database not available for metrics, using mock data');
+      const stockResult = await query('SELECT COUNT(*) as total FROM stocks WHERE current_price IS NOT NULL', [], 5000);
+      totalStocks = parseInt(stockResult.rows[0]?.total || 0);
+      console.log(`✅ Stock count: ${totalStocks}`);
+    } catch (error) {
+      console.error('❌ Stock count query failed:', error.message);
+      errors.stocks = `Stock data unavailable: ${error.message}`;
     }
     
-    let totalStocks = 8500;
-    let totalAlerts = 12;
-    let activeSymbols = 3500;
-    let lastUpdate = new Date();
-    
-    if (dbAvailable) {
-      try {
-        // Use faster, simpler queries with timeouts
-        const stockResult = await query('SELECT COUNT(*) as total_stocks FROM stock_symbols LIMIT 1', [], 3000);
-        totalStocks = parseInt(stockResult.rows[0]?.total_stocks || 8500);
-      } catch (error) {
-        console.log('Stock count query failed, using default');
+    // Get user's portfolio metrics
+    try {
+      const portfolioResult = await query(`
+        SELECT 
+          SUM(market_value) as total_value,
+          SUM(unrealized_pl) as daily_change,
+          COUNT(*) as total_positions
+        FROM portfolio_holdings 
+        WHERE user_id = $1
+      `, [req.user.sub], 5000);
+      
+      if (portfolioResult.rows[0]) {
+        portfolioValue = parseFloat(portfolioResult.rows[0].total_value || 0);
+        dailyChange = parseFloat(portfolioResult.rows[0].daily_change || 0);
+        activeSymbols = parseInt(portfolioResult.rows[0].total_positions || 0);
+        console.log(`✅ Portfolio value: $${portfolioValue}, change: $${dailyChange}, positions: ${activeSymbols}`);
       }
+    } catch (error) {
+      console.error('❌ Portfolio query failed:', error.message);
+      errors.portfolio = `Portfolio data unavailable: ${error.message}`;
+    }
+    
+    // Get alerts count
+    try {
+      const alertResult = await query(`
+        SELECT COUNT(*) as total 
+        FROM alerts 
+        WHERE user_id = $1 AND is_active = true
+      `, [req.user.sub], 5000);
+      totalAlerts = parseInt(alertResult.rows[0]?.total || 0);
+      console.log(`✅ Active alerts: ${totalAlerts}`);
+    } catch (error) {
+      console.error('❌ Alerts query failed:', error.message);
+      errors.alerts = `Alerts data unavailable: ${error.message}`;
+    }
+    
+    // Get last price update
+    try {
+      const updateResult = await query('SELECT MAX(updated_at) as last_update FROM stocks', [], 5000);
+      lastUpdate = updateResult.rows[0]?.last_update || new Date();
+      console.log(`✅ Last price update: ${lastUpdate}`);
+    } catch (error) {
+      console.error('❌ Last update query failed:', error.message);
+      errors.lastUpdate = `Update time unavailable: ${error.message}`;
+      lastUpdate = null;
     }
     
     res.json({
       success: true,
       data: {
-        totalStocks: parseInt(totalStocks),
-        activeAlerts: parseInt(totalAlerts),
-        activeSymbols: parseInt(activeSymbols),
-        portfolioValue: 125000, // Mock value for now
-        dailyChange: 1250, // Mock value for now
+        totalStocks: totalStocks,
+        activeAlerts: totalAlerts,
+        activeSymbols: activeSymbols,
+        portfolioValue: portfolioValue,
+        dailyChange: dailyChange,
         lastPriceUpdate: lastUpdate,
         marketStatus: getMarketStatus(),
         dataFreshness: {
-          prices: calculateDataAge(lastUpdate),
-          alerts: 'current',
-          symbols: 'current'
+          prices: lastUpdate ? calculateDataAge(lastUpdate) : 'unknown',
+          alerts: errors.alerts ? 'unavailable' : 'current',
+          symbols: errors.stocks ? 'unavailable' : 'current'
         }
+      },
+      errors: Object.keys(errors).length > 0 ? errors : null,
+      data_source: 'real_database',
+      diagnostic: {
+        queries_executed: 4,
+        database_connectivity: Object.keys(errors).length === 0 ? 'healthy' : 'partial',
+        user_id: req.user.sub,
+        troubleshooting: Object.keys(errors).length > 0 ? 
+          'Some data sources unavailable. Check database connectivity and table existence.' : 
+          'All data sources functioning normally'
       },
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Error in dashboard metrics:', error);
+    console.error('❌ Critical error in dashboard metrics:', error);
     
-    // Return mock data if database fails
-    res.json({
-      success: true,
+    res.status(500).json({
+      success: false,
+      error: 'Dashboard metrics unavailable',
+      details: error.message,
       data: {
-        totalStocks: 8500,
-        activeAlerts: 12,
-        activeSymbols: 3500,
-        portfolioValue: 125000,
-        dailyChange: 1250,
-        lastPriceUpdate: new Date(),
+        totalStocks: null,
+        activeAlerts: null,
+        activeSymbols: null,
+        portfolioValue: null,
+        dailyChange: null,
+        lastPriceUpdate: null,
         marketStatus: getMarketStatus(),
         dataFreshness: {
-          prices: 'recent',
-          alerts: 'current',
-          symbols: 'current'
-        },
-        note: 'Using fallback data due to database connectivity'
+          prices: 'unavailable',
+          alerts: 'unavailable',
+          symbols: 'unavailable'
+        }
+      },
+      diagnostic: {
+        issue: 'Critical system error during metrics collection',
+        potential_causes: [
+          'Database connection failure',
+          'Authentication token invalid',
+          'Missing required tables (stocks, portfolio_holdings, alerts)',
+          'Query timeout or resource limits'
+        ],
+        troubleshooting: [
+          'Check database connectivity and authentication',
+          'Verify required tables exist and are accessible',
+          'Review AWS Lambda memory and timeout settings',
+          'Check VPC and security group configurations'
+        ],
+        system_checks: {
+          authentication: 'completed',
+          database_attempted: true,
+          fallback_data: false
+        }
       },
       timestamp: new Date().toISOString()
     });
