@@ -1,6 +1,6 @@
 const express = require('express');
 const { getPoolStatus } = require('../utils/database');
-const responseFormatter = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get('/status', async (req, res) => {
     const status = getPoolStatus();
     
     if (!status.initialized) {
-      return res.status(503).json(responseFormatter.createErrorResponse('Database not initialized'));
+      return res.status(503).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Database not initialized'));
     }
 
     // Add human-readable status
@@ -34,11 +34,11 @@ router.get('/status', async (req, res) => {
       }
     };
 
-    res.json(responseFormatter.createSuccessResponse(enhancedStatus));
+    res.json(success(enhancedStatus));
 
   } catch (error) {
     console.error('Pool status error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get pool status'));
+    res.status(500).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Failed to get pool status'));
   }
 });
 
@@ -50,7 +50,7 @@ router.get('/metrics', async (req, res) => {
     const status = getPoolStatus();
     
     if (!status.initialized) {
-      return res.status(503).json(responseFormatter.createErrorResponse('Database not initialized'));
+      return res.status(503).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Database not initialized'));
     }
 
     // Return simplified metrics for monitoring
@@ -73,11 +73,11 @@ router.get('/metrics', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    res.json(responseFormatter.createSuccessResponse(metrics));
+    res.json(success(metrics));
 
   } catch (error) {
     console.error('Pool metrics error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get pool metrics'));
+    res.status(500).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Failed to get pool metrics'));
   }
 });
 
@@ -89,7 +89,7 @@ router.get('/recommendations', async (req, res) => {
     const status = getPoolStatus();
     
     if (!status.initialized) {
-      return res.status(503).json(responseFormatter.createErrorResponse('Database not initialized'));
+      return res.status(503).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Database not initialized'));
     }
 
     const recommendations = {
@@ -103,11 +103,11 @@ router.get('/recommendations', async (req, res) => {
       priority: getRecommendationPriority(status)
     };
 
-    res.json(responseFormatter.createSuccessResponse(recommendations));
+    res.json(success(recommendations));
 
   } catch (error) {
     console.error('Pool recommendations error:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to get recommendations'));
+    res.status(500).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Failed to get recommendations'));
   }
 });
 
@@ -144,11 +144,11 @@ router.get('/health', async (req, res) => {
     const statusCode = health.status === 'healthy' ? 200 : 
                       health.status === 'degraded' ? 206 : 503;
 
-    res.status(statusCode).json(responseFormatter.createSuccessResponse(health));
+    res.status(statusCode).json(success(health));
 
   } catch (error) {
     console.error('Pool health error:', error);
-    res.status(503).json(responseFormatter.createErrorResponse('Pool health check failed'));
+    res.status(503).json(((msg) => ({ success: false, error: msg, timestamp: new Date().toISOString() }))('Pool health check failed'));
   }
 });
 

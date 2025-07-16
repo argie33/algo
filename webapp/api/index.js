@@ -179,7 +179,10 @@ const routes = [
   { path: './routes/trading', name: 'Trading', mount: '/api/trading' },
   { path: './routes/trades', name: 'Trade History', mount: '/api/trades' },
   { path: './routes/risk', name: 'Risk Analysis', mount: '/api/risk' },
-  { path: './routes/performance', name: 'Performance Analytics', mount: '/api/performance' }
+  { path: './routes/performance', name: 'Performance Analytics', mount: '/api/performance' },
+  
+  // Monitoring & System Health
+  { path: './routes/monitoring', name: 'API Monitoring', mount: '/api/monitoring' }
 ];
 
 let loadedRoutes = 0;

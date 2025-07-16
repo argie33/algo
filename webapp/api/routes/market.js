@@ -1,8 +1,34 @@
 const express = require('express');
 const { query } = require('../utils/database');
-// v2.0 - Production ready market routes with SSL fix and cleaned endpoints
+// v2.1 - Production ready market routes with SSL fix, caching, and performance optimization
 
 const router = express.Router();
+
+// Simple in-memory cache for market data
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cache helper functions
+function getCachedData(key) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedData(key, data) {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+  
+  // Clean old cache entries (keep cache size manageable)
+  if (cache.size > 100) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+}
 
 // Helper function to check if required tables exist
 async function checkRequiredTables(tableNames) {
@@ -302,9 +328,25 @@ router.get('/health', async (req, res) => {
 
 // Get comprehensive market overview with sentiment indicators
 router.get('/overview', async (req, res) => {
+  const startTime = Date.now();
   console.log('Market overview endpoint called');
   
   try {
+    // Check cache first
+    const cacheKey = 'market_overview';
+    const cachedData = getCachedData(cacheKey);
+    
+    if (cachedData) {
+      console.log(`Market overview served from cache in ${Date.now() - startTime}ms`);
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true,
+        cache_age: Math.round((Date.now() - cache.get(cacheKey).timestamp) / 1000),
+        response_time: Date.now() - startTime
+      });
+    }
+    
     // Test database connection first
     await query('SELECT 1');
     
@@ -471,6 +513,18 @@ router.get('/overview', async (req, res) => {
     // Determine market status based on data availability
     const dataAvailable = Object.values(marketOverview.data_sources).filter(source => source === 'database').length;
     marketOverview.market_status = dataAvailable > 0 ? 'open' : 'data_unavailable';
+
+    // Add performance metrics
+    const responseTime = Date.now() - startTime;
+    marketOverview.performance = {
+      response_time: responseTime,
+      cached: false,
+      data_freshness: 'real-time'
+    };
+
+    // Cache the result
+    setCachedData(cacheKey, marketOverview);
+    console.log(`Market overview generated and cached in ${responseTime}ms`);
 
     return res.success(marketOverview);
 
