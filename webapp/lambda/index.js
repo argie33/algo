@@ -169,7 +169,16 @@ const routes = [
   { path: './routes/crypto', name: 'Cryptocurrency', mount: '/api/crypto' },
   
   // Advanced Trading & Analytics
-  { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' }
+  { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' },
+  
+  // Additional Financial Routes
+  { path: './routes/calendar', name: 'Economic Calendar', mount: '/api/calendar' },
+  { path: './routes/commodities', name: 'Commodities', mount: '/api/commodities' },
+  { path: './routes/sectors', name: 'Sectors', mount: '/api/sectors' },
+  { path: './routes/trading', name: 'Trading', mount: '/api/trading' },
+  { path: './routes/trades', name: 'Trade History', mount: '/api/trades' },
+  { path: './routes/risk', name: 'Risk Analysis', mount: '/api/risk' },
+  { path: './routes/performance', name: 'Performance Analytics', mount: '/api/performance' }
 ];
 
 let loadedRoutes = 0;
