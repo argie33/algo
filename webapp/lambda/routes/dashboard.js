@@ -1,11 +1,11 @@
 const express = require('express');
-const responseFormatter = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
 // Basic health endpoint for dashboard service
 router.get('/health', (req, res) => {
-  res.json(responseFormatter.success({
+  res.json(success({
     status: 'operational',
     service: 'dashboard',
     timestamp: new Date().toISOString(),
@@ -32,7 +32,7 @@ router.get('/overview', (req, res) => {
     status: 'operational'
   };
 
-  res.json(responseFormatter.success(dashboardData));
+  res.json(success(dashboardData));
 });
 
 // Dashboard widgets endpoint
@@ -44,7 +44,7 @@ router.get('/widgets', (req, res) => {
     { id: 'performance', type: 'performance-chart', enabled: true }
   ];
 
-  res.json(responseFormatter.success(widgets));
+  res.json(success(widgets));
 });
 
 module.exports = router;

@@ -1,11 +1,11 @@
 const express = require('express');
-const responseFormatter = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
 // Basic health endpoint for diagnostics service
 router.get('/health', (req, res) => {
-  res.json(responseFormatter.success({
+  res.json(success({
     status: 'operational',
     service: 'diagnostics',
     timestamp: new Date().toISOString(),
@@ -29,7 +29,7 @@ router.get('/system', (req, res) => {
     }
   };
 
-  res.json(responseFormatter.success(systemInfo));
+  res.json(success(systemInfo));
 });
 
 // Route diagnostics endpoint
@@ -43,7 +43,7 @@ router.get('/routes', (req, res) => {
     lastCheck: new Date().toISOString()
   };
 
-  res.json(responseFormatter.success(routeHealth));
+  res.json(success(routeHealth));
 });
 
 module.exports = router;
