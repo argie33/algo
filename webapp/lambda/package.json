@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "@alpacahq/alpaca-trade-api": "^3.0.3",
+    "@aws-sdk/client-cloudformation": "^3.846.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.840.0",
     "@aws-sdk/client-ecs": "^3.844.0",
     "@aws-sdk/client-lambda": "^3.844.0",
-    "@aws-sdk/client-secrets-manager": "^3.454.0",
+    "@aws-sdk/client-secrets-manager": "^3.846.0",
     "@aws-sdk/rds-signer": "^3.454.0",
     "aws-jwt-verify": "^5.1.0",
     "axios": "^1.6.0",
