@@ -39,7 +39,11 @@ async function getDbCredentials() {
             database: secret.dbname || 'postgres',
             user: secret.username,
             password: secret.password,
-            ssl: { rejectUnauthorized: false }, // SSL required for RDS but allow self-signed certs
+            ssl: { 
+                rejectUnauthorized: false,
+                checkServerIdentity: () => undefined,
+                secureProtocol: 'TLSv1_2_method'
+            }, // Enhanced SSL config for RDS compatibility
             // MASSIVELY INCREASED TIMEOUTS FOR CONNECTIVITY ISSUES
             connectionTimeoutMillis: 60000, // 60 seconds
             query_timeout: 120000, // 2 minutes

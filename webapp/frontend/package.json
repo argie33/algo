@@ -1,7 +1,7 @@
 {
   "name": "financial-dashboard-frontend",
-  "version": "1.0.8",
-  "description": "React frontend for Financial Data Dashboard",
+  "version": "1.0.9",
+  "description": "React frontend for Financial Data Dashboard - SSL connectivity enhanced",
   "private": true,
   "dependencies": {
     "@aws-amplify/auth": "^6.13.1",
