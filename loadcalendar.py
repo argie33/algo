@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Load calendar data - trigger v2.7 - DB timeout fix - production ready calendar loader
 # Updated 2025-07-15: Enhanced calendar data processing with improved error handling
-# TRIGGER DEPLOY: loadcalendar update with production-ready pipeline
+# TRIGGER DEPLOY: loadcalendar v2.8 - Earnings calendar for dashboard events
 import sys
 import time
 import logging
