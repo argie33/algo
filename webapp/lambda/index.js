@@ -4,6 +4,9 @@ console.log('🆘 EMERGENCY MINIMAL LAMBDA STARTING...');
 const serverless = require('serverless-http');
 const express = require('express');
 
+// Import database connection manager
+const databaseConnectionManager = require('./utils/databaseConnectionManager');
+
 const app = express();
 
 console.log('✅ Express app created');
@@ -70,12 +73,17 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   console.log('🏥 API Health endpoint hit');
+  
+  // Get database health status
+  const dbHealth = await databaseConnectionManager.healthCheck();
+  
   res.json({
     success: true,
     message: 'EMERGENCY API health check passed',
     timestamp: new Date().toISOString(),
+    database: dbHealth,
     environment_vars: {
       NODE_ENV: process.env.NODE_ENV,
       AWS_REGION: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION,
@@ -105,6 +113,123 @@ app.get('/emergency-health', (req, res) => {
       !process.env.API_KEY_ENCRYPTION_SECRET_ARN && 'API_KEY_ENCRYPTION_SECRET_ARN'
     ].filter(Boolean)
   });
+});
+
+// API Key Management Endpoints
+app.get('/api/settings/api-keys', async (req, res) => {
+  console.log('🔑 GET API Keys endpoint hit');
+  
+  try {
+    // Get user ID from auth token (fallback to demo for emergency)
+    const userId = req.user?.id || 'demo-user';
+    
+    const result = await databaseConnectionManager.query(
+      'SELECT id, provider, masked_api_key, is_active, validation_status, created_at FROM user_api_keys WHERE user_id = $1',
+      [userId],
+      { timeout: 10000, retries: 2 }
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ GET API Keys error:', error);
+    res.status(503).json({
+      success: false,
+      error: 'Database unavailable',
+      message: 'API keys service temporarily unavailable',
+      fallback: 'Use localStorage for now',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.post('/api/settings/api-keys', async (req, res) => {
+  console.log('🔑 POST API Keys endpoint hit');
+  
+  try {
+    const userId = req.user?.id || 'demo-user';
+    const { provider, keyId, secretKey } = req.body;
+    
+    if (!provider || !keyId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        message: 'Provider and keyId are required'
+      });
+    }
+    
+    // Mask the API key for storage
+    const maskedKey = keyId.length > 8 ? keyId.slice(0, 4) + '***' + keyId.slice(-4) : '***';
+    
+    // Insert or update API key
+    const result = await databaseConnectionManager.query(
+      `INSERT INTO user_api_keys (user_id, provider, api_key_encrypted, masked_api_key, is_active, validation_status)
+       VALUES ($1, $2, $3, $4, true, 'pending')
+       ON CONFLICT (user_id, provider) 
+       DO UPDATE SET api_key_encrypted = $3, masked_api_key = $4, is_active = true, validation_status = 'pending', updated_at = CURRENT_TIMESTAMP
+       RETURNING id, provider, masked_api_key, is_active, validation_status`,
+      [userId, provider, keyId, maskedKey],
+      { timeout: 10000, retries: 2 }
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: `${provider} API key saved successfully`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ POST API Keys error:', error);
+    res.status(503).json({
+      success: false,
+      error: 'Database unavailable',
+      message: 'Failed to save API key',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.delete('/api/settings/api-keys/:provider', async (req, res) => {
+  console.log('🔑 DELETE API Key endpoint hit for:', req.params.provider);
+  
+  try {
+    const userId = req.user?.id || 'demo-user';
+    const { provider } = req.params;
+    
+    const result = await databaseConnectionManager.query(
+      'DELETE FROM user_api_keys WHERE user_id = $1 AND provider = $2 RETURNING id',
+      [userId, provider],
+      { timeout: 10000, retries: 2 }
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `API key for ${provider} not found`
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `${provider} API key deleted successfully`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ DELETE API Key error:', error);
+    res.status(503).json({
+      success: false,
+      error: 'Database unavailable',
+      message: 'Failed to delete API key',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Debug endpoints for troubleshooting

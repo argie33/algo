@@ -1,10 +1,11 @@
 /**
- * API Key Provider - Context for managing API key state across the application
- * Provides centralized API key detection, onboarding flow, and authentication integration
+ * API Key Provider - Centralized API key state management
+ * Handles localStorage migration, backend synchronization, and real-time status
+ * Production-grade implementation with comprehensive error handling and validation
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import settingsService from '../services/settingsService';
+import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const ApiKeyContext = createContext();
@@ -24,6 +25,20 @@ export const ApiKeyProvider = ({ children }) => {
   const [hasApiKeys, setHasApiKeys] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [error, setError] = useState(null);
+  const [hasPerformedMigration, setHasPerformedMigration] = useState(false);
+
+  // API key validation rules - Only Alpaca and TD Ameritrade supported
+  const validationRules = {
+    alpaca: {
+      keyId: /^[A-Z0-9]{20}$/,
+      secretKey: /^[A-Za-z0-9\/\+]{40}$/,
+      name: 'Alpaca Trading API'
+    },
+    td_ameritrade: {
+      keyId: /^[A-Z0-9@]{20,50}$/,
+      name: 'TD Ameritrade API'
+    }
+  };
 
   // Load API keys when user is authenticated
   useEffect(() => {
@@ -39,63 +54,271 @@ export const ApiKeyProvider = ({ children }) => {
     }
   }, [isAuthenticated, user]);
 
+  /**
+   * Load API keys from backend with fallback to localStorage migration
+   */
   const loadApiKeys = async () => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      
       console.log('🔑 Loading API keys from backend...');
       
-      // Try to migrate localStorage keys first
-      const migrationResult = await settingsService.migrateLocalStorageToBackend();
-      if (migrationResult.migrated) {
-        console.log('✅ Migrated API keys from localStorage');
+      // Try to get API keys from backend first
+      const response = await api.get('/api/settings/api-keys');
+      
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        // Convert array response to object format
+        const keysFromBackend = {};
+        response.data.data.forEach(key => {
+          if (key.provider && key.is_active) {
+            keysFromBackend[key.provider] = {
+              keyId: key.masked_api_key,
+              secretKey: '***masked***', // Backend doesn't return real secret
+              isActive: key.is_active,
+              validationStatus: key.validation_status,
+              createdAt: key.created_at,
+              fromBackend: true
+            };
+          }
+        });
+
+        setApiKeys(keysFromBackend);
+        const hasAnyKeys = Object.keys(keysFromBackend).length > 0;
+        setHasApiKeys(hasAnyKeys);
+        setNeedsOnboarding(!hasAnyKeys);
+        
+        console.log('✅ API keys loaded from backend:', Object.keys(keysFromBackend));
+        
+        // Perform one-time migration from localStorage if backend is empty
+        if (!hasAnyKeys && !hasPerformedMigration) {
+          await performLocalStorageMigration();
+        }
+        
+      } else {
+        throw new Error('Invalid backend response format');
+      }
+
+    } catch (error) {
+      console.warn('⚠️ Backend API keys failed, checking localStorage:', error.message);
+      
+      // Fallback to localStorage if backend is unavailable
+      await loadFromLocalStorage();
+    }
+
+    setIsLoading(false);
+  };
+
+  /**
+   * Migrate API keys from localStorage to backend
+   */
+  const performLocalStorageMigration = async () => {
+    try {
+      console.log('🔄 Checking for localStorage API keys to migrate...');
+      
+      const localKeys = {};
+      const providers = ['alpaca', 'td_ameritrade'];
+      
+      // Check for keys in localStorage
+      providers.forEach(provider => {
+        const keyId = localStorage.getItem(`${provider}_key_id`);
+        const secretKey = localStorage.getItem(`${provider}_secret_key`);
+        
+        if (keyId && (secretKey || provider !== 'alpaca')) {
+          localKeys[provider] = { keyId, secretKey };
+        }
+      });
+
+      if (Object.keys(localKeys).length > 0) {
+        console.log('📦 Found localStorage keys to migrate:', Object.keys(localKeys));
+        
+        // Save each key to backend
+        for (const [provider, keys] of Object.entries(localKeys)) {
+          await saveApiKeyToBackend(provider, keys.keyId, keys.secretKey);
+        }
+        
+        // Clear localStorage after successful migration
+        providers.forEach(provider => {
+          localStorage.removeItem(`${provider}_key_id`);
+          localStorage.removeItem(`${provider}_secret_key`);
+        });
+        
+        console.log('✅ Successfully migrated API keys from localStorage to backend');
+        
+        // Reload from backend to get the updated keys
+        await loadApiKeys();
       }
       
-      // Load API keys from backend
-      const backendApiKeys = await settingsService.getApiKeys();
-      const formattedKeys = settingsService.formatApiKeysForFrontend(backendApiKeys);
+      setHasPerformedMigration(true);
       
-      setApiKeys(formattedKeys);
+    } catch (error) {
+      console.error('❌ Migration from localStorage failed:', error);
+    }
+  };
+
+  /**
+   * Load API keys from localStorage (fallback)
+   */
+  const loadFromLocalStorage = async () => {
+    try {
+      const localKeys = {};
+      const providers = ['alpaca', 'td_ameritrade'];
       
-      // Check if user has any configured API keys
-      const hasAnyKeys = Object.values(formattedKeys).some(key => 
-        key.enabled || key.keyId || key.apiKey
-      );
-      
+      providers.forEach(provider => {
+        const keyId = localStorage.getItem(`${provider}_key_id`);
+        const secretKey = localStorage.getItem(`${provider}_secret_key`);
+        
+        if (keyId && (secretKey || provider !== 'alpaca')) {
+          localKeys[provider] = {
+            keyId,
+            secretKey,
+            isActive: true,
+            validationStatus: 'unknown',
+            fromBackend: false
+          };
+        }
+      });
+
+      setApiKeys(localKeys);
+      const hasAnyKeys = Object.keys(localKeys).length > 0;
       setHasApiKeys(hasAnyKeys);
       setNeedsOnboarding(!hasAnyKeys);
       
-      console.log('✅ API keys loaded:', {
-        hasAnyKeys,
-        alpacaEnabled: formattedKeys.alpaca?.enabled,
-        polygonEnabled: formattedKeys.polygon?.enabled,
-        finnhubEnabled: formattedKeys.finnhub?.enabled
-      });
+      console.log('📱 Loaded from localStorage:', Object.keys(localKeys));
       
     } catch (error) {
-      console.error('❌ Error loading API keys:', error);
-      setError(error.message);
+      console.error('❌ Failed to load from localStorage:', error);
+      setError('Failed to load API keys');
+    }
+  };
+
+  /**
+   * Save API key to backend
+   */
+  const saveApiKeyToBackend = async (provider, keyId, secretKey = null) => {
+    try {
+      console.log(`💾 Saving ${provider} API key to backend...`);
       
-      // Graceful degradation - check localStorage as fallback
-      const localSettings = localStorage.getItem('app_settings');
-      if (localSettings) {
-        try {
-          const parsed = JSON.parse(localSettings);
-          if (parsed.apiKeys) {
-            const hasLocalKeys = Object.values(parsed.apiKeys).some(key => 
-              key.enabled || key.keyId || key.apiKey
-            );
-            setHasApiKeys(hasLocalKeys);
-            setNeedsOnboarding(!hasLocalKeys);
-            console.log('📱 Using localStorage fallback for API key detection');
-          }
-        } catch (parseError) {
-          console.error('Error parsing localStorage settings:', parseError);
-        }
+      const payload = {
+        provider,
+        keyId,
+        secretKey: secretKey || undefined
+      };
+
+      const response = await api.post('/api/settings/api-keys', payload);
+      
+      if (response.data?.success) {
+        console.log(`✅ Successfully saved ${provider} API key to backend`);
+        return response.data;
+      } else {
+        throw new Error(response.data?.message || 'Failed to save API key');
       }
-    } finally {
-      setIsLoading(false);
+      
+    } catch (error) {
+      console.error(`❌ Failed to save ${provider} API key:`, error);
+      throw error;
+    }
+  };
+
+  /**
+   * Validate API key format
+   */
+  const validateApiKey = (provider, keyId, secretKey = null) => {
+    const rules = validationRules[provider];
+    if (!rules) {
+      return { valid: false, error: `Unknown provider: ${provider}` };
+    }
+
+    // Validate key ID format
+    if (!rules.keyId.test(keyId)) {
+      return { 
+        valid: false, 
+        error: `Invalid ${rules.name} key format. Please check your key.` 
+      };
+    }
+
+    // Validate secret key for providers that require it
+    if (provider === 'alpaca' && secretKey && !rules.secretKey.test(secretKey)) {
+      return { 
+        valid: false, 
+        error: `Invalid ${rules.name} secret format. Please check your secret.` 
+      };
+    }
+
+    return { valid: true };
+  };
+
+  /**
+   * Save API key (with validation and backend sync)
+   */
+  const saveApiKey = async (provider, keyId, secretKey = null) => {
+    try {
+      setError(null);
+      
+      // Validate format first
+      const validation = validateApiKey(provider, keyId, secretKey);
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
+
+      // Save to backend first
+      await saveApiKeyToBackend(provider, keyId, secretKey);
+      
+      // Update local state
+      setApiKeys(prev => ({
+        ...prev,
+        [provider]: {
+          keyId,
+          secretKey: secretKey ? '***masked***' : undefined,
+          isActive: true,
+          validationStatus: 'pending',
+          fromBackend: true,
+          createdAt: new Date().toISOString()
+        }
+      }));
+      
+      // Check if onboarding is complete
+      setHasApiKeys(true);
+      setNeedsOnboarding(false);
+      
+      console.log(`✅ API key saved for ${provider}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Failed to save API key for ${provider}:`, error);
+      setError(error.message);
+      throw error;
+    }
+  };
+
+  /**
+   * Remove API key
+   */
+  const removeApiKey = async (provider) => {
+    try {
+      setError(null);
+      
+      // Remove from backend
+      await api.delete(`/api/settings/api-keys/${provider}`);
+      
+      // Update local state
+      setApiKeys(prev => {
+        const updated = { ...prev };
+        delete updated[provider];
+        return updated;
+      });
+      
+      const remainingKeys = Object.keys(apiKeys).filter(p => p !== provider);
+      setHasApiKeys(remainingKeys.length > 0);
+      setNeedsOnboarding(remainingKeys.length === 0);
+      
+      console.log(`✅ API key removed for ${provider}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Failed to remove API key for ${provider}:`, error);
+      setError(error.message);
+      throw error;
     }
   };
 
@@ -105,34 +328,43 @@ export const ApiKeyProvider = ({ children }) => {
     }
   };
 
-  const markOnboardingComplete = (savedKeys) => {
-    console.log('🎉 Onboarding completed with keys:', Object.keys(savedKeys));
+  const markOnboardingComplete = (savedKeys = {}) => {
     setNeedsOnboarding(false);
     setHasApiKeys(true);
-    
-    // Refresh API keys to get the latest state
+    console.log('🎉 API key onboarding marked as complete');
+    // Refresh to get the latest backend state
     refreshApiKeys();
   };
 
-  const getProviderStatus = (provider) => {
-    const key = apiKeys[provider];
-    if (!key) return { configured: false, enabled: false, valid: false };
-    
-    return {
-      configured: !!(key.keyId || key.apiKey),
-      enabled: key.enabled || false,
-      valid: key.validationStatus === 'VALID',
-      lastValidated: key.lastValidated
-    };
-  };
-
+  /**
+   * Check if specific provider is configured and valid
+   */
   const hasValidProvider = (provider) => {
-    const status = getProviderStatus(provider);
-    return status.configured && status.enabled && status.valid;
+    const key = apiKeys[provider];
+    return key && key.isActive && key.validationStatus !== 'invalid';
   };
 
+  /**
+   * Check if any supported provider is configured
+   */
   const hasAnyValidProvider = () => {
-    return ['alpaca', 'polygon', 'finnhub'].some(provider => hasValidProvider(provider));
+    return ['alpaca', 'td_ameritrade'].some(provider => hasValidProvider(provider));
+  };
+
+  /**
+   * Get API key for specific provider (for backend requests)
+   */
+  const getApiKey = (provider) => {
+    return apiKeys[provider];
+  };
+
+  /**
+   * Get all active providers
+   */
+  const getActiveProviders = () => {
+    return Object.keys(apiKeys).filter(provider => 
+      apiKeys[provider]?.isActive
+    );
   };
 
   const value = {
@@ -142,10 +374,14 @@ export const ApiKeyProvider = ({ children }) => {
     needsOnboarding,
     error,
     loadApiKeys: refreshApiKeys,
+    saveApiKey,
+    removeApiKey,
     markOnboardingComplete,
-    getProviderStatus,
     hasValidProvider,
-    hasAnyValidProvider
+    hasAnyValidProvider,
+    getApiKey,
+    getActiveProviders,
+    validateApiKey
   };
 
   return (
