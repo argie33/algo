@@ -5,7 +5,7 @@ const schemaValidator = require('../utils/schemaValidator');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
-const apiKeyService = require('../utils/apiKeyService');
+const apiKeyService = require('../utils/apiKeyServiceResilient');
 
 const router = express.Router();
 

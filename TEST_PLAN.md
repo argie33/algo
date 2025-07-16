@@ -4,6 +4,35 @@
 
 ## 🚨 CRITICAL DEPLOYMENT ISSUES TESTING (July 16, 2025)
 
+### 🏗️ AWS DEPLOYMENT VALIDATION TESTING
+
+**AWS_DEPLOY_001: Repository Architecture Testing**
+- **Test Coverage**: Validation of clean repository deployment efficiency
+- **Test Implementation**:
+  - Repository size validation (<15GB for AWS deployment)
+  - Orphan branch merge conflict testing
+  - GitHub Actions workflow compatibility testing
+  - Build process timeout validation
+- **Success Criteria**: Fast deployment (<5 minutes), no merge conflicts, successful AWS CloudFormation deployment
+
+**AWS_DEPLOY_002: Lambda Build Process Testing**
+- **Test Coverage**: Validation of JavaScript build process in AWS environment
+- **Test Implementation**:
+  - ESBuild syntax validation in CI/CD pipeline
+  - Dependency conflict detection
+  - Function name collision testing
+  - Runtime configuration injection testing
+- **Success Criteria**: Zero build failures, successful Lambda deployment, correct runtime configuration
+
+**AWS_DEPLOY_003: Dynamic Configuration Testing**
+- **Test Coverage**: Validation of runtime API URL and Cognito configuration
+- **Test Implementation**:
+  - CloudFormation output extraction testing
+  - Environment variable injection testing
+  - Frontend build-time configuration testing
+  - Multi-environment configuration validation
+- **Success Criteria**: Correct API URLs in all environments, proper Cognito integration, no hardcoded values
+
 ### ✅ INFRASTRUCTURE HARDENING TESTING COMPLETE
 
 **HARDENING_001: Mock Data Elimination Testing**
@@ -69,6 +98,58 @@
 - **Test Implementation**:
   - Value at Risk (VaR) calculation accuracy testing
   - Expected shortfall calculation validation
+
+### 🔐 API KEY SERVICE TESTING FRAMEWORK (Critical Security Component)
+
+**API_KEY_001: Core API Key Service Testing**
+- **Test Coverage**: Complete API key encryption/decryption cycle validation
+- **Test Implementation**:
+  - AES-256-GCM encryption accuracy testing with known test vectors
+  - AWS Secrets Manager integration testing with error scenarios
+  - Per-user salt generation uniqueness validation
+  - Provider-specific format validation (Alpaca, TD Ameritrade, Interactive Brokers)
+  - Comprehensive logging validation with correlation ID tracking
+- **Success Criteria**: 100% encryption/decryption success rate, zero plaintext leakage
+
+**API_KEY_002: Resilient API Key Service Testing**
+- **Test Coverage**: Circuit breaker pattern and failure recovery validation
+- **Test Implementation**:
+  - Circuit breaker state transition testing (CLOSED → OPEN → HALF_OPEN)
+  - Retry logic validation with exponential backoff
+  - Graceful degradation testing under service failure conditions
+  - Health check integration validation
+  - Service availability monitoring accuracy
+- **Success Criteria**: Service recovers within 30 seconds, no data loss during failures
+
+**API_KEY_003: API Key Validation Service Testing**
+- **Test Coverage**: Real-time API key validation with external brokers
+- **Test Implementation**:
+  - Live API key verification with Alpaca sandbox/production APIs
+  - Validation caching strategy testing (5-minute cache TTL)
+  - Provider integration testing with error handling
+  - Status reporting accuracy validation
+  - Rate limiting compliance testing
+- **Success Criteria**: 95% validation accuracy, proper error classification
+
+**API_KEY_004: Integration Testing with Routes**
+- **Test Coverage**: End-to-end API key service integration across all routes
+- **Test Implementation**:
+  - Settings route API key management testing (POST, PUT, DELETE, GET)
+  - Portfolio route API key retrieval testing
+  - Trading route authentication testing
+  - WebSocket route security validation
+  - Cross-route API key consistency testing
+- **Success Criteria**: All routes properly integrate with API key service, no security gaps
+
+**API_KEY_005: Security and Compliance Testing**
+- **Test Coverage**: Security audit and compliance validation
+- **Test Implementation**:
+  - Encryption key rotation testing
+  - Data breach scenario testing (encrypted data exposure)
+  - Audit logging completeness validation
+  - Performance impact testing under load
+  - Memory leak detection during encryption/decryption cycles
+- **Success Criteria**: Zero security vulnerabilities, full audit trail, minimal performance impact
   - Maximum drawdown computation testing
   - Beta calculation accuracy validation
   - Scenario analysis result validation

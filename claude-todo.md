@@ -130,6 +130,35 @@
    - ✅ **User Experience**: Intuitive interface for complex trading operations
    - **Impact**: Professional trading interface matching institutional standards
 
+## 🚀 AWS DEPLOYMENT CRITICAL LEARNINGS (July 16, 2025)
+
+### **REPOSITORY ARCHITECTURE BREAKTHROUGH**
+- **✅ 73GB → 15GB Repository Cleanup**: Eliminated node_modules and git garbage for fast AWS deployment
+- **✅ Orphan Branch Strategy**: `initialbuild` branch with clean history prevents merge conflicts
+- **✅ GitHub Actions Workflow Fix**: Modified paths-filter to handle orphan branches properly
+- **✅ Build Process Validation**: Fixed JavaScript function conflicts that break AWS Lambda deployment
+
+### **API KEY SERVICE INTEGRATION BREAKTHROUGH (Priority #1 Achievement)**
+- **✅ Critical Settings Route Fix**: Resolved missing apiKeyService import that broke API key management
+- **✅ Duplicate Import Resolution**: Fixed conflicting apiKeyService imports causing runtime errors
+- **✅ Encryption/Decryption Integration**: Properly integrated async API key service methods
+- **✅ End-to-End Flow Validation**: Verified complete API key storage and retrieval cycle
+- **✅ Security Architecture Documentation**: Comprehensive API key service architecture documented
+- **✅ Testing Framework Established**: Complete testing strategy for API key service validation
+- **Impact**: API key service now fully functional end-to-end, resolving #1 priority issue
+
+### **AWS DEPLOYMENT PIPELINE OPTIMIZATION**
+- **✅ Dynamic Configuration**: Runtime API URL injection working correctly for multi-environment support
+- **✅ CloudFormation Integration**: Proper extraction of AWS resource outputs for frontend configuration
+- **✅ Lambda Build Process**: ESBuild syntax validation prevents deployment failures
+- **✅ Infrastructure as Code**: All changes must be CloudFormation-compatible for AWS deployment
+
+### **PRODUCTION DEPLOYMENT REALITY CHECK**
+- **Local Testing**: Useful for development but all features must work in AWS Lambda environment
+- **AWS Constraints**: 15-minute Lambda timeout, memory limits, cold start considerations
+- **Database Connectivity**: Must work through AWS VPC, security groups, and RDS proxy
+- **API Gateway Integration**: All routes must be compatible with AWS API Gateway limitations
+
 ## 🚀 PRODUCTION DEPLOYMENT STATUS
 
 ### **COMPREHENSIVE SYSTEM CAPABILITIES**

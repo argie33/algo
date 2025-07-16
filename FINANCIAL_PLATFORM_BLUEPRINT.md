@@ -10,13 +10,20 @@ This blueprint defines the complete architecture, implementation, and technical 
 
 ## 🏗️ DEPLOYMENT ARCHITECTURE & RESILIENCE DESIGN
 
-### 🎯 DEPLOYMENT RESILIENCE ARCHITECTURE
+### 🎯 AWS-NATIVE DEPLOYMENT STRATEGY
+
+**Repository Architecture for AWS Deployment**:
+- **Clean Repository Strategy**: Orphan branches with no history bloat for fast deployments
+- **Build Process Optimization**: <15GB repository size for AWS deployment efficiency
+- **GitHub Actions Integration**: Specialized workflows for AWS CloudFormation deployment
+- **Dynamic Configuration**: Runtime API URL injection for multi-environment support
 
 **Lambda Deployment Strategy**:
 - **Instance Warming**: Automated instance warming to ensure consistent deployment propagation
 - **Deployment Validation**: Instance ID tracking and code version consistency checks
 - **Progressive Rollout**: Gradual deployment with health check validation at each stage
 - **Rollback Mechanisms**: Automatic rollback on deployment failure detection
+- **Build Validation**: Pre-deployment JavaScript syntax and dependency validation
 
 **Database Connection Resilience**:
 - **Circuit Breaker Pattern**: Automatic connection failure detection and recovery
@@ -66,6 +73,33 @@ This blueprint defines the complete architecture, implementation, and technical 
 - **Maximum Drawdown**: Historical worst-case performance analysis
 - **Beta Calculation**: Market correlation and systematic risk measurement
 - **Scenario Analysis**: Bull/bear market and recession impact modeling
+
+### 🔐 API KEY SERVICE ARCHITECTURE (Critical Component)
+
+**Core API Key Service (`apiKeyService.js`)**:
+- **AES-256-GCM Encryption**: Military-grade encryption with authentication tags
+- **AWS Secrets Manager Integration**: Secure encryption key storage and retrieval
+- **Per-User Salt Generation**: Individual encryption keys for each user's data
+- **Provider-Specific Validation**: Format validation for Alpaca, TD Ameritrade, Interactive Brokers
+- **Comprehensive Logging**: Structured logging with correlation IDs for security auditing
+
+**Resilient API Key Service (`apiKeyServiceResilient.js`)**:
+- **Circuit Breaker Pattern**: Automatic failure detection and recovery mechanisms
+- **Retry Logic**: Configurable retry attempts with exponential backoff
+- **Graceful Degradation**: Service availability monitoring with fallback strategies
+- **Health Check Integration**: Real-time service status monitoring
+
+**API Key Validation Service (`apiKeyValidationService.js`)**:
+- **Real-Time Validation**: Live API key verification with external brokers
+- **Caching Strategy**: 5-minute validation cache to reduce external API calls
+- **Provider Integration**: Direct validation with Alpaca, TD Ameritrade APIs
+- **Status Reporting**: Detailed validation results with error classification
+
+**Critical Integration Points**:
+- **Settings Route Integration**: Complete end-to-end API key management in `/settings/api-keys`
+- **Portfolio Route Dependencies**: API key retrieval for live portfolio data
+- **Trading Route Authentication**: Secure credential access for trade execution
+- **WebSocket Route Security**: API key validation for real-time data streams
 
 ### 🔧 COMPREHENSIVE SOLUTION PLANS
 
