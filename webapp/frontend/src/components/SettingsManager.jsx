@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import settingsService from '../services/settingsService';
+import { useApiKeys } from './ApiKeyProvider';
+import ApiKeyOnboarding from './ApiKeyOnboarding';
 import {
   Box,
   Card,
@@ -61,25 +63,19 @@ import {
 } from '@mui/icons-material';
 
 const SettingsManager = () => {
+  const { 
+    apiKeys, 
+    isLoading: apiKeysLoading, 
+    hasApiKeys, 
+    saveApiKey, 
+    removeApiKey, 
+    hasValidProvider,
+    getActiveProviders,
+    error: apiKeyError 
+  } = useApiKeys();
+  
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState({
-    // API Keys
-    apiKeys: {
-      alpaca: {
-        keyId: '',
-        secretKey: '',
-        paperTrading: true,
-        enabled: false
-      },
-      polygon: {
-        apiKey: '',
-        enabled: false
-      },
-      finnhub: {
-        apiKey: '',
-        enabled: false
-      }
-    },
     // Trading Preferences
     trading: {
       defaultOrderType: 'market',
