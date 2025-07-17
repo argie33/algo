@@ -27,7 +27,13 @@ router.get('/sectors', async (req, res) => {
     
     let result;
     try {
-      result = await query(sectorsQuery);
+      // Add query timeout to prevent long waits
+      const queryPromise = query(sectorsQuery);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
+      );
+      
+      result = await Promise.race([queryPromise, timeoutPromise]);
       console.log(`✅ Sectors query successful: ${result.rows.length} sectors found`);
     } catch (dbError) {
       console.error('❌ Sectors query failed - comprehensive diagnosis needed', {
@@ -69,11 +75,27 @@ router.get('/sectors', async (req, res) => {
       avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null
     }));
     
-    res.json({
-      success: true,
-      data: sectors,
-      timestamp: new Date().toISOString()
-    });
+    // If no sectors found, provide helpful message about data loading
+    if (sectors.length === 0) {
+      res.json({
+        success: true,
+        data: [],
+        message: "No sectors data available - check data loading process",
+        recommendations: [
+          "Run stock symbols data loader to populate basic stock data",
+          "Check if ECS data loading tasks are completing successfully",
+          "Verify database connectivity and schema"
+        ],
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: true,
+        data: sectors,
+        count: sectors.length,
+        timestamp: new Date().toISOString()
+      });
+    }
     
   } catch (error) {
     console.error('Error fetching sectors, using fallback data:', error);
