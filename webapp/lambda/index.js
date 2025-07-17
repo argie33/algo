@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - DEPLOY NOW - FIX WEBAPP
+// MINIMAL LAMBDA - TEST WORKFLOW TRIGGER
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself
