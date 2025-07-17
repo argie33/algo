@@ -27,6 +27,26 @@
 - **Fix Root Causes**: When functionality breaks, fix the real issue - don't add mock fallbacks
 - **Quality Standard**: Real implementation must be at least as good as (if not better than) mock version
 
+## Anti-Duplication Policy - ABSOLUTE PROHIBITION
+**NEVER CREATE THESE UNDER ANY CIRCUMSTANCES**:
+- **Duplicate Functions**: Don't create V2 versions, alternatives, or similar implementations
+- **Fallback Implementations**: Don't create backup/fallback versions of existing functionality
+- **Mock Implementations**: Don't create mock versions when real implementations exist
+- **Placeholder Code**: Don't create temporary or placeholder implementations
+- **Workaround Solutions**: Don't create workarounds - fix the original issue
+- **Alternative Approaches**: Don't create multiple ways to do the same thing
+- **Backup Files**: Don't create backup versions with different names
+- **Duplicate Middleware**: Don't create additional middleware when existing ones can be enhanced
+- **Duplicate Routes**: Don't create alternative routes - enhance existing ones
+- **Duplicate Configuration**: Don't create multiple config files for the same purpose
+
+**ENFORCEMENT**:
+- If you start creating duplicates, STOP immediately and enhance the existing implementation
+- If you need to fix something, fix the original - don't create alternatives
+- If existing code has issues, debug and repair it - don't create replacements
+- Always prefer enhancing existing code over creating new versions
+- When in doubt, ask the user rather than creating duplicates
+
 ## Development Commands & Tooling
 ### Backend (Lambda/API)
 - **Test**: `npm test` (in webapp/lambda/)

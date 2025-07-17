@@ -1,0 +1,237 @@
+name: Deploy Unified Financial Dashboard
+
+on:
+  push:
+    branches: [ main, loaddata ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: financial-dashboard-unified
+  LAMBDA_CODE_KEY: api.zip
+  APP_BUCKET: stocks-algo-app-code
+  SITE_BUCKET_PREFIX: financial-dashboard-frontend
+  CERT_ARN: ${{ secrets.CERT_ARN }}
+  ENVIRONMENT: dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+
+      - name: Install Lambda dependencies
+        run: |
+          cd webapp/lambda
+          npm ci --production
+
+      - name: Package Lambda code
+        run: |
+          cd webapp/lambda
+          echo "📦 Creating Lambda deployment package..."
+          zip -r ../../${{ env.LAMBDA_CODE_KEY }} . \
+            -x "*.git*" \
+            -x "node_modules/.cache/*" \
+            -x "*.md" \
+            -x "*.log" \
+            -x "test/*" \
+            -x "*.test.js"
+          
+          echo "📊 Lambda package size:"
+          ls -lh ../../${{ env.LAMBDA_CODE_KEY }}
+
+      - name: Upload Lambda code to S3
+        run: |
+          echo "☁️ Uploading Lambda code to S3..."
+          aws s3 cp ${{ env.LAMBDA_CODE_KEY }} s3://${{ env.APP_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
+          
+          echo "✅ Lambda code uploaded successfully"
+
+      - name: Deploy CloudFormation stack
+        run: |
+          echo "🚀 Deploying unified infrastructure stack..."
+          
+          aws cloudformation deploy \
+            --stack-name ${{ env.STACK_NAME }} \
+            --template-file template-webapp-unified.yml \
+            --parameter-overrides \
+              LambdaCodeKey=${{ env.LAMBDA_CODE_KEY }} \
+              CertificateArn=${{ env.CERT_ARN }} \
+              EnvironmentName=${{ env.ENVIRONMENT }} \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset
+          
+          echo "✅ Infrastructure deployed successfully"
+
+      - name: Extract CloudFormation outputs
+        id: cf-outputs
+        run: |
+          echo "📋 Extracting CloudFormation outputs..."
+          
+          # Extract all outputs with error handling
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolDomain`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          # Set outputs as environment variables
+          echo "API_URL=$API_URL" >> $GITHUB_ENV
+          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_ENV
+          echo "CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
+          echo "COGNITO_DOMAIN=$COGNITO_DOMAIN" >> $GITHUB_ENV
+          echo "WEBSITE_URL=$WEBSITE_URL" >> $GITHUB_ENV
+          echo "FRONTEND_BUCKET=$FRONTEND_BUCKET" >> $GITHUB_ENV
+          echo "CLOUDFRONT_ID=$CLOUDFRONT_ID" >> $GITHUB_ENV
+          
+          echo "📝 Configuration extracted:"
+          echo "  API_URL: $API_URL"
+          echo "  USER_POOL_ID: $USER_POOL_ID"
+          echo "  CLIENT_ID: $CLIENT_ID"
+          echo "  COGNITO_DOMAIN: $COGNITO_DOMAIN"
+          echo "  WEBSITE_URL: $WEBSITE_URL"
+          echo "  FRONTEND_BUCKET: $FRONTEND_BUCKET"
+          echo "  CLOUDFRONT_ID: $CLOUDFRONT_ID"
+
+      - name: Setup frontend Node.js
+        run: |
+          cd webapp/frontend
+          npm ci
+
+      - name: Build frontend application
+        run: |
+          cd webapp/frontend
+          
+          echo "🔧 Configuring frontend with extracted values..."
+          
+          # Validate required configuration
+          if [[ -z "$API_URL" || -z "$USER_POOL_ID" || -z "$CLIENT_ID" ]]; then
+            echo "❌ Missing required configuration values"
+            echo "API_URL: $API_URL"
+            echo "USER_POOL_ID: $USER_POOL_ID"
+            echo "CLIENT_ID: $CLIENT_ID"
+            exit 1
+          fi
+          
+          # Create production configuration
+          if [[ -f "scripts/setup-prod.js" ]]; then
+            echo "📝 Running production setup script..."
+            node scripts/setup-prod.js "$API_URL" "production" "$USER_POOL_ID" "$CLIENT_ID" "$COGNITO_DOMAIN" "$WEBSITE_URL"
+          else
+            echo "⚠️ Production setup script not found, using environment variables"
+            export VITE_API_URL="$API_URL"
+            export VITE_USER_POOL_ID="$USER_POOL_ID"
+            export VITE_CLIENT_ID="$CLIENT_ID"
+            export VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN"
+            export VITE_ENVIRONMENT="production"
+          fi
+          
+          # Build the application
+          echo "🏗️ Building frontend application..."
+          npm run build
+          
+          echo "✅ Frontend build completed"
+
+      - name: Deploy frontend to S3
+        run: |
+          echo "☁️ Deploying frontend to S3..."
+          
+          if [[ -n "$FRONTEND_BUCKET" ]]; then
+            aws s3 sync webapp/frontend/dist/ s3://$FRONTEND_BUCKET --delete
+            echo "✅ Frontend deployed to S3: $FRONTEND_BUCKET"
+          else
+            echo "❌ Frontend bucket name not found"
+            exit 1
+          fi
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          
+          if [[ -n "$CLOUDFRONT_ID" ]]; then
+            aws cloudfront create-invalidation \
+              --distribution-id $CLOUDFRONT_ID \
+              --paths "/*"
+            echo "✅ CloudFront cache invalidated"
+          else
+            echo "❌ CloudFront distribution ID not found"
+            exit 1
+          fi
+
+      - name: Run deployment validation
+        run: |
+          echo "🔍 Validating deployment..."
+          
+          # Test API endpoint
+          if [[ -n "$API_URL" ]]; then
+            echo "Testing API endpoint..."
+            curl -f -s "$API_URL" > /dev/null && echo "✅ API endpoint responding" || echo "❌ API endpoint not responding"
+          fi
+          
+          # Test website URL
+          if [[ -n "$WEBSITE_URL" ]]; then
+            echo "Testing website URL..."
+            curl -f -s "$WEBSITE_URL" > /dev/null && echo "✅ Website responding" || echo "❌ Website not responding"
+          fi
+          
+          echo "🎉 Deployment validation completed"
+
+      - name: Output deployment summary
+        run: |
+          echo "🎯 Deployment Summary:"
+          echo "================================="
+          echo "Stack Name: ${{ env.STACK_NAME }}"
+          echo "Environment: ${{ env.ENVIRONMENT }}"
+          echo "API URL: $API_URL"
+          echo "Website URL: $WEBSITE_URL"
+          echo "Cognito User Pool: $USER_POOL_ID"
+          echo "Cognito Client: $CLIENT_ID"
+          echo "Frontend Bucket: $FRONTEND_BUCKET"
+          echo "CloudFront ID: $CLOUDFRONT_ID"
+          echo "================================="
+          echo "✅ Unified deployment completed successfully!"
