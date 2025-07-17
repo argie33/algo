@@ -151,10 +151,10 @@ Resources:
         AllowCredentials: "'true'"
 
   # Main API Lambda function (handles all routes)
-  ApiFunctionV2:
+  ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-v2-dev'
+      FunctionName: !Sub 'financial-dashboard-api-dev'
       CodeUri: webapp/lambda/
       Handler: index.handler
       Environment:
@@ -209,9 +209,9 @@ Resources:
     Type: AWS::Lambda::Permission
     DependsOn: 
       - ServerlessRestApi
-      - ApiFunctionV2
+      - ApiFunction
     Properties:
-      FunctionName: !GetAtt ApiFunctionV2.Arn
+      FunctionName: !GetAtt ApiFunction.Arn
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*/*'
@@ -261,7 +261,7 @@ Resources:
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
     Type: AWS::CloudWatch::Alarm
-    DependsOn: ApiFunctionV2
+    DependsOn: ApiFunction
     Properties:
       AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
       AlarmDescription: Lambda function duration is high
@@ -274,7 +274,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref ApiFunctionV2
+          Value: !Ref ApiFunction
 
   # CloudWatch Alarm for API Gateway performance
   ApiGatewayPerformanceAlarm:
@@ -318,7 +318,7 @@ Resources:
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - ApiFunctionV2
+      - ApiFunction
       - ServerlessRestApi
     Properties:
       RestApiId: !Ref ServerlessRestApi
