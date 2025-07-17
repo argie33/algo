@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react';
+import { styled, alpha, keyframes } from '@mui/material/styles';
 import {
   Box,
   Container,
@@ -35,10 +36,7 @@ import {
   Fade,
   Grow,
   Zoom,
-  Skeleton,
-  alpha,
-  styled,
-  keyframes
+  Skeleton
 } from '@mui/material'
 import {
   TrendingUp,
