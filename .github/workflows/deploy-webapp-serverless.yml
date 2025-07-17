@@ -3,9 +3,6 @@ name: Deploy Serverless Webapp
 on:
   push:
     branches: [ initialbuild ]
-    paths:
-      - 'webapp/**'
-      - '.github/workflows/deploy-webapp-serverless.yml'
   workflow_dispatch:
 
 env:
