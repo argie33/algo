@@ -21,14 +21,6 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
 
 permissions:
   id-token: write

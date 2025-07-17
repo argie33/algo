@@ -13,11 +13,6 @@ on:
           - buysell
           - stocksymbols
           - earningsmetrics
-  push:
-    branches: [loaddata]
-    paths: 
-      - 'Dockerfile.*'
-      - 'load*.py'
       - 'requirements-*.txt'
 
 env:
