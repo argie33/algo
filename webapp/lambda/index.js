@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - WEBAPP EXCLUSIVE TRIGGER TEST
+// MINIMAL LAMBDA - CLEAN WORKFLOW TEST
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself
