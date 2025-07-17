@@ -13,6 +13,15 @@ Parameters:
     Default: ''
     Description: ACM certificate ARN (us-east-1) for CloudFront
 
+  EnvironmentName:
+    Type: String
+    Default: 'dev'
+    Description: Environment name (dev, staging, production)
+    AllowedValues:
+      - dev
+      - staging
+      - production
+
 Conditions:
   UseCert:
     Fn::Not:
@@ -164,17 +173,20 @@ Resources:
       # NO VpcConfig - Lambda runs in AWS managed VPC with internet access
       Environment:
         Variables:
+          # Database configuration
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
           DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
-          COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
-          NODE_ENV: !Ref EnvironmentName
-          ENVIRONMENT: !Ref EnvironmentName
-          WEBAPP_AWS_REGION: !Ref AWS::Region
-          COGNITO_USER_POOL_ID: !Ref UserPool
-          COGNITO_CLIENT_ID: !Ref UserPoolClient
           DB_CONNECT_TIMEOUT: '30000'
           DB_POOL_MAX: '3'
           DB_POOL_IDLE_TIMEOUT: '30000'
+          # Environment configuration
+          NODE_ENV: !Ref EnvironmentName
+          AWS_REGION: !Ref AWS::Region
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+          # Authentication configuration
+          COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
           # API key encryption secret
           API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
       Tags:

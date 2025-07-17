@@ -141,12 +141,12 @@ jobs:
             echo "No loaders to run"
           fi
 
-  # 2. Build and deploy infrastructure if needed
+  # 2. Deploy infrastructure and build images if needed
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.infrastructure-changed == 'true'
+    if: needs.detect-changes.outputs.infrastructure-changed == 'true' || needs.detect-changes.outputs.has-changes == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -249,7 +249,7 @@ jobs:
     if: |
       always() && 
       needs.detect-changes.outputs.has-changes == 'true' &&
-      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+      needs.deploy-infrastructure.result == 'success'
     
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
