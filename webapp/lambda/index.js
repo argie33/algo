@@ -1,11 +1,11 @@
-// EMERGENCY CORS FIX - SIMPLIFIED VERSION
-console.log('🚀 EMERGENCY CORS FIX STARTING...');
+// EMERGENCY CORS FIX - MINIMAL WORKING VERSION
+console.log('🚀 CORS FIX LAMBDA STARTING...');
 
 const serverless = require('serverless-http');
 const express = require('express');
 const app = express();
 
-// CORS middleware that works for ALL requests
+// CORS middleware - MUST be first
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
   
@@ -33,7 +33,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Simple health endpoint
+// Basic JSON middleware
+app.use(express.json());
+
+// Health endpoints
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -45,12 +48,12 @@ app.get('/health', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
-    message: 'API CORS fix is working',
+    message: 'API health check with CORS working',
     timestamp: new Date().toISOString()
   });
 });
 
-// Handle all other routes with CORS
+// Handle all other routes
 app.all('*', (req, res) => {
   res.json({
     success: false,
