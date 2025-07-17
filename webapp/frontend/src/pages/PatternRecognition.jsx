@@ -62,47 +62,83 @@ const PatternRecognition = () => {
   const [confidenceFilter, setConfidenceFilter] = useState(75);
   const [selectedPattern, setSelectedPattern] = useState('all');
 
+  // Default watchlist symbols for pattern analysis
+  const defaultSymbols = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'BABA', 'PLTR'];
+
   // Fetch patterns data using React Query with robust logging
   const { data: patternsData, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', selectedTimeframe, confidenceFilter, selectedPattern],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        timeframe: selectedTimeframe,
-        confidence: confidenceFilter,
-        pattern: selectedPattern !== 'all' ? selectedPattern : ''
-      });
-      
-      const url = `${API_BASE}/api/technical/patterns?${params}`;
-      logger.info('Fetching patterns data', { 
-        url, 
+      logger.info('Fetching patterns data for multiple symbols', { 
+        symbols: defaultSymbols.length,
         timeframe: selectedTimeframe, 
         confidence: confidenceFilter,
         pattern: selectedPattern 
       });
       
       try {
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error('API request failed', new Error(`HTTP ${response.status}`), {
-            url,
-            status: response.status,
-            statusText: response.statusText,
-            responseBody: errorText
-          });
-          throw new Error(`Failed to fetch patterns: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        logger.info('Successfully fetched patterns data', {
-          patternCount: data?.data?.length || 0,
-          response: data
+        // Fetch patterns for multiple symbols in parallel
+        const symbolRequests = defaultSymbols.map(async (symbol) => {
+          const url = `${API_BASE}/api/technical/patterns/${symbol}?timeframe=${selectedTimeframe}&limit=5`;
+          
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              const data = await response.json();
+              // Add symbol to each pattern for display
+              return (data.patterns || []).map(pattern => ({
+                ...pattern,
+                symbol: symbol
+              }));
+            } else {
+              logger.warn(`Failed to fetch patterns for ${symbol}`, { status: response.status });
+              return [];
+            }
+          } catch (error) {
+            logger.warn(`Network error for ${symbol}`, error);
+            return [];
+          }
         });
         
-        return data;
+        const allPatternArrays = await Promise.all(symbolRequests);
+        const allPatterns = allPatternArrays.flat();
+        
+        // Filter patterns based on user selections
+        let filteredPatterns = allPatterns.filter(pattern => {
+          // Confidence filter
+          if ((pattern.confidence || 0) * 100 < confidenceFilter) return false;
+          
+          // Pattern type filter
+          if (selectedPattern !== 'all') {
+            if (selectedPattern === 'bullish' && pattern.direction !== 'bullish') return false;
+            if (selectedPattern === 'bearish' && pattern.direction !== 'bearish') return false;
+            if (selectedPattern === 'reversal' && !pattern.type.includes('double')) return false;
+            if (selectedPattern === 'continuation' && !pattern.type.includes('flag')) return false;
+          }
+          
+          return true;
+        });
+        
+        // Sort by confidence descending
+        filteredPatterns.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        
+        logger.info('Successfully fetched and filtered patterns data', {
+          totalPatterns: allPatterns.length,
+          filteredPatterns: filteredPatterns.length,
+          symbols: defaultSymbols.length
+        });
+        
+        return {
+          success: true,
+          data: filteredPatterns,
+          metadata: {
+            totalPatterns: allPatterns.length,
+            filteredPatterns: filteredPatterns.length,
+            symbolsAnalyzed: defaultSymbols.length
+          }
+        };
       } catch (fetchError) {
-        logger.error('Network error fetching patterns', fetchError, { url });
+        logger.error('Network error fetching patterns', fetchError);
         throw fetchError;
       }
     },
@@ -131,7 +167,7 @@ const PatternRecognition = () => {
     }
     
     const symbol = searchSymbol.toUpperCase();
-    const url = `${API_BASE}/api/technical/patterns/analyze/${symbol}?timeframe=${selectedTimeframe}`;
+    const url = `${API_BASE}/api/technical/patterns/${symbol}?timeframe=${selectedTimeframe}`;
     
     logger.info('Analyzing specific symbol', { symbol, timeframe: selectedTimeframe, url });
     
@@ -142,7 +178,7 @@ const PatternRecognition = () => {
         const data = await response.json();
         logger.info('Symbol analysis completed successfully', { 
           symbol, 
-          patternsFound: data?.patterns?.length || 0,
+          patternsFound: data?.data?.patterns?.length || 0,
           response: data 
         });
         
@@ -352,11 +388,11 @@ const PatternRecognition = () => {
                             <Typography variant="h6" fontWeight="bold">
                               {pattern.symbol}
                             </Typography>
-                            {getPatternIcon(pattern.bias)}
+                            {getPatternIcon(pattern.direction)}
                           </Box>
                           <Chip
-                            label={`${pattern.confidence || 0}%`}
-                            color={getConfidenceColor(pattern.confidence || 0)}
+                            label={`${Math.round((pattern.confidence || 0) * 100)}%`}
+                            color={getConfidenceColor(Math.round((pattern.confidence || 0) * 100))}
                             size="small"
                           />
                         </Box>
@@ -364,8 +400,8 @@ const PatternRecognition = () => {
                       subheader={
                         <Box display="flex" alignItems="center" gap={1} mt={1}>
                           <Chip
-                            label={formatPatternName(pattern.pattern)}
-                            color={getPatternColor(pattern.pattern)}
+                            label={formatPatternName(pattern.type)}
+                            color={getPatternColor(pattern.type)}
                             size="small"
                           />
                           <Typography variant="caption" color="text.secondary">
@@ -398,19 +434,19 @@ const PatternRecognition = () => {
                         <Grid item xs={6}>
                           <Typography variant="caption" color="text.secondary">Entry:</Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {formatCurrency(pattern.entryPrice || 0)}
+                            {formatCurrency(pattern.entry_price || 0)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6}>
                           <Typography variant="caption" color="text.secondary">Target:</Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {formatCurrency(pattern.targetPrice || 0)}
+                            {formatCurrency(pattern.target_price || 0)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6}>
                           <Typography variant="caption" color="text.secondary">Stop Loss:</Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {formatCurrency(pattern.stopLoss || 0)}
+                            {formatCurrency(pattern.stop_loss || 0)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6}>
@@ -442,7 +478,7 @@ const PatternRecognition = () => {
                       <Box display="flex" alignItems="center" gap={0.5}>
                         <Clock fontSize="small" color="action" />
                         <Typography variant="caption" color="text.secondary">
-                          Detected {pattern.detectedAt || 'recently'}
+                          Detected {pattern.detected_at ? new Date(pattern.detected_at).toLocaleDateString() : 'recently'}
                         </Typography>
                       </Box>
                     </CardContent>
@@ -471,7 +507,7 @@ const PatternRecognition = () => {
       {tabValue === 1 && (
         <Box>
           <Grid container spacing={3}>
-            {patterns.filter(p => p.bias === 'bullish').map((pattern, index) => (
+            {patterns.filter(p => p.direction === 'bullish').map((pattern, index) => (
               <Grid item xs={12} md={6} lg={4} key={index}>
                 <Card sx={{ 
                   border: '2px solid',
@@ -490,7 +526,7 @@ const PatternRecognition = () => {
                     }
                     subheader={
                       <Chip
-                        label={formatPatternName(pattern.pattern)}
+                        label={formatPatternName(pattern.type)}
                         sx={{ 
                           bgcolor: 'success.100', 
                           color: 'success.dark',
@@ -505,13 +541,14 @@ const PatternRecognition = () => {
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2" color="success.dark">Upside Potential:</Typography>
                       <Typography variant="body2" fontWeight="bold" color="success.dark">
-                        {((pattern.targetPrice - pattern.entryPrice) / pattern.entryPrice * 100).toFixed(1)}%
+                        {pattern.target_price && pattern.entry_price ? 
+                          ((pattern.target_price - pattern.entry_price) / pattern.entry_price * 100).toFixed(1) : 'N/A'}%
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2" color="success.dark">Confidence:</Typography>
                       <Typography variant="body2" fontWeight="bold" color="success.dark">
-                        {pattern.confidence}%
+                        {Math.round((pattern.confidence || 0) * 100)}%
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between">
@@ -525,7 +562,7 @@ const PatternRecognition = () => {
               </Grid>
             ))}
           </Grid>
-          {patterns.filter(p => p.bias === 'bullish').length === 0 && (
+          {patterns.filter(p => p.direction === 'bullish').length === 0 && (
             <Alert severity="info">
               No bullish patterns found with current filters.
             </Alert>
@@ -536,7 +573,7 @@ const PatternRecognition = () => {
       {tabValue === 2 && (
         <Box>
           <Grid container spacing={3}>
-            {patterns.filter(p => p.bias === 'bearish').map((pattern, index) => (
+            {patterns.filter(p => p.direction === 'bearish').map((pattern, index) => (
               <Grid item xs={12} md={6} lg={4} key={index}>
                 <Card sx={{ 
                   border: '2px solid',
@@ -555,7 +592,7 @@ const PatternRecognition = () => {
                     }
                     subheader={
                       <Chip
-                        label={formatPatternName(pattern.pattern)}
+                        label={formatPatternName(pattern.type)}
                         sx={{ 
                           bgcolor: 'error.100', 
                           color: 'error.dark',
@@ -570,13 +607,14 @@ const PatternRecognition = () => {
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2" color="error.dark">Downside Risk:</Typography>
                       <Typography variant="body2" fontWeight="bold" color="error.dark">
-                        {((pattern.entryPrice - pattern.targetPrice) / pattern.entryPrice * 100).toFixed(1)}%
+                        {pattern.entry_price && pattern.target_price ? 
+                          ((pattern.entry_price - pattern.target_price) / pattern.entry_price * 100).toFixed(1) : 'N/A'}%
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2" color="error.dark">Confidence:</Typography>
                       <Typography variant="body2" fontWeight="bold" color="error.dark">
-                        {pattern.confidence}%
+                        {Math.round((pattern.confidence || 0) * 100)}%
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between">
@@ -590,7 +628,7 @@ const PatternRecognition = () => {
               </Grid>
             ))}
           </Grid>
-          {patterns.filter(p => p.bias === 'bearish').length === 0 && (
+          {patterns.filter(p => p.direction === 'bearish').length === 0 && (
             <Alert severity="info">
               No bearish patterns found with current filters.
             </Alert>
@@ -605,7 +643,7 @@ const PatternRecognition = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <Typography variant="h4" fontWeight="bold" color="success.main" gutterBottom>
-                    {patterns.filter(p => p.bias === 'bullish').length}
+                    {patterns.filter(p => p.direction === 'bullish').length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Bullish Patterns
@@ -618,7 +656,7 @@ const PatternRecognition = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <Typography variant="h4" fontWeight="bold" color="error.main" gutterBottom>
-                    {patterns.filter(p => p.bias === 'bearish').length}
+                    {patterns.filter(p => p.direction === 'bearish').length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Bearish Patterns
@@ -631,7 +669,7 @@ const PatternRecognition = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <Typography variant="h4" fontWeight="bold" color="primary.main" gutterBottom>
-                    {patterns.filter(p => p.confidence >= 90).length}
+                    {patterns.filter(p => (p.confidence || 0) >= 0.9).length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     High Confidence
@@ -644,7 +682,7 @@ const PatternRecognition = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    {patterns.length > 0 ? (patterns.reduce((sum, p) => sum + (p.confidence || 0), 0) / patterns.length).toFixed(0) : 0}%
+                    {patterns.length > 0 ? (patterns.reduce((sum, p) => sum + (p.confidence || 0), 0) / patterns.length * 100).toFixed(0) : 0}%
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Avg Confidence
@@ -682,8 +720,8 @@ const PatternRecognition = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {['bullish_flag', 'ascending_triangle', 'cup_handle', 'double_bottom', 'head_shoulders'].map((patternType) => {
-                          const count = patterns.filter(p => p.pattern === patternType).length;
+                        {['bullish_flag', 'ascending_triangle', 'cup_and_handle', 'double_bottom', 'head_and_shoulders'].map((patternType) => {
+                          const count = patterns.filter(p => p.type === patternType).length;
                           const percentage = patterns.length > 0 ? ((count / patterns.length) * 100).toFixed(1) : 0;
                           return (
                             <TableRow key={patternType}>
@@ -710,7 +748,7 @@ const PatternRecognition = () => {
                       { label: 'Low (<70%)', max: 69, color: 'error' }
                     ].map((range, index) => {
                       const count = patterns.filter(p => {
-                        const conf = p.confidence || 0;
+                        const conf = (p.confidence || 0) * 100; // Convert to percentage
                         if (range.min && range.max) return conf >= range.min && conf <= range.max;
                         if (range.min) return conf >= range.min;
                         if (range.max) return conf <= range.max;

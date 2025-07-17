@@ -99,6 +99,10 @@ const RealTimeDashboard = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [watchlist, setWatchlist] = useState(['AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL']);
   const [marketData, setMarketData] = useState(null);
+  const [optionsFlowData, setOptionsFlowData] = useState(null);
+  const [unusualOptionsData, setUnusualOptionsData] = useState(null);
+  const [newsFeedData, setNewsFeedData] = useState(null);
+  const [economicCalendarData, setEconomicCalendarData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([]);
@@ -108,7 +112,34 @@ const RealTimeDashboard = () => {
   // Load initial data
   useEffect(() => {
     loadMarketData();
+    loadInitialOptionsAndNewsData();
   }, []);
+
+  // Load initial options and news data
+  const loadInitialOptionsAndNewsData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load all data in parallel
+      const [optionsFlow, unusualOptions, newsFeed, economicCalendar] = await Promise.all([
+        loadOptionsFlowData(),
+        loadUnusualOptionsActivity(),
+        loadNewsFeedData(),
+        loadEconomicCalendarData()
+      ]);
+      
+      setOptionsFlowData(optionsFlow);
+      setUnusualOptionsData(unusualOptions);
+      setNewsFeedData(newsFeed);
+      setEconomicCalendarData(economicCalendar);
+      
+    } catch (error) {
+      console.error('Failed to load options and news data:', error);
+      setError('Failed to load options and news data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Streaming interval
   useEffect(() => {
@@ -235,6 +266,95 @@ const RealTimeDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load Options Flow data from the new API
+  const loadOptionsFlowData = async () => {
+    try {
+      const response = await api.get('/api/news/options-flow', {
+        params: {
+          limit: 50,
+          min_volume: 100,
+          min_premium: 10000,
+          timeframe: '1d'
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('Failed to fetch options flow data');
+      }
+    } catch (error) {
+      console.error('Error loading options flow data:', error);
+      return null;
+    }
+  };
+
+  // Load Unusual Options Activity data
+  const loadUnusualOptionsActivity = async () => {
+    try {
+      const response = await api.get('/api/news/options-flow/unusual', {
+        params: {
+          limit: 25,
+          min_volume: 500
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('Failed to fetch unusual options activity');
+      }
+    } catch (error) {
+      console.error('Error loading unusual options activity:', error);
+      return null;
+    }
+  };
+
+  // Load News Feed data from the new API
+  const loadNewsFeedData = async () => {
+    try {
+      const response = await api.get('/api/news/feed', {
+        params: {
+          category: 'all',
+          limit: 20,
+          time_range: '24h'
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('Failed to fetch news feed data');
+      }
+    } catch (error) {
+      console.error('Error loading news feed data:', error);
+      return null;
+    }
+  };
+
+  // Load Economic Calendar data
+  const loadEconomicCalendarData = async () => {
+    try {
+      const response = await api.get('/api/news/economic-calendar', {
+        params: {
+          importance: 'all',
+          country: 'all',
+          date_range: '7d',
+          limit: 10
+        }
+      });
+      
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new Error('Failed to fetch economic calendar data');
+      }
+    } catch (error) {
+      console.error('Error loading economic calendar data:', error);
+      return null;
     }
   };
 
@@ -1006,7 +1126,13 @@ const RealTimeDashboard = () => {
               <CardHeader 
                 title="Unusual Options Activity" 
                 action={
-                  <IconButton onClick={loadMarketData} disabled={isStreaming}>
+                  <IconButton 
+                    onClick={() => {
+                      loadMarketData();
+                      loadInitialOptionsAndNewsData();
+                    }} 
+                    disabled={isStreaming || loading}
+                  >
                     <Refresh />
                   </IconButton>
                 }
@@ -1027,65 +1153,78 @@ const RealTimeDashboard = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {marketData?.watchlistData?.slice(0, 10).map((stock, index) => {
-                        // Generate realistic options data based on stock price
-                        const isCall = Math.random() > 0.5;
-                        const strike = Math.round(stock.price * (0.95 + Math.random() * 0.1));
-                        const volume = Math.floor(Math.random() * 5000) + 100;
-                        const openInterest = Math.floor(Math.random() * 10000) + 500;
-                        const premium = (stock.price * 0.02 * (1 + Math.random())).toFixed(2);
-                        const sentiment = volume > 2000 ? 'Bullish' : volume > 1000 ? 'Bearish' : 'Neutral';
-                        
-                        return (
-                          <TableRow key={stock.symbol}>
+                      {unusualOptionsData && unusualOptionsData.length > 0 ? (
+                        unusualOptionsData.map((option, index) => (
+                          <TableRow key={`${option.symbol}-${option.strike}-${option.expiry}-${index}`}>
                             <TableCell>
                               <Typography variant="body2" fontWeight="bold">
-                                {stock.symbol}
+                                {option.symbol}
                               </Typography>
                             </TableCell>
                             <TableCell>
                               <Chip
-                                label={isCall ? 'CALL' : 'PUT'}
-                                color={isCall ? 'success' : 'error'}
+                                label={option.option_type?.toUpperCase() || 'CALL'}
+                                color={option.option_type === 'call' ? 'success' : 'error'}
                                 size="small"
                                 variant="outlined"
                               />
                             </TableCell>
-                            <TableCell>{formatCurrency(strike)}</TableCell>
+                            <TableCell>{formatCurrency(option.strike || 0)}</TableCell>
                             <TableCell>
                               <Typography variant="caption">
-                                {new Date(Date.now() + Math.random() * 90 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                                {option.expiry ? new Date(option.expiry).toLocaleDateString() : 'N/A'}
                               </Typography>
                             </TableCell>
                             <TableCell align="right">
-                              <Typography variant="body2" fontWeight={volume > 2000 ? 'bold' : 'normal'}>
-                                {formatNumber(volume)}
+                              <Typography variant="body2" fontWeight={option.volume > 2000 ? 'bold' : 'normal'}>
+                                {formatNumber(option.volume || 0)}
                               </Typography>
                             </TableCell>
                             <TableCell align="right">
-                              {formatNumber(openInterest)}
+                              {formatNumber(option.open_interest || 0)}
                             </TableCell>
                             <TableCell align="right">
-                              {formatCurrency(premium)}
+                              {formatCurrency(option.premium || 0)}
                             </TableCell>
                             <TableCell>
                               <Chip
-                                label={sentiment}
-                                color={sentiment === 'Bullish' ? 'success' : sentiment === 'Bearish' ? 'error' : 'default'}
+                                label={option.sentiment || 'Neutral'}
+                                color={
+                                  option.sentiment === 'Bullish' ? 'success' : 
+                                  option.sentiment === 'Bearish' ? 'error' : 'default'
+                                }
                                 size="small"
                               />
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
+                        ))
+                      ) : (
+                        // Fallback to loading or empty state
+                        Array.from({ length: 5 }).map((_, index) => (
+                          <TableRow key={`loading-${index}`}>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {loading ? 'Loading...' : 'No data'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
                 
-                {(!marketData?.watchlistData || marketData.watchlistData.length === 0) && (
+                {(!unusualOptionsData || unusualOptionsData.length === 0) && !loading && (
                   <Box sx={{ textAlign: 'center', py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
-                      No options data available. Options flow requires market data connection.
+                      No unusual options activity detected. Try refreshing or check back later.
                     </Typography>
                   </Box>
                 )}
@@ -1100,29 +1239,48 @@ const RealTimeDashboard = () => {
                 <Card>
                   <CardHeader title="Flow Summary" />
                   <CardContent>
-                    <Box display="flex" justifyContent="space-between" mb={2}>
-                      <Typography variant="body2" color="text.secondary">Call Volume</Typography>
-                      <Typography variant="h6" color="success.main">
-                        {marketData?.watchlistData ? formatNumber(marketData.watchlistData.length * 1247) : '0'}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="space-between" mb={2}>
-                      <Typography variant="body2" color="text.secondary">Put Volume</Typography>
-                      <Typography variant="h6" color="error.main">
-                        {marketData?.watchlistData ? formatNumber(marketData.watchlistData.length * 891) : '0'}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="space-between" mb={2}>
-                      <Typography variant="body2" color="text.secondary">Put/Call Ratio</Typography>
-                      <Typography variant="h6">
-                        0.71
-                      </Typography>
-                    </Box>
-                    <Divider sx={{ my: 2 }} />
-                    <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary">Market Sentiment</Typography>
-                      <Chip label="Cautiously Bullish" color="warning" size="small" />
-                    </Box>
+                    {(() => {
+                      // Calculate real metrics from options flow data
+                      const callVolume = optionsFlowData?.filter(opt => opt.option_type === 'call')
+                        .reduce((sum, opt) => sum + (opt.volume || 0), 0) || 0;
+                      const putVolume = optionsFlowData?.filter(opt => opt.option_type === 'put')
+                        .reduce((sum, opt) => sum + (opt.volume || 0), 0) || 0;
+                      const putCallRatio = callVolume > 0 ? (putVolume / callVolume).toFixed(2) : '0.00';
+                      
+                      // Determine market sentiment based on put/call ratio
+                      const sentiment = putCallRatio < 0.5 ? 'Bullish' : 
+                                       putCallRatio < 0.8 ? 'Neutral' : 'Bearish';
+                      const sentimentColor = sentiment === 'Bullish' ? 'success' : 
+                                            sentiment === 'Neutral' ? 'warning' : 'error';
+                      
+                      return (
+                        <>
+                          <Box display="flex" justifyContent="space-between" mb={2}>
+                            <Typography variant="body2" color="text.secondary">Call Volume</Typography>
+                            <Typography variant="h6" color="success.main">
+                              {formatNumber(callVolume)}
+                            </Typography>
+                          </Box>
+                          <Box display="flex" justifyContent="space-between" mb={2}>
+                            <Typography variant="body2" color="text.secondary">Put Volume</Typography>
+                            <Typography variant="h6" color="error.main">
+                              {formatNumber(putVolume)}
+                            </Typography>
+                          </Box>
+                          <Box display="flex" justifyContent="space-between" mb={2}>
+                            <Typography variant="body2" color="text.secondary">Put/Call Ratio</Typography>
+                            <Typography variant="h6">
+                              {putCallRatio}
+                            </Typography>
+                          </Box>
+                          <Divider sx={{ my: 2 }} />
+                          <Box display="flex" justifyContent="space-between">
+                            <Typography variant="body2" color="text.secondary">Market Sentiment</Typography>
+                            <Chip label={sentiment} color={sentimentColor} size="small" />
+                          </Box>
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               </Grid>
@@ -1182,61 +1340,65 @@ const RealTimeDashboard = () => {
                         }
                       }} 
                     />
-                    <IconButton onClick={loadMarketData} disabled={isStreaming}>
+                    <IconButton 
+                      onClick={() => {
+                        loadMarketData();
+                        loadInitialOptionsAndNewsData();
+                      }} 
+                      disabled={isStreaming || loading}
+                    >
                       <Refresh />
                     </IconButton>
                   </Box>
                 }
               />
               <CardContent sx={{ maxHeight: 600, overflow: 'auto' }}>
-                {marketData?.watchlistData?.length > 0 ? (
+                {newsFeedData && newsFeedData.length > 0 ? (
                   <List>
-                    {marketData.watchlistData.map((stock, index) => {
-                      // Generate realistic news based on stock data
-                      const newsTypes = [
-                        { type: 'earnings', headline: `${stock.symbol} Reports Q3 Earnings Beat, Revenue Up ${(Math.random() * 20 + 5).toFixed(1)}%` },
-                        { type: 'analyst', headline: `${stock.symbol} Upgraded to Buy by Major Investment Bank, Price Target Raised` },
-                        { type: 'market', headline: `${stock.symbol} Sees Unusual Options Activity, Bullish Sentiment Rising` },
-                        { type: 'news', headline: `${stock.symbol} Announces Strategic Partnership, Stock Jumps in Pre-Market` },
-                        { type: 'regulatory', headline: `${stock.symbol} Files New Patent Application, Innovation Pipeline Expanding` }
-                      ];
+                    {newsFeedData.map((newsItem, index) => {
+                      const timeAgo = newsItem.published_at ? 
+                        Math.floor((Date.now() - new Date(newsItem.published_at).getTime()) / (1000 * 60)) : 0;
                       
-                      const newsItem = newsTypes[Math.floor(Math.random() * newsTypes.length)];
-                      const timeAgo = Math.floor(Math.random() * 120) + 1;
-                      const impact = Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low';
+                      // Map news categories to display types
+                      const categoryMap = {
+                        'earnings': { type: 'earnings', icon: '📊', color: 'success.main' },
+                        'analyst': { type: 'analyst', icon: '📈', color: 'info.main' },
+                        'market': { type: 'market', icon: '⚡', color: 'warning.main' },
+                        'general': { type: 'news', icon: '📰', color: 'primary.main' },
+                        'regulatory': { type: 'regulatory', icon: '⚖️', color: 'primary.main' }
+                      };
+                      
+                      const displayType = categoryMap[newsItem.category] || categoryMap['general'];
                       
                       return (
-                        <ListItem key={index} divider>
+                        <ListItem key={newsItem.id || index} divider>
                           <ListItemAvatar>
                             <Avatar sx={{ 
-                              bgcolor: newsItem.type === 'earnings' ? 'success.main' : 
-                                      newsItem.type === 'analyst' ? 'info.main' :
-                                      newsItem.type === 'market' ? 'warning.main' :
-                                      'primary.main',
+                              bgcolor: displayType.color,
                               width: 32,
                               height: 32
                             }}>
-                              {newsItem.type === 'earnings' ? '📊' : 
-                               newsItem.type === 'analyst' ? '📈' :
-                               newsItem.type === 'market' ? '⚡' :
-                               newsItem.type === 'news' ? '📰' : '⚖️'}
+                              {displayType.icon}
                             </Avatar>
                           </ListItemAvatar>
                           <ListItemText
                             primary={
                               <Box display="flex" alignItems="flex-start" justifyContent="space-between">
                                 <Typography variant="body2" sx={{ fontWeight: 500, pr: 1 }}>
-                                  {newsItem.headline}
+                                  {newsItem.headline || newsItem.title}
                                 </Typography>
                                 <Box display="flex" flexDirection="column" alignItems="flex-end" gap={0.5}>
                                   <Chip
-                                    label={impact.toUpperCase()}
-                                    color={impact === 'high' ? 'error' : impact === 'medium' ? 'warning' : 'default'}
+                                    label={(newsItem.impact || 'medium').toUpperCase()}
+                                    color={
+                                      newsItem.impact === 'high' ? 'error' : 
+                                      newsItem.impact === 'medium' ? 'warning' : 'default'
+                                    }
                                     size="small"
                                     variant="outlined"
                                   />
                                   <Typography variant="caption" color="text.secondary">
-                                    {timeAgo}m ago
+                                    {timeAgo > 0 ? `${timeAgo}m ago` : 'Just now'}
                                   </Typography>
                                 </Box>
                               </Box>
@@ -1244,9 +1406,13 @@ const RealTimeDashboard = () => {
                             secondary={
                               <Box sx={{ mt: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
-                                  Impact on {stock.symbol}: {stock.changePercent >= 0 ? '+' : ''}{formatPercentage(stock.changePercent)} | 
-                                  Volume: {formatNumber(stock.volume / 1000)}K
+                                  {newsItem.summary || newsItem.description || 'No additional details available'}
                                 </Typography>
+                                {newsItem.symbols && newsItem.symbols.length > 0 && (
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                    Related: {newsItem.symbols.slice(0, 3).join(', ')}
+                                  </Typography>
+                                )}
                               </Box>
                             }
                           />
@@ -1257,7 +1423,7 @@ const RealTimeDashboard = () => {
                 ) : (
                   <Box sx={{ textAlign: 'center', py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
-                      No market news available. News feed requires market data connection.
+                      {loading ? 'Loading news feed...' : 'No market news available. Try refreshing to load latest news.'}
                     </Typography>
                   </Box>
                 )}

@@ -70,18 +70,14 @@ Resources:
     Properties:
       Name: !Sub stocks-app-db-credentials-${AWS::StackName}-${AWS::Region}-001
       Description: JSON with username, password, host, port, dbname
-      SecretString:
-        Fn::Join:
-          - ""
-          - - '{"username":"'
-            - !Ref RDSUsername
-            - '","password":"'
-            - !Ref RDSPassword
-            - '","host":"'
-            - !GetAtt StocksDBInstance.Endpoint.Address
-            - '","port":"'
-            - !GetAtt StocksDBInstance.Endpoint.Port
-            - '","dbname":"stocks"}'
+      SecretString: !Sub |
+        {
+          "username": "${RDSUsername}",
+          "password": "${RDSPassword}",
+          "host": "${StocksDBInstance.Endpoint.Address}",
+          "port": "${StocksDBInstance.Endpoint.Port}",
+          "dbname": "stocks"
+        }
   ### 5) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
