@@ -1,5 +1,5 @@
-// EMERGENCY CORS FIX - MINIMAL WORKING VERSION
-console.log('🚀 CORS FIX LAMBDA STARTING...');
+// EMERGENCY CORS FIX - MINIMAL WORKING VERSION - with API routes
+console.log('🚀 CORS FIX LAMBDA STARTING with API routes...');
 
 const serverless = require('serverless-http');
 const express = require('express');

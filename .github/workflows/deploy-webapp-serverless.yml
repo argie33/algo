@@ -29,7 +29,7 @@ jobs:
 
       - name: Package API Lambda
         run: |
-          cd webapp/api
+          cd webapp/lambda
           zip -r ../../${{ env.LAMBDA_CODE_KEY }} .
 
       - name: Upload Lambda code
@@ -99,3 +99,48 @@ jobs:
       - name: Sync SPA to site bucket
         run: |
           aws s3 sync webapp/spa/ s3://${{ env.SITE_BUCKET }} --delete
+
+      - name: Test Lambda deployment and show logs
+        run: |
+          # Get Lambda function name from CloudFormation stack
+          LAMBDA_NAME=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$LAMBDA_NAME" ]; then
+            echo "⚠️ Could not find Lambda function name in CloudFormation outputs"
+            echo "Available outputs:"
+            aws cloudformation describe-stacks \
+              --stack-name ${{ env.STACK_NAME }} \
+              --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' \
+              --output table || echo "No outputs found"
+          else
+            echo "✅ Lambda function name: $LAMBDA_NAME"
+            
+            # Test the Lambda function
+            echo "🧪 Testing Lambda function..."
+            aws lambda invoke \
+              --function-name "$LAMBDA_NAME" \
+              --payload '{"httpMethod":"GET","path":"/health","headers":{}}' \
+              test-response.json
+            
+            echo "Response:"
+            cat test-response.json
+            
+            # Get recent logs
+            echo "📋 Recent Lambda logs:"
+            LOG_GROUP="/aws/lambda/$LAMBDA_NAME"
+            aws logs describe-log-streams \
+              --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime \
+              --descending \
+              --limit 1 \
+              --query 'logStreams[0].logStreamName' \
+              --output text | xargs -I {} aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name {} \
+              --limit 20 \
+              --query 'events[].message' \
+              --output text || echo "No logs found"
+          fi
