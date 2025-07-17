@@ -1,5 +1,7 @@
 const express = require('express');
 const { success, error } = require('../utils/responseFormatter');
+const LiveDataManager = require('../utils/liveDataManager');
+const { authenticateToken } = require('../middleware/auth');
 
 // Import JWT authentication - handle errors gracefully
 let jwt;
@@ -10,6 +12,9 @@ try {
 }
 
 const router = express.Router();
+
+// Initialize live data manager
+const liveDataManager = new LiveDataManager();
 
 // Basic health endpoint for live data service
 router.get('/health', (req, res) => {
@@ -95,94 +100,57 @@ const authenticateUser = async (req, res, next) => {
 /**
  * Get service metrics and health status
  */
-router.get('/metrics', authenticateUser, async (req, res) => {
+router.get('/metrics', authenticateToken, async (req, res) => {
   try {
-    // Calculate real-time metrics
-    const totalSubscriptions = Array.from(serviceState.userSubscriptions.values())
-      .reduce((sum, userSymbols) => sum + userSymbols.size, 0);
+    const metrics = liveDataManager.getServiceMetrics();
     
-    const uniqueSymbols = serviceState.activeSymbols.size;
-    const activeUsers = serviceState.userSubscriptions.size;
-    
-    // Calculate cost savings (estimated)
-    const traditionalConnections = totalSubscriptions; // One connection per user per symbol
-    const centralizedConnections = uniqueSymbols; // One connection per unique symbol
-    const costSavingsPercentage = traditionalConnections > 0 
-      ? Math.round((1 - centralizedConnections / traditionalConnections) * 100)
-      : 0;
-
-    const healthStatus = serviceState.isRunning ? 'healthy' : 'stopped';
-    
-    const metrics = {
-      ...serviceState.serviceMetrics,
-      connectionHealth: healthStatus,
-      isRunning: serviceState.isRunning,
-      activeUsers,
-      uniqueSymbols,
-      totalSubscriptions,
-      costSavingsPercentage,
-      uptime: serviceState.startTime ? Date.now() - serviceState.startTime : 0,
-      lastUpdate: new Date().toISOString(),
-      providers: Array.from(serviceState.providerConnections.entries()).map(([name, status]) => ({
-        name,
-        status,
-        connected: status === 'connected'
-      }))
-    };
-
-    res.json(responseFormatter.createSuccessResponse(metrics));
+    res.json({
+      success: true,
+      data: metrics,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Failed to get service metrics:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to retrieve service metrics'));
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve service metrics',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 /**
  * Subscribe user to symbol data
  */
-router.post('/subscribe', authenticateUser, async (req, res) => {
+router.post('/subscribe', authenticateToken, async (req, res) => {
   try {
     const { symbol, provider = 'alpaca' } = req.body;
     const { userId } = req.user;
 
     if (!symbol || typeof symbol !== 'string') {
-      return res.status(400).json(responseFormatter.createErrorResponse('Valid symbol is required'));
+      return res.status(400).json({
+        success: false,
+        error: 'Valid symbol is required',
+        timestamp: new Date().toISOString()
+      });
     }
 
-    const upperSymbol = symbol.toUpperCase();
+    const result = await liveDataManager.subscribe(userId, symbol, provider);
     
-    // Add to user's subscriptions
-    if (!serviceState.userSubscriptions.has(userId)) {
-      serviceState.userSubscriptions.set(userId, new Set());
-    }
-    serviceState.userSubscriptions.get(userId).add(upperSymbol);
-    
-    // Add to active symbols (centralized tracking)
-    const wasNewSymbol = !serviceState.activeSymbols.has(upperSymbol);
-    serviceState.activeSymbols.add(upperSymbol);
-    
-    // Update provider connection status
-    serviceState.providerConnections.set(provider, 'connected');
-    
-    console.log(`✅ User ${userId} subscribed to ${upperSymbol} via ${provider}`);
-    
-    if (wasNewSymbol) {
-      console.log(`🎯 New symbol ${upperSymbol} added to centralized stream`);
-    }
-
-    res.json(responseFormatter.createSuccessResponse({
-      symbol: upperSymbol,
-      provider,
-      userId,
-      subscribed: true,
-      isNewSymbol: wasNewSymbol,
-      totalUserSubscriptions: serviceState.userSubscriptions.get(userId).size,
-      totalActiveSymbols: serviceState.activeSymbols.size
-    }));
+    res.json({
+      success: result.success,
+      data: result.success ? result : null,
+      error: result.success ? null : result.error,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Failed to subscribe to symbol:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to subscribe to symbol'));
+    res.status(500).json({
+      success: false,
+      error: 'Failed to subscribe to symbol',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -265,75 +233,48 @@ router.post('/unsubscribe', authenticateUser, async (req, res) => {
 /**
  * Start the centralized live data service
  */
-router.post('/start', authenticateUser, async (req, res) => {
+router.post('/start', authenticateToken, async (req, res) => {
   try {
-    if (serviceState.isRunning) {
-      return res.json(responseFormatter.createSuccessResponse({
-        message: 'Service is already running',
-        isRunning: true,
-        startTime: serviceState.startTime
-      }));
-    }
-
-    serviceState.isRunning = true;
-    serviceState.startTime = Date.now();
+    const result = await liveDataManager.start();
     
-    // Initialize provider connections
-    serviceState.providerConnections.set('alpaca', 'connecting');
-    serviceState.providerConnections.set('polygon', 'available');
-    
-    console.log('🚀 Centralized live data service started');
-
-    res.json(responseFormatter.createSuccessResponse({
-      message: 'Centralized live data service started successfully',
-      isRunning: true,
-      startTime: serviceState.startTime,
-      activeSymbols: Array.from(serviceState.activeSymbols),
-      totalUsers: serviceState.userSubscriptions.size
-    }));
+    res.json({
+      success: result.success,
+      data: result.success ? result : null,
+      error: result.success ? null : result.error,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Failed to start service:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to start live data service'));
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start live data service',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 /**
  * Stop the centralized live data service
  */
-router.post('/stop', authenticateUser, async (req, res) => {
+router.post('/stop', authenticateToken, async (req, res) => {
   try {
-    if (!serviceState.isRunning) {
-      return res.json(responseFormatter.createSuccessResponse({
-        message: 'Service is already stopped',
-        isRunning: false
-      }));
-    }
-
-    serviceState.isRunning = false;
-    const uptime = serviceState.startTime ? Date.now() - serviceState.startTime : 0;
-    serviceState.startTime = null;
+    const result = await liveDataManager.stop();
     
-    // Clear provider connections
-    serviceState.providerConnections.clear();
-    
-    console.log(`🛑 Centralized live data service stopped after ${uptime}ms uptime`);
-
-    res.json(responseFormatter.createSuccessResponse({
-      message: 'Centralized live data service stopped successfully',
-      isRunning: false,
-      uptime,
-      finalStats: {
-        totalUsers: serviceState.userSubscriptions.size,
-        activeSymbols: serviceState.activeSymbols.size,
-        totalSubscriptions: Array.from(serviceState.userSubscriptions.values())
-          .reduce((sum, userSymbols) => sum + userSymbols.size, 0)
-      }
-    }));
+    res.json({
+      success: result.success,
+      data: result.success ? result : null,
+      error: result.success ? null : result.error,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Failed to stop service:', error);
-    res.status(500).json(responseFormatter.createErrorResponse('Failed to stop live data service'));
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop live data service',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
