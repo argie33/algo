@@ -581,7 +581,6 @@ import {
   AccountCircleRounded,
   AccountCircleSharp,
   AccountCircleTwoTone,
-  Badge,
   ContactMail,
   ContactPhone,
   ContactPage,
