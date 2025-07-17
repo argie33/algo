@@ -161,6 +161,7 @@ const menuItems = [
   // Tools Section
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'Data Management', icon: <StorageIcon />, path: '/data-management', category: 'tools' },
+  { text: 'Live Data', icon: <TimelineIcon />, path: '/live-data', category: 'tools' },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
