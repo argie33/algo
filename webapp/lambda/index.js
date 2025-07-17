@@ -37,6 +37,64 @@ const liveDataRoutes = require('./routes/liveData');
 
 const app = express();
 
+// Debug endpoint for AWS Secrets Manager
+app.get('/api/debug-secret', async (req, res) => {
+  try {
+    const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+    
+    const secretsManager = new SecretsManagerClient({
+      region: process.env.AWS_REGION || 'us-east-1'
+    });
+    
+    const secretArn = process.env.DB_SECRET_ARN;
+    if (!secretArn) {
+      return res.json({ error: 'DB_SECRET_ARN not set' });
+    }
+    
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
+    const result = await secretsManager.send(command);
+    
+    const debugInfo = {
+      secretType: typeof result.SecretString,
+      secretLength: result.SecretString?.length,
+      secretPreview: result.SecretString?.substring(0, 100),
+      first5Chars: JSON.stringify(result.SecretString?.substring(0, 5)),
+      isString: typeof result.SecretString === 'string',
+      isObject: typeof result.SecretString === 'object',
+      parseAttempt: null,
+      parseError: null
+    };
+    
+    if (typeof result.SecretString === 'string') {
+      try {
+        const parsed = JSON.parse(result.SecretString);
+        debugInfo.parseAttempt = 'SUCCESS';
+        debugInfo.parsedKeys = Object.keys(parsed);
+      } catch (parseError) {
+        debugInfo.parseAttempt = 'FAILED';
+        debugInfo.parseError = parseError.message;
+      }
+    } else if (typeof result.SecretString === 'object' && result.SecretString !== null) {
+      debugInfo.parseAttempt = 'OBJECT_ALREADY_PARSED';
+      debugInfo.parsedKeys = Object.keys(result.SecretString);
+    }
+    
+    res.json({
+      status: 'debug',
+      timestamp: new Date().toISOString(),
+      debugInfo: debugInfo
+    });
+    
+  } catch (error) {
+    console.error('Error debugging secret:', error);
+    res.status(500).json({ 
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
 
