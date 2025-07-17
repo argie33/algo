@@ -1,217 +1,139 @@
-// DIAGNOSTIC LAMBDA - COMPREHENSIVE LOGGING
-console.log('=== LAMBDA STARTUP DIAGNOSTIC ===');
+// MINIMAL LAMBDA - NO EXTERNAL DEPENDENCIES
+console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
+
+// Test if the issue is with AWS Lambda runtime itself
+console.log('Testing AWS Lambda runtime...');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
-console.log('AWS Region:', process.env.AWS_REGION || 'not set');
 
-// Test core dependencies
-console.log('Testing core dependencies...');
-try {
-  console.log('1. Testing serverless-http...');
-  const serverless = require('serverless-http');
-  console.log('✅ serverless-http loaded successfully');
+// Create minimal handler without any external dependencies
+exports.handler = async (event, context) => {
+  console.log('=== LAMBDA HANDLER CALLED ===');
+  console.log('Event:', JSON.stringify(event, null, 2));
+  console.log('Context:', JSON.stringify(context, null, 2));
   
-  console.log('2. Testing express...');
-  const express = require('express');
-  console.log('✅ express loaded successfully');
-  
-  console.log('3. Creating Express app...');
-  const app = express();
-  console.log('✅ Express app created successfully');
-  
-  console.log('4. Setting up CORS middleware...');
-  app.use((req, res, next) => {
-    console.log(`CORS middleware: ${req.method} ${req.path}`);
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  try {
+    // Get request method and path
+    const method = event.httpMethod || event.requestContext?.httpMethod || 'UNKNOWN';
+    const path = event.path || event.requestContext?.path || 'UNKNOWN';
     
-    if (req.method === 'OPTIONS') {
+    console.log(`Processing ${method} ${path}`);
+    
+    // Set CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Content-Type': 'application/json'
+    };
+    
+    // Handle OPTIONS preflight requests
+    if (method === 'OPTIONS') {
       console.log('Handling OPTIONS preflight request');
-      return res.status(200).end();
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          message: 'CORS preflight handled successfully'
+        })
+      };
     }
     
-    next();
-  });
-  console.log('✅ CORS middleware configured');
-  
-  console.log('5. Setting up JSON parsing...');
-  app.use(express.json());
-  console.log('✅ JSON parsing middleware configured');
-  
-  console.log('6. Setting up response formatter...');
-  app.use((req, res, next) => {
-    res.success = (data, message = 'Success') => {
-      console.log(`Success response: ${message}`);
-      res.json({
-        success: true,
-        data,
-        message,
-        timestamp: new Date().toISOString()
-      });
-    };
+    // Health endpoints
+    if (path === '/health' || path === '/dev/health') {
+      console.log('Handling health endpoint');
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          success: true,
+          message: 'Lambda is healthy (no external dependencies)',
+          data: {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            nodeVersion: process.version,
+            method: method,
+            path: path
+          }
+        })
+      };
+    }
     
-    res.error = (message, statusCode = 500, details = null) => {
-      console.log(`Error response: ${statusCode} - ${message}`);
-      res.status(statusCode).json({
+    if (path === '/api/health' || path === '/dev/api/health') {
+      console.log('Handling API health endpoint');
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          success: true,
+          message: 'API is healthy (no external dependencies)',
+          data: {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            cors: 'working',
+            lambda: 'functional'
+          }
+        })
+      };
+    }
+    
+    // Environment diagnostic
+    if (path === '/api/env' || path === '/dev/api/env') {
+      console.log('Handling environment diagnostic');
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          success: true,
+          message: 'Environment diagnostic complete',
+          data: {
+            nodeVersion: process.version,
+            awsRegion: process.env.AWS_REGION || 'not set',
+            environment: process.env.NODE_ENV || 'development',
+            functionName: context.functionName || 'unknown',
+            functionVersion: context.functionVersion || 'unknown',
+            memoryLimitInMB: context.memoryLimitInMB || 'unknown',
+            remainingTimeInMillis: context.getRemainingTimeInMillis ? context.getRemainingTimeInMillis() : 'unknown'
+          }
+        })
+      };
+    }
+    
+    // Default 404 response
+    console.log('No matching endpoint found, returning 404');
+    return {
+      statusCode: 404,
+      headers: corsHeaders,
+      body: JSON.stringify({
         success: false,
-        error: message,
-        details,
+        error: 'Endpoint not found',
+        message: `The requested endpoint ${method} ${path} was not found`,
+        availableEndpoints: ['/health', '/api/health', '/api/env'],
         timestamp: new Date().toISOString()
-      });
+      })
     };
     
-    next();
-  });
-  console.log('✅ Response formatter middleware configured');
-  
-  console.log('7. Setting up routes...');
-  
-  // Health endpoint with extensive logging
-  app.get('/health', (req, res) => {
-    console.log('Health endpoint called');
-    try {
-      const healthData = {
-        status: 'healthy',
-        service: 'diagnostic-lambda',
-        timestamp: new Date().toISOString(),
-        nodeVersion: process.version,
-        environment: process.env.NODE_ENV || 'development'
-      };
-      console.log('Health data:', JSON.stringify(healthData, null, 2));
-      res.success(healthData, 'Diagnostic Lambda is healthy');
-    } catch (error) {
-      console.error('Health endpoint error:', error);
-      res.error('Health check failed', 500, error.message);
-    }
-  });
-  
-  app.get('/api/health', (req, res) => {
-    console.log('API Health endpoint called');
-    try {
-      const healthData = {
-        status: 'healthy',
-        service: 'diagnostic-lambda-api',
-        timestamp: new Date().toISOString(),
-        cors: 'working',
-        middleware: 'loaded'
-      };
-      console.log('API Health data:', JSON.stringify(healthData, null, 2));
-      res.success(healthData, 'API is healthy');
-    } catch (error) {
-      console.error('API Health endpoint error:', error);
-      res.error('API health check failed', 500, error.message);
-    }
-  });
-  
-  // Environment variables diagnostic
-  app.get('/api/env', (req, res) => {
-    console.log('Environment diagnostic endpoint called');
-    try {
-      const envData = {
-        nodeVersion: process.version,
-        awsRegion: process.env.AWS_REGION || 'not set',
-        environment: process.env.NODE_ENV || 'development',
-        dbSecretArn: process.env.DB_SECRET_ARN ? 'present' : 'missing',
-        apiKeySecretArn: process.env.API_KEY_ENCRYPTION_SECRET_ARN ? 'present' : 'missing',
-        lambdaTaskRoot: process.env.LAMBDA_TASK_ROOT || 'not set',
-        lambdaRuntimeDir: process.env.LAMBDA_RUNTIME_DIR || 'not set'
-      };
-      console.log('Environment data:', JSON.stringify(envData, null, 2));
-      res.success(envData, 'Environment diagnostic complete');
-    } catch (error) {
-      console.error('Environment diagnostic error:', error);
-      res.error('Environment diagnostic failed', 500, error.message);
-    }
-  });
-  
-  // Test endpoint for basic functionality
-  app.get('/api/test', (req, res) => {
-    console.log('Test endpoint called');
-    try {
-      const testData = {
-        message: 'Lambda is working correctly',
-        timestamp: new Date().toISOString(),
-        requestInfo: {
-          method: req.method,
-          path: req.path,
-          headers: req.headers,
-          query: req.query
-        }
-      };
-      console.log('Test data:', JSON.stringify(testData, null, 2));
-      res.success(testData, 'Test endpoint working');
-    } catch (error) {
-      console.error('Test endpoint error:', error);
-      res.error('Test endpoint failed', 500, error.message);
-    }
-  });
-  
-  console.log('✅ Routes configured successfully');
-  
-  // 404 handler
-  app.all('*', (req, res) => {
-    console.log(`404 handler: ${req.method} ${req.path}`);
-    res.status(404).json({
-      success: false,
-      error: 'Endpoint not found',
-      message: `The requested endpoint ${req.method} ${req.path} was not found`,
-      availableEndpoints: ['/health', '/api/health', '/api/env', '/api/test'],
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  // Error handling middleware
-  app.use((error, req, res, next) => {
-    console.error('Unhandled error in Lambda:', error);
+  } catch (error) {
+    console.error('❌ ERROR in Lambda handler:', error);
     console.error('Error stack:', error.stack);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: 'An unexpected error occurred in the Lambda function',
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  console.log('✅ Error handling configured');
-  
-  console.log('8. Creating serverless handler...');
-  const handler = serverless(app);
-  console.log('✅ Serverless handler created successfully');
-  
-  console.log('=== LAMBDA INITIALIZATION COMPLETE ===');
-  console.log('Lambda is ready to handle requests');
-  
-  module.exports.handler = handler;
-  
-} catch (error) {
-  console.error('❌ CRITICAL ERROR DURING LAMBDA INITIALIZATION:', error);
-  console.error('Error stack:', error.stack);
-  console.error('Error details:', JSON.stringify(error, null, 2));
-  
-  // Create a minimal error handler
-  module.exports.handler = async (event, context) => {
-    console.error('Lambda handler called but initialization failed');
-    console.error('Event:', JSON.stringify(event, null, 2));
-    console.error('Context:', JSON.stringify(context, null, 2));
     
     return {
       statusCode: 500,
       headers: {
-        'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         success: false,
-        error: 'Lambda initialization failed',
+        error: 'Internal server error',
         message: error.message,
         details: error.stack,
         timestamp: new Date().toISOString()
       })
     };
-  };
-}
+  }
+};
+
+console.log('=== LAMBDA INITIALIZATION COMPLETE (NO DEPENDENCIES) ===');
