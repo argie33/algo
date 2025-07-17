@@ -1,7 +1,7 @@
 {
   "name": "financial-dashboard-frontend",
   "version": "1.0.10",
-  "description": "React frontend for Financial Data Dashboard - Route health endpoints added",
+  "description": "React frontend for Financial Data Dashboard - Trigger webapp deployment",
   "private": true,
   "dependencies": {
     "@aws-amplify/auth": "^6.13.1",
