@@ -43,11 +43,21 @@ import {
   AccordionDetails,
   CircularProgress,
   Avatar,
-  Menu,
-  MenuList,
-  ListItemButton,
   Snackbar,
-  AlertTitle
+  AlertTitle,
+  Stack,
+  ButtonGroup,
+  Skeleton,
+  CardHeader,
+  CardActions,
+  Fade,
+  Grow,
+  Zoom,
+  Collapse,
+  useTheme,
+  alpha,
+  styled,
+  keyframes
 } from '@mui/material';
 import {
   TrendingUp,
@@ -91,2206 +101,1947 @@ import {
   SyncAlt,
   AutoFixHigh,
   ReportProblem,
-  OnlinePrediction
+  OnlinePrediction,
+  FlashOn,
+  FlashOff,
+  Bolt,
+  Whatshot,
+  Wifi,
+  WifiOff,
+  SignalWifi3Bar,
+  SignalWifi2Bar,
+  SignalWifi1Bar,
+  Tune,
+  AutoMode,
+  ManualMode,
+  SmartToy,
+  Psychology,
+  Insights,
+  Visibility,
+  VisibilityOff,
+  PauseCircle,
+  PlayCircle,
+  StopCircle,
+  RestartAlt,
+  Update,
+  Cached,
+  LightMode,
+  DarkMode,
+  Fullscreen,
+  FullscreenExit,
+  PictureInPicture,
+  Close,
+  Maximize,
+  Minimize,
+  Launch,
+  OpenInNew,
+  ZoomIn,
+  ZoomOut,
+  FilterAlt,
+  Sort,
+  ViewColumn,
+  ViewList,
+  ViewModule,
+  GridView,
+  TableView,
+  BarChart,
+  DonutSmall,
+  PieChart,
+  MultilineChart,
+  Equalizer,
+  CandlestickChart,
+  TrendingUpTwoTone,
+  TrendingDownTwoTone,
+  FlashOnTwoTone,
+  WifiTwoTone,
+  MonitorHeart,
+  ElectricBolt,
+  RocketLaunch,
+  Subscriptions,
+  Stream,
+  LiveTv,
+  Sensors,
+  Hub,
+  Router,
+  Cable,
+  Podcasts,
+  Radio,
+  Cast,
+  CastConnected,
+  ConnectedTv,
+  Bluetooth,
+  BluetoothConnected,
+  SignalCellular4Bar,
+  SignalCellularConnectedNoInternet4Bar,
+  SignalCellularNoSim,
+  SignalCellularOff,
+  FiberManualRecord,
+  FiberSmartRecord,
+  RadioButtonChecked,
+  RadioButtonUnchecked,
+  FlashAuto,
+  AutoAwesome,
+  AutoAwesomeMotion,
+  AutoFixNormal,
+  AutoFixOff,
+  AutoGraph,
+  AutoStories,
+  QueryStats,
+  Analytics as AnalyticsIcon,
+  Insights as InsightsIcon,
+  MonitorWeight,
+  Memory,
+  Dns,
+  CloudQueue,
+  CloudDone,
+  CloudOff,
+  CloudDownload,
+  CloudUpload,
+  Sync,
+  SyncProblem,
+  SyncDisabled,
+  CheckCircleOutline,
+  ErrorOutline,
+  WarningAmber,
+  InfoOutlined,
+  HelpOutline,
+  NotificationsActive,
+  NotificationsOff,
+  VolumeUp,
+  VolumeOff,
+  VolumeMute,
+  VolumeDown,
+  Alarm,
+  AlarmOn,
+  AlarmOff,
+  Timer,
+  TimerOff,
+  Timelapse,
+  Schedule as ScheduleIcon,
+  AccessTime,
+  History,
+  Today,
+  DateRange,
+  CalendarToday,
+  Event,
+  EventNote,
+  EventAvailable,
+  EventBusy,
+  Pending,
+  PendingActions,
+  HourglassBottom,
+  HourglassTop,
+  HourglassEmpty,
+  HourglassFull,
+  WatchLater,
+  MoreTime,
+  UpdateDisabled,
+  Autorenew,
+  Loop,
+  Repeat,
+  RepeatOne,
+  RepeatOn,
+  Shuffle,
+  ShuffleOn,
+  SkipNext,
+  SkipPrevious,
+  FastForward,
+  FastRewind,
+  Forward,
+  Replay,
+  Replay10,
+  Replay30,
+  Forward10,
+  Forward30,
+  Speed as SpeedIcon,
+  SlowMotionVideo,
+  NavigateNext,
+  NavigateBefore,
+  FirstPage,
+  LastPage,
+  ChevronLeft,
+  ChevronRight,
+  ExpandLess,
+  ExpandCircleDown,
+  UnfoldMore,
+  UnfoldLess,
+  DoubleArrow,
+  ArrowUpward,
+  ArrowDownward,
+  ArrowForward,
+  ArrowBack,
+  NorthEast,
+  SouthEast,
+  NorthWest,
+  SouthWest,
+  CallMade,
+  CallReceived,
+  TrendingNeutral,
+  Moving,
+  OpenWith,
+  PanTool,
+  TouchApp,
+  Gesture,
+  SwipeUp,
+  SwipeDown,
+  SwipeLeft,
+  SwipeRight,
+  SwipeVertical,
+  SwipeDownAlt,
+  SwipeUpAlt,
+  SwipeLeftAlt,
+  SwipeRightAlt,
+  PinchZoomIn,
+  PinchZoomOut,
+  Compress,
+  Expand,
+  Height,
+  Width,
+  AspectRatio,
+  CropFree,
+  Crop,
+  CropSquare,
+  CropPortrait,
+  CropLandscape,
+  Crop32,
+  Crop54,
+  Crop75,
+  CropDin,
+  CropOriginal,
+  CropRotate,
+  Rotate90DegreesCcw,
+  Rotate90DegreesCw,
+  RotateLeft,
+  RotateRight,
+  Flip,
+  FlipToBack,
+  FlipToFront,
+  Transform,
+  Animation,
+  Motion,
+  MotionPhotos,
+  MotionPhotosOn,
+  MotionPhotosOff,
+  MotionPhotosPause,
+  MotionPhotosAuto,
+  LiveHelp,
+  LiveHelpOutlined,
+  LiveHelpRounded,
+  LiveHelpSharp,
+  LiveHelpTwoTone,
+  LiveTvRounded,
+  LiveTvSharp,
+  LiveTvTwoTone,
+  LiveTvOutlined,
+  BroadcastOnHome,
+  BroadcastOnPersonal,
+  VideoCameraFront,
+  VideoCameraBack,
+  Videocam,
+  VideocamOff,
+  VideoCall,
+  VideoCallOutlined,
+  VideoCallRounded,
+  VideoCallSharp,
+  VideoCallTwoTone,
+  VideoSettings,
+  VideoLibrary,
+  VideoFile,
+  VideoLabel,
+  Theaters,
+  Movie,
+  MovieCreation,
+  MovieFilter,
+  LocalMovies,
+  RecentActors,
+  PermMedia,
+  Collections,
+  CollectionsBookmark,
+  Folder,
+  FolderOpen,
+  FolderSpecial,
+  FolderShared,
+  CreateNewFolder,
+  Topic,
+  Label,
+  LabelImportant,
+  LabelOff,
+  Bookmark,
+  BookmarkBorder,
+  BookmarkAdd,
+  BookmarkAdded,
+  BookmarkRemove,
+  Bookmarks,
+  BookmarksOutlined,
+  BookmarksRounded,
+  BookmarksSharp,
+  BookmarksTwoTone,
+  Star,
+  StarBorder,
+  StarHalf,
+  StarOutline,
+  StarRate,
+  Grade,
+  GradeOutlined,
+  GradeRounded,
+  GradeSharp,
+  GradeTwoTone,
+  AutoAwesome as AutoAwesomeIcon,
+  AutoAwesomeMotion as AutoAwesomeMotionIcon,
+  AutoAwesomeMosaic,
+  AutoDelete,
+  AutoDeleteOutlined,
+  AutoDeleteRounded,
+  AutoDeleteSharp,
+  AutoDeleteTwoTone,
+  AutoMode as AutoModeIcon,
+  AutoStories as AutoStoriesIcon,
+  SmartToy as SmartToyIcon,
+  Psychology as PsychologyIcon,
+  Insights as InsightsIconAlt,
+  DataObject,
+  DataArray,
+  DataThresholding,
+  DataExploration,
+  DataSaverOff,
+  DataSaverOn,
+  DataUsageRounded,
+  DataUsageSharp,
+  DataUsageTwoTone,
+  DataUsageOutlined,
+  DatasetLinked,
+  Dataset,
+  TableChart,
+  TableRows,
+  TableView as TableViewIcon,
+  ViewAgenda,
+  ViewArray,
+  ViewCarousel,
+  ViewColumn as ViewColumnIcon,
+  ViewComfy,
+  ViewComfyAlt,
+  ViewCompact,
+  ViewCompactAlt,
+  ViewDay,
+  ViewHeadline,
+  ViewInAr,
+  ViewKanban,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon,
+  ViewQuilt,
+  ViewSidebar,
+  ViewStream,
+  ViewTimeline,
+  ViewWeek,
+  DynamicFeed,
+  DynamicForm,
+  Feed,
+  Rss,
+  RssFeed,
+  FilterList,
+  FilterListOff,
+  FilterAlt as FilterAltIcon,
+  FilterAltOff,
+  FilterDrama,
+  FilterCenterFocus,
+  FilterBAndW,
+  FilterHdr,
+  FilterNone,
+  FilterTiltShift,
+  FilterVintage,
+  Filter1,
+  Filter2,
+  Filter3,
+  Filter4,
+  Filter5,
+  Filter6,
+  Filter7,
+  Filter8,
+  Filter9,
+  Filter9Plus,
+  Sort as SortIcon,
+  SortByAlpha,
+  ImportExport,
+  SwapVert,
+  SwapHoriz,
+  SwapVerticalCircle,
+  SwapHorizontalCircle,
+  SwapCalls,
+  Compare,
+  CompareArrows,
+  Code,
+  CodeOff,
+  Terminal,
+  WebAsset,
+  Web,
+  WebhookTwoTone,
+  Webhook,
+  Api,
+  ApiTwoTone,
+  DeveloperMode,
+  DeveloperBoard,
+  DeveloperBoardOff,
+  IntegrationInstructions,
+  Source,
+  GitHub,
+  BugReport,
+  FindInPage,
+  FindReplace,
+  Search,
+  SearchOff,
+  ManageSearch,
+  PersonSearch,
+  PageviewTwoTone,
+  Pageview,
+  Preview,
+  FindInPageTwoTone,
+  FindInPageOutlined,
+  FindInPageRounded,
+  FindInPageSharp,
+  YoutubeSearchedFor,
+  Saved,
+  SavedSearch,
+  Explore,
+  ExploreOff,
+  TravelExplore,
+  Map,
+  MapOutlined,
+  MapRounded,
+  MapSharp,
+  MapTwoTone,
+  Layers,
+  LayersRounded,
+  LayersSharp,
+  LayersTwoTone,
+  LayersOutlined,
+  LayersClear,
+  Stack as StackIcon,
+  QueueMusic,
+  Queue,
+  QueuePlayNext,
+  LibraryMusic,
+  LibraryBooks,
+  LibraryAdd,
+  LibraryAddCheck,
+  Album,
+  Audiotrack,
+  GraphicEq,
+  Equalizer as EqualizerIcon,
+  VolumeUp as VolumeUpIcon,
+  VolumeDown as VolumeDownIcon,
+  VolumeOff as VolumeOffIcon,
+  VolumeMute as VolumeMuteIcon,
+  MusicNote,
+  MusicOff,
+  Note,
+  Notes,
+  SpeakerNotes,
+  SpeakerNotesOff,
+  Mic,
+  MicOff,
+  MicNone,
+  MicExternalOn,
+  MicExternalOff,
+  Headset,
+  HeadsetOff,
+  HeadsetMic,
+  Hearing,
+  HearingDisabled,
+  RecordVoiceOver,
+  VoiceOverOff,
+  VoiceChat,
+  NoAccounts,
+  AccountCircle,
+  AccountBox,
+  Person,
+  PersonAdd,
+  PersonRemove,
+  PersonOff,
+  PersonOutline,
+  PersonPin,
+  PersonPinCircle,
+  PersonalVideo,
+  People,
+  PeopleOutline,
+  PeopleAlt,
+  Group,
+  GroupAdd,
+  GroupRemove,
+  GroupOff,
+  GroupWork,
+  Groups,
+  SupervisorAccount,
+  AdminPanelSettings as AdminPanelSettingsIcon,
+  ManageAccounts,
+  SwitchAccount,
+  AccountTree,
+  AccountBalance,
+  AccountBalanceWallet,
+  AccountCircleOutlined,
+  AccountCircleRounded,
+  AccountCircleSharp,
+  AccountCircleTwoTone,
+  Badge,
+  ContactMail,
+  ContactPhone,
+  ContactPage,
+  Contacts,
+  ContactsOutlined,
+  ContactsRounded,
+  ContactsSharp,
+  ContactsTwoTone,
+  ContactSupport,
+  ContactEmergency,
+  Mail,
+  MailOutline,
+  MailOutlined,
+  MailRounded,
+  MailSharp,
+  MailTwoTone,
+  MailLock,
+  AlternateEmail,
+  Email,
+  EmailOutlined,
+  EmailRounded,
+  EmailSharp,
+  EmailTwoTone,
+  Inbox,
+  InboxOutlined,
+  InboxRounded,
+  InboxSharp,
+  InboxTwoTone,
+  Outbox,
+  OutboxOutlined,
+  OutboxRounded,
+  OutboxSharp,
+  OutboxTwoTone,
+  Drafts,
+  DraftsOutlined,
+  DraftsRounded,
+  DraftsSharp,
+  DraftsTwoTone,
+  Send,
+  SendOutlined,
+  SendRounded,
+  SendSharp,
+  SendTwoTone,
+  SendAndArchive,
+  SendTimeExtension,
+  Forward as ForwardIcon,
+  ForwardToInbox,
+  Reply,
+  ReplyAll,
+  Unsubscribe,
+  MarkEmailRead,
+  MarkEmailUnread,
+  MoveToInbox,
+  Archive,
+  ArchiveOutlined,
+  ArchiveRounded,
+  ArchiveSharp,
+  ArchiveTwoTone,
+  Unarchive,
+  UnarchiveOutlined,
+  UnarchiveRounded,
+  UnarchiveSharp,
+  UnarchiveTwoTone,
+  Flag,
+  FlagOutlined,
+  FlagRounded,
+  FlagSharp,
+  FlagTwoTone,
+  FlagCircle,
+  OutlinedFlag,
+  Report,
+  ReportOff,
+  ReportOutlined,
+  ReportRounded,
+  ReportSharp,
+  ReportTwoTone,
+  ReportGmailerrorred,
+  ReportProblem as ReportProblemIcon,
+  GppGood,
+  GppBad,
+  GppMaybe,
+  Shield,
+  ShieldMoon,
+  Security as SecurityIcon,
+  SecurityUpdate,
+  SecurityUpdateGood,
+  SecurityUpdateWarning,
+  VerifiedUser,
+  VerifiedUserOutlined,
+  VerifiedUserRounded,
+  VerifiedUserSharp,
+  VerifiedUserTwoTone,
+  Lock,
+  LockOpen,
+  LockOutlined,
+  LockRounded,
+  LockSharp,
+  LockTwoTone,
+  LockClock,
+  LockPerson,
+  LockReset,
+  NoEncryption,
+  NoEncryptionGmailerrorred,
+  EnhancedEncryption,
+  Key,
+  KeyOff,
+  KeyOutlined,
+  KeyRounded,
+  KeySharp,
+  KeyTwoTone,
+  Password,
+  PasswordOutlined,
+  PasswordRounded,
+  PasswordSharp,
+  PasswordTwoTone,
+  Fingerprint,
+  FingerprintOutlined,
+  FingerprintRounded,
+  FingerprintSharp,
+  FingerprintTwoTone,
+  Apps,
+  AppsOutlined,
+  AppsRounded,
+  AppsSharp,
+  AppsTwoTone,
+  Menu,
+  MenuOpen,
+  MenuOutlined,
+  MenuRounded,
+  MenuSharp,
+  MenuTwoTone,
+  MenuBook,
+  MoreHoriz,
+  MoreVert as MoreVertIcon,
+  MoreHorizOutlined,
+  MoreHorizRounded,
+  MoreHorizSharp,
+  MoreHorizTwoTone,
+  MoreVertOutlined,
+  MoreVertRounded,
+  MoreVertSharp,
+  MoreVertTwoTone,
+  DragHandle,
+  DragIndicator,
+  Reorder,
+  OpenWith as OpenWithIcon,
+  Pan,
+  PanTool as PanToolIcon,
+  PanToolAlt,
+  TouchApp as TouchAppIcon,
+  Gesture as GestureIcon,
+  Swipe,
+  SwipeUp as SwipeUpIcon,
+  SwipeDown as SwipeDownIcon,
+  SwipeLeft as SwipeLeftIcon,
+  SwipeRight as SwipeRightIcon,
+  SwipeVertical as SwipeVerticalIcon,
+  SwipeDownAlt as SwipeDownAltIcon,
+  SwipeUpAlt as SwipeUpAltIcon,
+  SwipeLeftAlt as SwipeLeftAltIcon,
+  SwipeRightAlt as SwipeRightAltIcon,
+  PinchZoomIn as PinchZoomInIcon,
+  PinchZoomOut as PinchZoomOutIcon,
+  Compress as CompressIcon,
+  Expand as ExpandIcon,
+  Height as HeightIcon,
+  Width as WidthIcon,
+  AspectRatio as AspectRatioIcon,
+  CropFree as CropFreeIcon,
+  Crop as CropIcon,
+  CropSquare as CropSquareIcon,
+  CropPortrait as CropPortraitIcon,
+  CropLandscape as CropLandscapeIcon,
+  Crop32 as Crop32Icon,
+  Crop54 as Crop54Icon,
+  Crop75 as Crop75Icon,
+  CropDin as CropDinIcon,
+  CropOriginal as CropOriginalIcon,
+  CropRotate as CropRotateIcon,
+  Rotate90DegreesCcw as Rotate90DegreesCcwIcon,
+  Rotate90DegreesCw as Rotate90DegreesCwIcon,
+  RotateLeft as RotateLeftIcon,
+  RotateRight as RotateRightIcon,
+  Flip as FlipIcon,
+  FlipToBack as FlipToBackIcon,
+  FlipToFront as FlipToFrontIcon,
+  Transform as TransformIcon
 } from '@mui/icons-material';
-import liveDataIntegration from '../services/liveDataIntegration';
-import webSocketService from '../services/webSocketService';
-import ProviderFailoverService from '../services/providerFailoverService';
-import DataQualityMonitor from '../services/dataQualityMonitor';
-import LatencyMonitor from '../services/latencyMonitor';
-import { useAuth } from '../contexts/AuthContext';
+import { Line, Bar, Doughnut, Radar, Scatter, Bubble, PolarArea } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  Filler,
+  RadialLinearScale,
+  TimeScale,
+  TimeSeriesScale
+} from 'chart.js';
+import 'chartjs-adapter-date-fns';
 
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler,
+  RadialLinearScale,
+  TimeScale,
+  TimeSeriesScale
+);
 
-// ADMIN INTERFACE FOR CENTRALIZED WEBSOCKET MANAGEMENT
-// Institutional-grade live data service administration focused on PRICE DATA
+// Styled components for enhanced visuals
+const pulse = keyframes`
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+`;
 
-// Popular symbols for quick selection - focus on high-volume price data
-const POPULAR_SYMBOLS = [
-  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX',
-  'SPY', 'QQQ', 'IWM', 'VTI', 'AMD', 'CRM', 'ORCL', 'ADBE',
-  'BRK.B', 'JPM', 'V', 'MA', 'HD', 'UNH', 'PG', 'JNJ'
-];
+const glow = keyframes`
+  0% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(25, 118, 210, 0.8); }
+  100% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.5); }
+`;
 
-// Price data specific symbols for monitoring
-const HIGH_FREQUENCY_SYMBOLS = [
-  'SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMC', 'GME', 'COIN'
-];
+const slideIn = keyframes`
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+`;
 
-// Data provider configurations - optimized for PRICE DATA
-const DATA_PROVIDERS = [
-  { id: 'alpaca', name: 'Alpaca Markets', type: 'stocks', status: 'active', priceFeeds: true, latency: 45, costPerMsg: 0.001 },
-  { id: 'polygon', name: 'Polygon.io', type: 'all', status: 'active', priceFeeds: true, latency: 38, costPerMsg: 0.002 },
-  { id: 'iex', name: 'IEX Cloud', type: 'stocks', status: 'inactive', priceFeeds: true, latency: 65, costPerMsg: 0.0015 },
-  { id: 'coinbase', name: 'Coinbase Pro', type: 'crypto', status: 'active', priceFeeds: true, latency: 52, costPerMsg: 0.0008 },
-  { id: 'finnhub', name: 'Finnhub', type: 'all', status: 'active', priceFeeds: true, latency: 78, costPerMsg: 0.0012 },
-  { id: 'yahoo', name: 'Yahoo Finance', type: 'stocks', status: 'backup', priceFeeds: true, latency: 125, costPerMsg: 0.0005 }
-];
+const float = keyframes`
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+`;
 
-// Feed types configuration - PRICE DATA FOCUSED
-const FEED_TYPES = [
-  { id: 'stock_prices', name: 'Stock Real-time Prices', enabled: true, cost: 0.001, priority: 'high', subscribers: 234 },
-  { id: 'stock_quotes', name: 'Stock Bid/Ask Quotes', enabled: true, cost: 0.002, priority: 'high', subscribers: 156 },
-  { id: 'crypto_prices', name: 'Crypto Real-time Prices', enabled: true, cost: 0.0008, priority: 'medium', subscribers: 89 },
-  { id: 'etf_prices', name: 'ETF Real-time Prices', enabled: true, cost: 0.0012, priority: 'high', subscribers: 112 },
-  { id: 'index_prices', name: 'Index Real-time Prices', enabled: true, cost: 0.0015, priority: 'high', subscribers: 67 },
-  { id: 'options_prices', name: 'Options Prices', enabled: false, cost: 0.005, priority: 'low', subscribers: 23 },
-  { id: 'forex_prices', name: 'Forex Prices', enabled: false, cost: 0.003, priority: 'low', subscribers: 12 },
-  { id: 'futures_prices', name: 'Futures Prices', enabled: false, cost: 0.004, priority: 'low', subscribers: 8 }
-];
+const LiveStatusCard = styled(Card)(({ theme, status }) => ({
+  position: 'relative',
+  overflow: 'hidden',
+  background: status === 'active' 
+    ? `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`
+    : status === 'warning'
+    ? `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`
+    : `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
+  border: `1px solid ${alpha(
+    status === 'active' ? theme.palette.success.main : 
+    status === 'warning' ? theme.palette.warning.main : 
+    theme.palette.error.main, 0.3
+  )}`,
+  transition: 'all 0.3s ease-in-out',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: theme.shadows[8],
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '4px',
+    background: status === 'active' ? theme.palette.success.main : 
+                status === 'warning' ? theme.palette.warning.main : 
+                theme.palette.error.main,
+    animation: status === 'active' ? `${glow} 2s ease-in-out infinite` : 'none',
+  }
+}));
 
-const LiveData = () => {
-  // Auth context
-  const { user } = useAuth();
-  
-  // Failover Service
-  const failoverService = useRef(null);
-  // Data Quality Monitor
-  const qualityMonitor = useRef(null);
-  // Latency Monitor
-  const latencyMonitor = useRef(null);
-  
-  // Connection and service state
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState({});
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [marketData, setMarketData] = useState({});
-  const [integrationMetrics, setIntegrationMetrics] = useState({});
-  const [newSymbol, setNewSymbol] = useState('');
-  const [isInitializing, setIsInitializing] = useState(false);
-  
-  // Admin interface state
-  const [serviceHealth, setServiceHealth] = useState({
-    overall: 'healthy',
-    providers: {},
-    connections: { active: 0, total: 0 },
-    subscribers: { active: 0, total: 0 },
-    errorRate: 0,
-    latency: 0,
-    uptime: 0
-  });
-  const [feedConfig, setFeedConfig] = useState(FEED_TYPES);
-  const [providerConfig, setProviderConfig] = useState(DATA_PROVIDERS);
-  const [activeConnections, setActiveConnections] = useState([
-    { provider: 'alpaca', symbol: 'AAPL', subscribers: 67, latency: 42, messagesPerSec: 28, status: 'active', dataType: 'price', lastPrice: 185.42, change: +2.34 },
-    { provider: 'polygon', symbol: 'TSLA', subscribers: 89, latency: 38, messagesPerSec: 35, status: 'active', dataType: 'price', lastPrice: 248.15, change: -5.67 },
-    { provider: 'alpaca', symbol: 'SPY', subscribers: 156, latency: 45, messagesPerSec: 42, status: 'active', dataType: 'price', lastPrice: 445.78, change: +1.23 },
-    { provider: 'coinbase', symbol: 'BTC-USD', subscribers: 234, latency: 52, messagesPerSec: 68, status: 'active', dataType: 'price', lastPrice: 43567.89, change: +876.45 },
-    { provider: 'polygon', symbol: 'NVDA', subscribers: 134, latency: 41, messagesPerSec: 31, status: 'active', dataType: 'price', lastPrice: 118.92, change: +3.45 },
-    { provider: 'finnhub', symbol: 'QQQ', subscribers: 98, latency: 78, messagesPerSec: 22, status: 'warning', dataType: 'price', lastPrice: 378.45, change: -2.12 },
-    { provider: 'alpaca', symbol: 'MSFT', subscribers: 76, latency: 47, messagesPerSec: 26, status: 'active', dataType: 'price', lastPrice: 378.92, change: +4.67 },
-    { provider: 'polygon', symbol: 'GOOGL', subscribers: 54, latency: 39, messagesPerSec: 19, status: 'active', dataType: 'price', lastPrice: 139.87, change: +1.89 }
-  ]);
-  const [systemAlerts, setSystemAlerts] = useState([
-    { severity: 'info', message: 'Price data system initialized - 8 providers active', timestamp: new Date() },
-    { severity: 'warning', message: 'High latency detected on QQQ price feed (78ms)', timestamp: new Date(Date.now() - 180000) },
-    { severity: 'success', message: 'Price feed optimization saved $24.67/day', timestamp: new Date(Date.now() - 420000) },
-    { severity: 'info', message: 'BTC-USD feed showing high volume - 68 msg/sec', timestamp: new Date(Date.now() - 680000) },
-    { severity: 'warning', message: 'AAPL price feed approaching rate limit', timestamp: new Date(Date.now() - 890000) }
-  ]);
-  const [costMetrics, setCostMetrics] = useState({ 
-    daily: 67.89, 
-    monthly: 2036.70, 
-    perSymbol: 0.0089, 
-    totalSymbols: 487, 
-    activePriceFeeds: 234,
-    costPerMessage: 0.00156,
-    dailySavings: 24.67
-  });
-  
-  // UI state
+const PulsingIcon = styled('div')(({ theme, color = 'primary' }) => ({
+  display: 'inline-flex',
+  animation: `${pulse} 2s ease-in-out infinite`,
+  color: theme.palette[color].main,
+}));
+
+const FloatingCard = styled(Card)(({ theme }) => ({
+  animation: `${float} 3s ease-in-out infinite`,
+  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+  '&:hover': {
+    transform: 'translateY(-8px)',
+    boxShadow: theme.shadows[12],
+  }
+}));
+
+const MetricCard = styled(Card)(({ theme, metric }) => ({
+  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+  transition: 'all 0.3s ease-in-out',
+  position: 'relative',
+  overflow: 'hidden',
+  '&:hover': {
+    transform: 'scale(1.02)',
+    boxShadow: theme.shadows[8],
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '3px',
+    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+  }
+}));
+
+const StreamingDataRow = styled(TableRow)(({ theme, isLive }) => ({
+  background: isLive ? alpha(theme.palette.success.main, 0.05) : 'transparent',
+  borderLeft: isLive ? `4px solid ${theme.palette.success.main}` : 'none',
+  animation: isLive ? `${slideIn} 0.5s ease-out` : 'none',
+  '&:hover': {
+    background: alpha(theme.palette.action.hover, 0.1),
+    transform: 'translateX(4px)',
+    transition: 'all 0.2s ease-in-out',
+  }
+}));
+
+const LiveDataPage = () => {
+  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', 'chart'
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showIntegrationTest, setShowIntegrationTest] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertSeverity, setAlertSeverity] = useState('info');
-  
-  // Live data management state  
-  const [feedMetrics, setFeedMetrics] = useState({
-    totalMessages: 156789,
-    messagesPerSecond: 234,
-    dataQuality: 99.8,
-    compressionRatio: 23.5
+  const [refreshInterval, setRefreshInterval] = useState(5000);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [dataStreams, setDataStreams] = useState([]);
+  const [metrics, setMetrics] = useState({});
+  const [alerts, setAlerts] = useState([]);
+  const [selectedSymbols, setSelectedSymbols] = useState([]);
+  const [filterText, setFilterText] = useState('');
+  const [sortBy, setSortBy] = useState('volume');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [isLoading, setIsLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [liveData, setLiveData] = useState({});
+  const [historicalData, setHistoricalData] = useState([]);
+  const [systemHealth, setSystemHealth] = useState('excellent');
+  const [providerStatus, setProviderStatus] = useState({});
+  const [realTimeMetrics, setRealTimeMetrics] = useState({
+    messagesPerSecond: 0,
+    latency: 0,
+    throughput: 0,
+    errorRate: 0,
+    uptime: 0,
+    connectedClients: 0
   });
-  
-  // Failover system state
-  const [failoverMetrics, setFailoverMetrics] = useState({
-    totalFailovers: 12,
-    avgFailoverTime: 2.3, // seconds
-    costSavings: 24.67, // dollars per day
-    uptimeAchieved: 99.94,
-    lastFailover: new Date(Date.now() - 1800000), // 30 minutes ago
-    activeArbitrage: true
-  });
-  const [failoverHistory, setFailoverHistory] = useState([
-    { symbol: 'AAPL', fromProvider: 'finnhub', toProvider: 'polygon', reason: 'high_latency', time: new Date(Date.now() - 900000), duration: 1.8 },
-    { symbol: 'TSLA', fromProvider: 'alpaca', toProvider: 'polygon', reason: 'cost_optimization', time: new Date(Date.now() - 1800000), duration: 2.1 },
-    { symbol: 'SPY', fromProvider: 'polygon', toProvider: 'alpaca', reason: 'provider_recovery', time: new Date(Date.now() - 3600000), duration: 3.2 }
-  ]);
-  
-  // Data Quality state
-  const [qualityMetrics, setQualityMetrics] = useState({
-    overallQuality: 99.2,
-    totalValidations: 45823,
-    totalViolations: 127,
-    activeMonitors: 234,
-    lastUpdate: new Date()
-  });
-  const [qualityAlerts, setQualityAlerts] = useState([
-    { symbol: 'TSLA', type: 'freshness_issue', severity: 'warning', score: 87.3, message: 'Data freshness below threshold', time: new Date(Date.now() - 300000) },
-    { symbol: 'AAPL', type: 'consistency_issue', severity: 'warning', score: 92.1, message: 'Price volatility spike detected', time: new Date(Date.now() - 600000) },
-    { symbol: 'BTC-USD', type: 'accuracy_issue', severity: 'error', score: 89.7, message: 'Volume spike exceeds threshold', time: new Date(Date.now() - 900000) }
-  ]);
-  const [symbolQuality, setSymbolQuality] = useState([
-    { symbol: 'AAPL', quality: 98.7, freshness: 99.2, completeness: 100, accuracy: 97.8, consistency: 98.1, trend: 'stable', provider: 'polygon' },
-    { symbol: 'TSLA', quality: 96.4, freshness: 87.3, completeness: 99.8, accuracy: 98.9, consistency: 99.2, trend: 'degrading', provider: 'alpaca' },
-    { symbol: 'SPY', quality: 99.8, freshness: 99.9, completeness: 100, accuracy: 99.7, consistency: 99.8, trend: 'improving', provider: 'polygon' },
-    { symbol: 'BTC-USD', quality: 95.2, freshness: 98.1, completeness: 99.4, accuracy: 89.7, consistency: 93.8, trend: 'stable', provider: 'coinbase' }
-  ]);
-  const [symbolMetrics, setSymbolMetrics] = useState([
-    { symbol: 'BTC-USD', volatility: 4.2, volume: 2340000, subscribers: 234, priority: 'critical' },
-    { symbol: 'AAPL', volatility: 1.8, volume: 45600000, subscribers: 67, priority: 'high' },
-    { symbol: 'TSLA', volatility: 6.1, volume: 23400000, subscribers: 89, priority: 'high' },
-    { symbol: 'SPY', volatility: 0.9, volume: 78900000, subscribers: 156, priority: 'critical' }
-  ]);
-  const [bandwidthMetrics, setBandwidthMetrics] = useState({
-    total: 156.7, // MB/hour
-    byProvider: { alpaca: 45.2, polygon: 67.8, coinbase: 23.4, finnhub: 20.3 },
-    optimization: 23.5, // % saved
-    throttling: false
-  });
-  
-  // Latency monitoring state
-  const [latencyMetrics, setLatencyMetrics] = useState({
-    system: {
-      avgLatency: 47.2,
-      minLatency: 23,
-      maxLatency: 89,
-      totalMeasurements: 15678,
-      slaViolations: 12,
-      lastUpdate: Date.now(),
-      alertsGenerated: 8
-    },
-    providers: {
-      alpaca: { symbols: 5, avgLatency: 45.2, minLatency: 23, maxLatency: 67, violations: 2, measurements: 2341 },
-      polygon: { symbols: 8, avgLatency: 38.7, minLatency: 28, maxLatency: 52, violations: 1, measurements: 3892 },
-      coinbase: { symbols: 3, avgLatency: 52.1, minLatency: 34, maxLatency: 89, violations: 4, measurements: 1567 },
-      finnhub: { symbols: 4, avgLatency: 78.3, minLatency: 45, maxLatency: 123, violations: 5, measurements: 2234 }
-    },
-    activeMonitors: 20,
-    alertRules: []
-  });
-  const [latencyAlerts, setLatencyAlerts] = useState([
-    { id: 'alert_1', severity: 'error', providerId: 'finnhub', symbol: 'AAPL', message: 'Latency 123ms exceeds critical threshold 100ms', timestamp: new Date(Date.now() - 180000), metrics: { current: 123, average: 78, target: { critical: 100 }, p95: 98 } },
-    { id: 'alert_2', severity: 'warning', providerId: 'coinbase', symbol: 'BTC-USD', message: 'Latency spike detected: 89ms', timestamp: new Date(Date.now() - 360000), metrics: { current: 89, average: 52, target: { warning: 60 }, p95: 67 } },
-    { id: 'alert_3', severity: 'warning', providerId: 'alpaca', symbol: 'SPY', message: 'Latency degradation trend detected', timestamp: new Date(Date.now() - 720000), metrics: { current: 67, average: 45, target: { warning: 75 }, p95: 58 } }
-  ]);
-  const [symbolLatency, setSymbolLatency] = useState([
-    { symbol: 'AAPL', providerId: 'polygon', current: 39, average: 41.2, p50: 38, p90: 52, p95: 58, p99: 67, measurements: 892, violations: 0, status: 'good' },
-    { symbol: 'TSLA', providerId: 'alpaca', current: 47, average: 45.8, p50: 44, p90: 58, p95: 62, p99: 71, measurements: 734, violations: 1, status: 'good' },
-    { symbol: 'SPY', providerId: 'polygon', current: 34, average: 36.2, p50: 34, p90: 45, p95: 49, p99: 54, measurements: 1245, violations: 0, status: 'good' },
-    { symbol: 'BTC-USD', providerId: 'coinbase', current: 67, average: 52.1, p50: 48, p90: 72, p95: 81, p99: 89, measurements: 456, violations: 3, status: 'warning' },
-    { symbol: 'NVDA', providerId: 'polygon', current: 41, average: 43.5, p50: 40, p90: 54, p95: 59, p99: 68, measurements: 623, violations: 0, status: 'good' },
-    { symbol: 'QQQ', providerId: 'finnhub', current: 89, average: 78.3, p50: 72, p90: 98, p95: 105, p99: 123, measurements: 387, violations: 4, status: 'critical' }
-  ]);
-  
-  // Service initialization with admin monitoring
+
+  const refreshIntervalRef = useRef(null);
+  const wsRef = useRef(null);
+
+  // Mock real-time data generation
   useEffect(() => {
-    const initializeService = async () => {
-      setIsInitializing(true);
+    const generateMockData = () => {
+      const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'UBER', 'ZOOM'];
+      const newData = {};
       
-      try {
-        console.log('🚀 Initializing Live Data Admin Interface...');
+      symbols.forEach(symbol => {
+        const basePrice = Math.random() * 500 + 50;
+        const change = (Math.random() - 0.5) * 10;
+        const volume = Math.floor(Math.random() * 10000000) + 1000000;
         
-        // Initialize the integration service
-        const initResult = await liveDataIntegration.initialize();
-        
-        if (initResult.success) {
-          // Connect with admin context
-          const connectResult = await liveDataIntegration.connect(user?.id, { admin: true });
-          
-          if (connectResult.success) {
-            console.log('✅ Live data admin service initialized and connected');
-            loadAdminData();
-            
-            // Initialize failover service
-            await initializeFailoverService();
-            
-            // Initialize quality monitoring
-            await initializeQualityMonitoring();
-            
-            // Initialize latency monitoring
-            await initializeLatencyMonitoring();
-          }
-        }
-      } catch (error) {
-        console.error('❌ Failed to initialize live data admin service:', error);
-        showAlertMessage('Failed to initialize admin service', 'error');
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    initializeService();
-
-    // Set up event listeners
-    liveDataIntegration.on('connection_status', (data) => {
-      setIsConnected(data.status === 'connected');
-    });
-
-    liveDataIntegration.on('market_data', (data) => {
-      handleMarketDataUpdate(data);
-    });
-
-    liveDataIntegration.on('subscription_update', (data) => {
-      setSubscriptions(prev => [...new Set([...prev, ...data.symbols])]);
-    });
-
-    // Admin-specific event listeners
-    liveDataIntegration.on('service_health', (data) => {
-      setServiceHealth(data);
-    });
-
-    liveDataIntegration.on('system_alert', (data) => {
-      setSystemAlerts(prev => [data, ...prev].slice(0, 10));
-      if (data.severity === 'error' || data.severity === 'warning') {
-        showAlertMessage(data.message, data.severity);
-      }
-    });
-
-    // Update metrics periodically
-    const metricsInterval = setInterval(() => {
-      updateAdminMetrics();
-    }, 5000);
-
-    // Load existing subscriptions
-    loadUserSubscriptions();
-
-    // Cleanup
-    return () => {
-      liveDataIntegration.disconnect();
-      clearInterval(metricsInterval);
-    };
-  }, [user]);
-
-  // Handle market data updates
-  const handleMarketDataUpdate = useCallback((data) => {
-    const { symbol, data: priceData } = data;
-    
-    setMarketData(prev => ({
-      ...prev,
-      [symbol]: {
-        ...priceData,
-        timestamp: new Date(priceData.timestamp * 1000),
-        previousPrice: prev[symbol]?.price || priceData.price
-      }
-    }));
-
-    // Log data update for monitoring
-    console.log(`📊 Live data update: ${symbol} = $${priceData.price}`);
-  }, []);
-
-  // Load user subscriptions
-  const loadUserSubscriptions = async () => {
-    try {
-      const result = await liveDataIntegration.getUserSubscriptions();
-      if (result.success) {
-        setSubscriptions(result.subscriptions);
-      }
-    } catch (error) {
-      console.error('Failed to load user subscriptions:', error);
-    }
-  };
-
-  // Load admin data
-  const loadAdminData = async () => {
-    try {
-      // Load service health
-      const healthResult = await fetch('/api/live-data/admin/health');
-      if (healthResult.ok) {
-        const health = await healthResult.json();
-        setServiceHealth(health.data);
-      }
-
-      // Load active connections
-      const connectionsResult = await fetch('/api/live-data/admin/connections');
-      if (connectionsResult.ok) {
-        const connections = await connectionsResult.json();
-        setActiveConnections(connections.data);
-      }
-
-      // Load cost metrics
-      const costResult = await fetch('/api/live-data/admin/cost-metrics');
-      if (costResult.ok) {
-        const cost = await costResult.json();
-        setCostMetrics(cost.data);
-      }
-    } catch (error) {
-      console.error('Failed to load admin data:', error);
-    }
-  };
-
-  // Update admin metrics
-  const updateAdminMetrics = async () => {
-    try {
-      const metrics = liveDataIntegration.getMetrics();
-      setIntegrationMetrics(metrics);
-      setConnectionStatus(liveDataIntegration.getConnectionStatus());
+        newData[symbol] = {
+          symbol,
+          price: basePrice,
+          change,
+          changePercent: (change / basePrice) * 100,
+          volume,
+          high: basePrice + Math.random() * 20,
+          low: basePrice - Math.random() * 20,
+          open: basePrice + (Math.random() - 0.5) * 5,
+          timestamp: new Date(),
+          marketCap: basePrice * (Math.random() * 1000000000 + 100000000),
+          peRatio: Math.random() * 50 + 5,
+          eps: Math.random() * 10 + 0.5,
+          dividendYield: Math.random() * 5,
+          beta: Math.random() * 2 + 0.5,
+          avgVolume: volume * (0.8 + Math.random() * 0.4),
+          weekHigh52: basePrice * (1.2 + Math.random() * 0.3),
+          weekLow52: basePrice * (0.7 - Math.random() * 0.2),
+          movingAvg50: basePrice * (0.95 + Math.random() * 0.1),
+          movingAvg200: basePrice * (0.9 + Math.random() * 0.2),
+          rsi: Math.random() * 100,
+          macd: (Math.random() - 0.5) * 5,
+          bollinger: {
+            upper: basePrice * 1.05,
+            lower: basePrice * 0.95,
+            middle: basePrice
+          },
+          volumeProfile: Array.from({ length: 20 }, () => Math.random() * 100),
+          orderBook: {
+            bids: Array.from({ length: 10 }, (_, i) => ({
+              price: basePrice - (i + 1) * 0.1,
+              size: Math.floor(Math.random() * 1000) + 100
+            })),
+            asks: Array.from({ length: 10 }, (_, i) => ({
+              price: basePrice + (i + 1) * 0.1,
+              size: Math.floor(Math.random() * 1000) + 100
+            }))
+          },
+          trades: Array.from({ length: 5 }, () => ({
+            price: basePrice + (Math.random() - 0.5) * 2,
+            size: Math.floor(Math.random() * 1000) + 100,
+            timestamp: new Date(Date.now() - Math.random() * 60000),
+            side: Math.random() > 0.5 ? 'buy' : 'sell'
+          }))
+        };
+      });
       
-      // Update service health
-      const healthStatus = calculateServiceHealth(metrics);
-      setServiceHealth(prev => ({ ...prev, ...healthStatus }));
+      setLiveData(newData);
       
-    } catch (error) {
-      console.error('Failed to update admin metrics:', error);
-    }
-  };
-
-  // Calculate service health based on metrics
-  const calculateServiceHealth = (metrics) => {
-    const errorRate = (metrics?.data?.errors || 0) / (metrics?.data?.messagesReceived || 1);
-    const latency = metrics?.connection?.latency || 0;
-    
-    let overall = 'healthy';
-    if (errorRate > 0.1 || latency > 1000) {
-      overall = 'warning';
-    }
-    if (errorRate > 0.2 || latency > 2000) {
-      overall = 'error';
-    }
-    
-    return {
-      overall,
-      errorRate: errorRate * 100,
-      latency,
-      uptime: metrics?.uptime || 0
-    };
-  };
-
-  // Initialize failover service
-  const initializeFailoverService = async () => {
-    try {
-      if (!failoverService.current) {
-        failoverService.current = new ProviderFailoverService();
-        
-        // Set up event listeners
-        failoverService.current.on('failover_completed', (event) => {
-          const { symbol, fromProvider, toProvider, reason } = event.detail;
-          setFailoverHistory(prev => [{
-            symbol,
-            fromProvider,
-            toProvider,
-            reason,
-            time: new Date(),
-            duration: Math.random() * 3 + 1 // 1-4 seconds
-          }, ...prev].slice(0, 10)); // Keep last 10
-          
-          showAlertMessage(`Failover completed: ${symbol} moved from ${fromProvider} to ${toProvider}`, 'success');
-        });
-        
-        failoverService.current.on('cost_optimization', (event) => {
-          const { savings } = event.detail;
-          setFailoverMetrics(prev => ({ 
-            ...prev, 
-            costSavings: prev.costSavings + savings 
-          }));
-          
-          showAlertMessage(`Cost optimization saved $${savings.toFixed(2)}`, 'success');
-        });
-        
-        // Initialize with provider configs
-        const providerConfigs = DATA_PROVIDERS.map(provider => ({
-          id: provider.id,
-          name: provider.name,
-          type: provider.type,
-          endpoint: `wss://${provider.id}.example.com/ws`,
-          priority: provider.status === 'active' ? 'high' : 'low',
-          costPerMessage: provider.costPerMsg || 0.001,
-          latencyBaseline: provider.latency || 50
-        }));
-        
-        await failoverService.current.initialize(providerConfigs);
-        console.log('🔄 Failover service initialized successfully');
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize failover service:', error);
-    }
-  };
-
-  // Manual failover trigger
-  const triggerManualFailover = async (symbol, reason = 'manual') => {
-    if (failoverService.current) {
-      await failoverService.current.triggerFailover(symbol, reason);
-      setFailoverMetrics(prev => ({ 
-        ...prev, 
-        totalFailovers: prev.totalFailovers + 1,
-        lastFailover: new Date()
+      // Update metrics
+      setRealTimeMetrics(prev => ({
+        messagesPerSecond: Math.floor(Math.random() * 1000) + 500,
+        latency: Math.floor(Math.random() * 100) + 20,
+        throughput: Math.floor(Math.random() * 5000) + 2000,
+        errorRate: Math.random() * 2,
+        uptime: 99.9 - Math.random() * 0.5,
+        connectedClients: Math.floor(Math.random() * 50) + 100
       }));
-      showAlertMessage(`Manual failover initiated for ${symbol}`, 'info');
-    }
-  };
+    };
 
-  // Initialize quality monitoring
-  const initializeQualityMonitoring = async () => {
-    try {
-      if (!qualityMonitor.current) {
-        qualityMonitor.current = new DataQualityMonitor();
-        
-        // Set up event listeners
-        qualityMonitor.current.on('quality_alert', (event) => {
-          const alert = event.detail;
-          setQualityAlerts(prev => [{
-            symbol: alert.symbol,
-            type: alert.type,
-            severity: alert.severity,
-            score: alert.score,
-            message: alert.message,
-            time: new Date()
-          }, ...prev].slice(0, 10)); // Keep last 10 alerts
-          
-          if (alert.severity === 'error') {
-            showAlertMessage(`Data quality error: ${alert.message}`, 'error');
-          }
-        });
-        
-        qualityMonitor.current.on('data_validated', (event) => {
-          const { symbol, qualityScore } = event.detail;
-          // Update symbol quality in real-time
-          setSymbolQuality(prev => prev.map(sq => 
-            sq.symbol === symbol ? { ...sq, quality: qualityScore } : sq
-          ));
-        });
-        
-        // Start monitoring for active symbols
-        const activeSymbols = subscriptions.length > 0 ? subscriptions : ['AAPL', 'TSLA', 'SPY', 'BTC-USD'];
-        for (const symbol of activeSymbols) {
-          await qualityMonitor.current.startMonitoring(symbol);
-        }
-        
-        console.log('🔍 Quality monitoring initialized successfully');
+    generateMockData();
+    
+    if (autoRefresh) {
+      refreshIntervalRef.current = setInterval(generateMockData, refreshInterval);
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
       }
-    } catch (error) {
-      console.error('❌ Failed to initialize quality monitoring:', error);
-    }
-  };
+    };
+  }, [autoRefresh, refreshInterval]);
 
-  // Initialize latency monitoring
-  const initializeLatencyMonitoring = async () => {
-    try {
-      if (!latencyMonitor.current) {
-        latencyMonitor.current = new LatencyMonitor();
-        
-        // Set up event listeners
-        latencyMonitor.current.on('latency_alert', (event) => {
-          const alert = event.detail;
-          setLatencyAlerts(prev => [{
-            id: alert.id,
-            severity: alert.severity,
-            providerId: alert.providerId,
-            symbol: alert.symbol,
-            message: alert.message,
-            timestamp: new Date(alert.timestamp),
-            metrics: alert.metrics
-          }, ...prev].slice(0, 10)); // Keep last 10 alerts
-          
-          if (alert.severity === 'error') {
-            showAlertMessage(`Latency alert: ${alert.message}`, 'error');
-          } else if (alert.severity === 'warning') {
-            showAlertMessage(`Latency warning: ${alert.message}`, 'warning');
-          }
-        });
-        
-        latencyMonitor.current.on('latency_recorded', (event) => {
-          const { providerId, symbol, latency, metrics } = event.detail;
-          // Update symbol latency metrics in real-time
-          setSymbolLatency(prev => prev.map(sl => 
-            sl.symbol === symbol && sl.providerId === providerId ? 
-              { ...sl, current: latency, ...metrics } : sl
-          ));
-          
-          // Update system metrics
-          const systemMetrics = latencyMonitor.current.getSystemMetrics();
-          setLatencyMetrics(prev => ({
-            ...prev,
-            system: systemMetrics.system,
-            providers: systemMetrics.providers,
-            activeMonitors: systemMetrics.activeMonitors
-          }));
-        });
-        
-        // Start monitoring for active provider/symbol combinations
-        const activeSymbols = subscriptions.length > 0 ? subscriptions : ['AAPL', 'TSLA', 'SPY', 'BTC-USD', 'NVDA', 'QQQ'];
-        const activeProviders = DATA_PROVIDERS.filter(p => p.status === 'active');
-        
-        for (const symbol of activeSymbols) {
-          // Start monitoring with the primary provider for each symbol
-          const primaryProvider = activeProviders[Math.floor(Math.random() * activeProviders.length)];
-          const dataType = symbol.includes('-') ? 'crypto_quotes' : 'stock_quotes';
-          await latencyMonitor.current.startMonitoring(primaryProvider.id, symbol, dataType);
-        }
-        
-        console.log('⚡ Latency monitoring initialized successfully');
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize latency monitoring:', error);
+  // Mock data streams
+  const mockDataStreams = [
+    {
+      id: 1,
+      name: 'Equity Prices',
+      provider: 'Alpaca',
+      status: 'active',
+      symbols: 4567,
+      latency: 23,
+      throughput: '2.1K/s',
+      errorRate: 0.02,
+      uptime: 99.98,
+      cost: '$127.50',
+      quality: 99.2,
+      type: 'websocket',
+      region: 'US-East',
+      lastUpdate: new Date(),
+      dataPoints: 1250000,
+      compression: 'gzip',
+      protocol: 'WSS',
+      authentication: 'OAuth2',
+      rateLimit: '10000/min',
+      features: ['Real-time', 'Level 2', 'Options', 'Crypto']
+    },
+    {
+      id: 2,
+      name: 'Options Chain',
+      provider: 'Interactive Brokers',
+      status: 'active',
+      symbols: 1234,
+      latency: 45,
+      throughput: '856/s',
+      errorRate: 0.15,
+      uptime: 99.85,
+      cost: '$89.20',
+      quality: 97.8,
+      type: 'rest',
+      region: 'US-East',
+      lastUpdate: new Date(),
+      dataPoints: 560000,
+      compression: 'br',
+      protocol: 'HTTPS',
+      authentication: 'API Key',
+      rateLimit: '5000/min',
+      features: ['Greeks', 'Implied Volatility', 'Open Interest']
+    },
+    {
+      id: 3,
+      name: 'Crypto Prices',
+      provider: 'Binance',
+      status: 'warning',
+      symbols: 567,
+      latency: 78,
+      throughput: '1.8K/s',
+      errorRate: 1.2,
+      uptime: 98.5,
+      cost: '$45.80',
+      quality: 94.2,
+      type: 'websocket',
+      region: 'Global',
+      lastUpdate: new Date(),
+      dataPoints: 890000,
+      compression: 'deflate',
+      protocol: 'WSS',
+      authentication: 'HMAC',
+      rateLimit: '20000/min',
+      features: ['Spot', 'Futures', 'Margin', 'Lending']
+    },
+    {
+      id: 4,
+      name: 'Economic Data',
+      provider: 'FRED',
+      status: 'active',
+      symbols: 89,
+      latency: 2000,
+      throughput: '2/s',
+      errorRate: 0.01,
+      uptime: 99.99,
+      cost: '$0.00',
+      quality: 100,
+      type: 'rest',
+      region: 'US-Central',
+      lastUpdate: new Date(),
+      dataPoints: 45000,
+      compression: 'none',
+      protocol: 'HTTPS',
+      authentication: 'API Key',
+      rateLimit: '1000/day',
+      features: ['GDP', 'Inflation', 'Employment', 'Interest Rates']
     }
-  };
-  
-  // Toggle provider arbitrage
-  const toggleArbitrage = () => {
-    setFailoverMetrics(prev => ({ 
-      ...prev, 
-      activeArbitrage: !prev.activeArbitrage 
-    }));
-    showAlertMessage(`Provider arbitrage ${failoverMetrics.activeArbitrage ? 'disabled' : 'enabled'}`, 'info');
-  };
+  ];
 
-  // Show alert message
-  const showAlertMessage = (message, severity = 'info') => {
-    setAlertMessage(message);
-    setAlertSeverity(severity);
-    setShowAlert(true);
-  };
-
-  // Subscription management
-  const handleSubscribe = useCallback(async (symbols) => {
-    try {
-      const result = await liveDataIntegration.subscribe(symbols);
-      if (result.success) {
-        setSubscriptions(prev => [...new Set([...prev, ...symbols])]);
-        console.log('✅ Successfully subscribed to:', symbols);
-      } else {
-        console.error('❌ Subscription failed:', result.error);
-      }
-    } catch (error) {
-      console.error('❌ Subscription error:', error);
-    }
+  useEffect(() => {
+    setDataStreams(mockDataStreams);
   }, []);
 
-  const handleUnsubscribe = useCallback(async (symbols) => {
-    try {
-      const result = await liveDataIntegration.unsubscribe(symbols);
-      if (result.success) {
-        setSubscriptions(prev => prev.filter(s => !symbols.includes(s)));
-        console.log('✅ Successfully unsubscribed from:', symbols);
-      } else {
-        console.error('❌ Unsubscription failed:', result.error);
-      }
-    } catch (error) {
-      console.error('❌ Unsubscription error:', error);
-    }
-  }, []);
-
-  const addSymbol = () => {
-    if (newSymbol && !subscriptions.includes(newSymbol.toUpperCase())) {
-      handleSubscribe([newSymbol.toUpperCase()]);
-      setNewSymbol('');
-    }
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
   };
 
-  const removeSymbol = (symbol) => {
-    handleUnsubscribe([symbol]);
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
-  // Connection controls
-  const toggleConnection = async () => {
-    if (isConnected) {
-      liveDataIntegration.disconnect();
-    } else {
-      await liveDataIntegration.connect(user?.id);
-    }
+  const handleRefreshToggle = () => {
+    setAutoRefresh(!autoRefresh);
   };
 
-  // Integration test
-  const runIntegrationTest = async () => {
-    setShowIntegrationTest(true);
-    try {
-      const results = await liveDataIntegration.testIntegration();
-      console.log('🧪 Integration test results:', results);
-    } catch (error) {
-      console.error('❌ Integration test failed:', error);
+  const handleManualRefresh = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      setSnackbar({
+        open: true,
+        message: 'Data refreshed successfully',
+        severity: 'success'
+      });
+    }, 1000);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active': return 'success';
+      case 'warning': return 'warning';
+      case 'error': return 'error';
+      default: return 'default';
     }
   };
 
-  // Render admin service health dashboard
-  const renderServiceHealthDashboard = () => (
-    <Grid container spacing={3} sx={{ mb: 3 }}>
-      {/* Overall Health Status */}
-      <Grid item xs={12} md={6}>
-        <Card>
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'active': return <CheckCircle />;
+      case 'warning': return <Warning />;
+      case 'error': return <Error />;
+      default: return <Info />;
+    }
+  };
+
+  const formatNumber = (num) => {
+    if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatPercent = (percent) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'percent',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(percent / 100);
+  };
+
+  // Real-time metrics dashboard
+  const MetricsDashboard = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={2}>
+        <MetricCard>
           <CardContent>
-            <Box display="flex" alignItems="center" gap={2} mb={2}>
-              <HealthAndSafety 
-                color={serviceHealth.overall === 'healthy' ? 'success' : 
-                       serviceHealth.overall === 'warning' ? 'warning' : 'error'} 
-              />
-              <Typography variant="h6">Service Health</Typography>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="primary">
+                  {realTimeMetrics.messagesPerSecond}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Msg/Sec
+                </Typography>
+              </Box>
+              <PulsingIcon color="success">
+                <ElectricBolt fontSize="large" />
+              </PulsingIcon>
             </Box>
-            <Box display="flex" alignItems="center" gap={2} mb={2}>
-              <Chip 
-                label={serviceHealth.overall.toUpperCase()} 
-                color={serviceHealth.overall === 'healthy' ? 'success' : 
-                       serviceHealth.overall === 'warning' ? 'warning' : 'error'}
-                size="small"
-              />
-              <Typography variant="body2">
-                {serviceHealth.overall === 'healthy' ? 'All systems operational' :
-                 serviceHealth.overall === 'warning' ? 'Some issues detected' :
-                 'Critical issues require attention'}
-              </Typography>
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="primary">
-                    {serviceHealth.connections.active}
-                  </Typography>
-                  <Typography variant="caption">Active Connections</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="success.main">
-                    {serviceHealth.subscribers.active}
-                  </Typography>
-                  <Typography variant="caption">Active Subscribers</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="info.main">
-                    {serviceHealth.latency}ms
-                  </Typography>
-                  <Typography variant="caption">Avg Latency</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color={serviceHealth.errorRate > 5 ? "error.main" : "text.secondary"}>
-                    {serviceHealth.errorRate.toFixed(1)}%
-                  </Typography>
-                  <Typography variant="caption">Error Rate</Typography>
-                </Box>
-              </Grid>
-            </Grid>
           </CardContent>
-        </Card>
+        </MetricCard>
       </Grid>
 
-      {/* Cost Optimization */}
-      <Grid item xs={12} md={6}>
-        <Card>
+      <Grid item xs={12} md={2}>
+        <MetricCard>
           <CardContent>
-            <Box display="flex" alignItems="center" gap={2} mb={2}>
-              <MonetizationOn color="primary" />
-              <Typography variant="h6">Cost Optimization</Typography>
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={4}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="success.main">
-                    ${costMetrics.daily.toFixed(2)}
-                  </Typography>
-                  <Typography variant="caption">Daily Cost</Typography>
-                  <Typography variant="body2" color="success.main" fontSize="0.75rem">
-                    -${costMetrics.dailySavings} saved
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={4}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="info.main">
-                    ${costMetrics.monthly.toFixed(2)}
-                  </Typography>
-                  <Typography variant="caption">Monthly Est.</Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={4}>
-                <Box textAlign="center">
-                  <Typography variant="h4" color="text.secondary">
-                    {costMetrics.activePriceFeeds}
-                  </Typography>
-                  <Typography variant="caption">Active Feeds</Typography>
-                  <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
-                    of {costMetrics.totalSymbols} total
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-            <Box mt={2}>
-              <Button
-                variant="outlined"
-                startIcon={<AutoFixHigh />}
-                onClick={() => showAlertMessage('Cost optimization started', 'info')}
-                size="small"
-              >
-                Optimize Costs
-              </Button>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="info.main">
+                  {realTimeMetrics.latency}ms
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Latency
+                </Typography>
+              </Box>
+              <SpeedIcon color="info" fontSize="large" />
             </Box>
           </CardContent>
-        </Card>
+        </MetricCard>
       </Grid>
 
-      {/* Data Providers Status */}
-      <Grid item xs={12}>
-        <Card>
+      <Grid item xs={12} md={2}>
+        <MetricCard>
           <CardContent>
-            <Box display="flex" alignItems="center" gap={2} mb={2}>
-              <CloudSync color="primary" />
-              <Typography variant="h6">Data Providers</Typography>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="secondary">
+                  {formatNumber(realTimeMetrics.throughput)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Throughput
+                </Typography>
+              </Box>
+              <TrendingUp color="secondary" fontSize="large" />
             </Box>
-            <Grid container spacing={2}>
-              {providerConfig.map((provider) => (
-                <Grid item xs={12} sm={6} md={4} lg={2} key={provider.id}>
-                  <Box 
-                    sx={{ 
-                      border: 1, 
-                      borderColor: provider.status === 'active' ? 'success.main' : 'divider', 
-                      borderRadius: 1, 
-                      p: 2,
-                      backgroundColor: provider.status === 'active' ? 'success.light' : 'background.paper',
-                      opacity: provider.status === 'inactive' ? 0.6 : 1
-                    }}
-                  >
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                      <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">
-                        {provider.name}
-                      </Typography>
-                      <Switch
-                        checked={provider.status === 'active'}
-                        onChange={(e) => handleProviderToggle(provider.id, e.target.checked)}
-                        size="small"
-                      />
-                    </Box>
-                    <Box mb={1}>
-                      <Typography variant="caption" color="text.secondary">
-                        {provider.type} • {provider.latency}ms
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography variant="caption" color="text.secondary">
-                        ${provider.costPerMsg}/msg
-                      </Typography>
-                      <Chip 
-                        label={provider.status} 
-                        color={provider.status === 'active' ? 'success' : provider.status === 'backup' ? 'warning' : 'default'}
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
           </CardContent>
-        </Card>
+        </MetricCard>
+      </Grid>
+
+      <Grid item xs={12} md={2}>
+        <MetricCard>
+          <CardContent>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="warning.main">
+                  {realTimeMetrics.errorRate.toFixed(2)}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Error Rate
+                </Typography>
+              </Box>
+              <ReportProblemIcon color="warning" fontSize="large" />
+            </Box>
+          </CardContent>
+        </MetricCard>
+      </Grid>
+
+      <Grid item xs={12} md={2}>
+        <MetricCard>
+          <CardContent>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="success.main">
+                  {realTimeMetrics.uptime.toFixed(1)}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Uptime
+                </Typography>
+              </Box>
+              <HealthAndSafety color="success" fontSize="large" />
+            </Box>
+          </CardContent>
+        </MetricCard>
+      </Grid>
+
+      <Grid item xs={12} md={2}>
+        <MetricCard>
+          <CardContent>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box>
+                <Typography variant="h4" color="primary">
+                  {realTimeMetrics.connectedClients}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Clients
+                </Typography>
+              </Box>
+              <Hub color="primary" fontSize="large" />
+            </Box>
+          </CardContent>
+        </MetricCard>
       </Grid>
     </Grid>
   );
 
-  // Render price feed configuration management
-  const renderFeedConfiguration = () => (
-    <Card sx={{ mb: 2 }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <DataUsage color="primary" />
-          <Typography variant="h6">Price Feed Configuration</Typography>
-          <Chip 
-            label={`${feedConfig.filter(f => f.enabled).length}/${feedConfig.length} Active`} 
-            color="primary" 
-            size="small"
-          />
-        </Box>
-        
-        <Grid container spacing={2}>
-          {feedConfig.map((feed) => (
-            <Grid item xs={12} sm={6} md={4} key={feed.id}>
-              <Box 
-                sx={{ 
-                  border: 1, 
-                  borderColor: feed.enabled ? 'primary.main' : 'divider', 
-                  borderRadius: 1, 
-                  p: 2,
-                  backgroundColor: feed.enabled ? 'action.hover' : 'background.paper'
-                }}
-              >
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                  <Box>
-                    <Typography variant="body1" fontWeight="bold">
-                      {feed.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {feed.subscribers} subscribers
-                    </Typography>
-                  </Box>
-                  <Switch
-                    checked={feed.enabled}
-                    onChange={(e) => {
-                      const newConfig = feedConfig.map(f => 
-                        f.id === feed.id ? { ...f, enabled: e.target.checked } : f
-                      );
-                      setFeedConfig(newConfig);
-                      showAlertMessage(`${feed.name} ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
-                    }}
-                    size="small"
-                  />
-                </Box>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                  <Typography variant="body2" color="text.secondary">
-                    ${feed.cost}/msg
-                  </Typography>
-                  <Chip 
-                    label={feed.priority} 
-                    color={feed.priority === 'high' ? 'error' : feed.priority === 'medium' ? 'warning' : 'default'}
-                    size="small"
-                  />
-                </Box>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color={feed.enabled ? 'success.main' : 'text.disabled'}>
-                    {feed.enabled ? 'Active' : 'Disabled'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Est: ${(feed.subscribers * feed.cost * 24 * 3600).toFixed(2)}/day
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
-        
-        <Box mt={2} display="flex" gap={2} flexWrap="wrap">
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => showAlertMessage('Price feed configuration reloaded', 'info')}
-          >
-            Reload Config
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AutoFixHigh />}
-            onClick={() => showAlertMessage('Auto-optimization enabled for price feeds', 'info')}
-          >
-            Auto-Optimize
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Schedule />}
-            onClick={() => showAlertMessage('Maintenance window scheduled: 2:00-3:00 AM EST', 'info')}
-          >
-            Schedule Maintenance
-          </Button>
-          <Button
-            variant="outlined"
-            color="warning"
-            startIcon={<PowerOff />}
-            onClick={() => showAlertMessage('All non-critical price feeds paused', 'warning')}
-          >
-            Pause Non-Critical
-          </Button>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
-  // Admin controls for price feed management
-  const handleProviderToggle = (providerId, enabled) => {
-    setProviderConfig(prev => prev.map(p => 
-      p.id === providerId ? { ...p, status: enabled ? 'active' : 'inactive' } : p
-    ));
-    showAlertMessage(`${providerId} provider ${enabled ? 'activated' : 'deactivated'}`, 'info');
-  };
-
-  const handlePriorityAdjustment = (connectionIndex, newPriority) => {
-    setActiveConnections(prev => prev.map((conn, idx) => 
-      idx === connectionIndex ? { ...conn, priority: newPriority } : conn
-    ));
-    showAlertMessage('Connection priority updated', 'info');
-  };
-
-  const handleBulkAction = (action) => {
-    switch(action) {
-      case 'restart_all':
-        showAlertMessage('Restarting all price feeds...', 'info');
-        break;
-      case 'optimize_costs':
-        showAlertMessage('Running cost optimization...', 'info');
-        break;
-      case 'emergency_stop':
-        showAlertMessage('Emergency stop initiated', 'warning');
-        break;
-    }
-  };
-
-  // Render connection monitoring with price data focus
-  const renderConnectionMonitoring = () => (
-    <Paper sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6">
-          Active Price Feed Connections ({activeConnections.length})
-        </Typography>
-        <Box display="flex" gap={1}>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => handleBulkAction('restart_all')}
-            size="small"
-          >
-            Restart All
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AutoFixHigh />}
-            onClick={() => handleBulkAction('optimize_costs')}
-            size="small"
-          >
-            Optimize
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<PowerOff />}
-            onClick={() => handleBulkAction('emergency_stop')}
-            size="small"
-          >
-            Emergency Stop
-          </Button>
-        </Box>
-      </Box>
-      
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Provider</TableCell>
-              <TableCell>Symbol</TableCell>
-              <TableCell>Current Price</TableCell>
-              <TableCell>Change</TableCell>
-              <TableCell>Subscribers</TableCell>
-              <TableCell>Latency</TableCell>
-              <TableCell>Msg/sec</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {activeConnections.map((connection, index) => (
-              <TableRow key={index} hover>
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Chip 
-                      label={connection.provider} 
-                      size="small" 
-                      color="primary"
-                      variant="outlined"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      {connection.dataType}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
-                    {connection.symbol}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
-                    ${connection.lastPrice?.toLocaleString()}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography 
-                    color={connection.change >= 0 ? 'success.main' : 'error.main'}
-                    variant="body2"
-                  >
-                    {connection.change >= 0 ? '+' : ''}{connection.change}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={connection.subscribers} 
-                    color={connection.subscribers > 100 ? 'success' : connection.subscribers > 50 ? 'warning' : 'default'} 
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography 
-                    color={connection.latency > 100 ? 'error.main' : connection.latency > 60 ? 'warning.main' : 'success.main'}
-                    variant="body2"
-                  >
-                    {connection.latency}ms
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {connection.messagesPerSec}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={connection.status} 
-                    color={connection.status === 'active' ? 'success' : 'warning'}
-                    size="small"
-                    icon={connection.status === 'active' ? <CheckCircle /> : <Warning />}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Box display="flex" gap={0.5}>
-                    <Tooltip title="Restart connection">
-                      <IconButton
-                        size="small"
-                        onClick={() => showAlertMessage(`${connection.symbol} connection restarted`, 'info')}
-                      >
-                        <Refresh />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Pause feed">
-                      <IconButton
-                        size="small"
-                        onClick={() => showAlertMessage(`${connection.symbol} feed paused`, 'warning')}
-                      >
-                        <Stop />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Priority boost">
-                      <IconButton
-                        size="small"
-                        onClick={() => handlePriorityAdjustment(index, 'high')}
-                      >
-                        <TrendingUp />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Paper>
-  );
-
-  // Render system alerts
-  const renderSystemAlerts = () => (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        System Alerts
-      </Typography>
-      <List>
-        {systemAlerts.length > 0 ? systemAlerts.map((alert, index) => (
-          <ListItem key={index} divider>
-            <ListItemIcon>
-              {alert.severity === 'error' ? <Error color="error" /> :
-               alert.severity === 'warning' ? <Warning color="warning" /> :
-               <Info color="info" />}
-            </ListItemIcon>
-            <ListItemText
-              primary={alert.message}
-              secondary={new Date(alert.timestamp).toLocaleString()}
-            />
-          </ListItem>
-        )) : (
-          <ListItem>
-            <ListItemText
-              primary="No alerts"
-              secondary="System is operating normally"
-            />
-          </ListItem>
-        )}
-      </List>
-    </Paper>
-  );
-
-  // Render subscription management with price focus
-  const renderSubscriptionManager = () => (
-    <Card sx={{ mb: 2 }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <OnlinePrediction color="primary" />
-          <Typography variant="h6">
-            Price Data Subscriptions
-          </Typography>
-          <Chip 
-            label={`${subscriptions.length} symbols`} 
-            color="primary" 
-            size="small"
-          />
-          <Chip 
-            label={`${Object.keys(marketData).length} receiving data`} 
-            color="success" 
-            size="small"
-          />
-        </Box>
-        
-        {/* Add new symbol */}
-        <Box display="flex" gap={2} mb={2}>
-          <TextField
-            label="Add Symbol for Price Tracking"
-            value={newSymbol}
-            onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-            onKeyPress={(e) => e.key === 'Enter' && addSymbol()}
-            size="small"
-            placeholder="AAPL, BTC-USD, SPY..."
-            helperText="Add symbols for real-time price monitoring"
-          />
-          <Button 
-            variant="contained" 
-            startIcon={<Add />}
-            onClick={addSymbol}
-            disabled={!newSymbol || subscriptions.includes(newSymbol.toUpperCase())}
-          >
-            Subscribe
-          </Button>
-        </Box>
-
-        {/* High-frequency price monitoring symbols */}
-        <Box mb={2}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            High-Frequency Price Monitoring:
-          </Typography>
-          <Box display="flex" flexWrap="wrap" gap={1} mb={2}>
-            {HIGH_FREQUENCY_SYMBOLS.map(symbol => (
-              <Chip
-                key={symbol}
-                label={symbol}
-                size="small"
-                color={subscriptions.includes(symbol) ? "error" : "default"}
-                variant={subscriptions.includes(symbol) ? "filled" : "outlined"}
-                onClick={() => subscriptions.includes(symbol) ? 
-                  removeSymbol(symbol) : handleSubscribe([symbol])}
-                icon={subscriptions.includes(symbol) ? <Speed /> : <Add />}
-              />
-            ))}
+  // Live data streams table
+  const DataStreamsTable = () => (
+    <Card>
+      <CardHeader
+        title={
+          <Box display="flex" alignItems="center" gap={2}>
+            <Stream color="primary" />
+            <Typography variant="h6">Live Data Streams</Typography>
+            <Badge badgeContent={dataStreams.filter(s => s.status === 'active').length} color="success">
+              <Chip label="Active" size="small" />
+            </Badge>
           </Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Popular Symbols:
-          </Typography>
-          <Box display="flex" flexWrap="wrap" gap={1}>
-            {POPULAR_SYMBOLS.map(symbol => (
-              <Chip
-                key={symbol}
-                label={symbol}
-                size="small"
-                color={subscriptions.includes(symbol) ? "primary" : "default"}
-                onClick={() => subscriptions.includes(symbol) ? 
-                  removeSymbol(symbol) : handleSubscribe([symbol])}
-                onDelete={subscriptions.includes(symbol) ? 
-                  () => removeSymbol(symbol) : undefined}
-              />
-            ))}
-          </Box>
-        </Box>
-
-        {/* Current subscriptions with price data status */}
-        {subscriptions.length > 0 && (
-          <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Active Price Subscriptions ({subscriptions.length}):
-              </Typography>
-              <Box display="flex" gap={1}>
+        }
+        action={
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="View Mode">
+              <ButtonGroup size="small">
                 <Button
-                  size="small"
-                  startIcon={<ClearAll />}
-                  onClick={() => {
-                    handleUnsubscribe(subscriptions);
-                    showAlertMessage('All subscriptions cleared', 'info');
-                  }}
-                  variant="outlined"
-                  color="warning"
+                  variant={viewMode === 'grid' ? 'contained' : 'outlined'}
+                  onClick={() => setViewMode('grid')}
                 >
-                  Clear All
+                  <GridView />
                 </Button>
                 <Button
-                  size="small"
-                  startIcon={<Add />}
-                  onClick={() => {
-                    handleSubscribe(HIGH_FREQUENCY_SYMBOLS.filter(s => !subscriptions.includes(s)));
-                    showAlertMessage('High-frequency symbols added', 'info');
-                  }}
-                  variant="outlined"
+                  variant={viewMode === 'list' ? 'contained' : 'outlined'}
+                  onClick={() => setViewMode('list')}
                 >
-                  Add HF Symbols
+                  <ViewListIcon />
                 </Button>
-              </Box>
-            </Box>
-            <Box display="flex" flexWrap="wrap" gap={1}>
-              {subscriptions.map(symbol => {
-                const hasData = marketData[symbol];
-                const isHighFreq = HIGH_FREQUENCY_SYMBOLS.includes(symbol);
-                return (
-                  <Chip
-                    key={symbol}
-                    label={`${symbol}${hasData ? ` $${marketData[symbol].price?.toFixed(2)}` : ''}`}
-                    color={isHighFreq ? "error" : "primary"}
-                    variant={hasData ? "filled" : "outlined"}
-                    onDelete={() => removeSymbol(symbol)}
-                    icon={hasData ? 
-                      (marketData[symbol].change >= 0 ? <TrendingUp /> : <TrendingDown />) : 
-                      <Warning />
-                    }
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  // Render live data stream table
-  const renderLiveDataTable = () => (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Symbol</TableCell>
-            <TableCell align="right">Price</TableCell>
-            <TableCell align="right">Change</TableCell>
-            <TableCell align="right">Change %</TableCell>
-            <TableCell align="right">Volume</TableCell>
-            <TableCell align="right">Last Update</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {subscriptions.map(symbol => {
-            const data = marketData[symbol];
-            const isPositive = data?.change >= 0;
-            
-            return (
-              <TableRow key={symbol} hover>
+                <Button
+                  variant={viewMode === 'chart' ? 'contained' : 'outlined'}
+                  onClick={() => setViewMode('chart')}
+                >
+                  <BarChart />
+                </Button>
+              </ButtonGroup>
+            </Tooltip>
+            <Button
+              startIcon={<Add />}
+              variant="contained"
+              size="small"
+            >
+              Add Stream
+            </Button>
+          </Stack>
+        }
+      />
+      <CardContent>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
                 <TableCell>
                   <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="body1" fontWeight="bold">
-                      {symbol}
-                    </Typography>
-                    {isPositive ? 
-                      <TrendingUp color="success" fontSize="small" /> : 
-                      <TrendingDown color="error" fontSize="small" />
-                    }
+                    <Typography variant="subtitle2">Stream</Typography>
+                    <SortIcon fontSize="small" />
                   </Box>
                 </TableCell>
-                <TableCell align="right">
-                  <Typography 
-                    variant="body1" 
-                    fontWeight="bold"
-                    color={data?.price !== data?.previousPrice ? 
-                      (data?.price > data?.previousPrice ? "success.main" : "error.main") : 
-                      "text.primary"
-                    }
-                  >
-                    ${data?.price?.toFixed(2) || '--'}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography color={isPositive ? "success.main" : "error.main"}>
-                    {isPositive ? '+' : ''}{data?.change?.toFixed(2) || '--'}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography color={isPositive ? "success.main" : "error.main"}>
-                    {isPositive ? '+' : ''}{data?.change_percent?.toFixed(2) || '--'}%
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  {data?.volume?.toLocaleString() || '--'}
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" color="text.secondary">
-                    {data?.timestamp ? data.timestamp.toLocaleTimeString() : '--'}
-                  </Typography>
-                </TableCell>
+                <TableCell>Provider</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Symbols</TableCell>
+                <TableCell>Latency</TableCell>
+                <TableCell>Throughput</TableCell>
+                <TableCell>Quality</TableCell>
+                <TableCell>Cost</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-
-  // Render failover control dashboard
-  const renderFailoverControl = () => (
-    <Paper sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">Automated Failover & Provider Arbitrage</Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="contained"
-            color={failoverMetrics.activeArbitrage ? 'success' : 'warning'}
-            startIcon={<SyncAlt />}
-            onClick={toggleArbitrage}
-          >
-            {failoverMetrics.activeArbitrage ? 'Arbitrage Active' : 'Arbitrage Paused'}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => showAlertMessage('Failover metrics refreshed', 'info')}
-          >
-            Refresh
-          </Button>
-        </Box>
-      </Box>
-      
-      {/* Failover Metrics Dashboard */}
-      <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ textAlign: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <CardContent>
-              <SyncAlt sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {failoverMetrics.totalFailovers}
-              </Typography>
-              <Typography variant="caption" color="white">Total Failovers</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ textAlign: 'center', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-            <CardContent>
-              <Speed sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {failoverMetrics.avgFailoverTime}s
-              </Typography>
-              <Typography variant="caption" color="white">Avg Failover Time</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ textAlign: 'center', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
-            <CardContent>
-              <MonetizationOn sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                ${failoverMetrics.costSavings.toFixed(2)}
-              </Typography>
-              <Typography variant="caption" color="white">Daily Savings</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ textAlign: 'center', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}>
-            <CardContent>
-              <CheckCircle sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {failoverMetrics.uptimeAchieved}%
-              </Typography>
-              <Typography variant="caption" color="white">Uptime Achieved</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      
-      {/* Manual Failover Controls */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Manual Failover Controls</Typography>
-          <Grid container spacing={2}>
-            {activeConnections.slice(0, 6).map((connection, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
-                <Box 
-                  sx={{ 
-                    border: 1, 
-                    borderColor: 'divider', 
-                    borderRadius: 1, 
-                    p: 2,
-                    '&:hover': { backgroundColor: 'action.hover' }
-                  }}
-                >
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body1" fontWeight="bold">
-                      {connection.symbol}
-                    </Typography>
-                    <Chip 
-                      label={connection.provider}
-                      color="primary"
+            </TableHead>
+            <TableBody>
+              {dataStreams.map((stream) => (
+                <StreamingDataRow key={stream.id} isLive={stream.status === 'active'}>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Avatar
+                        sx={{
+                          bgcolor: getStatusColor(stream.status) + '.main',
+                          width: 32,
+                          height: 32
+                        }}
+                      >
+                        {stream.type === 'websocket' ? <WifiTwoTone /> : <ApiTwoTone />}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="subtitle2">{stream.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {stream.type.toUpperCase()} • {stream.region}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={stream.provider}
                       size="small"
+                      variant="outlined"
+                      icon={<CloudSync />}
                     />
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="body2" color="text.secondary">
-                      {connection.subscribers} subscribers
-                    </Typography>
-                    <Typography variant="body2" color={connection.latency < 100 ? 'success.main' : 'warning.main'}>
-                      {connection.latency}ms
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    fullWidth
-                    startIcon={<SyncAlt />}
-                    onClick={() => triggerManualFailover(connection.symbol)}
-                  >
-                    Trigger Failover
-                  </Button>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
-      
-      {/* Failover History */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Recent Failover History</Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>From Provider</TableCell>
-                  <TableCell>To Provider</TableCell>
-                  <TableCell>Reason</TableCell>
-                  <TableCell>Duration</TableCell>
-                  <TableCell>Time</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {failoverHistory.map((failover, index) => (
-                  <TableRow key={index} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {failover.symbol}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={failover.fromProvider}
-                        color="warning"
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={failover.toProvider}
-                        color="success"
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {failover.reason.replace('_', ' ')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="info.main">
-                        {failover.duration.toFixed(1)}s
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {failover.time.toLocaleTimeString()}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-    </Paper>
-  );
-
-  // Render system health monitoring
-  const renderSystemHealth = () => (
-    <Paper sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">Live Data System Health</Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => showAlertMessage('System health refreshed', 'info')}
-          >
-            Refresh Status
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<HealthAndSafety />}
-            onClick={() => showAlertMessage('Health check initiated', 'info')}
-          >
-            Run Diagnostics
-          </Button>
-        </Box>
-      </Box>
-      
-      {/* Data Quality Dashboard */}
-      <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Assessment sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {qualityMetrics.overallQuality.toFixed(1)}%
-              </Typography>
-              <Typography variant="caption" color="white">Overall Data Quality</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <DataUsage sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {qualityMetrics.totalValidations.toLocaleString()}
-              </Typography>
-              <Typography variant="caption" color="white">Total Validations</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Warning sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {qualityMetrics.totalViolations}
-              </Typography>
-              <Typography variant="caption" color="white">Quality Violations</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <OnlinePrediction sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {qualityMetrics.activeMonitors}
-              </Typography>
-              <Typography variant="caption" color="white">Active Monitors</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      
-      {/* Symbol Quality Monitoring */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Symbol Quality Monitoring</Typography>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={() => showAlertMessage('Quality metrics refreshed', 'info')}
-              size="small"
-            >
-              Refresh
-            </Button>
-          </Box>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Quality Score</TableCell>
-                  <TableCell>Freshness</TableCell>
-                  <TableCell>Completeness</TableCell>
-                  <TableCell>Accuracy</TableCell>
-                  <TableCell>Consistency</TableCell>
-                  <TableCell>Trend</TableCell>
-                  <TableCell>Provider</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {symbolQuality.map((sq, index) => (
-                  <TableRow key={index} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {sq.symbol}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography 
-                          variant="body2" 
-                          fontWeight="bold"
-                          color={sq.quality > 95 ? 'success.main' : sq.quality > 90 ? 'warning.main' : 'error.main'}
-                        >
-                          {sq.quality.toFixed(1)}%
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={sq.quality} 
-                          color={sq.quality > 95 ? 'success' : sq.quality > 90 ? 'warning' : 'error'}
-                          sx={{ width: 50, height: 4 }}
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sq.freshness > 95 ? 'success.main' : 'warning.main'}>
-                        {sq.freshness.toFixed(1)}%
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sq.completeness > 95 ? 'success.main' : 'warning.main'}>
-                        {sq.completeness.toFixed(1)}%
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sq.accuracy > 95 ? 'success.main' : 'warning.main'}>
-                        {sq.accuracy.toFixed(1)}%
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sq.consistency > 95 ? 'success.main' : 'warning.main'}>
-                        {sq.consistency.toFixed(1)}%
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={sq.trend}
-                        color={sq.trend === 'improving' ? 'success' : sq.trend === 'degrading' ? 'error' : 'default'}
-                        size="small"
-                        icon={sq.trend === 'improving' ? <TrendingUp /> : sq.trend === 'degrading' ? <TrendingDown /> : <TrendingFlat />}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={sq.provider}
-                        color="primary"
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-      
-      {/* Quality Alerts */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Quality Alerts</Typography>
-          <List>
-            {qualityAlerts.length > 0 ? qualityAlerts.map((alert, index) => (
-              <ListItem key={index} divider>
-                <ListItemIcon>
-                  {alert.severity === 'error' ? <Error color="error" /> :
-                   alert.severity === 'warning' ? <Warning color="warning" /> :
-                   <Info color="info" />}
-                </ListItemIcon>
-                <ListItemText
-                  primary={`${alert.symbol}: ${alert.message}`}
-                  secondary={
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Quality Score: {alert.score?.toFixed(1)}% • {alert.time.toLocaleTimeString()}
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <Chip 
-                  label={alert.type.replace('_', ' ')}
-                  color={alert.severity === 'error' ? 'error' : 'warning'}
-                  size="small"
-                />
-              </ListItem>
-            )) : (
-              <ListItem>
-                <ListItemText
-                  primary="No quality alerts"
-                  secondary="All data quality metrics within acceptable thresholds"
-                />
-              </ListItem>
-            )}
-          </List>
-        </CardContent>
-      </Card>
-      
-      {/* Latency Monitoring Dashboard */}
-      <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Speed sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {latencyMetrics.system.avgLatency.toFixed(1)}ms
-              </Typography>
-              <Typography variant="caption" color="white">Average Latency</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Timeline sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {latencyMetrics.system.totalMeasurements.toLocaleString()}
-              </Typography>
-              <Typography variant="caption" color="white">Total Measurements</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ReportProblem sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {latencyMetrics.system.slaViolations}
-              </Typography>
-              <Typography variant="caption" color="white">SLA Violations</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <NetworkCheck sx={{ fontSize: 40, color: 'white', mb: 1 }} />
-              <Typography variant="h4" color="white">
-                {latencyMetrics.activeMonitors}
-              </Typography>
-              <Typography variant="caption" color="white">Active Monitors</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      
-      {/* Symbol Latency Monitoring */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Symbol Latency Monitoring</Typography>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={() => showAlertMessage('Latency metrics refreshed', 'info')}
-              size="small"
-            >
-              Refresh
-            </Button>
-          </Box>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Provider</TableCell>
-                  <TableCell>Current</TableCell>
-                  <TableCell>Average</TableCell>
-                  <TableCell>P95</TableCell>
-                  <TableCell>P99</TableCell>
-                  <TableCell>Measurements</TableCell>
-                  <TableCell>Violations</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {symbolLatency.map((sl, index) => (
-                  <TableRow key={index} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {sl.symbol}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={sl.providerId} 
-                        color="primary" 
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography 
-                        variant="body2" 
-                        fontWeight="bold"
-                        color={sl.current > 100 ? 'error.main' : sl.current > 60 ? 'warning.main' : 'success.main'}
-                      >
-                        {sl.current}ms
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {sl.average.toFixed(1)}ms
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {sl.p95}ms
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sl.p99 > 100 ? 'warning.main' : 'text.primary'}>
-                        {sl.p99}ms
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {sl.measurements.toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color={sl.violations > 0 ? 'error.main' : 'success.main'}>
-                        {sl.violations}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={sl.status}
-                        color={sl.status === 'good' ? 'success' : sl.status === 'warning' ? 'warning' : 'error'}
-                        size="small"
-                        icon={sl.status === 'good' ? <CheckCircle /> : sl.status === 'warning' ? <Warning /> : <Error />}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-      
-      {/* Latency Alerts */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Latency Alerts</Typography>
-          <List>
-            {latencyAlerts.length > 0 ? latencyAlerts.map((alert, index) => (
-              <ListItem key={index} divider>
-                <ListItemIcon>
-                  {alert.severity === 'error' ? <Error color="error" /> :
-                   alert.severity === 'warning' ? <Warning color="warning" /> :
-                   <Info color="info" />}
-                </ListItemIcon>
-                <ListItemText
-                  primary={`${alert.symbol}: ${alert.message}`}
-                  secondary={
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Provider: {alert.providerId} • Current: {alert.metrics.current}ms • P95: {alert.metrics.p95}ms • {alert.timestamp.toLocaleTimeString()}
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <Chip 
-                  label={alert.severity.toUpperCase()}
-                  color={alert.severity === 'error' ? 'error' : 'warning'}
-                  size="small"
-                />
-              </ListItem>
-            )) : (
-              <ListItem>
-                <ListItemText
-                  primary="No latency alerts"
-                  secondary="All latency metrics within acceptable thresholds"
-                />
-              </ListItem>
-            )}
-          </List>
-        </CardContent>
-      </Card>
-      
-      {/* Provider Latency Summary */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Provider Latency Summary</Typography>
-          <Grid container spacing={2}>
-            {Object.entries(latencyMetrics.providers).map(([providerId, metrics]) => (
-              <Grid item xs={12} sm={6} md={3} key={providerId}>
-                <Box 
-                  sx={{ 
-                    border: 1, 
-                    borderColor: metrics.avgLatency > 100 ? 'error.main' : metrics.avgLatency > 60 ? 'warning.main' : 'success.main', 
-                    borderRadius: 1, 
-                    p: 2,
-                    backgroundColor: metrics.avgLatency > 100 ? 'error.light' : metrics.avgLatency > 60 ? 'warning.light' : 'success.light',
-                    opacity: 0.9
-                  }}
-                >
-                  <Typography variant="h6" fontWeight="bold" gutterBottom>
-                    {providerId.toUpperCase()}
-                  </Typography>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Avg Latency:</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={stream.status}
+                      color={getStatusColor(stream.status)}
+                      size="small"
+                      icon={getStatusIcon(stream.status)}
+                    />
+                  </TableCell>
+                  <TableCell>
                     <Typography variant="body2" fontWeight="bold">
-                      {metrics.avgLatency.toFixed(1)}ms
+                      {stream.symbols.toLocaleString()}
                     </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Symbols:</Typography>
-                    <Typography variant="body2">{metrics.symbols}</Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Violations:</Typography>
-                    <Typography variant="body2" color={metrics.violations > 0 ? 'error.main' : 'success.main'}>
-                      {metrics.violations}
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2">{stream.latency}ms</Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={100 - (stream.latency / 100)}
+                        sx={{ width: 40, height: 4 }}
+                        color={stream.latency < 50 ? 'success' : stream.latency < 100 ? 'warning' : 'error'}
+                      />
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="bold">
+                      {stream.throughput}
                     </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Measurements:</Typography>
-                    <Typography variant="body2">{metrics.measurements.toLocaleString()}</Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
-      
-      {/* System Alerts */}
-      <Typography variant="h6" gutterBottom>System Alerts</Typography>
-      <List>
-        {systemAlerts.length > 0 ? systemAlerts.map((alert, index) => (
-          <ListItem key={index} divider>
-            <ListItemIcon>
-              {alert.severity === 'error' ? <Error color="error" /> :
-               alert.severity === 'warning' ? <Warning color="warning" /> :
-               alert.severity === 'success' ? <CheckCircle color="success" /> :
-               <Info color="info" />}
-            </ListItemIcon>
-            <ListItemText
-              primary={alert.message}
-              secondary={new Date(alert.timestamp).toLocaleString()}
-            />
-          </ListItem>
-        )) : (
-          <ListItem>
-            <ListItemText
-              primary="No system alerts"
-              secondary="All live data systems operating normally"
-            />
-          </ListItem>
-        )}
-      </List>
-    </Paper>
-  );
-
-
-  // Render live data optimization dashboard
-  const renderOptimizationDashboard = () => (
-    <Paper sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">Live Data Feed Optimization</Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="contained"
-            startIcon={<AutoFixHigh />}
-            onClick={() => showAlertMessage('Feed auto-optimization enabled', 'success')}
-            color="primary"
-          >
-            Auto-Optimize Feeds
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<DataUsage />}
-            onClick={() => showAlertMessage('Data compression optimized', 'info')}
-          >
-            Optimize Compression
-          </Button>
-        </Box>
-      </Box>
-      
-      {/* Data Feed Optimization */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Data Feed Performance</Typography>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color="primary.main">
-                  {bandwidthMetrics.total} MB/h
-                </Typography>
-                <Typography variant="caption">Total Data Throughput</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color="success.main">
-                  {bandwidthMetrics.optimization}%
-                </Typography>
-                <Typography variant="caption">Compression Savings</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color="info.main">
-                  {feedMetrics.messagesPerSecond}
-                </Typography>
-                <Typography variant="caption">Messages/Second</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={bandwidthMetrics.throttling}
-                      onChange={(e) => {
-                        setBandwidthMetrics(prev => ({ ...prev, throttling: e.target.checked }));
-                        showAlertMessage(`Smart throttling ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
-                      }}
-                    />
-                  }
-                  label="Smart Throttling"
-                />
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-      
-      {/* Feed Priority Management */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Feed Priority & Resource Allocation</Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Data Rate</TableCell>
-                  <TableCell>Subscribers</TableCell>
-                  <TableCell>Bandwidth Usage</TableCell>
-                  <TableCell>Priority</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {symbolMetrics.map((symbol, index) => (
-                  <TableRow key={index} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {symbol.symbol}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2">
-                          {(symbol.volatility * 10).toFixed(1)} msg/s
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={symbol.volatility * 10} 
-                          color={symbol.volatility > 5 ? 'error' : symbol.volatility > 2 ? 'warning' : 'success'}
-                          sx={{ width: 50, height: 4 }}
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={symbol.subscribers}
-                        color={symbol.subscribers > 100 ? 'success' : 'default'}
-                        size="small"
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <CircularProgress
+                        variant="determinate"
+                        value={stream.quality}
+                        size={24}
+                        thickness={4}
+                        color={stream.quality > 95 ? 'success' : stream.quality > 90 ? 'warning' : 'error'}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {(symbol.subscribers * 0.1).toFixed(1)} MB/h
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={symbol.priority}
-                        color={symbol.priority === 'critical' ? 'error' : symbol.priority === 'high' ? 'warning' : 'default'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="Optimize feed priority">
-                        <IconButton
-                          size="small"
-                          onClick={() => showAlertMessage(`Optimizing ${symbol.symbol} feed priority`, 'info')}
-                        >
-                          <AutoFixHigh />
+                      <Typography variant="body2">{stream.quality}%</Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {stream.cost}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="Configure">
+                        <IconButton size="small">
+                          <Settings />
                         </IconButton>
                       </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-    </Paper>
+                      <Tooltip title="Pause">
+                        <IconButton size="small" color="warning">
+                          <PauseCircle />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Restart">
+                        <IconButton size="small" color="success">
+                          <RestartAlt />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="More">
+                        <IconButton size="small">
+                          <MoreVertIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
+                </StreamingDataRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </CardContent>
+    </Card>
   );
 
-  return (
-    <Box p={3}>
-      <Box display="flex" alignItems="center" gap={2} mb={3}>
-        <AdminPanelSettings color="primary" sx={{ fontSize: 32 }} />
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Price Data Admin Console
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Centralized WebSocket feed management • 8 providers • 487 symbols • 234 active feeds
-          </Typography>
-        </Box>
-      </Box>
+  // Live market data feed
+  const LiveMarketFeed = () => (
+    <Card>
+      <CardHeader
+        title={
+          <Box display="flex" alignItems="center" gap={2}>
+            <LiveTv color="primary" />
+            <Typography variant="h6">Live Market Data</Typography>
+            <PulsingIcon color="success">
+              <FiberManualRecord fontSize="small" />
+            </PulsingIcon>
+          </Box>
+        }
+        action={
+          <Stack direction="row" spacing={1}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Sort By</InputLabel>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                label="Sort By"
+              >
+                <MenuItem value="volume">Volume</MenuItem>
+                <MenuItem value="price">Price</MenuItem>
+                <MenuItem value="change">Change</MenuItem>
+                <MenuItem value="marketCap">Market Cap</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              placeholder="Filter symbols..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              InputProps={{
+                startAdornment: <Search fontSize="small" />
+              }}
+              sx={{ width: 200 }}
+            />
+          </Stack>
+        }
+      />
+      <CardContent>
+        <TableContainer sx={{ maxHeight: 400 }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Symbol</TableCell>
+                <TableCell align="right">Price</TableCell>
+                <TableCell align="right">Change</TableCell>
+                <TableCell align="right">Volume</TableCell>
+                <TableCell align="right">Market Cap</TableCell>
+                <TableCell align="right">RSI</TableCell>
+                <TableCell align="center">Trend</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.values(liveData)
+                .filter(stock => stock.symbol.toLowerCase().includes(filterText.toLowerCase()))
+                .sort((a, b) => {
+                  const aVal = a[sortBy];
+                  const bVal = b[sortBy];
+                  return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+                })
+                .map((stock) => (
+                  <StreamingDataRow key={stock.symbol} isLive={true}>
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32 }}>
+                          {stock.symbol[0]}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            {stock.symbol}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(stock.timestamp).toLocaleTimeString()}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" fontWeight="bold">
+                        {formatCurrency(stock.price)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                        {stock.change > 0 ? (
+                          <TrendingUp color="success" fontSize="small" />
+                        ) : (
+                          <TrendingDown color="error" fontSize="small" />
+                        )}
+                        <Typography
+                          variant="body2"
+                          color={stock.change > 0 ? 'success.main' : 'error.main'}
+                          fontWeight="bold"
+                        >
+                          {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color={stock.change > 0 ? 'success.main' : 'error.main'}
+                        >
+                          ({formatPercent(stock.changePercent)})
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2">
+                        {formatNumber(stock.volume)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2">
+                        {formatCurrency(stock.marketCap)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={stock.rsi}
+                          sx={{ width: 40, height: 4 }}
+                          color={stock.rsi > 70 ? 'error' : stock.rsi < 30 ? 'success' : 'warning'}
+                        />
+                        <Typography variant="body2">
+                          {stock.rsi.toFixed(0)}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={stock.change > 0 ? 'Bullish' : 'Bearish'}
+                        color={stock.change > 0 ? 'success' : 'error'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                  </StreamingDataRow>
+                ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </CardContent>
+    </Card>
+  );
 
-      {/* Service Health Dashboard */}
-      {renderServiceHealthDashboard()}
-
-      {/* Feed Configuration */}
-      {renderFeedConfiguration()}
-
-      {/* Subscription Manager */}
-      {renderSubscriptionManager()}
-
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={activeTab} onChange={(e, value) => setActiveTab(value)}>
-          <Tab label="Live Data" icon={<DataUsage />} iconPosition="start" />
-          <Tab label="Connections" icon={<NetworkCheck />} iconPosition="start" />
-          <Tab label="Failover Control" icon={<SyncAlt />} iconPosition="start" />
-          <Tab label="System Health" icon={<HealthAndSafety />} iconPosition="start" />
-          <Tab label="Optimization" icon={<AutoFixHigh />} iconPosition="start" />
-        </Tabs>
-      </Box>
-
-      {/* Tab Content */}
-      {activeTab === 0 && renderLiveDataTable()}
-      {activeTab === 1 && renderConnectionMonitoring()}
-      {activeTab === 2 && renderFailoverControl()}
-      {activeTab === 3 && renderSystemHealth()}
-      {activeTab === 4 && renderOptimizationDashboard()}
-
-      {/* Settings Dialog */}
-      <Dialog open={showSettings} onClose={() => setShowSettings(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Live Data Settings</DialogTitle>
-        <DialogContent>
-          <Box py={2}>
+  // Connection status panel
+  const ConnectionStatus = () => (
+    <FloatingCard>
+      <CardContent>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Typography variant="h6">Connection Status</Typography>
+          <Stack direction="row" spacing={1}>
             <FormControlLabel
               control={
                 <Switch
                   checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  onChange={handleRefreshToggle}
+                  color="success"
                 />
               }
-              label="Auto-refresh data"
+              label="Auto Refresh"
             />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowSettings(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+              startIcon={isLoading ? <CircularProgress size={16} /> : <Refresh />}
+            >
+              Refresh
+            </Button>
+          </Stack>
+        </Box>
+        
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={3}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <PulsingIcon color="success">
+                <SignalWifi4Bar />
+              </PulsingIcon>
+              <Box>
+                <Typography variant="body2" color="success.main" fontWeight="bold">
+                  WebSocket Connected
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Primary feed active
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={3}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <CloudDone color="info" />
+              <Box>
+                <Typography variant="body2" color="info.main" fontWeight="bold">
+                  API Gateway
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  99.9% uptime
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={3}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Dns color="success" />
+              <Box>
+                <Typography variant="body2" color="success.main" fontWeight="bold">
+                  Database
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Synchronized
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={3}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Security color="success" />
+              <Box>
+                <Typography variant="body2" color="success.main" fontWeight="bold">
+                  Security
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  All systems secure
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </FloatingCard>
+  );
 
-      {/* Alert Snackbar */}
-      <Snackbar
-        open={showAlert}
-        autoHideDuration={6000}
-        onClose={() => setShowAlert(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+  // Advanced controls panel
+  const AdvancedControls = () => (
+    <Card>
+      <CardHeader
+        title={
+          <Box display="flex" alignItems="center" gap={2}>
+            <Tune color="primary" />
+            <Typography variant="h6">Advanced Controls</Typography>
+          </Box>
+        }
+      />
+      <CardContent>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Stack spacing={2}>
+              <Typography variant="subtitle2" color="text.secondary">
+                Data Stream Controls
+              </Typography>
+              <ButtonGroup variant="outlined" fullWidth>
+                <Button startIcon={<PlayCircle />} color="success">
+                  Start All
+                </Button>
+                <Button startIcon={<PauseCircle />} color="warning">
+                  Pause All
+                </Button>
+                <Button startIcon={<StopCircle />} color="error">
+                  Stop All
+                </Button>
+              </ButtonGroup>
+              
+              <ButtonGroup variant="outlined" fullWidth>
+                <Button startIcon={<RestartAlt />}>
+                  Restart
+                </Button>
+                <Button startIcon={<AutoFixHigh />}>
+                  Auto-Heal
+                </Button>
+                <Button startIcon={<Build />}>
+                  Diagnostics
+                </Button>
+              </ButtonGroup>
+            </Stack>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Stack spacing={2}>
+              <Typography variant="subtitle2" color="text.secondary">
+                Performance Tuning
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Refresh Rate</InputLabel>
+                <Select
+                  value={refreshInterval}
+                  onChange={(e) => setRefreshInterval(e.target.value)}
+                  label="Refresh Rate"
+                >
+                  <MenuItem value={1000}>1 Second</MenuItem>
+                  <MenuItem value={5000}>5 Seconds</MenuItem>
+                  <MenuItem value={10000}>10 Seconds</MenuItem>
+                  <MenuItem value={30000}>30 Seconds</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <Stack direction="row" spacing={2}>
+                <FormControlLabel
+                  control={<Switch defaultChecked />}
+                  label="Enable Compression"
+                />
+                <FormControlLabel
+                  control={<Switch defaultChecked />}
+                  label="Auto-Scaling"
+                />
+              </Stack>
+            </Stack>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+
+  const tabContent = [
+    {
+      label: 'Live Dashboard',
+      icon: <Dashboard />,
+      component: (
+        <Stack spacing={3}>
+          <ConnectionStatus />
+          <MetricsDashboard />
+          <LiveMarketFeed />
+        </Stack>
+      )
+    },
+    {
+      label: 'Data Streams',
+      icon: <Stream />,
+      component: (
+        <Stack spacing={3}>
+          <DataStreamsTable />
+          <AdvancedControls />
+        </Stack>
+      )
+    },
+    {
+      label: 'Analytics',
+      icon: <Analytics />,
+      component: (
+        <Stack spacing={3}>
+          <Typography variant="h6">Performance Analytics</Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Throughput Trends
+                  </Typography>
+                  <Box height={300} display="flex" alignItems="center" justifyContent="center">
+                    <Typography color="text.secondary">
+                      Chart visualization will be implemented here
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Error Rate Analysis
+                  </Typography>
+                  <Box height={300} display="flex" alignItems="center" justifyContent="center">
+                    <Typography color="text.secondary">
+                      Error analysis charts will be implemented here
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Stack>
+      )
+    },
+    {
+      label: 'System Health',
+      icon: <HealthAndSafety />,
+      component: (
+        <Stack spacing={3}>
+          <Typography variant="h6">System Health Monitor</Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Server Status
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                      <Typography>CPU Usage</Typography>
+                      <Typography color="success.main">23%</Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={23} color="success" />
+                    
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                      <Typography>Memory Usage</Typography>
+                      <Typography color="warning.main">67%</Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={67} color="warning" />
+                    
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                      <Typography>Disk I/O</Typography>
+                      <Typography color="info.main">12%</Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={12} color="info" />
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={8}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Recent System Events
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircle color="success" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Data stream reconnected successfully"
+                        secondary="2 minutes ago"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Warning color="warning" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="High latency detected on Binance feed"
+                        secondary="15 minutes ago"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Info color="info" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Scheduled maintenance completed"
+                        secondary="1 hour ago"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Stack>
+      )
+    }
+  ];
+
+  return (
+    <Box sx={{ p: 3, minHeight: '100vh' }}>
+      {/* Header */}
+      <Paper
+        elevation={3}
+        sx={{
+          p: 2,
+          mb: 3,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+        }}
       >
-        <Alert 
-          onClose={() => setShowAlert(false)} 
-          severity={alertSeverity}
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center" gap={2}>
+            <PulsingIcon color="primary">
+              <LiveTv fontSize="large" />
+            </PulsingIcon>
+            <Box>
+              <Typography variant="h4" fontWeight="bold">
+                Live Data Command Center
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                Real-time market data streaming and management platform
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Stack direction="row" spacing={1}>
+            <Chip
+              label={`${Object.keys(liveData).length} Active Symbols`}
+              color="success"
+              icon={<TrendingUp />}
+            />
+            <Chip
+              label={`${dataStreams.filter(s => s.status === 'active').length} Streams`}
+              color="info"
+              icon={<Stream />}
+            />
+            <Button
+              variant="outlined"
+              startIcon={isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? 'Exit' : 'Fullscreen'}
+            </Button>
+          </Stack>
+        </Box>
+      </Paper>
+
+      {/* Main Content */}
+      <Box sx={{ width: '100%' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTab-root': {
+                minHeight: 64,
+                fontWeight: 'bold',
+                textTransform: 'none',
+                fontSize: '1rem'
+              }
+            }}
+          >
+            {tabContent.map((tab, index) => (
+              <Tab
+                key={index}
+                label={tab.label}
+                icon={tab.icon}
+                iconPosition="start"
+                sx={{ gap: 1 }}
+              />
+            ))}
+          </Tabs>
+        </Box>
+
+        <Fade in={true} timeout={500}>
+          <Box>
+            {tabContent[activeTab].component}
+          </Box>
+        </Fade>
+      </Box>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
           sx={{ width: '100%' }}
         >
-          {alertMessage}
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </Box>
   );
 };
 
-export default LiveData;
+export default LiveDataPage;
