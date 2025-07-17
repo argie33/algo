@@ -172,7 +172,7 @@ app.use((req, res, next) => {
 
 // Note: Rate limiting removed - API Gateway handles this
 
-// CORS configuration (allow API Gateway origins)
+// CORS configuration (allow specific origins including CloudFront)
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -180,8 +180,18 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Allow API Gateway, CloudFront, and localhost origins
-    if (origin.includes('.execute-api.') || 
+    // Specific allowed origins
+    const allowedOrigins = [
+      'https://d1zb7knau41vl9.cloudfront.net',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173'
+    ];
+    
+    // Allow specific origins or patterns
+    if (allowedOrigins.includes(origin) ||
+        origin.includes('.execute-api.') || 
         origin.includes('.cloudfront.net') || 
         origin.includes('localhost') ||
         origin.includes('127.0.0.1') ||
@@ -194,7 +204,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key', 'X-Amz-Date', 'X-Amz-Security-Token']
 }));
 
 // Request parsing

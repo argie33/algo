@@ -30,10 +30,92 @@ Each task follows this format:
 - **P2 Medium**: Enhances user experience
 - **P3 Low**: Nice-to-have features
 
+## CRITICAL INFRASTRUCTURE REPAIR (July 2025)
+
+### Task INFRA-1: API Gateway/Lambda Infrastructure Audit
+**Status**: In Progress
+**Priority**: P0 Critical
+**Assignee**: Infrastructure Team
+**Estimated Effort**: 2 hours
+**Dependencies**: None
+**Acceptance Criteria**:
+- Document all existing API Gateway instances in AWS
+- Identify which Lambda functions exist vs configured
+- Map CloudFormation stacks to deployed resources
+- Determine why rovlbpwbh1.execute-api.us-east-1.amazonaws.com/dev exists but doesn't work
+**Implementation Notes**:
+- Use AWS CLI to audit actual deployed infrastructure
+- Compare against CloudFormation templates
+- Identify orphaned resources vs missing deployments
+
+### Task INFRA-2: Unified Infrastructure Template
+**Status**: Not Started
+**Priority**: P0 Critical
+**Assignee**: Infrastructure Team
+**Estimated Effort**: 4 hours
+**Dependencies**: INFRA-1
+**Acceptance Criteria**:
+- Single CloudFormation template that creates API Gateway + Lambda + CORS
+- Template handles both creation and updates without resource conflicts
+- Proper resource naming without V2 workarounds
+- Complete environment variable configuration
+**Implementation Notes**:
+- Consolidate existing templates into single source of truth
+- Use CloudFormation parameters for environment-specific values
+- Include proper IAM roles and VPC configuration
+
+### Task INFRA-3: Lambda CORS Implementation
+**Status**: Not Started
+**Priority**: P0 Critical
+**Assignee**: Backend Team
+**Estimated Effort**: 3 hours
+**Dependencies**: INFRA-2
+**Acceptance Criteria**:
+- Lambda function handles OPTIONS preflight requests
+- All API responses include proper CORS headers
+- CloudFront origin explicitly allowed
+- JWT authentication works with CORS
+**Implementation Notes**:
+- Implement CORS middleware in Lambda function
+- Add OPTIONS route handler for preflight requests
+- Test with actual CloudFront origin
+
+### Task INFRA-4: Complete Deployment Workflow
+**Status**: Not Started
+**Priority**: P0 Critical
+**Assignee**: DevOps Team
+**Estimated Effort**: 2 hours
+**Dependencies**: INFRA-2, INFRA-3
+**Acceptance Criteria**:
+- Single GitHub Actions workflow deploys complete stack
+- Deployment is idempotent and handles updates
+- No manual intervention required
+- Clear deployment success/failure feedback
+**Implementation Notes**:
+- Use unified CloudFormation template
+- Package Lambda code consistently
+- Include deployment validation steps
+
+### Task INFRA-5: Per-User API Key System
+**Status**: Not Started
+**Priority**: P0 Critical
+**Assignee**: Backend Team
+**Estimated Effort**: 4 hours
+**Dependencies**: INFRA-3
+**Acceptance Criteria**:
+- JWT tokens properly validated in Lambda
+- User-specific API keys retrieved from database
+- API keys encrypted/decrypted correctly
+- External API calls use individual user keys
+**Implementation Notes**:
+- Implement JWT middleware in Lambda
+- Create API key service integration
+- Test with actual user authentication flow
+
 ## Phase 1: Foundation (Months 1-2)
 
 ### Task 1.1: Authentication System
-**Status**: In Progress
+**Status**: Completed
 **Priority**: P0 Critical
 **Assignee**: Backend Team
 **Estimated Effort**: 3 days
