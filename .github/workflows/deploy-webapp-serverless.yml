@@ -3,6 +3,8 @@ name: Deploy Serverless Webapp
 on:
   push:
     branches: [ main, initialbuild ]
+    paths:
+      - 'webapp/**'
 
 env:
   AWS_REGION: us-east-1
