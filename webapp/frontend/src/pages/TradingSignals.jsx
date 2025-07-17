@@ -454,9 +454,11 @@ function TradingSignals() {
   if (isLoading && !signalsData) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
-        </Box>
+        <LoadingDisplay 
+          message="Loading trading signals and performance data..." 
+          fullPage={true}
+          size="large"
+        />
       </Container>
     );
   }

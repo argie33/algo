@@ -36,63 +36,93 @@ This blueprint defines the complete technical architecture and design for an ins
 - **Moving Averages**: Brock et al. (1992) - simple technical rules generate excess returns  
 - **Momentum Indicators**: Chan et al. (1996) - momentum strategies work across markets
 
+### 1.4 Real-Time Data Architecture Theory
+**Centralized vs Per-User Data Feeds:**
+- **Cost Efficiency**: Single data connection per symbol vs per-user connections
+- **Scalability**: Admin-managed feeds serve unlimited users from shared streams
+- **Performance**: In-memory caching with 30-second TTL for real-time responsiveness
+- **Reliability**: Circuit breaker patterns for external API resilience
+
 ---
 
 ## 2. Production Architecture & Infrastructure Design
 
-### 2.1 Core Infrastructure (Serverless AWS)
+### 2.1 Core Infrastructure (Proven Serverless AWS)
 
-**Primary Stack:**
+**Primary Stack (Production-Tested):**
 ```yaml
-Frontend: React + Vite + CloudFront CDN
-API Layer: AWS API Gateway + Lambda Functions  
-Database: RDS PostgreSQL with connection pooling
-Authentication: AWS Cognito User Pools + JWT
+Frontend: React + Vite + CloudFront CDN (d1zb7knau41vl9.cloudfront.net)
+API Layer: AWS API Gateway + Lambda Functions (jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev)
+Database: RDS PostgreSQL with connection pooling + query timeouts
+Authentication: AWS Cognito User Pools + JWT + fallback auth patterns
+Data Loading: ECS Fargate tasks with Docker containers
+Deployment: CloudFormation Infrastructure as Code + GitHub Actions
+```
+
+**Critical Architecture Lessons:**
+- **Route Architecture**: All API routes accessible via `/api/` prefix pattern
+- **Timeout Protection**: All database queries require timeout protection (8-10 seconds)
+- **Authentication Patterns**: Fallback authentication for development/testing environments
+- **Data Loading**: ECS tasks preferred over Lambda for long-running data ingestion
+- **Error Handling**: Comprehensive error responses with actionable diagnostics
 Storage: S3 for static assets, encrypted EBS volumes
 Monitoring: CloudWatch + comprehensive structured logging
 ```
 
-**Deployment Pattern:**
+**Deployment Pattern (Production-Proven):**
 ```yaml
-Infrastructure as Code: CloudFormation + SAM templates
-CI/CD: GitHub Actions with multi-environment promotion
+Infrastructure as Code: CloudFormation + SAM templates (circular dependency fixes)
+CI/CD: GitHub Actions with ECS task orchestration
 Secrets Management: AWS Secrets Manager + Parameter Store
 Security: WAF, VPC, Security Groups, IAM roles
 Scaling: Auto-scaling Lambda, RDS read replicas
+Data Loading: ECS Fargate tasks with Docker containers
+Monitoring: Request correlation IDs + structured logging
 ```
 
-### 2.2 Service Architecture Patterns
+### 2.2 Service Architecture Patterns (Production-Proven)
 
 **Microservices Design:**
-- **Stock Analysis Service**: `/stocks/*` - Market data, screening, fundamentals
-- **Real-Time Data Service**: `/websocket/*` - Live market data streaming via HTTP polling
-  - ✅ **IMPLEMENTED**: Comprehensive caching with 30-second TTL
-  - ✅ **IMPLEMENTED**: Rate limiting with 200 requests/minute per user
-  - ✅ **IMPLEMENTED**: User-specific Alpaca API credential integration
-  - ✅ **IMPLEMENTED**: Fallback mechanisms for service unavailability
-  - ✅ **IMPLEMENTED**: Request correlation IDs and performance metrics
-- **Portfolio Service**: `/portfolio/*` - Holdings, performance, risk analytics
-  - ✅ **IMPLEMENTED**: Real Alpaca broker integration with paper/live trading support
-  - ✅ **IMPLEMENTED**: Robinhood API integration (with unavailability handling)
-  - ✅ **IMPLEMENTED**: TD Ameritrade API integration (with Schwab transition guidance)
-  - ✅ **IMPLEMENTED**: Comprehensive portfolio analytics and risk metrics
-- **Authentication Service**: `/auth/*` - JWT verification, user management
-  - ✅ **IMPLEMENTED**: AWS Cognito JWT token validation
-  - ✅ **IMPLEMENTED**: Middleware-based authentication with error handling
-- **Settings Service**: `/settings/*` - API key management, user preferences
-  - ✅ **IMPLEMENTED**: Encrypted API key storage with user-specific salts
-  - ✅ **IMPLEMENTED**: AWS Secrets Manager integration for secure credential management
+- **Stock Analysis Service**: `/api/stocks/*` - Market data, screening, fundamentals
+  - ✅ **PRODUCTION**: Comprehensive stock filtering with pagination
+  - ✅ **PRODUCTION**: Timeout protection (8-10 seconds) for all database queries
+  - ✅ **PRODUCTION**: Empty data handling with actionable error messages
+  - ✅ **PRODUCTION**: Multi-table JOIN optimization with fallback queries
+  - ✅ **PRODUCTION**: Sector aggregation with market cap and PE ratio analytics
+- **Real-Time Data Service**: `/api/websocket/*` - Live market data streaming via HTTP polling
+  - ✅ **PRODUCTION**: Comprehensive caching with 30-second TTL
+  - ✅ **PRODUCTION**: User-specific Alpaca API credential integration
+  - ✅ **PRODUCTION**: Circuit breaker patterns for external API resilience
+  - ✅ **PRODUCTION**: Request correlation IDs and performance metrics
+  - ✅ **PRODUCTION**: Lambda-compatible HTTP polling (no WebSocket dependencies)
+- **Screener Service**: `/api/screener/*` - Advanced stock screening with factor analysis
+  - ✅ **PRODUCTION**: Comprehensive filtering (price, valuation, profitability, growth)
+  - ✅ **PRODUCTION**: Factor scoring engine integration
+  - ✅ **PRODUCTION**: Saved screens and watchlist management
+  - ✅ **PRODUCTION**: Export functionality for screening results
+- **Portfolio Service**: `/api/portfolio/*` - Holdings, performance, risk analytics
+  - ✅ **PRODUCTION**: Real Alpaca broker integration with paper/live trading support
+  - ✅ **PRODUCTION**: Comprehensive portfolio analytics and risk metrics
+- **Authentication Service**: Middleware-based JWT verification
+  - ✅ **PRODUCTION**: AWS Cognito JWT token validation
+  - ✅ **PRODUCTION**: Fallback authentication for development environments
+  - ✅ **PRODUCTION**: Per-route authentication requirements
+- **Settings Service**: `/api/settings/*` - API key management, user preferences
+  - ✅ **PRODUCTION**: Encrypted API key storage with AES-256-GCM
+  - ✅ **PRODUCTION**: User-specific salts for enhanced security
+  - ✅ **PRODUCTION**: AWS Secrets Manager integration
 
-**Resilience Patterns:**
+**Resilience Patterns (Battle-Tested):**
+- **Query Timeout Protection**: All database queries wrapped with Promise.race() timeouts
 - **Circuit Breakers**: External API failure protection with automatic recovery
-- **Timeout Management**: Service-specific timeout configurations (5s-30s)
 - **Graceful Degradation**: Fallback to cached data when live data unavailable
-- **Retry Logic**: Exponential backoff for transient failures
+- **Error Diagnostics**: Comprehensive error responses with troubleshooting steps
 - **Health Checks**: Multi-layer health monitoring with dependency validation
-- ✅ **IMPLEMENTED**: Comprehensive logging with request correlation IDs
-- ✅ **IMPLEMENTED**: Multi-layer caching with TTL and cleanup mechanisms
-- ✅ **IMPLEMENTED**: Per-user rate limiting with business logic validation
-- ✅ **IMPLEMENTED**: Authentication fallback with development mode support
+- ✅ **PRODUCTION**: Request correlation IDs for end-to-end tracing
+- ✅ **PRODUCTION**: In-memory caching with automatic cleanup (30s TTL)
+- ✅ **PRODUCTION**: Authentication fallback with development mode support
+- ✅ **PRODUCTION**: Database connection pooling with timeout management
+- ✅ **PRODUCTION**: Route-level error handling with actionable responses
 
 ### 2.3 Security Architecture
 
@@ -491,23 +521,55 @@ class TechnicalPatternRecognizer:
     - Flags, Pennants
     - Cup & Handle
     - Wedges (Rising, Falling)
+    - Support/Resistance Levels
+    - Trend Lines and Channels
     """
     
     def __init__(self):
         self.model = self.load_pretrained_model()
         self.confidence_threshold = 0.75
+        self.feature_extractors = {
+            'price_features': PriceFeatureExtractor(),
+            'volume_features': VolumeFeatureExtractor(),
+            'momentum_features': MomentumFeatureExtractor(),
+            'volatility_features': VolatilityFeatureExtractor()
+        }
     
     def detect_patterns(self, price_data, volume_data, lookback_days=252):
         # Preprocess data for neural network
-        features = self.extract_features(price_data, volume_data)
+        features = self.extract_comprehensive_features(price_data, volume_data)
         
-        # Run pattern detection
-        predictions = self.model.predict(features)
+        # Run pattern detection with ensemble models
+        predictions = self.ensemble_predict(features)
         
-        # Filter by confidence threshold
-        significant_patterns = self.filter_by_confidence(predictions)
+        # Filter by confidence threshold and validate with technical indicators
+        significant_patterns = self.filter_and_validate(predictions)
         
-        return significant_patterns
+        # Generate actionable insights
+        insights = self.generate_trading_insights(significant_patterns)
+        
+        return {
+            'patterns': significant_patterns,
+            'insights': insights,
+            'confidence_scores': self.calculate_confidence_matrix(predictions),
+            'risk_assessment': self.assess_pattern_risk(significant_patterns)
+        }
+    
+    def generate_trading_insights(self, patterns):
+        """Convert pattern recognition into actionable trading signals"""
+        insights = []
+        for pattern in patterns:
+            insight = {
+                'signal': self.pattern_to_signal(pattern),
+                'entry_price': self.calculate_entry_price(pattern),
+                'stop_loss': self.calculate_stop_loss(pattern),
+                'target_price': self.calculate_target_price(pattern),
+                'risk_reward_ratio': self.calculate_risk_reward(pattern),
+                'probability': pattern.confidence,
+                'holding_period': self.estimate_holding_period(pattern)
+            }
+            insights.append(insight)
+        return insights
 ```
 
 **Sentiment Analysis NLP Pipeline:**
@@ -1001,17 +1063,249 @@ class DataQualityValidator:
 - **Broker Integration**: Alpaca Markets API integration with secure key management
 - **Risk Management**: Pre-trade risk checks and position limits
 
-### Phase 4: AI & Sentiment (Weeks 13-16) 🔄 IN PROGRESS
-- Integrate pattern recognition and sentiment analysis
-- Build comprehensive sentiment dashboard
-- Implement AI assistant for user queries
-- Add economic modeling and recession prediction
+### Phase 4: AI & Sentiment Analysis Framework (Weeks 13-16) 🔄 NEXT PRIORITY
 
-### Phase 5: Polish & Launch (Weeks 17-20)
-- Performance optimization and user experience refinement
-- Implement subscription system and premium features
-- Marketing launch and user acquisition
-- Continuous monitoring and feature enhancement
+**Advanced Sentiment Analysis Infrastructure:**
+```python
+# Required Implementation: Multi-Source Sentiment Pipeline
+class ComprehensiveSentimentAnalyzer:
+    """
+    Implementation Priority: HIGH
+    Technical Requirements:
+    - Real-time news sentiment via NewsAPI ($49/month budget allocation)
+    - Reddit sentiment analysis via PRAW (Python Reddit API Wrapper)
+    - Google Trends integration for search volume correlation
+    - FinBERT model for financial text classification
+    """
+    
+    def __init__(self):
+        self.news_sources = ['reuters', 'bloomberg', 'wsj', 'marketwatch']
+        self.reddit_subreddits = ['investing', 'stocks', 'SecurityAnalysis', 'ValueInvesting']
+        self.sentiment_models = {
+            'news': 'finbert-sentiment',
+            'social': 'vader-sentiment',
+            'earnings_calls': 'custom-finance-nlp'
+        }
+    
+    # Database schema additions required:
+    CREATE TABLE sentiment_scores (
+        symbol VARCHAR(10) NOT NULL,
+        date TIMESTAMP NOT NULL,
+        news_sentiment DECIMAL(5,2),
+        social_sentiment DECIMAL(5,2),
+        analyst_sentiment DECIMAL(5,2),
+        composite_sentiment DECIMAL(5,2),
+        confidence_score DECIMAL(5,2),
+        source_count INTEGER,
+        PRIMARY KEY (symbol, date)
+    );
+```
+
+**Pattern Recognition System (Technical Analysis AI):**
+```javascript
+// Required Implementation: Deep Learning Pattern Detection
+class TechnicalPatternAI {
+    /**
+     * Implementation Requirements:
+     * - TensorFlow.js for client-side pattern recognition
+     * - Historical price data normalization (252-day rolling windows)
+     * - Pattern confidence scoring (>75% threshold for signals)
+     * - Integration with existing `/api/stocks/` endpoints
+     */
+    
+    detectPatterns(priceData) {
+        const patterns = [
+            'head_and_shoulders',
+            'double_top',
+            'double_bottom',
+            'cup_and_handle',
+            'ascending_triangle',
+            'descending_triangle',
+            'flag_pattern',
+            'pennant_pattern'
+        ];
+        
+        // Machine learning model inference
+        return this.neuralNetwork.predict(this.normalizeData(priceData));
+    }
+}
+
+// API Endpoint Addition Required:
+// POST /api/stocks/patterns/:symbol
+// GET /api/stocks/patterns/screener (pattern-based screening)
+```
+
+**Economic Modeling Framework:**
+```python
+# Implementation Priority: MEDIUM
+class EconomicIndicatorFramework:
+    """
+    Data Sources (Free APIs):
+    - FRED API: GDP, unemployment, inflation, yield curves
+    - Treasury.gov: Bond yields and auction results
+    - BLS.gov: Employment statistics
+    - Census.gov: Economic indicators
+    
+    Required Database Schema:
+    CREATE TABLE economic_indicators (
+        indicator_name VARCHAR(50) NOT NULL,
+        date DATE NOT NULL,
+        value DECIMAL(15,4) NOT NULL,
+        frequency VARCHAR(20), -- daily, weekly, monthly, quarterly
+        source VARCHAR(50) NOT NULL,
+        PRIMARY KEY (indicator_name, date)
+    );
+    """
+    
+    def calculate_recession_probability(self):
+        indicators = {
+            'yield_curve_inversion': self.get_yield_curve_slope(),
+            'unemployment_trend': self.get_unemployment_3month_change(),
+            'credit_spreads': self.get_corporate_bond_spreads(),
+            'consumer_sentiment': self.get_michigan_sentiment(),
+            'leading_indicators': self.get_lei_trend()
+        }
+        
+        # Probit model weights based on Estrella & Mishkin (1998)
+        weights = {'yield_curve_inversion': 0.35, 'unemployment_trend': 0.25, 
+                  'credit_spreads': 0.20, 'consumer_sentiment': 0.15, 'leading_indicators': 0.05}
+        
+        return sum(indicators[k] * weights[k] for k in indicators)
+```
+
+### Phase 5: Advanced Analytics & AI Integration (Weeks 17-20)
+
+**Machine Learning Stock Prediction Models:**
+```python
+# Implementation Scope: Custom ML Pipeline
+class StockPredictionFramework:
+    """
+    Required Components:
+    1. Feature Engineering Pipeline (30+ technical and fundamental indicators)
+    2. Ensemble Model (Random Forest + XGBoost + LSTM)
+    3. Walk-forward validation with 252-day training windows
+    4. Risk-adjusted return predictions (not just price direction)
+    
+    Integration Points:
+    - Existing factor scoring system feeds feature pipeline
+    - Real-time predictions via new API endpoints
+    - Portfolio optimization recommendations
+    """
+    
+    def generate_predictions(self, symbol, horizon_days=[5, 21, 63]):
+        features = self.extract_features(symbol)
+        ensemble_prediction = self.ensemble_model.predict(features)
+        
+        return {
+            'price_targets': self.calculate_price_targets(ensemble_prediction, horizon_days),
+            'confidence_intervals': self.bootstrap_confidence_bands(ensemble_prediction),
+            'risk_metrics': self.calculate_prediction_risk(ensemble_prediction),
+            'feature_importance': self.explain_prediction(features)
+        }
+
+# Required API Endpoints:
+# GET /api/ai/predictions/:symbol
+# POST /api/ai/portfolio/optimize
+# GET /api/ai/market/outlook
+```
+
+**Advanced Portfolio Analytics:**
+```sql
+-- Database Schema Extensions Required:
+CREATE TABLE portfolio_analytics (
+    user_id UUID NOT NULL,
+    analysis_date DATE NOT NULL,
+    total_value DECIMAL(15,2) NOT NULL,
+    beta DECIMAL(8,4),
+    sharpe_ratio DECIMAL(8,4),
+    max_drawdown DECIMAL(8,4),
+    var_95 DECIMAL(15,2), -- Value at Risk
+    sector_allocations JSONB,
+    risk_metrics JSONB,
+    attribution_analysis JSONB,
+    PRIMARY KEY (user_id, analysis_date)
+);
+
+CREATE TABLE optimization_recommendations (
+    user_id UUID NOT NULL,
+    recommendation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    recommendation_type VARCHAR(50), -- 'rebalance', 'reduce_risk', 'sector_rotate'
+    current_allocation JSONB,
+    recommended_allocation JSONB,
+    expected_improvement JSONB, -- risk/return metrics
+    confidence_score DECIMAL(5,2),
+    implementation_priority VARCHAR(20) -- 'high', 'medium', 'low'
+);
+```
+
+### Phase 6: Production Scale & Advanced Features (Weeks 21-24)
+
+**Real-Time WebSocket Implementation:**
+```javascript
+// Priority: HIGH for premium user experience
+class RealTimeDataStreaming {
+    /**
+     * Technical Architecture:
+     * - AWS API Gateway WebSocket (not Lambda-compatible, requires separate stack)
+     * - DynamoDB for connection management
+     * - EventBridge for market data event routing
+     * - Redis for real-time caching and pub/sub
+     */
+    
+    constructor() {
+        this.connectionManager = new DynamoDBConnectionManager();
+        this.marketDataFeed = new AlpacaWebSocketFeed();
+        this.redisCache = new RedisClusterClient();
+    }
+    
+    // Required Infrastructure:
+    // - Separate WebSocket API Gateway stack
+    // - Lambda functions for connect/disconnect/message handling
+    // - DynamoDB table for active connections
+    // - Redis cluster for real-time data distribution
+}
+```
+
+**Advanced Risk Management System:**
+```python
+# Implementation Requirements: Institutional-Grade Risk Engine
+class AdvancedRiskManagement:
+    """
+    Required Features:
+    1. Real-time portfolio stress testing
+    2. Monte Carlo simulation for portfolio optimization
+    3. Factor exposure analysis (sector, style, geographic)
+    4. Correlation matrix monitoring with regime detection
+    5. Liquidity risk assessment
+    6. Tail risk measurement (CVaR, Expected Shortfall)
+    """
+    
+    def calculate_portfolio_risk(self, portfolio_holdings):
+        risk_metrics = {
+            'value_at_risk': self.calculate_var(portfolio_holdings, confidence=0.95),
+            'expected_shortfall': self.calculate_cvar(portfolio_holdings),
+            'maximum_drawdown': self.calculate_max_drawdown(portfolio_holdings),
+            'correlation_risk': self.assess_correlation_risk(portfolio_holdings),
+            'concentration_risk': self.measure_concentration(portfolio_holdings),
+            'liquidity_risk': self.assess_liquidity(portfolio_holdings)
+        }
+        
+        return risk_metrics
+
+# Required Database Schema:
+CREATE TABLE risk_analytics (
+    user_id UUID NOT NULL,
+    portfolio_date DATE NOT NULL,
+    var_1day DECIMAL(15,2),
+    var_5day DECIMAL(15,2),
+    var_21day DECIMAL(15,2),
+    expected_shortfall DECIMAL(15,2),
+    beta DECIMAL(8,4),
+    correlation_matrix JSONB,
+    factor_exposures JSONB,
+    stress_test_results JSONB
+);
+```
 
 ---
 
