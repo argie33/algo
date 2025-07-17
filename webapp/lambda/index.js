@@ -38,6 +38,7 @@ const liveDataAdminRoutes = require('./routes/liveDataAdmin');
 const ordersRoutes = require('./routes/orders');
 const newsRoutes = require('./routes/news');
 const cryptoRoutes = require('./routes/crypto');
+const diagnosticsRoutes = require('./routes/diagnostics');
 
 const app = express();
 
@@ -328,6 +329,7 @@ app.use('/liveDataAdmin', liveDataAdminRoutes);
 app.use('/orders', ordersRoutes);
 app.use('/news', newsRoutes);
 app.use('/crypto', cryptoRoutes);
+app.use('/diagnostics', diagnosticsRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -355,6 +357,7 @@ app.use('/api/liveDataAdmin', liveDataAdminRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/crypto', cryptoRoutes);
+app.use('/api/diagnostics', diagnosticsRoutes);
 
 // Default route
 app.get('/', (req, res) => {
