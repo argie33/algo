@@ -67,7 +67,7 @@ jobs:
           fi
           
           # Check if infrastructure files changed
-          INFRA_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(cloudformation/|requirements.txt|Dockerfile|\.github/workflows/)" || true)
+          INFRA_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(template-.*\.yml|requirements.txt|Dockerfile|\.github/workflows/)" || true)
           if [[ -n "$INFRA_FILES" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Infrastructure changes detected: $INFRA_FILES"
@@ -164,7 +164,7 @@ jobs:
         run: |
           echo "Deploying ECS tasks infrastructure..."
           aws cloudformation deploy \
-            --template-file cloudformation/template-app-ecs-tasks.yml \
+            --template-file template-app-ecs-tasks.yml \
             --stack-name stocks-ecs-tasks-stack \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
