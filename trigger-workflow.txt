@@ -1,1 +1,2 @@
-Trigger workflow manually - this file is just to force a new commit
+Trigger both workflows manually - this file is just to force a new commit
+Updated: 2025-07-17 17:05:00
