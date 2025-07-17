@@ -2,8 +2,7 @@ name: Deploy Serverless Webapp
 
 on:
   push:
-    branches: 
-      - initialbuild
+    branches: [ main ]
   workflow_dispatch:
 
 env:
