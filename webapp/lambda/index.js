@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - REMOVE PATHS FILTER TEST
+// MINIMAL LAMBDA - RESTORE ORIGINAL WEBAPP WORKFLOW
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

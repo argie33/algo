@@ -1,8 +1,9 @@
-name: Deploy Webapp Lambda
+name: Deploy Serverless Webapp
 
 on:
   push:
-    branches: [ initialbuild ]
+    branches: [ main ]
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
