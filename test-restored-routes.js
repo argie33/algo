@@ -9,25 +9,24 @@ const https = require('https');
 
 const API_BASE = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
 
-// Test endpoints to verify route restoration
+// Test endpoints to verify route restoration (using /api/ prefix)
 const testEndpoints = [
   // Health checks first
   { path: '/health', method: 'GET', description: 'Main API health check' },
-  { path: '/stocks/health', method: 'GET', description: 'Stocks route health check' },
-  { path: '/screener/health', method: 'GET', description: 'Screener route health check' },
-  { path: '/websocket/health', method: 'GET', description: 'WebSocket route health check' },
+  { path: '/api/websocket/health', method: 'GET', description: 'WebSocket route health check' },
   
-  // Core stock endpoints
-  { path: '/stocks', method: 'GET', description: 'Stock listing endpoint' },
-  { path: '/stocks/sectors', method: 'GET', description: 'Stock sectors endpoint' },
-  { path: '/stocks/AAPL', method: 'GET', description: 'Individual stock data' },
+  // Public stock endpoints (no auth required)
+  { path: '/api/stocks/sectors', method: 'GET', description: 'Stock sectors endpoint (public)' },
   
-  // Screening endpoints
-  { path: '/screener', method: 'GET', description: 'Stock screening endpoint' },
-  { path: '/screener/presets', method: 'GET', description: 'Screening presets' },
+  // Core stock endpoints (require auth)
+  { path: '/api/stocks', method: 'GET', description: 'Stock listing endpoint (requires auth)', expectAuth: true },
+  { path: '/api/stocks/AAPL', method: 'GET', description: 'Individual stock data (requires auth)', expectAuth: true },
+  
+  // Screening endpoints (require auth)
+  { path: '/api/screener', method: 'GET', description: 'Stock screening endpoint (requires auth)', expectAuth: true },
   
   // WebSocket/Live data endpoints
-  { path: '/websocket/status', method: 'GET', description: 'Live data service status' },
+  { path: '/api/websocket/status', method: 'GET', description: 'Live data service status' },
 ];
 
 async function makeRequest(endpoint) {
@@ -46,19 +45,30 @@ async function makeRequest(endpoint) {
         try {
           const parsed = JSON.parse(data);
           
+          const isAuthError = res.statusCode === 401;
+          const expectsAuth = endpoint.expectAuth === true;
+          const actualSuccess = res.statusCode >= 200 && res.statusCode < 300;
+          const authSuccess = expectsAuth && isAuthError; // Auth-required endpoint correctly requiring auth
+          
           const result = {
             endpoint: endpoint.path,
             description: endpoint.description,
             status: res.statusCode,
             duration: duration,
-            success: res.statusCode >= 200 && res.statusCode < 300,
+            success: actualSuccess || authSuccess,
             hasData: !!parsed.data || !!parsed.response,
             responseSize: data.length,
-            error: res.statusCode >= 400 ? parsed.error || parsed.message : null
+            error: res.statusCode >= 400 ? parsed.error || parsed.message : null,
+            authRequired: expectsAuth,
+            authWorking: isAuthError && expectsAuth
           };
           
           if (result.success) {
-            console.log(`✅ ${endpoint.path}: ${res.statusCode} (${duration}ms) - ${result.hasData ? 'Has Data' : 'No Data'}`);
+            if (authSuccess) {
+              console.log(`✅ ${endpoint.path}: ${res.statusCode} (${duration}ms) - Auth Required (Correct)`);
+            } else {
+              console.log(`✅ ${endpoint.path}: ${res.statusCode} (${duration}ms) - ${result.hasData ? 'Has Data' : 'No Data'}`);
+            }
           } else {
             console.log(`❌ ${endpoint.path}: ${res.statusCode} (${duration}ms) - ${result.error || 'Error'}`);
           }

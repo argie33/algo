@@ -42,13 +42,11 @@ import {
 import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, FilterList, Close, Timeline, Search, Clear, ShowChart, HorizontalRule } from '@mui/icons-material'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 import { getApiConfig } from '../services/api'
+import { ErrorDisplay, LoadingDisplay, useStandardizedError } from '../components/ui/ErrorBoundary'
+import { createLogger, apiPatterns } from '../utils/apiService'
 
-// Simple logger replacement to prevent build errors
-const logger = {
-  success: (action, data, context) => console.log(`[TradingSignals] ${action}:`, { data, context }),
-  error: (action, error, context) => console.error(`[TradingSignals] ${action}:`, { error: error?.message || error, context }),
-  queryError: (query, error, context) => console.error(`[TradingSignals] Query ${query}:`, { error: error?.message || error, context })
-};
+// Use standardized logger
+const logger = createLogger('TradingSignals');
 
 function TradingSignals() {
   const { apiUrl: API_BASE } = getApiConfig();
@@ -627,24 +625,39 @@ function TradingSignals() {
         
         <Grid item xs={12} md={9}>
 
-      {/* Error Handling */}
+      {/* Standardized Error Handling */}
       {signalsError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load trading signals. Please check your data sources and try again.
-          <br /><b>Error:</b> {signalsError.message}
-          <br /><small>Debug endpoint: <code>{API_BASE}/api/trading/debug</code></small>
-          <br /><small>API URL: <code>{API_BASE}/api/trading/signals/{timeframe}</code></small>
-        </Alert>
+        <ErrorDisplay
+          error={{
+            ...signalsError,
+            context: {
+              endpoint: `${API_BASE}/api/trading/signals/${timeframe}`,
+              debugEndpoint: `${API_BASE}/api/trading/debug`,
+              filters: { signalType, showRecentOnly, timeframe },
+              component: 'TradingSignals'
+            }
+          }}
+          title="Failed to Load Trading Signals"
+          onRetry={() => window.location.reload()}
+          severity="error"
+        />
       )}
 
-      {/* Debug Info - only show when no data and no error */}
+      {/* No Data State */}
       {!signalsError && !signalsLoading && (!signalsData?.data || signalsData.data.length === 0) && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          No trading signals data found. 
-          <br /><b>API Endpoint:</b> <code>{API_BASE}/api/trading/signals/{timeframe}</code>
-          <br /><b>Filters:</b> Type: {signalType}, Recent Only: {showRecentOnly.toString()}
-          <br /><small>Response: {JSON.stringify(signalsData, null, 2)}</small>
-        </Alert>
+        <ErrorDisplay
+          error={{
+            message: "No trading signals data found",
+            context: {
+              endpoint: `${API_BASE}/api/trading/signals/${timeframe}`,
+              filters: { signalType, showRecentOnly },
+              response: signalsData
+            }
+          }}
+          title="No Data Available"
+          severity="info"
+          showDetails={true}
+        />
       )}
 
           {/* Data Table */}

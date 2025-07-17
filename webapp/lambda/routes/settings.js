@@ -321,4 +321,120 @@ router.post('/test-connection/:keyId', async (req, res) => {
   }
 });
 
+// Onboarding status routes
+router.get('/onboarding-status', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    const result = await query(
+      'SELECT onboarding_complete FROM users WHERE cognito_sub = $1',
+      [userId]
+    );
+    
+    const isComplete = result.rows[0]?.onboarding_complete || false;
+    
+    res.json({
+      success: true,
+      data: {
+        isComplete,
+        userId
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching onboarding status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch onboarding status'
+    });
+  }
+});
+
+router.post('/onboarding-complete', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    await query(
+      'UPDATE users SET onboarding_complete = true WHERE cognito_sub = $1',
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        message: 'Onboarding marked as complete',
+        isComplete: true
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error marking onboarding complete:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update onboarding status'
+    });
+  }
+});
+
+// Preferences routes
+router.get('/preferences', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    
+    const result = await query(
+      'SELECT preferences FROM users WHERE cognito_sub = $1',
+      [userId]
+    );
+    
+    const preferences = result.rows[0]?.preferences || {};
+    
+    res.json({
+      success: true,
+      data: preferences
+    });
+    
+  } catch (error) {
+    console.error('Error fetching preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch preferences'
+    });
+  }
+});
+
+router.post('/preferences', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const preferences = req.body;
+    
+    // Validate preferences
+    const validPreferences = {
+      riskTolerance: preferences.riskTolerance || 'moderate',
+      investmentStyle: preferences.investmentStyle || 'growth',
+      notifications: preferences.notifications !== false,
+      autoRefresh: preferences.autoRefresh !== false
+    };
+    
+    await query(
+      'UPDATE users SET preferences = $1 WHERE cognito_sub = $2',
+      [JSON.stringify(validPreferences), userId]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        message: 'Preferences saved successfully',
+        preferences: validPreferences
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error saving preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save preferences'
+    });
+  }
+});
+
 module.exports = router;

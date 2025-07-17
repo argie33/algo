@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box,
   Container,
@@ -30,7 +31,9 @@ import {
   Badge,
   Tooltip,
   IconButton,
-  Divider
+  Divider,
+  CardActions,
+  InputAdornment
 } from '@mui/material';
 import {
   Search,
@@ -48,48 +51,115 @@ import {
   ShowChart,
   Refresh
 } from '@mui/icons-material';
+import { formatCurrency, formatPercentage } from '../utils/formatters';
+import { getApiConfig } from '../services/api';
 
 const PatternRecognition = () => {
-  const [patterns, setPatterns] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { apiUrl: API_BASE } = getApiConfig();
+  const [tabValue, setTabValue] = useState(0);
   const [searchSymbol, setSearchSymbol] = useState('');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
   const [confidenceFilter, setConfidenceFilter] = useState(75);
   const [selectedPattern, setSelectedPattern] = useState('all');
 
-  useEffect(() => {
-    loadPatterns();
-  }, [selectedTimeframe, confidenceFilter, selectedPattern]);
-
-  const loadPatterns = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/patterns/scan?timeframe=${selectedTimeframe}&confidence=${confidenceFilter}&pattern=${selectedPattern}`);
-      const data = await response.json();
-      // ⚠️ MOCK DATA - Using mock patterns when API unavailable
-      setPatterns(data.patterns || mockPatterns);
-    } catch (error) {
-      console.error('Failed to load patterns:', error);
-      // ⚠️ MOCK DATA - Fallback to mock patterns
-      setPatterns(mockPatterns);
-    } finally {
-      setLoading(false);
+  // Fetch patterns data using React Query with robust logging
+  const { data: patternsData, isLoading, error, refetch } = useQuery({
+    queryKey: ['patterns', selectedTimeframe, confidenceFilter, selectedPattern],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        timeframe: selectedTimeframe,
+        confidence: confidenceFilter,
+        pattern: selectedPattern !== 'all' ? selectedPattern : ''
+      });
+      
+      const url = `${API_BASE}/api/technical/patterns?${params}`;
+      logger.info('Fetching patterns data', { 
+        url, 
+        timeframe: selectedTimeframe, 
+        confidence: confidenceFilter,
+        pattern: selectedPattern 
+      });
+      
+      try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error('API request failed', new Error(`HTTP ${response.status}`), {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            responseBody: errorText
+          });
+          throw new Error(`Failed to fetch patterns: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        logger.info('Successfully fetched patterns data', {
+          patternCount: data?.data?.length || 0,
+          response: data
+        });
+        
+        return data;
+      } catch (fetchError) {
+        logger.error('Network error fetching patterns', fetchError, { url });
+        throw fetchError;
+      }
+    },
+    refetchInterval: 300000, // Refresh every 5 minutes
+    staleTime: 60000, // Consider data stale after 1 minute
+    onError: (err) => {
+      logger.error('React Query error', err, {
+        timeframe: selectedTimeframe,
+        confidence: confidenceFilter,
+        pattern: selectedPattern
+      });
+    },
+    onSuccess: (data) => {
+      logger.debug('React Query success', {
+        patternCount: data?.data?.length || 0,
+        timestamp: new Date().toISOString()
+      });
     }
-  };
+  });
 
+  // Analyze specific symbol with robust logging
   const analyzeSymbol = async () => {
-    if (!searchSymbol.trim()) return;
+    if (!searchSymbol.trim()) {
+      logger.warn('Attempted to analyze symbol with empty input');
+      return;
+    }
     
-    setLoading(true);
+    const symbol = searchSymbol.toUpperCase();
+    const url = `${API_BASE}/api/technical/patterns/analyze/${symbol}?timeframe=${selectedTimeframe}`;
+    
+    logger.info('Analyzing specific symbol', { symbol, timeframe: selectedTimeframe, url });
+    
     try {
-      const response = await fetch(`/api/patterns/analyze/${searchSymbol.toUpperCase()}?timeframe=${selectedTimeframe}`);
-      const data = await response.json();
-      // Add the analyzed symbol patterns to the top of the list
-      setPatterns([...data.patterns, ...patterns]);
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        logger.info('Symbol analysis completed successfully', { 
+          symbol, 
+          patternsFound: data?.patterns?.length || 0,
+          response: data 
+        });
+        
+        // Trigger a refetch to include the new analysis
+        refetch();
+      } else {
+        const errorText = await response.text();
+        logger.error('Symbol analysis failed', new Error(`HTTP ${response.status}`), {
+          symbol,
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          responseBody: errorText
+        });
+      }
     } catch (error) {
-      console.error('Failed to analyze symbol:', error);
-    } finally {
-      setLoading(false);
+      logger.error('Network error during symbol analysis', error, { symbol, url });
     }
   };
 
@@ -116,432 +186,580 @@ const PatternRecognition = () => {
   };
 
   const getPatternIcon = (bias) => {
-    if (bias === 'bullish') return <TrendingUp className="w-4 h-4 text-green-600" />;
-    if (bias === 'bearish') return <TrendingDown className="w-4 h-4 text-red-600" />;
-    return <BarChart3 className="w-4 h-4 text-blue-600" />;
+    if (bias === 'bullish') return <TrendingUp color="success" fontSize="small" />;
+    if (bias === 'bearish') return <TrendingDown color="error" fontSize="small" />;
+    return <BarChart3 color="primary" fontSize="small" />;
   };
 
+  const patterns = patternsData?.data || [];
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Pattern Recognition</h1>
-        <p className="text-gray-600">Advanced technical pattern detection using machine learning</p>
-      </div>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+          🔍 AI Pattern Recognition
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          Advanced technical pattern detection using machine learning algorithms
+        </Typography>
+      </Box>
 
       {/* Search and Filters */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Symbol</label>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Enter symbol..."
-                  value={searchSymbol}
-                  onChange={(e) => setSearchSymbol(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && analyzeSymbol()}
-                />
-                <Button onClick={analyzeSymbol} disabled={loading}>
-                  <Search className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Timeframe</label>
-              <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1D">1 Day</SelectItem>
-                  <SelectItem value="1W">1 Week</SelectItem>
-                  <SelectItem value="1M">1 Month</SelectItem>
-                  <SelectItem value="3M">3 Months</SelectItem>
-                  <SelectItem value="6M">6 Months</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Pattern Type</label>
-              <Select value={selectedPattern} onValueChange={setSelectedPattern}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Patterns</SelectItem>
-                  <SelectItem value="bullish">Bullish Only</SelectItem>
-                  <SelectItem value="bearish">Bearish Only</SelectItem>
-                  <SelectItem value="reversal">Reversal Patterns</SelectItem>
-                  <SelectItem value="continuation">Continuation Patterns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Min Confidence: {confidenceFilter}%
-              </label>
-              <input
-                type="range"
-                min="50"
-                max="99"
-                value={confidenceFilter}
-                onChange={(e) => setConfidenceFilter(parseInt(e.target.value))}
-                className="w-full"
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={3} alignItems="flex-end">
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="Symbol"
+                placeholder="Enter symbol..."
+                value={searchSymbol}
+                onChange={(e) => setSearchSymbol(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && analyzeSymbol()}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={analyzeSymbol} disabled={isLoading}>
+                        <Search />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
               />
-            </div>
+            </Grid>
 
-            <Button onClick={loadPatterns} disabled={loading} className="flex items-center space-x-2">
-              <Filter className="w-4 h-4" />
-              <span>Scan Market</span>
-            </Button>
-          </div>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Timeframe</InputLabel>
+                <Select
+                  value={selectedTimeframe}
+                  label="Timeframe"
+                  onChange={(e) => setSelectedTimeframe(e.target.value)}
+                >
+                  <MenuItem value="1D">1 Day</MenuItem>
+                  <MenuItem value="1W">1 Week</MenuItem>
+                  <MenuItem value="1M">1 Month</MenuItem>
+                  <MenuItem value="3M">3 Months</MenuItem>
+                  <MenuItem value="6M">6 Months</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Pattern Type</InputLabel>
+                <Select
+                  value={selectedPattern}
+                  label="Pattern Type"
+                  onChange={(e) => setSelectedPattern(e.target.value)}
+                >
+                  <MenuItem value="all">All Patterns</MenuItem>
+                  <MenuItem value="bullish">Bullish Only</MenuItem>
+                  <MenuItem value="bearish">Bearish Only</MenuItem>
+                  <MenuItem value="reversal">Reversal Patterns</MenuItem>
+                  <MenuItem value="continuation">Continuation Patterns</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={3}>
+              <Typography variant="body2" gutterBottom>
+                Min Confidence: {confidenceFilter}%
+              </Typography>
+              <Slider
+                value={confidenceFilter}
+                onChange={(e, newValue) => setConfidenceFilter(newValue)}
+                min={50}
+                max={99}
+                step={1}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) => `${value}%`}
+              />
+            </Grid>
+
+            <Grid item xs={12} md={2}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={refetch}
+                disabled={isLoading}
+                startIcon={<Filter />}
+              >
+                Scan Market
+              </Button>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="detected" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="detected">Detected Patterns ({patterns.length})</TabsTrigger>
-          <TabsTrigger value="bullish">Bullish Signals</TabsTrigger>
-          <TabsTrigger value="bearish">Bearish Signals</TabsTrigger>
-          <TabsTrigger value="analytics">Pattern Analytics</TabsTrigger>
-        </TabsList>
+      {/* Error Handling */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>Failed to Load Pattern Data</Typography>
+          <Typography variant="body2" gutterBottom>
+            Error: {error.message}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            API Endpoint: {API_BASE}/api/technical/patterns
+          </Typography>
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={refetch}
+            sx={{ mt: 1 }}
+            startIcon={<Refresh />}
+          >
+            Retry
+          </Button>
+        </Alert>
+      )}
 
-        <TabsContent value="detected" className="space-y-6">
-          {loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="h-48 bg-gray-100 rounded-lg"></CardContent>
-                </Card>
+      {/* Loading State */}
+      {isLoading && !patterns.length && (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+          <Box textAlign="center">
+            <CircularProgress size={60} />
+            <Typography variant="h6" sx={{ mt: 2 }}>
+              Analyzing Market Patterns...
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+          <Tab label={`Detected Patterns (${patterns.length})`} icon={<Timeline />} />
+          <Tab label="Bullish Signals" icon={<TrendingUp />} />
+          <Tab label="Bearish Signals" icon={<TrendingDown />} />
+          <Tab label="Pattern Analytics" icon={<BarChart3 />} />
+        </Tabs>
+      </Box>
+
+      {/* Tab Content */}
+      {tabValue === 0 && (
+        <Box>
+          {!isLoading && patterns.length > 0 && (
+            <Grid container spacing={3}>
+              {patterns.map((pattern, index) => (
+                <Grid item xs={12} md={6} lg={4} key={index}>
+                  <Card sx={{ height: '100%', '&:hover': { boxShadow: 6 } }}>
+                    <CardHeader
+                      title={
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="h6" fontWeight="bold">
+                              {pattern.symbol}
+                            </Typography>
+                            {getPatternIcon(pattern.bias)}
+                          </Box>
+                          <Chip
+                            label={`${pattern.confidence || 0}%`}
+                            color={getConfidenceColor(pattern.confidence || 0)}
+                            size="small"
+                          />
+                        </Box>
+                      }
+                      subheader={
+                        <Box display="flex" alignItems="center" gap={1} mt={1}>
+                          <Chip
+                            label={formatPatternName(pattern.pattern)}
+                            color={getPatternColor(pattern.pattern)}
+                            size="small"
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {pattern.timeframe}
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{ pb: 1 }}
+                    />
+                    <CardContent>
+                      {/* Pattern Chart Placeholder */}
+                      <Box
+                        sx={{
+                          height: 120,
+                          bgcolor: 'grey.50',
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          mb: 2
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          Pattern Visualization
+                        </Typography>
+                      </Box>
+
+                      {/* Pattern Details */}
+                      <Grid container spacing={1} sx={{ mb: 2 }}>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Entry:</Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {formatCurrency(pattern.entryPrice || 0)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Target:</Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {formatCurrency(pattern.targetPrice || 0)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Stop Loss:</Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {formatCurrency(pattern.stopLoss || 0)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">R/R:</Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {pattern.riskReward || 'N/A'}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+
+                      {/* Pattern Strength */}
+                      <Box sx={{ mb: 2 }}>
+                        <Box display="flex" justifyContent="space-between" mb={0.5}>
+                          <Typography variant="caption" color="text.secondary">
+                            Pattern Strength
+                          </Typography>
+                          <Typography variant="caption" fontWeight="medium">
+                            {pattern.strength || 0}%
+                          </Typography>
+                        </Box>
+                        <LinearProgress
+                          variant="determinate"
+                          value={pattern.strength || 0}
+                          sx={{ height: 6, borderRadius: 3 }}
+                        />
+                      </Box>
+
+                      {/* Detection Time */}
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <Clock fontSize="small" color="action" />
+                        <Typography variant="caption" color="text.secondary">
+                          Detected {pattern.detectedAt || 'recently'}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
+            </Grid>
           )}
 
-          {!loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {patterns.map((pattern, index) => (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-bold text-lg">{pattern.symbol}</h3>
-                        {getPatternIcon(pattern.bias)}
-                      </div>
-                      <Badge className={getConfidenceColor(pattern.confidence)}>
-                        {pattern.confidence}%
-                      </Badge>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getPatternColor(pattern.pattern)}>
-                        {formatPatternName(pattern.pattern)}
-                      </Badge>
-                      <span className="text-sm text-gray-500">{pattern.timeframe}</span>
-                    </div>
-                  </CardHeader>
+          {!isLoading && patterns.length === 0 && (
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 8 }}>
+                <AlertCircle sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  No Patterns Found
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Try adjusting your filters or scanning a different timeframe.
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+        </Box>
+      )}
+
+      {tabValue === 1 && (
+        <Box>
+          <Grid container spacing={3}>
+            {patterns.filter(p => p.bias === 'bullish').map((pattern, index) => (
+              <Grid item xs={12} md={6} lg={4} key={index}>
+                <Card sx={{ 
+                  border: '2px solid',
+                  borderColor: 'success.light',
+                  bgcolor: 'success.50',
+                  '&:hover': { boxShadow: 6 }
+                }}>
+                  <CardHeader
+                    title={
+                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Typography variant="h6" fontWeight="bold" color="success.dark">
+                          {pattern.symbol}
+                        </Typography>
+                        <TrendingUp color="success" />
+                      </Box>
+                    }
+                    subheader={
+                      <Chip
+                        label={formatPatternName(pattern.pattern)}
+                        sx={{ 
+                          bgcolor: 'success.100', 
+                          color: 'success.dark',
+                          border: '1px solid',
+                          borderColor: 'success.300'
+                        }}
+                        size="small"
+                      />
+                    }
+                  />
                   <CardContent>
-                    <div className="space-y-3">
-                      {/* Pattern Visualization Placeholder */}
-                      <div className="h-32 bg-gray-50 rounded flex items-center justify-center">
-                        <span className="text-gray-500 text-sm">Pattern Chart</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="text-gray-600">Entry:</span>
-                          <span className="font-medium ml-2">${pattern.entryPrice}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Target:</span>
-                          <span className="font-medium ml-2">${pattern.targetPrice}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Stop Loss:</span>
-                          <span className="font-medium ml-2">${pattern.stopLoss}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">R/R:</span>
-                          <span className="font-medium ml-2">{pattern.riskReward}</span>
-                        </div>
-                      </div>
-
-                      <div className="pt-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-gray-600">Pattern Strength</span>
-                          <span className="text-sm font-medium">{pattern.strength}%</span>
-                        </div>
-                        <Progress value={pattern.strength} className="h-2" />
-                      </div>
-
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
-                        <Clock className="w-3 h-3" />
-                        <span>Detected {pattern.detectedAt}</span>
-                      </div>
-                    </div>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="success.dark">Upside Potential:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="success.dark">
+                        {((pattern.targetPrice - pattern.entryPrice) / pattern.entryPrice * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="success.dark">Confidence:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="success.dark">
+                        {pattern.confidence}%
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="success.dark">Risk/Reward:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="success.dark">
+                        {pattern.riskReward}
+                      </Typography>
+                    </Box>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
-
-          {!loading && patterns.length === 0 && (
-            <Card>
-              <CardContent className="text-center py-12">
-                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Patterns Found</h3>
-                <p className="text-gray-600">Try adjusting your filters or scanning a different timeframe.</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="bullish" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {patterns.filter(p => p.bias === 'bullish').map((pattern, index) => (
-              <Card key={index} className="border-green-200 bg-green-50">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-lg text-green-800">{pattern.symbol}</h3>
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                  </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-300">
-                    {formatPatternName(pattern.pattern)}
-                  </Badge>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Upside Potential:</span>
-                      <span className="font-bold text-green-800">
-                        {((pattern.targetPrice - pattern.entryPrice) / pattern.entryPrice * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Confidence:</span>
-                      <span className="font-bold text-green-800">{pattern.confidence}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Risk/Reward:</span>
-                      <span className="font-bold text-green-800">{pattern.riskReward}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              </Grid>
             ))}
-          </div>
-        </TabsContent>
+          </Grid>
+          {patterns.filter(p => p.bias === 'bullish').length === 0 && (
+            <Alert severity="info">
+              No bullish patterns found with current filters.
+            </Alert>
+          )}
+        </Box>
+      )}
 
-        <TabsContent value="bearish" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {tabValue === 2 && (
+        <Box>
+          <Grid container spacing={3}>
             {patterns.filter(p => p.bias === 'bearish').map((pattern, index) => (
-              <Card key={index} className="border-red-200 bg-red-50">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-lg text-red-800">{pattern.symbol}</h3>
-                    <TrendingDown className="w-5 h-5 text-red-600" />
-                  </div>
-                  <Badge className="bg-red-100 text-red-800 border-red-300">
-                    {formatPatternName(pattern.pattern)}
-                  </Badge>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-red-700">Downside Risk:</span>
-                      <span className="font-bold text-red-800">
+              <Grid item xs={12} md={6} lg={4} key={index}>
+                <Card sx={{ 
+                  border: '2px solid',
+                  borderColor: 'error.light',
+                  bgcolor: 'error.50',
+                  '&:hover': { boxShadow: 6 }
+                }}>
+                  <CardHeader
+                    title={
+                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Typography variant="h6" fontWeight="bold" color="error.dark">
+                          {pattern.symbol}
+                        </Typography>
+                        <TrendingDown color="error" />
+                      </Box>
+                    }
+                    subheader={
+                      <Chip
+                        label={formatPatternName(pattern.pattern)}
+                        sx={{ 
+                          bgcolor: 'error.100', 
+                          color: 'error.dark',
+                          border: '1px solid',
+                          borderColor: 'error.300'
+                        }}
+                        size="small"
+                      />
+                    }
+                  />
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="error.dark">Downside Risk:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="error.dark">
                         {((pattern.entryPrice - pattern.targetPrice) / pattern.entryPrice * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-red-700">Confidence:</span>
-                      <span className="font-bold text-red-800">{pattern.confidence}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-red-700">Risk/Reward:</span>
-                      <span className="font-bold text-red-800">{pattern.riskReward}</span>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="error.dark">Confidence:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="error.dark">
+                        {pattern.confidence}%
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="error.dark">Risk/Reward:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="error.dark">
+                        {pattern.riskReward}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          {patterns.filter(p => p.bias === 'bearish').length === 0 && (
+            <Alert severity="info">
+              No bearish patterns found with current filters.
+            </Alert>
+          )}
+        </Box>
+      )}
+
+      {tabValue === 3 && (
+        <Box>
+          <Grid container spacing={3} mb={4}>
+            <Grid item xs={12} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Typography variant="h4" fontWeight="bold" color="success.main" gutterBottom>
+                    {patterns.filter(p => p.bias === 'bullish').length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Bullish Patterns
+                  </Typography>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </TabsContent>
+            </Grid>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-green-600 mb-2">
-                  {patterns.filter(p => p.bias === 'bullish').length}
-                </div>
-                <div className="text-sm text-gray-600">Bullish Patterns</div>
-              </CardContent>
-            </Card>
+            <Grid item xs={12} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Typography variant="h4" fontWeight="bold" color="error.main" gutterBottom>
+                    {patterns.filter(p => p.bias === 'bearish').length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Bearish Patterns
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-red-600 mb-2">
-                  {patterns.filter(p => p.bias === 'bearish').length}
-                </div>
-                <div className="text-sm text-gray-600">Bearish Patterns</div>
-              </CardContent>
-            </Card>
+            <Grid item xs={12} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Typography variant="h4" fontWeight="bold" color="primary.main" gutterBottom>
+                    {patterns.filter(p => p.confidence >= 90).length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    High Confidence
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-blue-600 mb-2">
-                  {patterns.filter(p => p.confidence >= 90).length}
-                </div>
-                <div className="text-sm text-gray-600">High Confidence</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-2xl font-bold text-gray-900 mb-2">
-                  {patterns.length > 0 ? (patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length).toFixed(0) : 0}%
-                </div>
-                <div className="text-sm text-gray-600">Avg Confidence</div>
-              </CardContent>
-            </Card>
-          </div>
+            <Grid item xs={12} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <Typography variant="h4" fontWeight="bold" gutterBottom>
+                    {patterns.length > 0 ? (patterns.reduce((sum, p) => sum + (p.confidence || 0), 0) / patterns.length).toFixed(0) : 0}%
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Avg Confidence
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Pattern Performance Statistics</CardTitle>
-            </CardHeader>
+            <CardHeader 
+              title="Pattern Performance Statistics"
+              avatar={<BarChart3 color="primary" />}
+            />
             <CardContent>
-              <div className="space-y-4">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Pattern recognition uses advanced machine learning algorithms trained on historical market data. 
-                    Results should be used in conjunction with other analysis methods.
-                  </AlertDescription>
-                </Alert>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  Pattern recognition uses advanced machine learning algorithms trained on historical market data. 
+                  Results should be used in conjunction with other analysis methods.
+                </Typography>
+              </Alert>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Most Common Patterns</h4>
-                    <div className="space-y-2">
-                      {['bullish_flag', 'ascending_triangle', 'cup_handle', 'double_bottom'].map((pattern, index) => (
-                        <div key={index} className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">{formatPatternName(pattern)}</span>
-                          <span className="text-sm font-medium">{Math.floor(Math.random() * 20) + 5}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <Grid container spacing={4}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom>
+                    Pattern Distribution
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Pattern Type</TableCell>
+                          <TableCell align="right">Count</TableCell>
+                          <TableCell align="right">Percentage</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {['bullish_flag', 'ascending_triangle', 'cup_handle', 'double_bottom', 'head_shoulders'].map((patternType) => {
+                          const count = patterns.filter(p => p.pattern === patternType).length;
+                          const percentage = patterns.length > 0 ? ((count / patterns.length) * 100).toFixed(1) : 0;
+                          return (
+                            <TableRow key={patternType}>
+                              <TableCell>{formatPatternName(patternType)}</TableCell>
+                              <TableCell align="right">{count}</TableCell>
+                              <TableCell align="right">{percentage}%</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Grid>
 
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Success Rates by Pattern</h4>
-                    <div className="space-y-2">
-                      {['Cup & Handle', 'Ascending Triangle', 'Bull Flag', 'Double Bottom'].map((pattern, index) => (
-                        <div key={index} className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">{pattern}</span>
-                          <span className="text-sm font-medium">{70 + Math.floor(Math.random() * 20)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom>
+                    Confidence Distribution
+                  </Typography>
+                  <Box>
+                    {[
+                      { label: 'Very High (90%+)', min: 90, color: 'success' },
+                      { label: 'High (80-89%)', min: 80, max: 89, color: 'info' },
+                      { label: 'Medium (70-79%)', min: 70, max: 79, color: 'warning' },
+                      { label: 'Low (<70%)', max: 69, color: 'error' }
+                    ].map((range, index) => {
+                      const count = patterns.filter(p => {
+                        const conf = p.confidence || 0;
+                        if (range.min && range.max) return conf >= range.min && conf <= range.max;
+                        if (range.min) return conf >= range.min;
+                        if (range.max) return conf <= range.max;
+                        return false;
+                      }).length;
+                      
+                      return (
+                        <Box key={index} display="flex" justifyContent="space-between" alignItems="center" py={1}>
+                          <Typography variant="body2">{range.label}</Typography>
+                          <Chip 
+                            label={count} 
+                            color={range.color} 
+                            size="small" 
+                            variant="outlined"
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+        </Box>
+      )}
+    </Container>
   );
 };
 
-// ⚠️ MOCK DATA - Replace with real API when available
-const mockPatterns = [
-  {
-    isMockData: true,
-    symbol: 'AAPL',
-    pattern: 'cup_handle',
-    bias: 'bullish',
-    confidence: 87,
-    strength: 92,
-    timeframe: '1D',
-    entryPrice: 185.25,
-    targetPrice: 205.00,
-    stopLoss: 175.00,
-    riskReward: '1.9:1',
-    detectedAt: '2 hours ago'
+// Robust logging for troubleshooting
+const logger = {
+  info: (message, data) => {
+    console.log(`[PatternRecognition] ${message}`, data);
   },
-  {
-    isMockData: true,
-    symbol: 'TSLA',
-    pattern: 'ascending_triangle',
-    bias: 'bullish',
-    confidence: 92,
-    strength: 88,
-    timeframe: '1W',
-    entryPrice: 248.50,
-    targetPrice: 285.00,
-    stopLoss: 230.00,
-    riskReward: '2.0:1',
-    detectedAt: '4 hours ago'
+  error: (message, error, context) => {
+    console.error(`[PatternRecognition] ${message}`, { 
+      error: error?.message || error, 
+      stack: error?.stack,
+      context 
+    });
   },
-  {
-    isMockData: true,
-    symbol: 'NVDA',
-    pattern: 'head_shoulders',
-    bias: 'bearish',
-    confidence: 78,
-    strength: 75,
-    timeframe: '1D',
-    entryPrice: 875.00,
-    targetPrice: 795.00,
-    stopLoss: 920.00,
-    riskReward: '1.8:1',
-    detectedAt: '1 day ago'
+  warn: (message, data) => {
+    console.warn(`[PatternRecognition] ${message}`, data);
   },
-  {
-    isMockData: true,
-    symbol: 'MSFT',
-    pattern: 'bullish_flag',
-    bias: 'bullish',
-    confidence: 84,
-    strength: 79,
-    timeframe: '1W',
-    entryPrice: 378.50,
-    targetPrice: 415.00,
-    stopLoss: 365.00,
-    riskReward: '2.7:1',
-    detectedAt: '6 hours ago'
-  },
-  {
-    isMockData: true,
-    symbol: 'GOOGL',
-    pattern: 'double_bottom',
-    bias: 'bullish',
-    confidence: 91,
-    strength: 85,
-    timeframe: '1M',
-    entryPrice: 142.75,
-    targetPrice: 165.00,
-    stopLoss: 135.00,
-    riskReward: '2.9:1',
-    detectedAt: '3 days ago'
-  },
-  {
-    isMockData: true,
-    symbol: 'AMZN',
-    pattern: 'descending_triangle',
-    bias: 'bearish',
-    confidence: 76,
-    strength: 72,
-    timeframe: '1W',
-    entryPrice: 155.20,
-    targetPrice: 140.00,
-    stopLoss: 162.00,
-    riskReward: '2.2:1',
-    detectedAt: '1 day ago'
+  debug: (message, data) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug(`[PatternRecognition] ${message}`, data);
+    }
   }
-];
+};
 
 export default PatternRecognition;

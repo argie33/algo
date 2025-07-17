@@ -34,6 +34,7 @@ const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
 const liveDataRoutes = require('./routes/liveData');
+const ordersRoutes = require('./routes/orders');
 
 const app = express();
 
@@ -310,6 +311,7 @@ app.use('/scoring', scoringRoutes);
 app.use('/price', priceRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/live-data', liveDataRoutes);
+app.use('/orders', ordersRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -333,6 +335,7 @@ app.use('/api/scoring', scoringRoutes);
 app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/live-data', liveDataRoutes);
+app.use('/api/orders', ordersRoutes);
 
 // Default route
 app.get('/', (req, res) => {

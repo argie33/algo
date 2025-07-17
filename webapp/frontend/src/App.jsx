@@ -69,6 +69,8 @@ import Portfolio from './pages/Portfolio'
 import PortfolioHoldings from './pages/PortfolioHoldings'
 import PortfolioPerformance from './pages/PortfolioPerformance'
 import PortfolioOptimization from './pages/PortfolioOptimization'
+import TradeHistory from './pages/TradeHistory'
+import OrderManagement from './pages/OrderManagement'
 import SentimentAnalysis from './pages/SentimentAnalysis'
 import AdvancedScreener from './pages/AdvancedScreener'
 import EconomicModeling from './pages/EconomicModeling'
@@ -80,6 +82,9 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import OnboardingWizard from './components/onboarding/OnboardingWizard'
 import { useOnboarding } from './hooks/useOnboarding'
 import ComingSoon from './pages/ComingSoon'
+import Watchlist from './pages/Watchlist'
+import SectorAnalysis from './pages/SectorAnalysis'
+import RealTimeDashboard from './pages/RealTimeDashboard'
 import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
 import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
@@ -90,6 +95,7 @@ const drawerWidth = 240
 const menuItems = [
   // Dashboard Section
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/', category: 'main' },
+  { text: 'Real-Time Data', icon: <PlayArrow />, path: '/realtime', category: 'main' },
   
   // Markets Section
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market', category: 'markets' },
@@ -112,6 +118,8 @@ const menuItems = [
   
   // Portfolio Section
   { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Trade History', icon: <TimelineIcon />, path: '/trade-history', category: 'portfolio' },
+  { text: 'Order Management', icon: <PlayArrow />, path: '/orders', category: 'portfolio' },
   { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
   { text: 'Optimization Tools', icon: <AnalyticsIcon />, path: '/portfolio/optimize', category: 'portfolio', premium: true },
   
@@ -443,7 +451,10 @@ function App() {
         <Container maxWidth="xl">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/realtime" element={<RealTimeDashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/trade-history" element={<TradeHistory />} />
+            <Route path="/orders" element={<OrderManagement />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
             <Route path="/market" element={<MarketOverview />} />
@@ -470,8 +481,8 @@ function App() {
             <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             
             {/* Missing pages - Coming Soon */}
-            <Route path="/sectors" element={<ComingSoon pageName="Sector Analysis" description="Comprehensive sector performance analysis and comparisons." />} />
-            <Route path="/watchlist" element={<ComingSoon pageName="Watchlist" description="Track your favorite stocks and get personalized alerts." />} />
+            <Route path="/sectors" element={<SectorAnalysis />} />
+            <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment/social" element={<ComingSoon pageName="Social Media Sentiment" description="Real-time social media sentiment analysis for stocks." />} />
             <Route path="/sentiment/news" element={<ComingSoon pageName="News Sentiment" description="AI-powered news sentiment analysis and impact predictions." />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />

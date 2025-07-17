@@ -1050,6 +1050,14 @@ const Dashboard = () => {
                 <Timeline sx={{ color: 'success.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Trading Activity</Typography>
                 <Chip label="Live" color="success" size="small" sx={{ ml: 1 }} />
+                <Button 
+                  size="small" 
+                  variant="outlined" 
+                  sx={{ ml: 'auto' }}
+                  onClick={() => window.location.href = '/trade-history'}
+                >
+                  View All
+                </Button>
               </Box>
               <Stack spacing={2}>
                 {safeActivity.map((act, idx) => (
@@ -1266,6 +1274,28 @@ const Dashboard = () => {
                 sx={{ background: 'linear-gradient(45deg, #1976d2, #42a5f5)' }}
               >
                 Add Position
+              </Button>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Button 
+                variant="contained" 
+                startIcon={<Timeline />} 
+                fullWidth 
+                onClick={() => window.location.href = '/trade-history'}
+                sx={{ background: 'linear-gradient(45deg, #43a047, #66bb6a)' }}
+              >
+                Trade History
+              </Button>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Button 
+                variant="contained" 
+                startIcon={<PlayArrow />} 
+                fullWidth 
+                onClick={() => window.location.href = '/orders'}
+                sx={{ background: 'linear-gradient(45deg, #ff5722, #ff7043)' }}
+              >
+                Place Order
               </Button>
             </Grid>
             <Grid item xs={6} md={2}>

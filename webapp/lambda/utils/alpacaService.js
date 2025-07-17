@@ -389,6 +389,181 @@ class AlpacaService {
   }
 
   /**
+   * Get latest quote data for a symbol
+   */
+  async getLatestQuote(symbol) {
+    try {
+      this.checkRateLimit();
+      
+      console.log(`📊 Fetching latest quote for ${symbol} from Alpaca`);
+      const quote = await this.client.getLatestQuote(symbol);
+      
+      if (!quote) {
+        console.warn(`⚠️ No quote data returned for ${symbol}`);
+        return null;
+      }
+      
+      console.log(`✅ Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
+      
+      return {
+        symbol: symbol,
+        bidPrice: parseFloat(quote.BidPrice),
+        askPrice: parseFloat(quote.AskPrice),
+        bidSize: parseInt(quote.BidSize),
+        askSize: parseInt(quote.AskSize),
+        timestamp: quote.Timestamp || new Date().toISOString(),
+        conditions: quote.Conditions || [],
+        exchange: quote.Exchange || 'UNKNOWN'
+      };
+    } catch (error) {
+      console.error(`❌ Alpaca quote fetch error for ${symbol}:`, {
+        error: error.message,
+        statusCode: error.status,
+        errorCode: error.code
+      });
+      
+      // Don't throw - return null to let calling code handle gracefully
+      return null;
+    }
+  }
+
+  /**
+   * Get latest trade data for a symbol
+   */
+  async getLatestTrade(symbol) {
+    try {
+      this.checkRateLimit();
+      
+      console.log(`📊 Fetching latest trade for ${symbol} from Alpaca`);
+      const trade = await this.client.getLatestTrade(symbol);
+      
+      if (!trade) {
+        console.warn(`⚠️ No trade data returned for ${symbol}`);
+        return null;
+      }
+      
+      console.log(`✅ Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
+      
+      return {
+        symbol: symbol,
+        price: parseFloat(trade.Price),
+        size: parseInt(trade.Size),
+        timestamp: trade.Timestamp || new Date().toISOString(),
+        conditions: trade.Conditions || [],
+        exchange: trade.Exchange || 'UNKNOWN'
+      };
+    } catch (error) {
+      console.error(`❌ Alpaca trade fetch error for ${symbol}:`, {
+        error: error.message,
+        statusCode: error.status,
+        errorCode: error.code
+      });
+      
+      // Don't throw - return null to let calling code handle gracefully
+      return null;
+    }
+  }
+
+  /**
+   * Get bars/OHLCV data for a symbol
+   */
+  async getBars(symbol, options = {}) {
+    try {
+      this.checkRateLimit();
+      
+      const {
+        timeframe = '1Min',
+        start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        end = new Date().toISOString(),
+        limit = 100
+      } = options;
+      
+      console.log(`📊 Fetching bars for ${symbol} from Alpaca`, {
+        timeframe,
+        start: start.split('T')[0],
+        limit
+      });
+      
+      const bars = await this.client.getBars(symbol, {
+        timeframe: timeframe,
+        start: start,
+        end: end,
+        limit: limit,
+        asof: null,
+        feed: null,
+        page_token: null
+      });
+      
+      if (!bars || !bars.bars || bars.bars.length === 0) {
+        console.warn(`⚠️ No bars data returned for ${symbol}`);
+        return [];
+      }
+      
+      console.log(`✅ Bars fetched for ${symbol}: ${bars.bars.length} bars`);
+      
+      return bars.bars.map(bar => ({
+        symbol: symbol,
+        timestamp: bar.Timestamp,
+        open: parseFloat(bar.OpenPrice),
+        high: parseFloat(bar.HighPrice),
+        low: parseFloat(bar.LowPrice),
+        close: parseFloat(bar.ClosePrice),
+        volume: parseInt(bar.Volume),
+        tradeCount: parseInt(bar.TradeCount) || 0,
+        vwap: parseFloat(bar.VWAP) || null
+      }));
+    } catch (error) {
+      console.error(`❌ Alpaca bars fetch error for ${symbol}:`, {
+        error: error.message,
+        statusCode: error.status,
+        errorCode: error.code,
+        options
+      });
+      
+      // Don't throw - return empty array to let calling code handle gracefully
+      return [];
+    }
+  }
+
+  /**
+   * Get market status and trading calendar
+   */
+  async getMarketClock() {
+    try {
+      this.checkRateLimit();
+      
+      console.log('📊 Fetching market clock from Alpaca');
+      const clock = await this.client.getClock();
+      
+      console.log(`✅ Market clock fetched: ${clock.is_open ? 'OPEN' : 'CLOSED'}`);
+      
+      return {
+        timestamp: clock.timestamp,
+        isOpen: clock.is_open,
+        nextOpen: clock.next_open,
+        nextClose: clock.next_close,
+        timezone: 'America/New_York'
+      };
+    } catch (error) {
+      console.error('❌ Alpaca market clock fetch error:', {
+        error: error.message,
+        statusCode: error.status,
+        errorCode: error.code
+      });
+      
+      // Return fallback data
+      return {
+        timestamp: new Date().toISOString(),
+        isOpen: false,
+        nextOpen: null,
+        nextClose: null,
+        timezone: 'America/New_York',
+        error: 'Failed to fetch market status'
+      };
+    }
+  }
+
+  /**
    * Calculate basic risk metrics
    */
   calculateBasicRiskMetrics(positions, history) {

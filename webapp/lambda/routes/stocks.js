@@ -158,7 +158,13 @@ router.get('/public/sample', async (req, res) => {
     
     let result;
     try {
-      result = await query(stocksQuery, [limit]);
+      // Add query timeout to prevent long waits
+      const queryPromise = query(stocksQuery, [limit]);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout after 8 seconds')), 8000)
+      );
+      
+      result = await Promise.race([queryPromise, timeoutPromise]);
       console.log(`✅ Public stocks sample query successful: ${result.rows.length} stocks found`);
     } catch (dbError) {
       console.error('❌ Public stocks sample query failed - comprehensive diagnosis needed', {

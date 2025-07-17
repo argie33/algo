@@ -1372,21 +1372,97 @@ async function importFromAlpaca(apiKey, apiSecret, sandbox) {
 }
 
 async function importFromRobinhood(apiKey, apiSecret, sandbox) {
-  // TODO: Implement Robinhood API integration
-  return {
-    holdings: [],
-    totalValue: 0,
-    summary: { positions: 0, cash: 0 }
-  };
+  try {
+    console.log('🔗 Connecting to Robinhood API');
+    
+    // Note: Robinhood doesn't have an official API for external developers
+    // This is a placeholder implementation for when/if they provide one
+    // For now, we return structured error information
+    
+    console.log('⚠️ Robinhood API integration not available - official API not provided by Robinhood');
+    
+    // Return structured response indicating unavailability
+    return {
+      holdings: [],
+      totalValue: 0,
+      summary: { 
+        positions: 0, 
+        cash: 0,
+        error: 'Robinhood API not available',
+        message: 'Robinhood does not provide an official API for external developers',
+        alternatives: [
+          'Use Alpaca for commission-free trading with API access',
+          'Export portfolio data manually from Robinhood',
+          'Consider other brokers with official APIs like TD Ameritrade or Interactive Brokers'
+        ]
+      },
+      broker: 'robinhood',
+      importedAt: new Date().toISOString(),
+      status: 'unavailable',
+      reason: 'no_official_api'
+    };
+  } catch (error) {
+    console.error('Robinhood import error:', error.message);
+    throw new Error(`Failed to import from Robinhood: ${error.message}`);
+  }
 }
 
 async function importFromTDAmeritrade(apiKey, apiSecret, sandbox) {
-  // TODO: Implement TD Ameritrade API integration
-  return {
-    holdings: [],
-    totalValue: 0,
-    summary: { positions: 0, cash: 0 }
-  };
+  try {
+    console.log('🔗 Connecting to TD Ameritrade API');
+    
+    // Note: TD Ameritrade has been acquired by Charles Schwab
+    // The TD Ameritrade API is being phased out in favor of Schwab's API
+    // This implementation provides guidance for the transition
+    
+    console.log('⚠️ TD Ameritrade API is being discontinued due to Schwab acquisition');
+    
+    // Basic TD Ameritrade API structure (for reference)
+    const baseUrl = sandbox ? 
+      'https://api.tdameritrade.com/v1' : 
+      'https://api.tdameritrade.com/v1';
+    
+    // Note: TD Ameritrade API requires OAuth 2.0 flow
+    // The apiKey would typically be a client_id, not a direct API key
+    
+    console.log('📋 TD Ameritrade API integration status: Transitioning to Schwab');
+    
+    return {
+      holdings: [],
+      totalValue: 0,
+      summary: { 
+        positions: 0, 
+        cash: 0,
+        error: 'TD Ameritrade API being discontinued',
+        message: 'TD Ameritrade has been acquired by Charles Schwab. The TD Ameritrade API is being phased out.',
+        transition: {
+          status: 'api_sunset',
+          recommendedAction: 'Migrate to Charles Schwab API',
+          timeline: 'TD Ameritrade API access will be discontinued',
+          documentation: 'https://developer.schwab.com/'
+        },
+        alternatives: [
+          'Use Charles Schwab API for new integrations',
+          'Use Alpaca for commission-free trading with robust API',
+          'Consider Interactive Brokers API for advanced trading features',
+          'Export data manually during transition period'
+        ]
+      },
+      broker: 'td_ameritrade',
+      importedAt: new Date().toISOString(),
+      status: 'transitioning',
+      reason: 'schwab_acquisition',
+      migrationInfo: {
+        newProvider: 'Charles Schwab',
+        apiUrl: 'https://developer.schwab.com/',
+        timeline: 'API sunset in progress',
+        dataPortability: 'Manual export recommended during transition'
+      }
+    };
+  } catch (error) {
+    console.error('TD Ameritrade import error:', error.message);
+    throw new Error(`Failed to import from TD Ameritrade: ${error.message}`);
+  }
 }
 
 async function storeImportedPortfolio(userId, portfolioData) {

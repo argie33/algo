@@ -3,10 +3,10 @@ const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
 const { authenticateToken } = require('../middleware/auth');
-let apiKeyService, alpacaService, validationMiddleware;
+let apiKeyService, AlpacaService, validationMiddleware;
 try {
   apiKeyService = require('../utils/apiKeyServiceResilient');
-  alpacaService = require('../utils/alpacaService');
+  AlpacaService = require('../utils/alpacaService');
   const validation = require('../middleware/validation');
   validationMiddleware = validation.createValidationMiddleware;
 } catch (loadError) {
@@ -34,7 +34,7 @@ router.get('/health', (req, res) => {
       type: 'http_polling_realtime_data',
       dependencies: {
         apiKeyService: !!apiKeyService,
-        alpacaService: !!alpacaService,
+        alpacaService: !!AlpacaService,
         validationMiddleware: !!validationMiddleware
       }
     }));
@@ -60,7 +60,7 @@ router.get('/status', (req, res) => {
       uptime: process.uptime(),
       dependencies: {
         apiKeyService: !!apiKeyService,
-        alpacaService: !!alpacaService,
+        alpacaService: !!AlpacaService,
         validationMiddleware: !!validationMiddleware
       }
     }));
@@ -118,86 +118,20 @@ const UPDATE_INTERVAL = 5000; // 5 seconds
  * Get real-time market data for subscribed symbols with comprehensive authentication logging
  * This endpoint replaces WebSocket functionality with HTTP polling for Lambda compatibility
  */
-router.get('/stream/:symbols', async (req, res) => {
+router.get('/stream/:symbols', authenticateToken, async (req, res) => {
   const requestId = require('crypto').randomUUID().split('-')[0];
   const requestStart = Date.now();
   
   try {
+    const userId = req.user.sub;
+    
     console.log(`🚀 [${requestId}] Live data stream request initiated`, {
       symbols: req.params.symbols,
+      userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
       userAgent: req.headers['user-agent'],
       ip: req.ip,
-      hasAuth: !!req.headers.authorization,
       timestamp: new Date().toISOString()
     });
-
-    // Verify authentication with detailed logging
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      console.error(`❌ [${requestId}] Authentication failure - no authorization header provided`);
-      return res.status(401).json(error(
-        'No authorization token provided',
-        401,
-        { requestId, timestamp: new Date().toISOString() }
-      ).response);
-    }
-
-    if (!authHeader.startsWith('Bearer ')) {
-      console.error(`❌ [${requestId}] Authentication failure - invalid authorization header format`);
-      return res.status(401).json(error(
-        'Invalid authorization header format',
-        401,
-        { requestId, timestamp: new Date().toISOString() }
-      ).response);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    console.log(`🔍 [${requestId}] Verifying JWT token`, {
-      tokenLength: token.length,
-      tokenPrefix: token.substring(0, 20) + '...'
-    });
-    
-    // Verify JWT token with comprehensive error handling
-    const verifyStart = Date.now();
-    let payload, userId;
-    try {
-      const verifier = jwt.CognitoJwtVerifier.create({
-        userPoolId: process.env.COGNITO_USER_POOL_ID,
-        tokenUse: 'access',
-        clientId: process.env.COGNITO_CLIENT_ID
-      });
-
-      payload = await verifier.verify(token);
-      userId = payload.sub;
-      const verifyDuration = Date.now() - verifyStart;
-      
-      console.log(`✅ [${requestId}] JWT token verified successfully in ${verifyDuration}ms`, {
-        userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
-        tokenType: payload.token_use,
-        clientId: payload.client_id,
-        issuer: payload.iss
-      });
-      
-    } catch (jwtError) {
-      const verifyDuration = Date.now() - verifyStart;
-      console.error(`❌ [${requestId}] JWT verification FAILED after ${verifyDuration}ms:`, {
-        error: jwtError.message,
-        errorType: jwtError.name,
-        tokenLength: token.length,
-        impact: 'Live data access denied',
-        recommendation: 'User needs to re-authenticate'
-      });
-      
-      return res.status(401).json(error(
-        'Invalid or expired authentication token',
-        401,
-        { 
-          requestId, 
-          error: 'Authentication failed',
-          timestamp: new Date().toISOString() 
-        }
-      ).response);
-    }
 
     // Parse and validate symbols
     console.log(`🔍 [${requestId}] Parsing requested symbols: ${req.params.symbols}`);
@@ -297,7 +231,7 @@ router.get('/stream/:symbols', async (req, res) => {
     let userAlpacaService;
     
     try {
-      userAlpacaService = new alpacaService.AlpacaService(
+      userAlpacaService = new AlpacaService(
         credentials.apiKey, 
         credentials.apiSecret, 
         credentials.isSandbox
@@ -548,24 +482,9 @@ router.get('/stream/:symbols', async (req, res) => {
 /**
  * Get latest trade data for symbols
  */
-router.get('/trades/:symbols', async (req, res) => {
+router.get('/trades/:symbols', authenticateToken, async (req, res) => {
   try {
-    // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json(createErrorResponse('No authorization token provided'));
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const verifier = jwt.CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID
-    });
-
-    const payload = await verifier.verify(token);
-    const userId = payload.sub;
+    const userId = req.user.sub;
 
     // Parse symbols
     const symbols = req.params.symbols.split(',').map(s => s.trim().toUpperCase());
@@ -577,7 +496,7 @@ router.get('/trades/:symbols', async (req, res) => {
     }
 
     // Initialize Alpaca service
-    const userAlpacaService = new alpacaService.AlpacaService(
+    const userAlpacaService = new AlpacaService(
       credentials.apiKey, 
       credentials.apiSecret, 
       credentials.isSandbox
@@ -611,24 +530,9 @@ router.get('/trades/:symbols', async (req, res) => {
 /**
  * Get bars/OHLCV data for symbols
  */
-router.get('/bars/:symbols', async (req, res) => {
+router.get('/bars/:symbols', authenticateToken, async (req, res) => {
   try {
-    // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json(createErrorResponse('No authorization token provided'));
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const verifier = jwt.CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID
-    });
-
-    const payload = await verifier.verify(token);
-    const userId = payload.sub;
+    const userId = req.user.sub;
 
     // Parse symbols and timeframe
     const symbols = req.params.symbols.split(',').map(s => s.trim().toUpperCase());
@@ -641,7 +545,7 @@ router.get('/bars/:symbols', async (req, res) => {
     }
 
     // Initialize Alpaca service
-    const userAlpacaService = new alpacaService.AlpacaService(
+    const userAlpacaService = new AlpacaService(
       credentials.apiKey, 
       credentials.apiSecret, 
       credentials.isSandbox
@@ -673,24 +577,9 @@ router.get('/bars/:symbols', async (req, res) => {
 /**
  * Subscribe to symbols (for tracking user interest)
  */
-router.post('/subscribe', async (req, res) => {
+router.post('/subscribe', authenticateToken, async (req, res) => {
   try {
-    // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json(createErrorResponse('No authorization token provided'));
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const verifier = jwt.CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID
-    });
-
-    const payload = await verifier.verify(token);
-    const userId = payload.sub;
+    const userId = req.user.sub;
 
     const { symbols, dataTypes } = req.body;
     
@@ -722,24 +611,9 @@ router.post('/subscribe', async (req, res) => {
 /**
  * Get user's current subscriptions
  */
-router.get('/subscriptions', async (req, res) => {
+router.get('/subscriptions', authenticateToken, async (req, res) => {
   try {
-    // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json(createErrorResponse('No authorization token provided'));
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const verifier = jwt.CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID
-    });
-
-    const payload = await verifier.verify(token);
-    const userId = payload.sub;
+    const userId = req.user.sub;
 
     const subscriptions = Array.from(userSubscriptions.get(userId) || []);
 
@@ -762,24 +636,9 @@ router.get('/subscriptions', async (req, res) => {
 /**
  * Unsubscribe from symbols
  */
-router.delete('/subscribe', async (req, res) => {
+router.delete('/subscribe', authenticateToken, async (req, res) => {
   try {
-    // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json(createErrorResponse('No authorization token provided'));
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const verifier = jwt.CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID,
-      tokenUse: 'access',
-      clientId: process.env.COGNITO_CLIENT_ID
-    });
-
-    const payload = await verifier.verify(token);
-    const userId = payload.sub;
+    const userId = req.user.sub;
 
     const { symbols } = req.body;
     
@@ -804,22 +663,7 @@ router.delete('/subscribe', async (req, res) => {
   }
 });
 
-// Health check endpoint
-router.get('/health', (req, res) => {
-  const cacheStats = {
-    cachedSymbols: realtimeDataCache.size,
-    activeUsers: userSubscriptions.size,
-    totalSubscriptions: Array.from(userSubscriptions.values()).reduce((sum, set) => sum + set.size, 0)
-  };
-  
-  res.json(success({
-    status: 'operational',
-    type: 'http_polling_realtime_data',
-    updateInterval: UPDATE_INTERVAL,
-    cacheTtl: CACHE_TTL,
-    ...cacheStats
-  }));
-});
+// Health check endpoint (duplicate removed - using earlier endpoint)
 
 // Status endpoint with detailed metrics
 router.get('/status', (req, res) => {
