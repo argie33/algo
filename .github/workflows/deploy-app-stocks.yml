@@ -158,23 +158,33 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
+      - name: Get ECR repository URI
+        id: ecr
+        run: |
+          # Get the ECR repository URI from CloudFormation exports
+          ECR_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text)
+          echo "ECR Repository URI: $ECR_URI"
+          echo "repository-uri=$ECR_URI" >> $GITHUB_OUTPUT
+          
+          # Extract repository name from URI
+          REPO_NAME=$(echo $ECR_URI | cut -d'/' -f2)
+          echo "Repository name: $REPO_NAME"
+          echo "repository-name=$REPO_NAME" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         run: |
-          echo "Building and pushing loader container..."
+          echo "Building and pushing loader container to ${{ steps.ecr.outputs.repository-uri }}..."
           
           # Login to ECR
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          
-          # Create repository if it doesn't exist
-          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} || \
-            aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }}
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.repository-uri }}
           
           # Build and push image
-          docker build -t ${{ env.ECR_REPOSITORY }}:latest -f Dockerfile.dataloader .
-          docker tag ${{ env.ECR_REPOSITORY }}:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+          docker build -t ${{ steps.ecr.outputs.repository-uri }}:latest -f Dockerfile.dataloader .
+          docker push ${{ steps.ecr.outputs.repository-uri }}:latest
           
-          echo "✅ Docker image built and pushed successfully"
+          echo "✅ Docker image built and pushed successfully to ${{ steps.ecr.outputs.repository-uri }}:latest"
 
   # 3. Deploy infrastructure if needed
   deploy-infrastructure:
