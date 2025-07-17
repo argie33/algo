@@ -15,6 +15,11 @@ try {
 
 const router = express.Router();
 
+// Debug test endpoint
+router.get('/test', (req, res) => {
+  res.json({ status: 'websocket route is working', timestamp: new Date().toISOString() });
+});
+
 // Simple error response helper
 const createErrorResponse = (message, details = {}) => ({
   success: false,
@@ -26,6 +31,24 @@ const createErrorResponse = (message, details = {}) => ({
 // Basic health endpoint for websocket service
 router.get('/health', (req, res) => {
   try {
+    // Check if responseFormatter is available
+    if (typeof success !== 'function') {
+      return res.json({
+        success: true,
+        status: 'operational',
+        service: 'websocket',
+        timestamp: new Date().toISOString(),
+        message: 'WebSocket service is running (fallback response)',
+        type: 'http_polling_realtime_data',
+        dependencies: {
+          responseFormatter: false,
+          apiKeyService: !!apiKeyService,
+          alpacaService: !!AlpacaService,
+          validationMiddleware: !!validationMiddleware
+        }
+      });
+    }
+
     res.json(success({
       status: 'operational',
       service: 'websocket',
@@ -33,6 +56,7 @@ router.get('/health', (req, res) => {
       message: 'WebSocket service is running',
       type: 'http_polling_realtime_data',
       dependencies: {
+        responseFormatter: true,
         apiKeyService: !!apiKeyService,
         alpacaService: !!AlpacaService,
         validationMiddleware: !!validationMiddleware
@@ -44,6 +68,7 @@ router.get('/health', (req, res) => {
       success: false,
       error: 'Health check failed',
       message: healthError.message,
+      stack: healthError.stack,
       timestamp: new Date().toISOString()
     });
   }
