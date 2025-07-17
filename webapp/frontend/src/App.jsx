@@ -48,7 +48,8 @@ import {
   Lock as LockIcon,
   ExpandLess,
   ExpandMore,
-  Stars
+  Stars,
+  NetworkCheck as NetworkIcon
 } from '@mui/icons-material'
 
 // All real page imports
