@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - FIX S3 BUCKET ACCESS ERROR
+// MINIMAL LAMBDA - REMOVE INITIALBUILD FROM LOADER WORKFLOW
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

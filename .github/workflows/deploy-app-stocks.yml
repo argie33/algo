@@ -23,11 +23,8 @@ on:
         type: boolean
   push:
     branches:
-      - initialbuild
       - main
       - develop
-    paths-ignore:
-      - 'webapp/**'
   pull_request:
     branches:
       - initialbuild
