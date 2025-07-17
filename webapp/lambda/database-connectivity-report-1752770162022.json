@@ -1,0 +1,84 @@
+{
+  "timestamp": "2025-07-17T16:36:02.019Z",
+  "environment": "development",
+  "tests": [
+    {
+      "test": "Environment Variables",
+      "success": false,
+      "message": "Some environment variables are missing",
+      "data": {
+        "DB_SECRET_ARN": "NOT_SET",
+        "API_KEY_ENCRYPTION_SECRET_ARN": "NOT_SET",
+        "WEBAPP_AWS_REGION": "NOT_SET",
+        "NODE_ENV": "NOT_SET"
+      },
+      "timestamp": "2025-07-17T16:36:02.020Z"
+    },
+    {
+      "test": "AWS Secrets Manager",
+      "success": false,
+      "message": "DB_SECRET_ARN not set",
+      "data": null,
+      "timestamp": "2025-07-17T16:36:02.020Z"
+    },
+    {
+      "test": "Database Config",
+      "success": false,
+      "message": "No database secret available",
+      "data": null,
+      "timestamp": "2025-07-17T16:36:02.021Z"
+    },
+    {
+      "test": "Database Connection",
+      "success": false,
+      "message": "No database configuration available",
+      "data": null,
+      "timestamp": "2025-07-17T16:36:02.021Z"
+    },
+    {
+      "test": "Database Schema",
+      "success": false,
+      "message": "No database connection available",
+      "data": null,
+      "timestamp": "2025-07-17T16:36:02.021Z"
+    },
+    {
+      "test": "API Key Encryption",
+      "success": false,
+      "message": "No encryption secret available",
+      "data": null,
+      "timestamp": "2025-07-17T16:36:02.022Z"
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 6,
+    "warnings": 0
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "Configuration",
+      "issue": "Missing environment variables",
+      "solution": "Set all required environment variables in your deployment configuration"
+    },
+    {
+      "priority": "HIGH",
+      "category": "Security",
+      "issue": "Cannot access AWS Secrets Manager",
+      "solution": "Verify IAM permissions and secret ARN configuration"
+    },
+    {
+      "priority": "CRITICAL",
+      "category": "Infrastructure",
+      "issue": "Database connection failed",
+      "solution": "Check database configuration, network connectivity, and SSL settings"
+    },
+    {
+      "priority": "HIGH",
+      "category": "Database",
+      "issue": "Missing database tables",
+      "solution": "Run database initialization scripts to create required tables"
+    }
+  ]
+}
