@@ -30,8 +30,9 @@ RUN pip install --no-cache-dir \
     pytz \
     fredapi
 
-# Copy all Python scripts
+# Copy all Python scripts and SSL certificates
 COPY *.py ./
+COPY rds-ca-2019-root.pem ./
 
 # Create logs directory
 RUN mkdir -p /app/logs

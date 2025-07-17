@@ -240,6 +240,7 @@ def main():
             password=pwd,
             dbname=dbname,
             sslmode="require",
+            sslrootcert="rds-ca-2019-root.pem",
             cursor_factory=DictCursor
         )
         
