@@ -164,7 +164,7 @@ Resources:
           ENVIRONMENT: !Ref EnvironmentName
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
-          AWS_REGION: !Ref AWS::Region
+          WEBAPP_AWS_REGION: !Ref AWS::Region
       Policies:
         - Version: '2012-10-17'
           Statement:
