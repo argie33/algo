@@ -14,6 +14,8 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Import routes
 const stockRoutes = require('./routes/stocks');
+const screenerRoutes = require('./routes/screener');
+const websocketRoutes = require('./routes/websocket');
 const scoresRoutes = require('./routes/scores');
 const metricsRoutes = require('./routes/metrics');
 const healthRoutes = require('./routes/health');
@@ -31,6 +33,7 @@ const portfolioRoutes = require('./routes/portfolio');
 const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
+const liveDataRoutes = require('./routes/liveData');
 
 const app = express();
 
@@ -231,6 +234,8 @@ app.use(async (req, res, next) => {
 app.use('/health', healthRoutes);
 app.use('/auth', authRoutes);
 app.use('/stocks', stockRoutes);
+app.use('/screener', screenerRoutes);
+app.use('/websocket', websocketRoutes);
 app.use('/scores', scoresRoutes);
 app.use('/metrics', metricsRoutes);
 app.use('/market', marketRoutes);
@@ -246,11 +251,14 @@ app.use('/portfolio', portfolioRoutes);
 app.use('/scoring', scoringRoutes);
 app.use('/price', priceRoutes);
 app.use('/settings', settingsRoutes);
+app.use('/live-data', liveDataRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
+app.use('/api/screener', screenerRoutes);
+app.use('/api/websocket', websocketRoutes);
 app.use('/api/scores', scoresRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/market', marketRoutes);
@@ -266,6 +274,7 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/scoring', scoringRoutes);
 app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/live-data', liveDataRoutes);
 
 // Default route
 app.get('/', (req, res) => {
