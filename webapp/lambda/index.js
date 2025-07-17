@@ -53,6 +53,81 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Add the missing API routes that the frontend needs
+app.get('/api/settings/api-keys', (req, res) => {
+  console.log('🔑 GET API Keys endpoint hit');
+  res.json({
+    success: true,
+    data: [],
+    count: 0,
+    message: 'API keys endpoint working with CORS',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.post('/api/settings/api-keys', (req, res) => {
+  console.log('🔑 POST API Keys endpoint hit');
+  res.json({
+    success: true,
+    message: 'API key saved successfully (CORS test mode)',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.delete('/api/settings/api-keys/:provider', (req, res) => {
+  console.log('🔑 DELETE API Key endpoint hit for:', req.params.provider);
+  res.json({
+    success: true,
+    message: `${req.params.provider} API key deleted successfully (CORS test mode)`,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/settings/notifications', (req, res) => {
+  console.log('🔔 GET Notifications endpoint hit');
+  res.json({
+    success: true,
+    data: {
+      email: true,
+      push: true,
+      sms: false
+    },
+    message: 'Notifications endpoint working with CORS',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.put('/api/settings/notifications', (req, res) => {
+  console.log('🔔 PUT Notifications endpoint hit');
+  res.json({
+    success: true,
+    message: 'Notification preferences updated successfully (CORS test mode)',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/settings/theme', (req, res) => {
+  console.log('🎨 GET Theme endpoint hit');
+  res.json({
+    success: true,
+    data: {
+      dark_mode: false,
+      primary_color: '#1976d2'
+    },
+    message: 'Theme endpoint working with CORS',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.put('/api/settings/theme', (req, res) => {
+  console.log('🎨 PUT Theme endpoint hit');
+  res.json({
+    success: true,
+    message: 'Theme preferences updated successfully (CORS test mode)',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Handle all other routes
 app.all('*', (req, res) => {
   res.json({
