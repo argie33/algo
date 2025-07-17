@@ -46,11 +46,15 @@ on:
       - initialbuild
       - main
       - develop
+    paths-ignore:
+      - 'webapp/**'
   pull_request:
     branches:
       - initialbuild
       - main
       - develop
+    paths-ignore:
+      - 'webapp/**'
 
 permissions:
   id-token: write
