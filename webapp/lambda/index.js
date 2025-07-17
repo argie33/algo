@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - TRIGGER WEBAPP WORKFLOW NOW
+// MINIMAL LAMBDA - REMOVE PATHS FILTER TEST
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

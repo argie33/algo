@@ -2,10 +2,7 @@ name: Deploy Webapp Lambda
 
 on:
   push:
-    branches: [ main, initialbuild ]
-    paths:
-      - 'webapp/**'
-      - '.github/workflows/deploy-webapp-serverless.yml'
+    branches: [ initialbuild ]
 
 env:
   AWS_REGION: us-east-1
