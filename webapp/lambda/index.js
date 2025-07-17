@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - NO EXTERNAL DEPENDENCIES - TRIGGER DEPLOYMENT
+// MINIMAL LAMBDA - DEPLOY NOW - FIX WEBAPP
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

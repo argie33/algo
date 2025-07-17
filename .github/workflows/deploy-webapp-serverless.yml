@@ -3,9 +3,6 @@ name: Deploy Serverless Webapp
 on:
   push:
     branches: [ main, initialbuild ]
-  workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes for testing
 
 env:
   AWS_REGION: us-east-1
