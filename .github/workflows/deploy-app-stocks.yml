@@ -339,7 +339,7 @@ jobs:
             --task-definition "${{ steps.infra.outputs.task-def }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"dataloader\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$TASK_DEF_NAME\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
             --query "tasks[0].taskArn" \
             --output text)
           
