@@ -72,7 +72,7 @@ import {
 } from 'recharts';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../utils/api';
+import api from '../utils/apiService.jsx';
 
 function TabPanel({ children, value, index, ...other }) {
   return (

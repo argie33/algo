@@ -22,7 +22,7 @@ import {
   ShowChart
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/apiService';
+import apiService from '../utils/apiService.jsx';
 
 function CryptoPriceWidget({ 
   symbol, 

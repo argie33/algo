@@ -43,7 +43,7 @@ import { TrendingUp, TrendingDown, Analytics, NewReleases, History, ExpandMore, 
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 import { getApiConfig } from '../services/api'
 import { ErrorDisplay, LoadingDisplay, useStandardizedError } from '../components/ui/ErrorBoundary'
-import { createLogger, apiPatterns } from '../utils/apiService'
+import { createLogger, apiPatterns } from '../utils/apiService.jsx'
 
 // Use standardized logger
 const logger = createLogger('TradingSignals');

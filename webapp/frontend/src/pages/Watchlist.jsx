@@ -10,7 +10,7 @@ import {
   Notifications, NotificationsOff, Edit
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../utils/api';
+import api from '../utils/apiService.jsx';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 const Watchlist = () => {

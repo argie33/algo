@@ -12,7 +12,7 @@ import {
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../utils/api';
+import api from '../utils/apiService.jsx';
 import { formatCurrency, formatPercentage, formatNumber } from '../utils/formatters';
 
 const SectorAnalysis = () => {

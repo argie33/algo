@@ -48,8 +48,8 @@ import {
 } from 'chart.js';
 
 import { LoadingDisplay } from '../components/LoadingDisplay';
-import { ErrorBoundary } from '../components/ErrorBoundary';
-import { apiService } from '../services/apiService';
+import ErrorBoundary from '../components/ErrorBoundary';
+import apiService from '../utils/apiService.jsx';
 
 // Register Chart.js components
 ChartJS.register(

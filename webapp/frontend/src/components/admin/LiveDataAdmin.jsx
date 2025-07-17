@@ -449,6 +449,8 @@ const LiveDataAdmin = () => {
           </CardContent>
         </Card>
       )}
+        </>
+      )}
 
       {/* Providers Tab */}
       {activeTab === 'providers' && (
