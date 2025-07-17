@@ -49,7 +49,7 @@ import {
 } from '@mui/icons-material';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
-  AreaChart, Area, BarChart as RechartsBarChart, Bar, Cell, PieChart, Pie, RadialBarChart, RadialBar, 
+  AreaChart, Area, BarChart as RechartsBarChart, Bar, Cell, PieChart as RechartsPieChart, Pie, RadialBarChart, RadialBar, 
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
@@ -1100,14 +1100,14 @@ const Dashboard = () => {
                 <Chip label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`} color={safePortfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
               </Box>
               <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
+                <RechartsPieChart>
                   <Pie data={safePortfolio.allocation} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name} ${value}%`}>
                     {safePortfolio.allocation.map((entry, idx) => (
                       <Cell key={`cell-${idx}`} fill={WIDGET_COLORS[idx % WIDGET_COLORS.length]} />
                     ))}
                   </Pie>
                   <RechartsTooltip />
-                </PieChart>
+                </RechartsPieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
