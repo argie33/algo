@@ -2,11 +2,12 @@
   name: Deploy core infrastructure
 
   on:
-    push:
-      branches: [ "**" ]
-      paths:
-        - 'template-core.yml'
-        - '.github/workflows/deploy-core.yml'
+    # Disabled to prevent unnecessary runs - enable manually when needed
+    # push:
+    #   branches: [ "**" ]
+    #   paths:
+    #     - 'template-core.yml'
+    #     - '.github/workflows/deploy-core.yml'
     workflow_dispatch:
 
   permissions:
