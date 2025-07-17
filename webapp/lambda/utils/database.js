@@ -37,7 +37,14 @@ async function getDbConfig() {
         const response = await secretsManager.send(command);
         console.log(`✅ Secrets Manager responded in ${Date.now() - secretStart}ms`);
         
-        const secret = JSON.parse(response.SecretString);
+        let secret;
+        try {
+            secret = JSON.parse(response.SecretString);
+        } catch (parseError) {
+            console.error('❌ Failed to parse secret JSON:', parseError.message);
+            console.error('❌ Raw secret string:', response.SecretString);
+            throw new Error(`Database configuration failed: ${parseError.message}`);
+        }
 
         dbConfig = {
             host: secret.host || process.env.DB_ENDPOINT,
@@ -45,7 +52,7 @@ async function getDbConfig() {
             database: secret.dbname || 'stocks',
             user: secret.username,
             password: secret.password,
-            ssl: { rejectUnauthorized: false }, // SSL required but allow self-signed certs
+            ssl: false, // Match working ECS task configuration - no SSL for RDS in public subnets
             max: parseInt(process.env.DB_POOL_MAX) || 3,
             idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
             connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
