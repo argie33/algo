@@ -225,6 +225,14 @@ The project is driven by 3 core documents in the `/plans/` directory that must b
 - **Sync Requirements**: Ensure all 3 docs align with current system state and development progress
 - **Reference First**: Always check plans/tasks.md before starting new work
 
+### Documentation Update Guidelines - CRITICAL
+**When asked to "update/rehydrate the 3 core docs":**
+- **Update CONTENT with current knowledge** - not status/progress tracking
+- **Maintain EXISTING FORMAT** - don't add new status sections or progress indicators
+- **Preserve DOCUMENT PURPOSE** - requirements stay as requirements, design stays as design, tasks stay as tasks
+- **Don't add project tracking** - no "✅ COMPLETED" or "🚨 CRITICAL ISSUES" sections
+- **Focus on substance** - what we now know about requirements, design, and tasks based on current implementation
+
 ## Task Management - CRITICAL WORKFLOW
 - **PRIMARY TASK SYSTEM**: Use plans/tasks.md for all major development work and project tracking
 - **SUPPLEMENTARY TODOS**: Use TodoRead/TodoWrite for session-specific todos and quick items

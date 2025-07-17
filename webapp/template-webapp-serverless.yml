@@ -139,7 +139,7 @@ Resources:
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-handler-v2
+      FunctionName: api-handler
       Runtime: nodejs18.x
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn
@@ -157,6 +157,7 @@ Resources:
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
           NODE_ENV: production
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
@@ -170,7 +171,9 @@ Resources:
       ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins: ['*']
-        AllowMethods: ['GET','OPTIONS']
+        AllowMethods: ['GET','POST','PUT','DELETE','OPTIONS']
+        AllowHeaders: ['Content-Type','Authorization','X-Amz-Date','X-Api-Key','X-Amz-Security-Token','X-Requested-With']
+        AllowCredentials: true
 
   ApiIntegration:
     Type: AWS::ApiGatewayV2::Integration

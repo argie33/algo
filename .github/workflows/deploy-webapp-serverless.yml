@@ -29,7 +29,7 @@ jobs:
 
       - name: Package API Lambda
         run: |
-          cd webapp/api
+          cd webapp/lambda
           zip -r ../../${{ env.LAMBDA_CODE_KEY }} .
 
       - name: Upload Lambda code
