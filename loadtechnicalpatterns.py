@@ -730,7 +730,9 @@ def main():
     try:
         # Database connection
         db_config = get_db_config()
-        conn = psycopg2.connect(**db_config)
+        conn = psycopg2.connect(**db_config,
+            sslmode='disable'
+        )
         cursor = conn.cursor()
         
         # Create table

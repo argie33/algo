@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
-// NUCLEAR OPTION: MINIMAL NO-DEPENDENCY APPROACH
+// MINIMAL NO-DEPENDENCY APPROACH
 const MinimalApp = () => {
   return (
     <div style={{ 
@@ -108,9 +108,9 @@ const MinimalApp = () => {
   )
 }
 
-console.log('🚀 NUCLEAR OPTION: Minimal app loading...')
+console.log('🚀 Minimal app loading...')
 
 const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(<MinimalApp />)
 
-console.log('✅ NUCLEAR SUCCESS: Minimal app rendered without dependencies!')
+console.log('✅ Minimal app rendered successfully!')

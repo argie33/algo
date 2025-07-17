@@ -51,7 +51,9 @@ def get_db_connection():
         password=DB_PASSWORD,
         dbname=DB_NAME,
         options='-c statement_timeout=30000'
-    )
+    ,
+            sslmode='disable'
+        )
     return conn
 
 ###############################################################################

@@ -514,7 +514,9 @@ class CryptoDataLoader:
         try:
             # Get database config and connect
             db_config = self.get_db_config()
-            conn = psycopg2.connect(**db_config)
+            conn = psycopg2.connect(**db_config,
+            sslmode='disable'
+        )
             conn.autocommit = False
             cur = conn.cursor(cursor_factory=RealDictCursor)
             
