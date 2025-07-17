@@ -31,12 +31,13 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      PasswordPolicy:
-        MinimumLength: 8
-        RequireUppercase: true
-        RequireLowercase: true
-        RequireNumbers: true
-        RequireSymbols: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
       VerificationMessageTemplate:
@@ -115,7 +116,9 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: SPA
-            DomainName: !Sub "${StocksCore-SiteCodeBucketName}.s3.amazonaws.com"
+            DomainName: !Sub 
+              - "${BucketName}.s3.amazonaws.com"
+              - BucketName: !ImportValue StocksCore-SiteCodeBucketName
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OAI}"
         DefaultCacheBehavior:
@@ -158,7 +161,6 @@ Resources:
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
-          AWS_REGION: !Ref AWS::Region
 
   ## 5) HTTP API (API Gateway v2)
   StocksApi:
