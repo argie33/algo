@@ -697,9 +697,26 @@ app.use('*', (req, res) => {
   });
 });
 
-// Global error handler with comprehensive logging
+// Global error handler with comprehensive logging and CORS headers
 app.use((error, req, res, next) => {
   const errorLogger = req.logger || logger;
+  
+  // CRITICAL: Ensure CORS headers are always set, even in error conditions
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://d1zb7knau41vl9.cloudfront.net',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || 'https://d1zb7knau41vl9.cloudfront.net');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-ID, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, X-Request-ID');
   
   errorLogger.error('Lambda request error', error, {
     request: {
