@@ -188,52 +188,51 @@ Frontend configuration now working with real Cognito values:
 3. **Test End-to-End Flows** - Full user authentication and data retrieval with real backend
 4. **Performance Monitoring** - Create live system dashboard for production readiness validation
 
-## 3 Core Documentation System - CRITICAL
-The project is driven by 3 core documents that must be continuously updated and reviewed:
+## Project Documentation System - CRITICAL
+The project is driven by 3 core documents in the `/plans/` directory that must be continuously updated and reviewed:
 
-### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Architecture & Design
-- **Purpose**: Complete technical blueprint and system architecture for institutional-grade financial analysis platform
-- **Content**: System architecture, technology stack, core components, data architecture, security framework, deployment resilience design, business model
-- **Usage**: Primary reference for all technical decisions, system design, and implementation details
-- **Update When**: New features planned, architecture changes, technical requirements evolve, or system improvements implemented
-- **CRITICAL**: This is NOT a status report or project plan - it's the definitive design document
+### 1. **plans/requirements.md** - Requirements & Acceptance Criteria
+- **Purpose**: Define what we need to build with specific, measurable acceptance criteria
+- **Content**: Functional requirements, non-functional requirements, acceptance criteria checklists, success metrics
+- **Usage**: Primary reference for determining what features to build and when they're complete
+- **Update When**: New requirements discovered, acceptance criteria refined, requirements completed
+- **CRITICAL**: All development work must satisfy specific acceptance criteria from this document
 
-### 2. **TEST_PLAN.md** - Testing Methodology & Strategy
-- **Purpose**: Comprehensive testing framework and methodology for all system components with test-driven development approach
-- **Content**: Testing methodologies, test coverage requirements, automated testing pipelines, quality assurance processes, test implementation strategies
-- **Usage**: Guide for test implementation before feature development, quality assurance, and system validation
-- **Update When**: New features added, bugs discovered, testing requirements change, or new testing approaches adopted
-- **CRITICAL**: All new features must have associated test cases defined in TEST_PLAN.md before implementation begins
-- **CRITICAL**: This is NOT a status report - it's the testing methodology and strategy document
+### 2. **plans/design.md** - Technical Design & Architecture
+- **Purpose**: Define how to build the system based on requirements with detailed technical specifications
+- **Content**: System architecture, database schemas, API designs, algorithms, security implementation, deployment architecture
+- **Usage**: Primary reference for all technical decisions, implementation details, and system design
+- **Update When**: Architecture changes, technical requirements evolve, design patterns established
+- **CRITICAL**: All implementation must follow the technical design specifications in this document
 
-### 3. **claude-todo.md** - Task Management & Change Log
-- **Purpose**: Centralized task tracking, change log, and project plan via TodoRead/TodoWrite tools
-- **Content**: Current work priorities, task status, implementation details, session continuity, and delivery plans
+### 3. **plans/tasks.md** - Implementation Tasks & Tracking
+- **Purpose**: Define specific implementation steps to deliver the design and satisfy requirements
+- **Content**: Task breakdown, status tracking, priorities, dependencies, effort estimates, acceptance criteria references
 - **Usage**: Primary source for current work priorities, task execution order, and project progress tracking
-- **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously throughout development
-- **CRITICAL**: This is the ONLY todo system - never create new task documents
-- **CRITICAL**: This serves as both task management AND change log/project plan
+- **Update When**: Task status changes, new tasks identified, priorities shift, work completed
+- **CRITICAL**: All development work must be tracked as tasks with clear completion criteria
 
 ### Documentation Workflow - CRITICAL PROCESS
-1. **Analyze the 2 content documents** (FINANCIAL_PLATFORM_BLUEPRINT.md, TEST_PLAN.md)
-2. **Determine remaining work** from gaps, issues, and requirements in those 2 documents
-3. **Populate claude-todo.md** with prioritized list of work items from the analysis
-4. **Always refer to claude-todo.md** when determining next items to work on
-5. **Update the 2 content documents** as work progresses to reflect current state
+1. **Start with Requirements**: Review plans/requirements.md to understand what needs to be built
+2. **Check Design**: Review plans/design.md to understand how to build it
+3. **Execute Tasks**: Work on tasks from plans/tasks.md that implement the design to satisfy requirements
+4. **Update as You Go**: Update task status, refine design details, mark requirements complete
+5. **Maintain Alignment**: Ensure all 3 documents stay synchronized and consistent
 
 ### Documentation Management Commands
-- **Read All 3 Docs**: Start each session by reviewing all 3 documents
-- **Analyze → Prioritize → Execute**: Iterate through the 2 content docs to determine work, add to todos, then execute from todos
-- **Sync Requirements**: Ensure all 3 docs align with current system state
-- **Reference First**: Always check claude-todo.md before starting new work
+- **Read All 3 Docs**: Start each session by reviewing all 3 documents in the `/plans/` directory
+- **Requirements → Design → Tasks**: Follow the logical flow from what to build → how to build → steps to build
+- **Sync Requirements**: Ensure all 3 docs align with current system state and development progress
+- **Reference First**: Always check plans/tasks.md before starting new work
 
 ## Task Management - CRITICAL WORKFLOW
-- **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
-- **Update todos continuously**: Mark items complete as you finish them, add new items as discovered
-- **TodoRead frequently**: Check todo list at start of work and regularly during development
-- **Focus on existing todos**: Don't create new research tasks - work on items in the todo list
-- **Never forget**: If you start creating new analyses instead of using todos, STOP and use TodoRead/TodoWrite
-- Track lingering items and potential improvements via todo system
+- **PRIMARY TASK SYSTEM**: Use plans/tasks.md for all major development work and project tracking
+- **SUPPLEMENTARY TODOS**: Use TodoRead/TodoWrite for session-specific todos and quick items
+- **Update continuously**: Mark task status complete in plans/tasks.md as you finish them
+- **Reference First**: Always check plans/tasks.md before starting new work
+- **Session Management**: Use TodoRead/TodoWrite for items within a single session
+- **Never forget**: If you start creating new task documents, STOP and use plans/tasks.md
+- Track major work items and project progress via plans/tasks.md
 - Focus on infrastructure stability and website functionality first
 
 ## Test-Driven Development (TDD) - MANDATORY APPROACH
@@ -516,23 +515,74 @@ const logEntry = {
 - **Request Tracing**: End-to-end correlation IDs for debugging and monitoring
 
 ## Documentation Management - CRITICAL
-⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 4 .MD FILES - NO EXCEPTIONS** ⚠️
+⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 3 PROJECT DOCS - NO EXCEPTIONS** ⚠️
 
-### THE ONLY 4 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
-1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical blueprint
-2. **TEST_PLAN.md** - Testing strategy
-3. **DESIGN.md** - System design
-4. **claude-todo.md** - Todo management (auto-managed by TodoRead/TodoWrite)
+### THE ONLY 3 ALLOWED PROJECT MANAGEMENT DOCUMENTS:
+1. **plans/requirements.md** - Requirements and acceptance criteria
+2. **plans/design.md** - Technical design based on requirements
+3. **plans/tasks.md** - Implementation tasks to deliver the design
+
+### DOCUMENTATION HIERARCHY & FLOW:
+```
+requirements.md → design.md → tasks.md
+(What to build) → (How to build) → (Steps to build)
+```
+
+### DOCUMENT FORMATS & UPDATING RULES:
+
+#### requirements.md Format:
+- **Structure**: Requirements organized by functional area
+- **Format**: Each requirement has acceptance criteria checklist
+- **Updates**: Add new requirements, update acceptance criteria, mark completed items
+- **Example**:
+  ```
+  ### 1.1 Authentication System
+  **Requirement**: Secure user authentication
+  **Acceptance Criteria**:
+  - [ ] Users can register with email and password
+  - [ ] JWT-based authentication implemented
+  - [x] Password validation (8+ chars, mixed case, numbers)
+  ```
+
+#### design.md Format:
+- **Structure**: Technical design organized by system components
+- **Format**: Detailed architecture, APIs, database schemas, algorithms
+- **Updates**: Add design details, update architecture, refine technical specs
+- **Example**:
+  ```
+  ### 2.1 Authentication Architecture
+  **JWT Token Structure**: {...}
+  **Security Implementation**: {...}
+  **Database Schema**: {...}
+  ```
+
+#### tasks.md Format:
+- **Structure**: Implementation tasks organized by phases
+- **Format**: Task ID, Status, Priority, Assignee, Dependencies, Acceptance Criteria
+- **Updates**: Update task status, add new tasks, track progress
+- **Example**:
+  ```
+  ### Task 1.1: Authentication System
+  **Status**: In Progress
+  **Priority**: P0 Critical
+  **Dependencies**: None
+  **Acceptance Criteria**: [Reference requirements.md]
+  ```
+
+### WORKFLOW FOR UPDATES:
+1. **Requirements Change**: Update requirements.md → Update affected design.md sections → Update tasks.md
+2. **Design Change**: Update design.md → Update affected tasks.md → Verify requirements.md alignment
+3. **Task Progress**: Update tasks.md status → Update design.md if implementation differs → Update requirements.md if criteria change
 
 ### STRICT PROHIBITIONS:
-- **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, DEVELOPMENT_TASKS.md, etc.
+- **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, etc.
 - **NEVER create temporary .md files** - even for "quick notes" or "session summaries"
 - **NEVER create workflow .md files** - deployment guides, fix summaries, etc.
-- **ALL project management MUST happen in the 4 core documents above**
-- **ALL findings, status, plans, analyses MUST be integrated into the 4 core documents**
+- **ALL project management MUST happen in the 3 core documents above**
+- **ALL findings, status, plans, analyses MUST be integrated into the 3 core documents**
 
 ### ENFORCEMENT:
 - If you start creating a new .md file, STOP immediately
 - If you need to document something, choose the appropriate core document
 - If unsure which core document to use, ask the user
-- These 4 documents are the ONLY source of truth for all project information
+- These 3 documents are the ONLY source of truth for all project information
