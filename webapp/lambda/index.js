@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - TRIGGER deploy-webapp-serverless.yml ONLY
+// MINIMAL LAMBDA - FIX S3 BUCKET ACCESS ERROR
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

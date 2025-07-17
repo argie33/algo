@@ -36,9 +36,22 @@ jobs:
 
       - name: Upload Lambda code
         run: |
+          # Get the correct code bucket name from CloudFormation export
+          CODE_BUCKET=$(aws cloudformation list-exports \
+            --query 'Exports[?Name==`StocksCore-CodeBucketName`].Value' \
+            --output text)
+          
+          if [ -z "$CODE_BUCKET" ]; then
+            echo "❌ Could not find StocksCore-CodeBucketName export"
+            echo "Available exports:"
+            aws cloudformation list-exports --query 'Exports[].Name' --output text
+            exit 1
+          fi
+          
+          echo "✅ Using code bucket: $CODE_BUCKET"
           aws s3 cp \
             ${{ env.LAMBDA_CODE_KEY }} \
-            s3://${{ env.APP_BUCKET }}/${{ env.LAMBDA_CODE_KEY }}
+            s3://$CODE_BUCKET/${{ env.LAMBDA_CODE_KEY }}
 
       - name: Deploy Serverless Webapp
         run: |
