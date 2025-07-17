@@ -133,6 +133,184 @@ const tableSchemas = {
     },
     indexes: ['symbol', 'report_date'],
     primaryKey: ['symbol', 'report_date']
+  },
+  
+  stock_symbols_enhanced: {
+    required: ['symbol', 'company_name'],
+    columns: {
+      symbol: { type: 'VARCHAR', maxLength: 20, unique: true },
+      company_name: { type: 'VARCHAR', maxLength: 200 },
+      exchange: { type: 'VARCHAR', maxLength: 50 },
+      sector: { type: 'VARCHAR', maxLength: 100 },
+      industry: { type: 'VARCHAR', maxLength: 150 },
+      market_cap: { type: 'BIGINT' },
+      market_cap_tier: { type: 'VARCHAR', maxLength: 20 },
+      country: { type: 'VARCHAR', maxLength: 50, default: 'US' },
+      currency: { type: 'VARCHAR', maxLength: 10, default: 'USD' },
+      beta: { type: 'DECIMAL', precision: 10, scale: 4 },
+      volatility_30d: { type: 'DECIMAL', precision: 10, scale: 4 },
+      avg_volume_30d: { type: 'BIGINT' },
+      price_to_earnings: { type: 'DECIMAL', precision: 10, scale: 4 },
+      price_to_book: { type: 'DECIMAL', precision: 10, scale: 4 },
+      dividend_yield: { type: 'DECIMAL', precision: 10, scale: 4 },
+      is_active: { type: 'BOOLEAN', default: true },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['symbol', 'sector', 'market_cap_tier']
+  },
+  
+  price_daily: {
+    required: ['symbol', 'date'],
+    columns: {
+      symbol: { type: 'VARCHAR', maxLength: 20 },
+      date: { type: 'DATE' },
+      open_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      high_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      low_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      close_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      adj_close_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      volume: { type: 'BIGINT' },
+      change_amount: { type: 'DECIMAL', precision: 12, scale: 4 },
+      change_percent: { type: 'DECIMAL', precision: 10, scale: 4 },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['symbol', 'date'],
+    primaryKey: ['symbol', 'date']
+  },
+  
+  user_api_keys: {
+    required: ['user_id', 'broker_name', 'encrypted_api_key'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      broker_name: { type: 'VARCHAR', maxLength: 50 },
+      encrypted_api_key: { type: 'TEXT' },
+      encrypted_api_secret: { type: 'TEXT' },
+      key_iv: { type: 'VARCHAR', maxLength: 32 },
+      key_auth_tag: { type: 'VARCHAR', maxLength: 32 },
+      secret_iv: { type: 'VARCHAR', maxLength: 32 },
+      secret_auth_tag: { type: 'VARCHAR', maxLength: 32 },
+      is_sandbox: { type: 'BOOLEAN', default: true },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      last_used: { type: 'TIMESTAMP' }
+    },
+    indexes: ['user_id', 'broker_name'],
+    primaryKey: ['user_id', 'broker_name']
+  },
+  
+  portfolio_metadata: {
+    required: ['user_id', 'broker'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      broker: { type: 'VARCHAR', maxLength: 50 },
+      total_value: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      total_cash: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      total_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      total_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      day_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      day_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      positions_count: { type: 'INTEGER', default: 0 },
+      buying_power: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      account_status: { type: 'VARCHAR', maxLength: 50, default: 'active' },
+      environment: { type: 'VARCHAR', maxLength: 20, default: 'live' },
+      imported_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      last_sync: { type: 'TIMESTAMP' },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['user_id', 'broker'],
+    primaryKey: ['user_id', 'broker']
+  },
+  
+  portfolio_holdings: {
+    required: ['user_id', 'symbol', 'broker'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      symbol: { type: 'VARCHAR', maxLength: 20 },
+      quantity: { type: 'DECIMAL', precision: 15, scale: 6 },
+      market_value: { type: 'DECIMAL', precision: 15, scale: 2 },
+      cost_basis: { type: 'DECIMAL', precision: 15, scale: 2 },
+      pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      weight: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      sector: { type: 'VARCHAR', maxLength: 100 },
+      current_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      average_entry_price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      day_change: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      day_change_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      exchange: { type: 'VARCHAR', maxLength: 50 },
+      asset_class: { type: 'VARCHAR', maxLength: 50, default: 'equity' },
+      broker: { type: 'VARCHAR', maxLength: 50 },
+      last_updated: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['user_id', 'symbol', 'broker'],
+    primaryKey: ['user_id', 'symbol', 'broker']
+  },
+  
+  portfolio_performance: {
+    required: ['user_id', 'date', 'broker'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      date: { type: 'DATE' },
+      total_value: { type: 'DECIMAL', precision: 15, scale: 2 },
+      daily_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      daily_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      total_pnl: { type: 'DECIMAL', precision: 15, scale: 2, default: 0 },
+      total_pnl_percent: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      benchmark_return: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      alpha: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      beta: { type: 'DECIMAL', precision: 10, scale: 4, default: 1 },
+      sharpe_ratio: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      max_drawdown: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      volatility: { type: 'DECIMAL', precision: 10, scale: 4, default: 0 },
+      broker: { type: 'VARCHAR', maxLength: 50 },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['user_id', 'date', 'broker'],
+    primaryKey: ['user_id', 'date', 'broker']
+  },
+  
+  portfolio_transactions: {
+    required: ['user_id', 'symbol', 'broker'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      external_id: { type: 'VARCHAR', maxLength: 100 },
+      symbol: { type: 'VARCHAR', maxLength: 20 },
+      transaction_type: { type: 'VARCHAR', maxLength: 50 },
+      side: { type: 'VARCHAR', maxLength: 10 },
+      quantity: { type: 'DECIMAL', precision: 15, scale: 6 },
+      price: { type: 'DECIMAL', precision: 12, scale: 4 },
+      amount: { type: 'DECIMAL', precision: 15, scale: 2 },
+      transaction_date: { type: 'TIMESTAMP' },
+      description: { type: 'TEXT' },
+      broker: { type: 'VARCHAR', maxLength: 50 },
+      status: { type: 'VARCHAR', maxLength: 20, default: 'completed' },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['user_id', 'symbol', 'external_id'],
+    primaryKey: ['user_id', 'external_id', 'broker']
+  },
+  
+  trading_alerts: {
+    required: ['user_id', 'symbol'],
+    columns: {
+      user_id: { type: 'VARCHAR', maxLength: 50 },
+      symbol: { type: 'VARCHAR', maxLength: 20 },
+      alert_type: { type: 'VARCHAR', maxLength: 50 },
+      condition_type: { type: 'VARCHAR', maxLength: 20 },
+      target_value: { type: 'DECIMAL', precision: 12, scale: 4 },
+      current_value: { type: 'DECIMAL', precision: 12, scale: 4 },
+      is_active: { type: 'BOOLEAN', default: true },
+      is_triggered: { type: 'BOOLEAN', default: false },
+      triggered_at: { type: 'TIMESTAMP' },
+      message: { type: 'TEXT' },
+      created_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+      updated_at: { type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' }
+    },
+    indexes: ['user_id', 'symbol', 'is_active']
   }
 };
 

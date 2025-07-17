@@ -179,34 +179,91 @@ class RealTimeDataService {
   }
 
   /**
-   * Get market indices data
+   * Get historical price for change calculation
+   */
+  async getHistoricalPrice(alpacaService, symbol, daysBack = 1) {
+    try {
+      const cacheKey = `historical:${symbol}:${daysBack}d`;
+      
+      return await this.getCachedOrFetch(cacheKey, async () => {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - daysBack);
+        
+        const bars = await alpacaService.getBars(symbol, {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0],
+          timeframe: '1Day',
+          adjustment: 'raw',
+          limit: daysBack
+        });
+        
+        if (bars && bars.length > 0) {
+          // Return the closing price from the requested days back
+          const targetBar = bars[bars.length - daysBack] || bars[0];
+          return targetBar.ClosePrice || targetBar.c || targetBar.close;
+        }
+        
+        return null;
+      }, 300000); // Cache for 5 minutes
+    } catch (error) {
+      console.warn(`Failed to get historical price for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Calculate price change and percentage
+   */
+  calculatePriceChange(currentPrice, historicalPrice) {
+    if (!historicalPrice || historicalPrice <= 0) {
+      return { change: 0, changePercent: 0 };
+    }
+    
+    const change = currentPrice - historicalPrice;
+    const changePercent = (change / historicalPrice) * 100;
+    
+    return {
+      change: parseFloat(change.toFixed(2)),
+      changePercent: parseFloat(changePercent.toFixed(2))
+    };
+  }
+
+  /**
+   * Get market indices data with real change calculations
    */
   async getMarketIndices(userId) {
     try {
       const alpacaService = await this.getUserAlpacaService(userId);
       const indices = {};
       
-      console.log('📈 Fetching market indices data');
+      console.log('📈 Fetching market indices data with historical changes');
       
       for (const symbol of this.indexSymbols) {
         try {
           const cacheKey = `index:${symbol}:${userId.substring(0, 8)}`;
           
-          const quote = await this.getCachedOrFetch(cacheKey, async () => {
-            return await alpacaService.getLatestQuote(symbol);
-          });
+          const [quote, historicalPrice] = await Promise.allSettled([
+            this.getCachedOrFetch(cacheKey, async () => {
+              return await alpacaService.getLatestQuote(symbol);
+            }),
+            this.getHistoricalPrice(alpacaService, symbol, 1)
+          ]);
           
-          if (quote) {
-            const currentPrice = (quote.bidPrice + quote.askPrice) / 2;
+          if (quote.status === 'fulfilled' && quote.value) {
+            const currentPrice = (quote.value.bidPrice + quote.value.askPrice) / 2;
+            const yesterdayPrice = historicalPrice.status === 'fulfilled' ? historicalPrice.value : null;
+            const priceChange = this.calculatePriceChange(currentPrice, yesterdayPrice);
             
             indices[symbol] = {
               symbol,
               name: this.getIndexName(symbol),
-              value: currentPrice,
-              change: 0, // Would need historical data to calculate
-              changePercent: 0, // Would need historical data to calculate
-              timestamp: quote.timestamp,
-              dataSource: 'alpaca'
+              value: parseFloat(currentPrice.toFixed(2)),
+              change: priceChange.change,
+              changePercent: priceChange.changePercent,
+              timestamp: quote.value.timestamp,
+              dataSource: 'alpaca',
+              historicalDataAvailable: !!yesterdayPrice
             };
           }
         } catch (error) {
@@ -312,14 +369,13 @@ class RealTimeDataService {
   }
 
   /**
-   * Get sector performance (simplified version)
+   * Get sector performance with real change calculations
    */
   async getSectorPerformance(userId) {
     try {
-      console.log('🏢 Fetching sector performance data');
+      console.log('🏢 Fetching sector performance data with historical changes');
       
-      // For a full sector analysis, we'd need to fetch many symbols
-      // This is a simplified version that tracks major sector ETFs
+      // Track major sector ETFs with real change calculations
       const sectorETFs = {
         'XLK': 'Technology',
         'XLV': 'Healthcare', 
@@ -340,21 +396,28 @@ class RealTimeDataService {
         try {
           const cacheKey = `sector:${etfSymbol}:${userId.substring(0, 8)}`;
           
-          const quote = await this.getCachedOrFetch(cacheKey, async () => {
-            return await alpacaService.getLatestQuote(etfSymbol);
-          });
+          const [quote, historicalPrice] = await Promise.allSettled([
+            this.getCachedOrFetch(cacheKey, async () => {
+              return await alpacaService.getLatestQuote(etfSymbol);
+            }),
+            this.getHistoricalPrice(alpacaService, etfSymbol, 1)
+          ]);
           
-          if (quote) {
-            const currentPrice = (quote.bidPrice + quote.askPrice) / 2;
+          if (quote.status === 'fulfilled' && quote.value) {
+            const currentPrice = (quote.value.bidPrice + quote.value.askPrice) / 2;
+            const yesterdayPrice = historicalPrice.status === 'fulfilled' ? historicalPrice.value : null;
+            const priceChange = this.calculatePriceChange(currentPrice, yesterdayPrice);
             
             sectorData.push({
               sector: sectorName,
               etfSymbol: etfSymbol,
-              price: currentPrice,
-              change: 0, // Would need historical data
-              changePercent: 0, // Would need historical data
-              timestamp: quote.timestamp,
-              dataSource: 'alpaca'
+              price: parseFloat(currentPrice.toFixed(2)),
+              change: priceChange.change,
+              changePercent: priceChange.changePercent,
+              timestamp: quote.value.timestamp,
+              dataSource: 'alpaca',
+              historicalDataAvailable: !!yesterdayPrice,
+              performance: this.categorizeSectorPerformance(priceChange.changePercent)
             });
           }
         } catch (error) {
@@ -368,12 +431,80 @@ class RealTimeDataService {
         }
       }
       
-      return sectorData;
+      // Sort by performance for better analysis
+      sectorData.sort((a, b) => (b.changePercent || -999) - (a.changePercent || -999));
+      
+      return {
+        sectors: sectorData,
+        summary: this.calculateSectorSummary(sectorData),
+        timestamp: new Date().toISOString()
+      };
       
     } catch (error) {
       console.error('Failed to get sector performance:', error.message);
       throw new Error(`Sector performance unavailable: ${error.message}`);
     }
+  }
+
+  /**
+   * Categorize sector performance for better analysis
+   */
+  categorizeSectorPerformance(changePercent) {
+    if (changePercent >= 2) return 'strong-outperform';
+    if (changePercent >= 1) return 'outperform';
+    if (changePercent >= -1) return 'neutral';
+    if (changePercent >= -2) return 'underperform';
+    return 'strong-underperform';
+  }
+
+  /**
+   * Calculate sector performance summary
+   */
+  calculateSectorSummary(sectorData) {
+    const validSectors = sectorData.filter(s => !s.error && typeof s.changePercent === 'number');
+    
+    if (validSectors.length === 0) {
+      return { error: 'No valid sector data available' };
+    }
+    
+    const totalSectors = validSectors.length;
+    const gaining = validSectors.filter(s => s.changePercent > 0).length;
+    const declining = validSectors.filter(s => s.changePercent < 0).length;
+    const unchanged = totalSectors - gaining - declining;
+    
+    const avgChange = validSectors.reduce((sum, s) => sum + s.changePercent, 0) / totalSectors;
+    const bestSector = validSectors[0]; // Already sorted by performance
+    const worstSector = validSectors[validSectors.length - 1];
+    
+    return {
+      totalSectors,
+      gaining,
+      declining,
+      unchanged,
+      averageChange: parseFloat(avgChange.toFixed(2)),
+      bestPerformer: bestSector ? {
+        sector: bestSector.sector,
+        change: bestSector.changePercent
+      } : null,
+      worstPerformer: worstSector ? {
+        sector: worstSector.sector,
+        change: worstSector.changePercent
+      } : null,
+      marketSentiment: this.determineSectorSentiment(gaining, declining, totalSectors)
+    };
+  }
+
+  /**
+   * Determine overall market sentiment from sector performance
+   */
+  determineSectorSentiment(gaining, declining, total) {
+    const gainingRatio = gaining / total;
+    
+    if (gainingRatio >= 0.7) return 'bullish';
+    if (gainingRatio >= 0.6) return 'moderately-bullish';
+    if (gainingRatio >= 0.4) return 'mixed';
+    if (gainingRatio >= 0.3) return 'moderately-bearish';
+    return 'bearish';
   }
 
   /**

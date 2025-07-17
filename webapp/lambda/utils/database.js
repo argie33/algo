@@ -169,6 +169,10 @@ async function initializeDatabase() {
             client.release();
             dbInitialized = true;
             console.log('✅ Database connection pool initialized successfully');
+            
+            // Initialize database schema if needed
+            await initializeSchema();
+            
             pool.on('error', (err) => {
                 console.error('Database pool error:', err);
                 dbInitialized = false;
@@ -200,6 +204,153 @@ async function initializeDatabase() {
     })();
 
     return initPromise;
+}
+
+/**
+ * Initialize database schema by creating missing tables
+ */
+async function initializeSchema() {
+    try {
+        console.log('Initializing database schema...');
+        
+        const { generateCreateTableSQL, listTables } = require('./schemaValidator');
+        
+        // Priority tables that should be created first
+        const priorityTables = [
+            'stock_symbols_enhanced',
+            'price_daily',
+            'user_api_keys',
+            'portfolio_metadata',
+            'portfolio_holdings',
+            'portfolio_performance', 
+            'portfolio_transactions',
+            'trading_alerts'
+        ];
+        
+        // Get all table schemas
+        const allTables = listTables();
+        
+        // Create priority tables first
+        for (const tableName of priorityTables) {
+            if (allTables.includes(tableName)) {
+                try {
+                    const createSQL = generateCreateTableSQL(tableName);
+                    await query(createSQL);
+                    console.log(`✅ Created/verified table: ${tableName}`);
+                } catch (error) {
+                    console.warn(`⚠️  Warning creating table ${tableName}:`, error.message);
+                }
+            }
+        }
+        
+        // Create remaining tables
+        for (const tableName of allTables) {
+            if (!priorityTables.includes(tableName)) {
+                try {
+                    const createSQL = generateCreateTableSQL(tableName);
+                    await query(createSQL);
+                    console.log(`✅ Created/verified table: ${tableName}`);
+                } catch (error) {
+                    console.warn(`⚠️  Warning creating table ${tableName}:`, error.message);
+                }
+            }
+        }
+        
+        // Insert initial data for stock_symbols_enhanced
+        await insertInitialData();
+        
+        console.log('✅ Database schema initialization completed');
+        
+    } catch (error) {
+        console.error('Schema initialization error:', error);
+        // Don't throw - let the application continue with existing tables
+    }
+}
+
+/**
+ * Insert initial data for essential tables
+ */
+async function insertInitialData() {
+    try {
+        // Insert sample stock symbols if the table is empty
+        const countResult = await query('SELECT COUNT(*) as count FROM stock_symbols_enhanced');
+        const count = parseInt(countResult.rows[0].count);
+        
+        if (count === 0) {
+            console.log('Inserting initial stock symbols data...');
+            
+            const insertSQL = `
+                INSERT INTO stock_symbols_enhanced (symbol, company_name, exchange, sector, industry, market_cap_tier, beta, volatility_30d) VALUES
+                ('AAPL', 'Apple Inc.', 'NASDAQ', 'Technology', 'Consumer Electronics', 'large_cap', 1.20, 25.4),
+                ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Technology', 'Software', 'large_cap', 0.95, 22.1),
+                ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Technology', 'Internet Services', 'large_cap', 1.05, 28.7),
+                ('AMZN', 'Amazon.com Inc.', 'NASDAQ', 'Consumer Discretionary', 'E-commerce', 'large_cap', 1.15, 30.2),
+                ('TSLA', 'Tesla Inc.', 'NASDAQ', 'Consumer Discretionary', 'Electric Vehicles', 'large_cap', 1.85, 45.6),
+                ('META', 'Meta Platforms Inc.', 'NASDAQ', 'Technology', 'Social Media', 'large_cap', 1.25, 32.8),
+                ('NVDA', 'NVIDIA Corporation', 'NASDAQ', 'Technology', 'Semiconductors', 'large_cap', 1.65, 40.3),
+                ('NFLX', 'Netflix Inc.', 'NASDAQ', 'Communication Services', 'Streaming', 'large_cap', 1.35, 35.1),
+                ('JPM', 'JPMorgan Chase & Co.', 'NYSE', 'Financials', 'Banking', 'large_cap', 1.10, 26.4),
+                ('JNJ', 'Johnson & Johnson', 'NYSE', 'Healthcare', 'Pharmaceuticals', 'large_cap', 0.75, 18.2),
+                ('V', 'Visa Inc.', 'NYSE', 'Financials', 'Payment Processing', 'large_cap', 0.90, 20.8),
+                ('PG', 'Procter & Gamble Co.', 'NYSE', 'Consumer Staples', 'Household Products', 'large_cap', 0.65, 16.5),
+                ('UNH', 'UnitedHealth Group Inc.', 'NYSE', 'Healthcare', 'Health Insurance', 'large_cap', 0.85, 19.7),
+                ('HD', 'The Home Depot Inc.', 'NYSE', 'Consumer Discretionary', 'Home Improvement', 'large_cap', 1.00, 24.3),
+                ('DIS', 'The Walt Disney Company', 'NYSE', 'Communication Services', 'Entertainment', 'large_cap', 1.20, 29.5),
+                ('SPY', 'SPDR S&P 500 ETF Trust', 'NYSE', 'ETF', 'Broad Market ETF', 'large_cap', 1.00, 15.0),
+                ('QQQ', 'Invesco QQQ Trust', 'NASDAQ', 'ETF', 'Technology ETF', 'large_cap', 1.15, 20.2),
+                ('VTI', 'Vanguard Total Stock Market ETF', 'NYSE', 'ETF', 'Total Market ETF', 'large_cap', 1.00, 16.1),
+                ('IWM', 'iShares Russell 2000 ETF', 'NYSE', 'ETF', 'Small Cap ETF', 'large_cap', 1.25, 22.7),
+                ('GLD', 'SPDR Gold Shares', 'NYSE', 'ETF', 'Gold ETF', 'large_cap', 0.30, 18.8)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    company_name = EXCLUDED.company_name,
+                    exchange = EXCLUDED.exchange,
+                    sector = EXCLUDED.sector,
+                    industry = EXCLUDED.industry,
+                    market_cap_tier = EXCLUDED.market_cap_tier,
+                    beta = EXCLUDED.beta,
+                    volatility_30d = EXCLUDED.volatility_30d,
+                    updated_at = CURRENT_TIMESTAMP
+            `;
+            
+            await query(insertSQL);
+            console.log('✅ Initial stock symbols data inserted');
+        }
+        
+        // Insert sample price data if the table is empty
+        const priceCountResult = await query('SELECT COUNT(*) as count FROM price_daily');
+        const priceCount = parseInt(priceCountResult.rows[0].count);
+        
+        if (priceCount === 0) {
+            console.log('Inserting initial price data...');
+            
+            const insertPriceSQL = `
+                INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, adj_close_price, volume, change_amount, change_percent) VALUES
+                ('AAPL', CURRENT_DATE - INTERVAL '1 day', 175.20, 178.45, 174.80, 177.25, 177.25, 45000000, 2.05, 1.17),
+                ('MSFT', CURRENT_DATE - INTERVAL '1 day', 420.50, 425.30, 418.75, 423.80, 423.80, 22000000, 3.30, 0.78),
+                ('GOOGL', CURRENT_DATE - INTERVAL '1 day', 142.80, 145.25, 141.90, 144.75, 144.75, 28000000, 1.95, 1.37),
+                ('AMZN', CURRENT_DATE - INTERVAL '1 day', 148.30, 151.20, 147.60, 150.40, 150.40, 35000000, 2.10, 1.42),
+                ('TSLA', CURRENT_DATE - INTERVAL '1 day', 245.60, 252.80, 243.10, 250.25, 250.25, 85000000, 4.65, 1.89),
+                ('SPY', CURRENT_DATE - INTERVAL '1 day', 445.20, 447.80, 444.30, 446.95, 446.95, 65000000, 1.75, 0.39),
+                ('QQQ', CURRENT_DATE - INTERVAL '1 day', 385.40, 388.60, 384.20, 387.30, 387.30, 42000000, 1.90, 0.49)
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                    open_price = EXCLUDED.open_price,
+                    high_price = EXCLUDED.high_price,
+                    low_price = EXCLUDED.low_price,
+                    close_price = EXCLUDED.close_price,
+                    adj_close_price = EXCLUDED.adj_close_price,
+                    volume = EXCLUDED.volume,
+                    change_amount = EXCLUDED.change_amount,
+                    change_percent = EXCLUDED.change_percent
+            `;
+            
+            await query(insertPriceSQL);
+            console.log('✅ Initial price data inserted');
+        }
+        
+    } catch (error) {
+        console.warn('Warning inserting initial data:', error.message);
+        // Don't throw - let the application continue
+    }
 }
 
 /**
