@@ -141,12 +141,47 @@ jobs:
             echo "No loaders to run"
           fi
 
-  # 2. Deploy infrastructure and build images if needed
+  # 2. Build Docker images when loaders need to run
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Build and push Docker image
+        run: |
+          echo "Building and pushing loader container..."
+          
+          # Login to ECR
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          
+          # Create repository if it doesn't exist
+          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} || \
+            aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }}
+          
+          # Build and push image
+          docker build -t ${{ env.ECR_REPOSITORY }}:latest -f Dockerfile.dataloader .
+          docker tag ${{ env.ECR_REPOSITORY }}:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+          
+          echo "✅ Docker image built and pushed successfully"
+
+  # 3. Deploy infrastructure if needed
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.infrastructure-changed == 'true' || needs.detect-changes.outputs.has-changes == 'true'
+    if: needs.detect-changes.outputs.infrastructure-changed == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -225,31 +260,17 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
-      - name: Update container image
-        run: |
-          echo "Building and pushing loader container..."
-          
-          # Login to ECR
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          
-          # Create repository if it doesn't exist
-          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} || \
-            aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }}
-          
-          # Build and push image
-          docker build -t ${{ env.ECR_REPOSITORY }}:latest -f Dockerfile.dataloader .
-          docker tag ${{ env.ECR_REPOSITORY }}:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
 
-  # 3. Execute loaders using matrix strategy
+  # 4. Execute loaders using matrix strategy
   execute-loaders:
     name: Execute Loaders
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure]
+    needs: [detect-changes, build-images, deploy-infrastructure]
     if: |
       always() && 
       needs.detect-changes.outputs.has-changes == 'true' &&
-      needs.deploy-infrastructure.result == 'success'
+      needs.build-images.result == 'success' &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
     
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
@@ -378,11 +399,11 @@ jobs:
             echo "✅ ${{ matrix.loader }} loader completed successfully"
           fi
 
-  # 4. Summary and notifications
+  # 5. Summary and notifications
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure, execute-loaders]
+    needs: [detect-changes, build-images, deploy-infrastructure, execute-loaders]
     if: always()
     
     steps:

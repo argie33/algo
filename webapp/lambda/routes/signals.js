@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const SignalProcessor = require('../utils/signalProcessor');
 const AdvancedSignalProcessor = require('../utils/advancedSignalProcessor');
+const AITradingSignalsEngine = require('../utils/aiTradingSignalsEngine');
 const AlpacaService = require('../utils/alpacaService');
 const apiKeyService = require('../utils/apiKeyServiceResilient');
 const logger = require('../utils/logger');
@@ -17,6 +18,7 @@ router.use(authenticateToken);
 // Initialize signal processors
 const signalProcessor = new SignalProcessor();
 const advancedSignalProcessor = new AdvancedSignalProcessor();
+const aiSignalsEngine = new AITradingSignalsEngine();
 
 // Validation schemas for signal endpoints
 const signalValidationSchemas = {
