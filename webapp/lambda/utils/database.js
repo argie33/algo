@@ -59,7 +59,7 @@ async function getDbConfig() {
         };
 
         console.log('✅ Database config loaded from Secrets Manager successfully');
-        console.log(`   🔒 SSL: enabled`);
+        console.log(`   🔒 SSL: disabled (matching working ECS task configuration)`);
         console.log(`   🏊 Pool Max: ${dbConfig.max}`);
 
         return dbConfig;
