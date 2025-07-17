@@ -1,4 +1,4 @@
-name: Deploy App Stocks - Modern Architecture
+name: Data Loaders Pipeline
 
 on:
   workflow_dispatch:
