@@ -61,7 +61,6 @@ Resources:
   # Cognito User Pool Client
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
-    DependsOn: CloudFrontDistribution
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: !Sub 'financial-dashboard-client-${EnvironmentName}'
@@ -73,11 +72,11 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'https://placeholder.example.com'
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       LogoutURLs:
-        - !Sub 'https://${CloudFrontDistribution.DomainName}'
+        - 'https://placeholder.example.com'
         - 'http://localhost:5173'
         - 'http://localhost:3000'
       AllowedOAuthFlows:
@@ -118,7 +117,6 @@ Resources:
         SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
@@ -129,9 +127,27 @@ Resources:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub '${FrontendBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # Explicit API Gateway with CORS (defined first to avoid circular dependency)
+  ServerlessRestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'financial-dashboard-api-dev'
+      StageName: dev
+      OpenApiVersion: 3.0.1
+      EndpointConfiguration:
+        Type: REGIONAL
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: false
+          MetricsEnabled: true
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
+        AllowOrigin: "'*'"
+        AllowCredentials: "'true'"
 
   # Main API Lambda function (handles all routes)
   ApiFunction:
@@ -182,26 +198,7 @@ Resources:
           Properties:
             Path: /
             Method: ANY
-            RestApiId: !Ref ServerlessRestApi  # Explicit API Gateway with CORS
-  ServerlessRestApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub 'financial-dashboard-api-dev'
-      StageName: dev
-      OpenApiVersion: 3.0.1
-      EndpointConfiguration:
-        Type: REGIONAL
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          LoggingLevel: INFO
-          DataTraceEnabled: false
-          MetricsEnabled: true
-      Cors:
-        AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
-        AllowOrigin: "'*'"
-        AllowCredentials: "'true'"
+            RestApiId: !Ref ServerlessRestApi
       Variables:
         Environment: dev
 
@@ -262,6 +259,7 @@ Resources:
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
     Type: AWS::CloudWatch::Alarm
+    DependsOn: ApiFunction
     Properties:
       AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
       AlarmDescription: Lambda function duration is high
@@ -279,6 +277,7 @@ Resources:
   # CloudWatch Alarm for API Gateway performance
   ApiGatewayPerformanceAlarm:
     Type: AWS::CloudWatch::Alarm
+    DependsOn: ServerlessRestApi
     Properties:
       AlarmName: !Sub '${AWS::StackName}-api-high-latency'
       AlarmDescription: API Gateway latency is high
@@ -316,7 +315,9 @@ Resources:
   # API Gateway Deployment (forces stage deployment)
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: ApiFunction
+    DependsOn:
+      - ApiFunction
+      - ServerlessRestApi
     Properties:
       RestApiId: !Ref ServerlessRestApi
       StageName: dev
@@ -325,7 +326,9 @@ Resources:
   # CloudFront Distribution
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
-    DependsOn: ApiGatewayDeployment
+    DependsOn:
+      - FrontendBucket
+      - OriginAccessControl
     Properties:
       DistributionConfig:
         Enabled: true
