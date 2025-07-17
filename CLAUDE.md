@@ -28,6 +28,15 @@ breaker = {
 3. **Circuit Breaker Purpose**: Protects database from cascading failures by temporarily blocking requests after repeated failures
 4. **Automatic Recovery**: Circuit breaker automatically transitions from 'open' → 'half-open' → 'closed' as service recovers
 
+### Development Workflow Requirements
+**CRITICAL: Always Build Before Push**
+- Run local syntax validation before any git commits
+- Test Lambda function loading locally when possible
+- Validate all imports and dependencies resolve correctly
+- Check for syntax errors in JavaScript/TypeScript files
+- Ensure all route modules export properly and load without errors
+- Test database connection patterns in development environment
+
 ### Frontend Build Status
 - ✅ **Build Successful**: Frontend builds without errors (11.59s)
 - ⚠️ **Runtime Error**: `createPalette.js:195 Uncaught TypeError: Xa is not a function` - Material-UI palette issue

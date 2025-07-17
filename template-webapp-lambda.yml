@@ -158,6 +158,9 @@ Resources:
       Handler: index.handler
       Environment:
         Variables:
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: !Ref DatabaseEndpoint
+          ENVIRONMENT: !Ref EnvironmentName
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           AWS_REGION: !Ref AWS::Region
@@ -199,8 +202,6 @@ Resources:
             Path: /
             Method: ANY
             RestApiId: !Ref ServerlessRestApi
-      Variables:
-        Environment: dev
 
   # Lambda Permission for API Gateway
   LambdaApiGatewayPermission:
