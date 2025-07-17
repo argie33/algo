@@ -324,6 +324,7 @@ jobs:
           
           echo "cluster=$CLUSTER_ARN" >> $GITHUB_OUTPUT
           echo "task-def=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "container-name=$TASK_DEF_NAME" >> $GITHUB_OUTPUT
           echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
           echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
           echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
@@ -339,7 +340,7 @@ jobs:
             --task-definition "${{ steps.infra.outputs.task-def }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"$TASK_DEF_NAME\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"${{ steps.infra.outputs.container-name }}\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
             --query "tasks[0].taskArn" \
             --output text)
           
