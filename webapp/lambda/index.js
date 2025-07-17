@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - TRIGGER deploy-webapp.yml NOT deploy-app-stocks.yml
+// MINIMAL LAMBDA - TRIGGER deploy-webapp-serverless.yml ONLY
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself

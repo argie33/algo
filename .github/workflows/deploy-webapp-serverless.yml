@@ -5,7 +5,7 @@ on:
     branches: [ main, initialbuild ]
     paths:
       - 'webapp/**'
-      - '.github/workflows/deploy-webapp.yml'
+      - '.github/workflows/deploy-webapp-serverless.yml'
 
 env:
   AWS_REGION: us-east-1
