@@ -128,6 +128,23 @@ app.put('/api/settings/theme', (req, res) => {
   });
 });
 
+// Add crypto routes
+try {
+  const cryptoRoutes = require('./routes/crypto');
+  app.use('/api/crypto', cryptoRoutes);
+  console.log('✅ Crypto routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load crypto routes:', error.message);
+  app.use('/api/crypto', (req, res) => {
+    res.status(503).json({
+      success: false,
+      error: 'Crypto service temporarily unavailable',
+      message: 'Route loading failed - check logs for details',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
+
 // Handle all other routes
 app.all('*', (req, res) => {
   res.json({
