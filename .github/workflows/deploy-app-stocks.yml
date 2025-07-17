@@ -23,8 +23,12 @@ on:
         type: boolean
   push:
     branches:
+      - initialbuild
       - main
       - develop
+    paths-ignore:
+      - 'webapp/**'
+      - '.github/workflows/deploy-webapp-serverless.yml'
   pull_request:
     branches:
       - main

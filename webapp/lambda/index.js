@@ -1,4 +1,4 @@
-// Load environment variables first
+// Load environment variables first - trigger webapp deployment
 require('dotenv').config();
 
 // Financial Dashboard API - Lambda Function
