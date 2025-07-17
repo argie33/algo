@@ -21,28 +21,9 @@ on:
         required: false
         default: false
         type: boolean
-  workflow_dispatch:
-    inputs:
-      loaders:
-        description: 'Comma-separated list of loaders to run (leave empty for auto-detection)'
-        required: false
-        default: ''
-      environment:
-        description: 'Deployment environment'
-        required: false
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
-      force_all:
-        description: 'Force run all loaders regardless of changes'
-        required: false
-        default: false
-        type: boolean
   push:
     branches:
+      - initialbuild
       - main
       - develop
     paths-ignore:
@@ -51,6 +32,7 @@ on:
       - '.github/workflows/deploy-webapp.yml'
   pull_request:
     branches:
+      - initialbuild
       - main
       - develop
     paths-ignore:
