@@ -8,7 +8,7 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import ThemeErrorBoundary from './components/ThemeErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import { createTheme, ThemeProvider } from '@mui/material/styles'
 import ApiKeyProvider from './components/ApiKeyProvider'
 
 console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
@@ -41,19 +41,23 @@ const queryClient = new QueryClient({
   },
 })
 
-// Create a component that uses the theme from context
+// Create a simple theme directly
+const theme = createTheme({
+  palette: {
+    mode: 'light',
+  },
+});
+
 const AppWithTheme = () => {
-  const { theme } = useTheme();
-  
   return (
-    <MuiThemeProvider theme={theme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
         <ApiKeyProvider>
           <App />
         </ApiKeyProvider>
       </AuthProvider>
-    </MuiThemeProvider>
+    </ThemeProvider>
   );
 };
 
@@ -67,9 +71,7 @@ try {
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
           <ThemeErrorBoundary>
-            <ThemeProvider>
-              <AppWithTheme />
-            </ThemeProvider>
+            <AppWithTheme />
           </ThemeErrorBoundary>
         </QueryClientProvider>
       </BrowserRouter>
