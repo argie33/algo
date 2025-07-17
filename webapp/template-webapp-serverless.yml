@@ -153,7 +153,7 @@ Resources:
           - !ImportValue StocksCore-LambdaSecurityGroupId
       Environment:
         Variables:
-          DB_SECRET_ARN: !ImportValue StocksInfra-SecretArn
+          DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
           NODE_ENV: production
           WEBAPP_AWS_REGION: !Ref AWS::Region
           COGNITO_USER_POOL_ID: !Ref UserPool
