@@ -139,7 +139,7 @@ Resources:
   ApiLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-handler
+      FunctionName: api-handler-v2
       Runtime: nodejs18.x
       Handler: index.handler
       Role: !ImportValue StocksCore-LambdaExecutionRoleArn

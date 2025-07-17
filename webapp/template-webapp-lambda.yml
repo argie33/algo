@@ -29,7 +29,7 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      FunctionName: !Sub 'financial-dashboard-api-v2-${EnvironmentName}'
       CodeUri: lambda/
       Handler: index.handler
       Description: Financial Dashboard API Lambda Function
