@@ -104,6 +104,7 @@ import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import CryptoAdvancedDashboard from './pages/CryptoAdvancedDashboard'
 import LiveData from './pages/LiveData'
+import UnifiedDataManagement from './pages/UnifiedDataManagement'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 
 const drawerWidth = 240
@@ -159,7 +160,7 @@ const menuItems = [
   
   // Tools Section
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
-  { text: 'Live Data Manager', icon: <TrendingUpIcon />, path: '/live-data', category: 'tools' },
+  { text: 'Data Management', icon: <StorageIcon />, path: '/data-management', category: 'tools' },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
@@ -538,7 +539,8 @@ function App() {
             <Route path="/options/volatility" element={<VolatilitySurface />} />
             <Route path="/options/greeks" element={<GreeksMonitor />} />
             
-            {/* Live Data Routes */}
+            {/* Data Management Routes */}
+            <Route path="/data-management" element={<UnifiedDataManagement />} />
             <Route path="/live-data" element={<LiveData />} />
             
             {/* Cryptocurrency Routes */}
