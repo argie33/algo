@@ -4640,4 +4640,399 @@ router.post('/import/alpaca', async (req, res) => {
   }
 });
 
+// Portfolio alerts endpoints
+const PortfolioAlerts = require('../utils/portfolioAlerts');
+
+/**
+ * GET /portfolio/alerts
+ * Get user's portfolio alerts
+ */
+router.get('/alerts', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alerts requested for user: ${userId.substring(0, 8)}...`);
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const filters = {
+      alertType: req.query.alertType,
+      symbol: req.query.symbol,
+      isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined
+    };
+    
+    const alerts = await portfolioAlerts.getUserPortfolioAlerts(userId, filters);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alerts retrieved in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        alerts,
+        count: alerts.length,
+        filters
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alerts retrieval failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve portfolio alerts',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * POST /portfolio/alerts
+ * Create a new portfolio alert
+ */
+router.post('/alerts', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert creation requested for user: ${userId.substring(0, 8)}...`);
+    
+    const {
+      alertType,
+      symbol,
+      threshold,
+      condition,
+      isActive = true,
+      notificationPreferences = {},
+      expiryDate,
+      message
+    } = req.body;
+    
+    // Validate required fields
+    if (!alertType || !threshold || !condition) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        message: 'alertType, threshold, and condition are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const alertConfig = {
+      alertType,
+      symbol,
+      threshold,
+      condition,
+      isActive,
+      notificationPreferences,
+      expiryDate,
+      message
+    };
+    
+    const newAlert = await portfolioAlerts.createPortfolioAlert(userId, alertConfig);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert created in ${Date.now() - startTime}ms`);
+    
+    res.status(201).json({
+      success: true,
+      data: newAlert,
+      message: 'Portfolio alert created successfully',
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert creation failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create portfolio alert',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * PUT /portfolio/alerts/:alertId
+ * Update a portfolio alert
+ */
+router.put('/alerts/:alertId', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  const alertId = req.params.alertId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert update requested for alert: ${alertId}`);
+    
+    const {
+      threshold,
+      condition,
+      isActive,
+      notificationPreferences,
+      expiryDate,
+      message
+    } = req.body;
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const updates = {
+      threshold,
+      condition,
+      isActive,
+      notificationPreferences,
+      expiryDate,
+      message
+    };
+    
+    const updatedAlert = await portfolioAlerts.updatePortfolioAlert(alertId, userId, updates);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert updated in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: updatedAlert,
+      message: 'Portfolio alert updated successfully',
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert update failed:`, error.message);
+    
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      error: 'Failed to update portfolio alert',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * DELETE /portfolio/alerts/:alertId
+ * Delete a portfolio alert
+ */
+router.delete('/alerts/:alertId', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  const alertId = req.params.alertId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert deletion requested for alert: ${alertId}`);
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const deletedAlert = await portfolioAlerts.deletePortfolioAlert(alertId, userId);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert deleted in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: deletedAlert,
+      message: 'Portfolio alert deleted successfully',
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert deletion failed:`, error.message);
+    
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      error: 'Failed to delete portfolio alert',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * GET /portfolio/alerts/notifications
+ * Get portfolio alert notifications
+ */
+router.get('/alerts/notifications', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert notifications requested for user: ${userId.substring(0, 8)}...`);
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const notifications = await portfolioAlerts.getPortfolioAlertNotifications(userId, limit);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert notifications retrieved in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        notifications,
+        count: notifications.length,
+        limit
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert notifications retrieval failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve portfolio alert notifications',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * POST /portfolio/alerts/process
+ * Process portfolio alerts for current user
+ */
+router.post('/alerts/process', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert processing requested for user: ${userId.substring(0, 8)}...`);
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const result = await portfolioAlerts.processUserPortfolioAlerts(userId);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert processing completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        processedCount: result.processedCount,
+        triggeredCount: result.triggeredCount,
+        message: `Processed ${result.processedCount} alerts, triggered ${result.triggeredCount} notifications`
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert processing failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to process portfolio alerts',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * GET /portfolio/alerts/types
+ * Get available portfolio alert types
+ */
+router.get('/alerts/types', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔔 [${requestId}] Portfolio alert types requested`);
+    
+    const portfolioAlerts = new PortfolioAlerts();
+    const alertTypes = portfolioAlerts.alertTypes;
+    
+    const alertTypeDefinitions = {
+      [alertTypes.ALLOCATION_DRIFT]: {
+        name: 'Allocation Drift',
+        description: 'Alert when portfolio allocation drifts from target percentages',
+        conditions: ['above'],
+        thresholdType: 'percentage',
+        requiresSymbol: false,
+        example: { threshold: 5, condition: 'above', description: 'Alert when any position drifts more than 5% from target' }
+      },
+      [alertTypes.POSITION_GAIN_LOSS]: {
+        name: 'Position Gain/Loss',
+        description: 'Alert when a position gains or loses beyond threshold',
+        conditions: ['above', 'below', 'absolute_above'],
+        thresholdType: 'percentage',
+        requiresSymbol: true,
+        example: { threshold: 20, condition: 'above', description: 'Alert when position gains more than 20%' }
+      },
+      [alertTypes.PORTFOLIO_VALUE_CHANGE]: {
+        name: 'Portfolio Value Change',
+        description: 'Alert when total portfolio value changes significantly',
+        conditions: ['increase_above', 'decrease_below', 'change_above'],
+        thresholdType: 'percentage',
+        requiresSymbol: false,
+        example: { threshold: 10, condition: 'change_above', description: 'Alert when portfolio value changes more than 10%' }
+      },
+      [alertTypes.SECTOR_CONCENTRATION]: {
+        name: 'Sector Concentration',
+        description: 'Alert when sector allocation exceeds threshold',
+        conditions: ['above'],
+        thresholdType: 'percentage',
+        requiresSymbol: false,
+        example: { threshold: 40, condition: 'above', description: 'Alert when any sector exceeds 40% allocation' }
+      },
+      [alertTypes.POSITION_SIZE_CHANGE]: {
+        name: 'Position Size Change',
+        description: 'Alert when position size changes beyond threshold',
+        conditions: ['above', 'below'],
+        thresholdType: 'percentage',
+        requiresSymbol: true,
+        example: { threshold: 25, condition: 'above', description: 'Alert when position exceeds 25% of portfolio' }
+      },
+      [alertTypes.BETA_CHANGE]: {
+        name: 'Beta Change',
+        description: 'Alert when portfolio beta exceeds threshold',
+        conditions: ['above', 'below'],
+        thresholdType: 'value',
+        requiresSymbol: false,
+        example: { threshold: 1.5, condition: 'above', description: 'Alert when portfolio beta exceeds 1.5' }
+      },
+      [alertTypes.REBALANCE_NEEDED]: {
+        name: 'Rebalance Needed',
+        description: 'Alert when portfolio needs rebalancing',
+        conditions: ['above'],
+        thresholdType: 'percentage',
+        requiresSymbol: false,
+        example: { threshold: 30, condition: 'above', description: 'Alert when top position exceeds 30% of portfolio' }
+      }
+    };
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio alert types retrieved in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        alertTypes: alertTypeDefinitions,
+        count: Object.keys(alertTypeDefinitions).length
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio alert types retrieval failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve portfolio alert types',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
 module.exports = router;
