@@ -3,7 +3,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const tradingStrategyEngine = require('../utils/tradingStrategyEngine');
 const logger = require('../utils/logger');
-const { responseFormatter } = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
@@ -68,7 +68,7 @@ router.get('/', async (req, res) => {
     
     const strategies = await tradingStrategyEngine.getUserStrategies(userId);
     
-    const response = responseFormatter.success({
+    const response = success({
       strategies,
       totalCount: strategies.length,
       activeCount: strategies.filter(s => s.is_active).length
@@ -86,7 +86,7 @@ router.get('/', async (req, res) => {
       errorStack: error.stack
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve trading strategies',
       500,
       { details: error.message }
@@ -111,17 +111,17 @@ router.get('/:strategyId', async (req, res) => {
     const strategy = await tradingStrategyEngine.getStrategyPerformance(strategyId);
     
     if (!strategy) {
-      const response = responseFormatter.error('Strategy not found', 404);
+      const response = error('Strategy not found', 404);
       return res.status(404).json(response);
     }
     
     // Verify ownership
     if (strategy.user_id !== userId) {
-      const response = responseFormatter.error('Access denied', 403);
+      const response = error('Access denied', 403);
       return res.status(403).json(response);
     }
     
-    const response = responseFormatter.success(strategy, 'Strategy details retrieved successfully');
+    const response = success(strategy, 'Strategy details retrieved successfully');
     
     logger.info(`✅ [${requestId}] Strategy details retrieved`, {
       strategyId,
@@ -136,7 +136,7 @@ router.get('/:strategyId', async (req, res) => {
       strategyId
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve strategy details',
       500,
       { details: error.message }
@@ -181,7 +181,7 @@ router.post('/', createValidationMiddleware(strategyValidationSchemas.create), a
     // Register strategy with engine
     const result = await tradingStrategyEngine.registerStrategy(userId, strategyConfig);
     
-    const response = responseFormatter.success({
+    const response = success({
       strategyId: result.strategyId,
       status: result.status,
       active: result.active,
@@ -202,7 +202,7 @@ router.post('/', createValidationMiddleware(strategyValidationSchemas.create), a
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to create trading strategy',
       500,
       { details: error.message }
@@ -230,7 +230,7 @@ router.post('/:strategyId/execute', createValidationMiddleware(strategyValidatio
     // Execute strategy
     const executionResult = await tradingStrategyEngine.executeStrategy(strategyId, signal);
     
-    const response = responseFormatter.success({
+    const response = success({
       executionId: `exec-${Date.now()}`,
       strategyId,
       executionResult,
@@ -253,7 +253,7 @@ router.post('/:strategyId/execute', createValidationMiddleware(strategyValidatio
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to execute trading strategy',
       500,
       { details: error.message }
@@ -283,7 +283,7 @@ router.put('/:strategyId', async (req, res) => {
       const result = await tradingStrategyEngine.deactivateStrategy(strategyId);
       
       if (result) {
-        const response = responseFormatter.success({
+        const response = success({
           strategyId,
           status: 'deactivated'
         }, 'Strategy deactivated successfully');
@@ -291,11 +291,11 @@ router.put('/:strategyId', async (req, res) => {
         logger.info(`✅ [${requestId}] Strategy deactivated`, { strategyId });
         res.json(response);
       } else {
-        const response = responseFormatter.error('Failed to deactivate strategy', 500);
+        const response = error('Failed to deactivate strategy', 500);
         res.status(500).json(response);
       }
     } else {
-      const response = responseFormatter.error('Strategy updates not fully implemented', 501);
+      const response = error('Strategy updates not fully implemented', 501);
       res.status(501).json(response);
     }
   } catch (error) {
@@ -305,7 +305,7 @@ router.put('/:strategyId', async (req, res) => {
       strategyId
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to update trading strategy',
       500,
       { details: error.message }
@@ -337,7 +337,7 @@ router.delete('/:strategyId', async (req, res) => {
       WHERE id = $1 AND user_id = $2
     `, [strategyId, userId]);
     
-    const response = responseFormatter.success({
+    const response = success({
       strategyId,
       status: 'deleted'
     }, 'Strategy deleted successfully');
@@ -351,7 +351,7 @@ router.delete('/:strategyId', async (req, res) => {
       strategyId
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to delete trading strategy',
       500,
       { details: error.message }
@@ -388,7 +388,7 @@ router.get('/:strategyId/executions', async (req, res) => {
       LIMIT $3 OFFSET $4
     `, [strategyId, userId, limit, offset]);
     
-    const response = responseFormatter.success({
+    const response = success({
       executions: result.rows,
       strategyId,
       pagination: {
@@ -411,7 +411,7 @@ router.get('/:strategyId/executions', async (req, res) => {
       strategyId
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve execution history',
       500,
       { details: error.message }
@@ -468,7 +468,7 @@ router.get('/config/types', async (req, res) => {
       }
     };
     
-    const response = responseFormatter.success({
+    const response = success({
       strategyTypes,
       supportedProviders: ['alpaca'],
       riskManagementDefaults: {
@@ -486,7 +486,7 @@ router.get('/config/types', async (req, res) => {
       errorStack: error.stack
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve strategy configuration',
       500,
       { details: error.message }

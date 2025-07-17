@@ -7,7 +7,7 @@ const AdvancedSignalProcessor = require('../utils/advancedSignalProcessor');
 const AlpacaService = require('../utils/alpacaService');
 const apiKeyService = require('../utils/apiKeyServiceResilient');
 const logger = require('../utils/logger');
-const { responseFormatter } = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
@@ -69,7 +69,7 @@ router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analy
     // Get user's API credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      const response = responseFormatter.error('API credentials required for signal analysis', 400);
+      const response = error('API credentials required for signal analysis', 400);
       return res.status(400).json(response);
     }
 
@@ -80,7 +80,7 @@ router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analy
     const priceData = await alpacaService.getHistoricalBars(symbol, timeframe, lookback);
     
     if (!priceData || priceData.length < 50) {
-      const response = responseFormatter.error('Insufficient price data for signal analysis', 400);
+      const response = error('Insufficient price data for signal analysis', 400);
       return res.status(400).json(response);
     }
 
@@ -91,7 +91,7 @@ router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analy
     });
 
     if (!signalAnalysis.success) {
-      const response = responseFormatter.error('Signal processing failed', 500);
+      const response = error('Signal processing failed', 500);
       return res.status(500).json(response);
     }
 
@@ -120,7 +120,7 @@ router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analy
       }
     };
 
-    const response = responseFormatter.success(responseData, 'Signal analysis completed successfully');
+    const response = success(responseData, 'Signal analysis completed successfully');
     
     logger.info(`✅ [${requestId}] Signal analysis completed`, {
       symbol: symbol,
@@ -140,7 +140,7 @@ router.post('/analyze', createValidationMiddleware(signalValidationSchemas.analy
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to analyze signals',
       500,
       { details: error.message }
@@ -182,7 +182,7 @@ router.get('/types', async (req, res) => {
       riskLevels: ['low', 'medium', 'high']
     };
     
-    const response = responseFormatter.success(signalTypes, 'Signal types retrieved successfully');
+    const response = success(signalTypes, 'Signal types retrieved successfully');
     res.json(response);
     
   } catch (error) {
@@ -191,7 +191,7 @@ router.get('/types', async (req, res) => {
       errorStack: error.stack
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve signal types',
       500,
       { details: error.message }
@@ -435,7 +435,7 @@ router.post('/analyze/advanced', createValidationMiddleware(signalValidationSche
     const advancedAnalysis = await advancedSignalProcessor.generateAdvancedSignals(symbol, timeframe, lookback);
     
     if (!advancedAnalysis.success) {
-      const response = responseFormatter.error('Advanced signal analysis failed', 500);
+      const response = error('Advanced signal analysis failed', 500);
       return res.status(500).json(response);
     }
 
@@ -472,7 +472,7 @@ router.post('/analyze/advanced', createValidationMiddleware(signalValidationSche
       }
     };
 
-    const response = responseFormatter.success(responseData, 'Advanced signal analysis completed successfully');
+    const response = success(responseData, 'Advanced signal analysis completed successfully');
     
     logger.info(`✅ [${requestId}] Advanced signal analysis completed`, {
       symbol: symbol,
@@ -492,7 +492,7 @@ router.post('/analyze/advanced', createValidationMiddleware(signalValidationSche
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to perform advanced signal analysis',
       500,
       { details: error.message }

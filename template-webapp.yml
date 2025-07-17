@@ -39,11 +39,381 @@ Parameters:
     Default: 512
     Description: Task CPU units
 
+  # Cognito Configuration Parameters
+  ApplicationName:
+    Type: String
+    Default: 'financial-platform'
+    Description: Application name for Cognito resources
+    
+  CognitoMFARequired:
+    Type: String
+    Default: 'OPTIONAL'
+    AllowedValues: ['OFF', 'OPTIONAL', 'ON']
+    Description: MFA requirement level for Cognito users
+    
+  PasswordMinLength:
+    Type: Number
+    Default: 12
+    MinValue: 8
+    MaxValue: 99
+    Description: Minimum password length for Cognito users
+    
+  SessionTimeout:
+    Type: Number
+    Default: 60
+    MinValue: 5
+    MaxValue: 86400
+    Description: Session timeout in minutes
+
 Conditions:
   HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
   HasDomain: !Not [!Equals [!Ref DomainName, '']]
+  IsMFAOptional: !Equals [!Ref CognitoMFARequired, 'OPTIONAL']
+  IsMFARequired: !Equals [!Ref CognitoMFARequired, 'ON']
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
 
 Resources:
+
+  # ========================================
+  # INSTITUTIONAL-GRADE COGNITO AUTHENTICATION
+  # ========================================
+
+  # SNS Topic for MFA SMS (Production-grade messaging)
+  MFASNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ApplicationName}-mfa-sms-${EnvironmentName}'
+      DisplayName: !Sub '${ApplicationName} MFA SMS Service'
+      KmsMasterKeyId: !If [IsProduction, !Ref MFAEncryptionKey, !Ref 'AWS::NoValue']
+
+  # KMS Key for MFA SMS encryption (Production only)
+  MFAEncryptionKey:
+    Type: AWS::KMS::Key
+    Condition: IsProduction
+    Properties:
+      Description: 'KMS key for MFA SMS encryption'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow SNS service
+            Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+
+  # IAM Role for Cognito SMS with enhanced security
+  CognitoSMSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ApplicationName}-cognito-sms-role-${EnvironmentName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cognito-idp.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub '${ApplicationName}-external-id-${EnvironmentName}'
+      Policies:
+        - PolicyName: CognitoSMSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref MFASNSTopic
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey*
+                  - kms:DescribeKey
+                Resource: !If [IsProduction, !GetAtt MFAEncryptionKey.Arn, '*']
+
+  # Institutional-Grade Cognito User Pool
+  FinancialPlatformUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${ApplicationName}-users-${EnvironmentName}'
+      
+      # MAXIMUM SECURITY SETTINGS
+      UserPoolAddOns:
+        AdvancedSecurityMode: ENFORCED  # Detects compromised credentials, unusual sign-in activity
+      
+      # Account Recovery & Verification
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+          - Name: verified_phone_number
+            Priority: 2
+      
+      # Auto-verified attributes for security
+      AutoVerifiedAttributes:
+        - email
+        - phone_number
+      
+      # Required attributes for financial compliance
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: given_name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: family_name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: phone_number
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: organization
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: job_title
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: risk_tolerance
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: investment_experience
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: accredited_investor
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      
+      # INSTITUTIONAL-GRADE PASSWORD POLICY
+      Policies:
+        PasswordPolicy:
+          MinimumLength: !Ref PasswordMinLength
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 1
+      
+      # Multi-Factor Authentication Configuration
+      MfaConfiguration: !Ref CognitoMFARequired
+      EnabledMfas:
+        - SMS_MFA
+        - SOFTWARE_TOKEN_MFA  # TOTP (Google Authenticator, Authy, etc.)
+      
+      # SMS Configuration for MFA
+      SmsConfiguration:
+        SnsCallerArn: !GetAtt CognitoSMSRole.Arn
+        ExternalId: !Sub '${ApplicationName}-external-id-${EnvironmentName}'
+        SnsRegion: !Ref AWS::Region
+      
+      # Device Security (Remember devices for convenience with security)
+      DeviceConfiguration:
+        ChallengeRequiredOnNewDevice: true
+        DeviceOnlyRememberedOnUserPrompt: true
+      
+      # Admin User Creation Settings
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageAction: EMAIL
+        TemporaryPasswordValidityDays: 1
+        UnusedAccountValidityDays: 7
+      
+      # Professional Email Templates
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: !Sub '${ApplicationName} - Verify your account'
+        EmailMessage: !Sub |
+          Welcome to ${ApplicationName}!
+          
+          Your verification code is: {####}
+          
+          This code will expire in 24 hours.
+          
+          If you did not request this verification, please ignore this email.
+        SmsMessage: !Sub '${ApplicationName} verification: {####}'
+      
+      # User Pool Tags for Management and Compliance
+      UserPoolTags:
+        Environment: !Ref EnvironmentName
+        Application: !Ref ApplicationName
+        SecurityLevel: 'Institutional-Grade'
+        Compliance: 'SOX-FINRA-Ready'
+        MFAEnabled: !Ref CognitoMFARequired
+        DataClassification: 'Sensitive-Financial'
+
+  # User Pool Client with Security Best Practices
+  FinancialPlatformUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${ApplicationName}-client-${EnvironmentName}'
+      UserPoolId: !Ref FinancialPlatformUserPool
+      
+      # Security Configuration
+      GenerateSecret: false  # SPA/Mobile apps don't need client secret
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH          # Secure Remote Password (recommended)
+        - ALLOW_REFRESH_TOKEN_AUTH     # Token refresh capability
+        - ALLOW_USER_PASSWORD_AUTH     # Emergency fallback only
+      
+      # Token Configuration (Security-first approach)
+      RefreshTokenValidity: 30        # 30 days maximum
+      AccessTokenValidity: !Ref SessionTimeout  # Configurable session timeout
+      IdTokenValidity: !Ref SessionTimeout      # Match access token
+      TokenValidityUnits:
+        RefreshToken: days
+        AccessToken: minutes
+        IdToken: minutes
+      
+      # Security: Prevent User Existence Errors
+      PreventUserExistenceErrors: ENABLED
+      
+      # OAuth Configuration
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+        - aws.cognito.signin.user.admin
+      
+      # Callback and Logout URLs (Environment-aware)
+      CallbackURLs:
+        - !If 
+          - HasDomain
+          - !Sub 'https://${DomainName}/auth/callback'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/auth/callback'
+        - 'http://localhost:3000/auth/callback'  # Development
+        - 'http://localhost:5173/auth/callback'  # Vite dev server
+      
+      LogoutURLs:
+        - !If 
+          - HasDomain
+          - !Sub 'https://${DomainName}/logout'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/logout'
+        - 'http://localhost:3000/logout'  # Development
+        - 'http://localhost:5173/logout'  # Vite dev server
+      
+      # Attribute Permissions (Financial Platform specific)
+      ReadAttributes:
+        - email
+        - given_name
+        - family_name
+        - phone_number
+        - organization
+        - job_title
+        - risk_tolerance
+        - investment_experience
+        - accredited_investor
+        - email_verified
+        - phone_number_verified
+      
+      WriteAttributes:
+        - given_name
+        - family_name
+        - phone_number
+        - organization
+        - job_title
+        - risk_tolerance
+        - investment_experience
+        - accredited_investor
+
+  # User Pool Domain for Professional Hosted UI
+  FinancialPlatformUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub '${ApplicationName}-auth-${EnvironmentName}-${AWS::AccountId}'
+      UserPoolId: !Ref FinancialPlatformUserPool
+
+  # Identity Pool for AWS Resource Access
+  FinancialPlatformIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub '${ApplicationName}_identity_pool_${EnvironmentName}'
+      AllowUnauthenticatedIdentities: false  # Security: No anonymous access
+      CognitoIdentityProviders:
+        - ClientId: !Ref FinancialPlatformUserPoolClient
+          ProviderName: !GetAtt FinancialPlatformUserPool.ProviderName
+
+  # IAM Role for Authenticated Users (Least Privilege)
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ApplicationName}-cognito-authenticated-role-${EnvironmentName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref FinancialPlatformIdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: AuthenticatedUserPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Basic Cognito permissions
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: '*'
+              # API Gateway access (specific to this application)
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource: 
+                  - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/api/*'
+              # CloudWatch metrics (for user analytics)
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'cloudwatch:namespace': !Sub '${ApplicationName}/UserMetrics'
+
+  # Identity Pool Role Attachment
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref FinancialPlatformIdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+  # ========================================
+  # EXISTING RESOURCES (Enhanced with Cognito Integration)
+  # ========================================
 
   ## 1) S3 Bucket for Static Assets (Frontend Build)
   StaticAssetsBucket:
@@ -270,13 +640,17 @@ Resources:
             # JWT Secret for authentication
             - Name: JWT_SECRET_ARN
               Value: !ImportValue StocksApp-JwtSecretArn
-            # Cognito Configuration (if available)
+            # Cognito Configuration (Built-in to this template)
             - Name: COGNITO_USER_POOL_ID
-              Value: !ImportValue
-                Fn::Sub: 'stocks-webapp-${EnvironmentName}-UserPoolId'
+              Value: !Ref FinancialPlatformUserPool
             - Name: COGNITO_CLIENT_ID
-              Value: !ImportValue
-                Fn::Sub: 'stocks-webapp-${EnvironmentName}-UserPoolClientId'
+              Value: !Ref FinancialPlatformUserPoolClient
+            - Name: COGNITO_REGION
+              Value: !Ref AWS::Region
+            - Name: COGNITO_IDENTITY_POOL_ID
+              Value: !Ref FinancialPlatformIdentityPool
+            - Name: COGNITO_DOMAIN
+              Value: !Sub 'https://${FinancialPlatformUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
           Secrets:
             # Database credentials from Secrets Manager
             - Name: DB_SECRET_ARN
@@ -423,3 +797,56 @@ Outputs:
     Value: !GetAtt ECSService.Name
     Export:
       Name: !Sub '${AWS::StackName}-ECSService'
+
+  # ========================================
+  # COGNITO AUTHENTICATION OUTPUTS
+  # ========================================
+
+  UserPoolId:
+    Description: 'Cognito User Pool ID for authentication'
+    Value: !Ref FinancialPlatformUserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID for frontend'
+    Value: !Ref FinancialPlatformUserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  IdentityPoolId:
+    Description: 'Cognito Identity Pool ID for AWS resource access'
+    Value: !Ref FinancialPlatformIdentityPool
+    Export:
+      Name: !Sub '${AWS::StackName}-IdentityPoolId'
+
+  UserPoolDomain:
+    Description: 'Cognito User Pool Domain for Hosted UI'
+    Value: !Sub 'https://${FinancialPlatformUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  HostedUIURL:
+    Description: 'Complete Cognito Hosted UI Login URL'
+    Value: !Sub 'https://${FinancialPlatformUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${FinancialPlatformUserPoolClient}&response_type=code&scope=email+openid+profile+aws.cognito.signin.user.admin&redirect_uri=https://${CloudFrontDistribution.DomainName}/auth/callback'
+    Export:
+      Name: !Sub '${AWS::StackName}-HostedUIURL'
+
+  CognitoRegion:
+    Description: 'AWS Region for Cognito configuration'
+    Value: !Ref AWS::Region
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoRegion'
+
+  AuthenticatedRole:
+    Description: 'IAM Role ARN for authenticated users'
+    Value: !GetAtt CognitoAuthenticatedRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthenticatedRole'
+
+  # Security and Configuration Information
+  SecurityConfiguration:
+    Description: 'Security configuration summary'
+    Value: !Sub 'MFA:${CognitoMFARequired}|AdvancedSecurity:ENFORCED|MinPassword:${PasswordMinLength}|SessionTimeout:${SessionTimeout}min'
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityConfig'

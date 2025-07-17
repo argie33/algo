@@ -168,6 +168,10 @@ const routes = [
   { path: './routes/sentiment', name: 'Sentiment', mount: '/api/sentiment' },
   { path: './routes/signals', name: 'Trading Signals', mount: '/api/signals' },
   { path: './routes/crypto', name: 'Cryptocurrency', mount: '/api/crypto' },
+  { path: './routes/crypto-advanced', name: 'Crypto Advanced Portfolio', mount: '/api/crypto-advanced' },
+  { path: './routes/crypto-signals', name: 'Crypto Trading Signals', mount: '/api/crypto-signals' },
+  { path: './routes/crypto-risk', name: 'Crypto Risk Management', mount: '/api/crypto-risk' },
+  { path: './routes/crypto-analytics', name: 'Crypto Market Analytics', mount: '/api/crypto-analytics' },
   
   // Advanced Trading & Analytics
   { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' },

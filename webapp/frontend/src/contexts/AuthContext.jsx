@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
+import SessionManager from '../components/auth/SessionManager';
 
 // Initial auth state
 const initialState = {
@@ -396,7 +397,9 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      <SessionManager>
+        {children}
+      </SessionManager>
     </AuthContext.Provider>
   );
 }

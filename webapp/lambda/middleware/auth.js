@@ -1,5 +1,6 @@
 const { CognitoJwtVerifier } = require('aws-jwt-verify');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const crypto = require('crypto');
 
 // Initialize secrets manager client
 const secretsManager = new SecretsManagerClient({
@@ -109,19 +110,23 @@ async function getVerifier() {
   return verifierPromise;
 }
 
-// Authentication middleware
+// Bulletproof Authentication middleware with comprehensive security
 const authenticateToken = async (req, res, next) => {
   const startTime = Date.now();
-  const requestId = req.headers['x-request-id'] || 'unknown';
+  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
   
   try {
     console.log(`🔐 [${requestId}] Authentication middleware called for ${req.method} ${req.path}`);
-    console.log(`🌍 [${requestId}] Environment:`, {
+    console.log(`🌍 [${requestId}] Security Context:`, {
       NODE_ENV: process.env.NODE_ENV,
-      SKIP_AUTH: process.env.SKIP_AUTH,
+      clientIp,
+      userAgent: userAgent.substring(0, 100), // Truncate for logging
       hasUserPoolId: !!process.env.COGNITO_USER_POOL_ID,
       hasClientId: !!process.env.COGNITO_CLIENT_ID,
-      hasSecretArn: !!process.env.COGNITO_SECRET_ARN
+      hasSecretArn: !!process.env.COGNITO_SECRET_ARN,
+      timestamp: new Date().toISOString()
     });
     
     // SECURITY: Remove development bypass to prevent production exploitation
@@ -185,14 +190,43 @@ const authenticateToken = async (req, res, next) => {
     const payload = await jwtVerifier.verify(token);
     console.log(`🎯 [${requestId}] Token verified successfully`);
     
-    // Add user information to request
+    // Add comprehensive user information to request with security context
     req.user = {
       sub: payload.sub,
       email: payload.email,
       username: payload.username,
       role: payload['custom:role'] || 'user',
-      groups: payload['cognito:groups'] || []
+      groups: payload['cognito:groups'] || [],
+      // Security context
+      clientIp,
+      userAgent,
+      requestId,
+      authenticatedAt: new Date().toISOString(),
+      tokenIssuedAt: new Date(payload.iat * 1000).toISOString(),
+      tokenExpiresAt: new Date(payload.exp * 1000).toISOString(),
+      // Enhanced profile attributes for financial platform
+      givenName: payload.given_name,
+      familyName: payload.family_name,
+      phoneNumber: payload.phone_number,
+      phoneNumberVerified: payload.phone_number_verified,
+      emailVerified: payload.email_verified,
+      organization: payload['custom:organization'],
+      jobTitle: payload['custom:job_title'],
+      riskTolerance: payload['custom:risk_tolerance'],
+      investmentExperience: payload['custom:investment_experience'],
+      accreditedInvestor: payload['custom:accredited_investor']
     };
+
+    // Log successful authentication with security details
+    console.log(`✅ [${requestId}] User authenticated successfully:`, {
+      userId: req.user.sub,
+      email: req.user.email,
+      role: req.user.role,
+      clientIp,
+      userAgent: userAgent.substring(0, 50),
+      authenticatedAt: req.user.authenticatedAt,
+      tokenExpiresAt: req.user.tokenExpiresAt
+    });
 
     const duration = Date.now() - startTime;
     console.log(`👤 [${requestId}] User authenticated in ${duration}ms:`, {

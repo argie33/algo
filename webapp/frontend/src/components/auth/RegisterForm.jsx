@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import PasswordStrengthValidator from './PasswordStrengthValidator';
 
 function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const [formData, setFormData] = useState({
@@ -29,6 +30,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [passwordValidation, setPasswordValidation] = useState(null);
 
   const { register, isLoading, error, clearError } = useAuth();
 
@@ -54,8 +56,9 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       return false;
     }
 
-    if (formData.password.length < 8) {
-      setLocalError('Password must be at least 8 characters long');
+    // Use advanced password validation
+    if (!passwordValidation || !passwordValidation.isValid) {
+      setLocalError('Password does not meet security requirements. Please check the requirements below.');
       return false;
     }
 
@@ -169,33 +172,17 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             helperText="We'll send verification instructions to this email"
           />
 
-          <TextField
-            fullWidth
-            id="password"
-            name="password"
-            label="Password"
-            type={showPassword ? 'text' : 'password'}
+          <PasswordStrengthValidator
             value={formData.password}
             onChange={handleChange}
-            margin="normal"
-            required
+            onValidationChange={setPasswordValidation}
+            label="Password"
+            placeholder="Create a strong password"
+            name="password"
             autoComplete="new-password"
             disabled={isLoading}
-            helperText="Must be at least 8 characters long"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              )
-            }}
+            margin="normal"
+            required
           />
 
           <TextField

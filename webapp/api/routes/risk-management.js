@@ -5,7 +5,7 @@ const RiskManager = require('../utils/riskManager');
 const AlpacaService = require('../utils/alpacaService');
 const apiKeyService = require('../utils/apiKeyServiceResilient');
 const logger = require('../utils/logger');
-const { responseFormatter } = require('../utils/responseFormatter');
+const { success, error } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
@@ -104,7 +104,7 @@ router.post('/position-size', createValidationMiddleware(riskValidationSchemas.p
         const account = await alpacaService.getAccount();
         actualPortfolioValue = parseFloat(account.portfolio_value);
       } else {
-        const response = responseFormatter.error('Portfolio value required when no API credentials available', 400);
+        const response = error('Portfolio value required when no API credentials available', 400);
         return res.status(400).json(response);
       }
     }
@@ -141,7 +141,7 @@ router.post('/position-size', createValidationMiddleware(riskValidationSchemas.p
       }
     };
 
-    const response = responseFormatter.success(responseData, 'Position size calculated successfully');
+    const response = success(responseData, 'Position size calculated successfully');
     
     logger.info(`✅ [${requestId}] Position size calculated`, {
       symbol: symbol,
@@ -160,7 +160,7 @@ router.post('/position-size', createValidationMiddleware(riskValidationSchemas.p
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to calculate position size',
       500,
       { details: error.message }
@@ -225,7 +225,7 @@ router.post('/stop-loss', createValidationMiddleware(riskValidationSchemas.stopL
       }
     };
 
-    const response = responseFormatter.success(responseData, 'Stop loss levels calculated successfully');
+    const response = success(responseData, 'Stop loss levels calculated successfully');
     
     logger.info(`✅ [${requestId}] Stop loss levels calculated`, {
       symbol: symbol,
@@ -244,7 +244,7 @@ router.post('/stop-loss', createValidationMiddleware(riskValidationSchemas.stopL
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to calculate stop loss levels',
       500,
       { details: error.message }
@@ -268,7 +268,7 @@ router.get('/portfolio-analysis', async (req, res) => {
     // Get user's API credentials
     const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
     if (!credentials) {
-      const response = responseFormatter.error('API credentials required for portfolio analysis', 400);
+      const response = error('API credentials required for portfolio analysis', 400);
       return res.status(400).json(response);
     }
 
@@ -323,7 +323,7 @@ router.get('/portfolio-analysis', async (req, res) => {
       }
     };
 
-    const response = responseFormatter.success(responseData, 'Portfolio risk analysis completed successfully');
+    const response = success(responseData, 'Portfolio risk analysis completed successfully');
     
     logger.info(`✅ [${requestId}] Portfolio risk analysis completed`, {
       positionCount: positionCount,
@@ -341,7 +341,7 @@ router.get('/portfolio-analysis', async (req, res) => {
       totalTime: Date.now() - startTime
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to analyze portfolio risk',
       500,
       { details: error.message }
@@ -408,7 +408,7 @@ router.get('/settings', async (req, res) => {
       }
     };
 
-    const response = responseFormatter.success(riskSettings, 'Risk management settings retrieved successfully');
+    const response = success(riskSettings, 'Risk management settings retrieved successfully');
     res.json(response);
     
   } catch (error) {
@@ -417,7 +417,7 @@ router.get('/settings', async (req, res) => {
       errorStack: error.stack
     });
     
-    const response = responseFormatter.error(
+    const response = error(
       'Failed to retrieve risk management settings',
       500,
       { details: error.message }

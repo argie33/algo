@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -11,10 +11,13 @@ import {
   Link,
   InputAdornment,
   IconButton,
-  Divider
+  Divider,
+  Collapse
 } from '@mui/material';
-import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Login as LoginIcon, Security } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import BiometricAuth from './BiometricAuth';
+import MFASetupModal from './MFASetupModal';
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const [formData, setFormData] = useState({
@@ -23,8 +26,11 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [showMFASetup, setShowMFASetup] = useState(false);
+  const [showBiometric, setShowBiometric] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, isLoading, error, clearError, user } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,6 +42,19 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     if (error) clearError();
     if (localError) setLocalError('');
   };
+
+  // Check for user authentication success and show MFA setup
+  useEffect(() => {
+    if (user && !loginSuccess) {
+      setLoginSuccess(true);
+      // Check if user should set up MFA (could check user attributes)
+      const shouldSetupMFA = !user.mfaEnabled; // This would come from user attributes
+      if (shouldSetupMFA) {
+        setShowMFASetup(true);
+      }
+      setShowBiometric(true);
+    }
+  }, [user, loginSuccess]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,6 +70,25 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     if (!result.success && result.error) {
       setLocalError(result.error);
     }
+  };
+
+  const handleBiometricAuth = async (authResult) => {
+    console.log('Biometric authentication successful:', authResult);
+    // In production, you would validate this with your backend
+    setLocalError('');
+  };
+
+  const handleBiometricSetup = (credentialData) => {
+    console.log('Biometric setup completed:', credentialData);
+  };
+
+  const handleBiometricError = (error) => {
+    console.error('Biometric error:', error);
+  };
+
+  const handleMFASetupComplete = (method) => {
+    console.log('MFA setup completed with method:', method);
+    setShowMFASetup(false);
   };
 
   const displayError = error || localError;
@@ -144,6 +182,24 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
           <Divider sx={{ my: 2 }} />
 
+          {/* Biometric Authentication Section */}
+          <Collapse in={showBiometric && user}>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Security fontSize="small" />
+                Enhanced Security
+              </Typography>
+              <BiometricAuth
+                userId={user?.userId}
+                username={user?.username}
+                onAuthSuccess={handleBiometricAuth}
+                onSetupComplete={handleBiometricSetup}
+                onError={handleBiometricError}
+                compact={true}
+              />
+            </Box>
+          </Collapse>
+
           <Box textAlign="center">
             <Typography variant="body2" color="text.secondary">
               Don't have an account?{' '}
@@ -160,6 +216,14 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             </Typography>
           </Box>
         </Box>
+
+        {/* MFA Setup Modal */}
+        <MFASetupModal
+          open={showMFASetup}
+          onClose={() => setShowMFASetup(false)}
+          onSetupComplete={handleMFASetupComplete}
+          userPhoneNumber={user?.phoneNumber}
+        />
       </CardContent>
     </Card>
   );

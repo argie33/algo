@@ -102,6 +102,7 @@ import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
 import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
+import CryptoAdvancedDashboard from './pages/CryptoAdvancedDashboard'
 import LiveData from './pages/LiveData'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 
@@ -119,6 +120,7 @@ const menuItems = [
   
   // Cryptocurrency Section
   { text: 'Crypto Market', icon: <TrendingUpIcon />, path: '/crypto', category: 'crypto' },
+  { text: 'Advanced Dashboard', icon: <AnalyticsIcon />, path: '/crypto/advanced', category: 'crypto', premium: true },
   
   // Stocks Section
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
@@ -541,6 +543,7 @@ function App() {
             
             {/* Cryptocurrency Routes */}
             <Route path="/crypto" element={<CryptoMarketOverview />} />
+            <Route path="/crypto/advanced" element={<CryptoAdvancedDashboard />} />
           </Routes>
         </Container>
       </Box>

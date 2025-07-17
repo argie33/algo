@@ -40,6 +40,8 @@ import {
   VolumeOff as VolumeOffIcon,
   Settings as SettingsIcon,
   Clear as ClearIcon,
+  PlayArrow as PlayArrowIcon,
+  Stop as StopIcon,
   TrendingUp as TrendingUpIcon,
   AccountBalance as AccountBalanceIcon,
   Assessment as AssessmentIcon,
@@ -51,6 +53,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { sendChatMessage, getChatHistory, clearChatHistory, getAIConfig, updateAIPreferences, requestDigitalHuman } from '../services/api';
+import speechService from '../services/speechService';
 
 const AIAssistant = () => {
   const { user } = useAuth();
@@ -76,6 +79,9 @@ const AIAssistant = () => {
   const [optionsMenuAnchor, setOptionsMenuAnchor] = useState(null);
   const [digitalHumanEnabled, setDigitalHumanEnabled] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [autoVoiceResponse, setAutoVoiceResponse] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(null);
+  const [interimTranscript, setInterimTranscript] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -94,6 +100,58 @@ const AIAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize speech service
+  useEffect(() => {
+    const supportStatus = speechService.getSupportStatus();
+    setSpeechSupported(supportStatus);
+
+    // Set up speech service callbacks
+    speechService.setCallbacks({
+      onResult: (finalTranscript, interim) => {
+        if (finalTranscript) {
+          setInterimTranscript('');
+          handleSendMessage(finalTranscript);
+        } else {
+          setInterimTranscript(interim);
+        }
+      },
+      onError: (message, error) => {
+        console.error('Speech error:', message, error);
+        setIsListening(false);
+        setInterimTranscript('');
+        // Show error message to user
+        const errorMessage = {
+          id: Date.now(),
+          type: 'assistant',
+          content: `Voice input error: ${message}`,
+          timestamp: new Date(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      },
+      onStart: () => {
+        setIsListening(true);
+        setInterimTranscript('');
+      },
+      onEnd: () => {
+        setIsListening(false);
+        setInterimTranscript('');
+      },
+      onSpeechStart: () => {
+        console.log('AI started speaking');
+      },
+      onSpeechEnd: () => {
+        console.log('AI finished speaking');
+      }
+    });
+
+    return () => {
+      // Cleanup speech service
+      speechService.stopListening();
+      speechService.stopSpeaking();
+    };
+  }, []);
 
   const handleSendMessage = async (messageContent = null) => {
     const content = messageContent || inputMessage.trim();
@@ -124,6 +182,15 @@ const AIAssistant = () => {
         };
 
         setMessages(prev => [...prev, assistantMessage]);
+
+        // If voice is enabled and auto-response is on, speak the response
+        if (voiceEnabled && autoVoiceResponse && speechService.isSynthesisSupported()) {
+          try {
+            speechService.speak(response.message.content);
+          } catch (voiceError) {
+            console.log('Voice response failed:', voiceError.message);
+          }
+        }
 
         // If digital human is enabled, request avatar response
         if (digitalHumanEnabled) {
@@ -198,9 +265,51 @@ const AIAssistant = () => {
     }
   };
 
-  const handleVoiceToggle = () => {
-    setIsListening(!isListening);
-    // Implement voice recognition here
+  const handleVoiceToggle = async () => {
+    if (!speechService.isRecognitionSupported()) {
+      const errorMessage = {
+        id: Date.now(),
+        type: 'assistant',
+        content: 'Voice input is not supported in this browser. Please try Chrome or Edge.',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
+    if (!voiceEnabled) {
+      const errorMessage = {
+        id: Date.now(),
+        type: 'assistant',
+        content: 'Please enable voice chat in settings first.',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
+    if (isListening) {
+      speechService.stopListening();
+    } else {
+      try {
+        speechService.startListening({
+          continuous: false,
+          interimResults: true
+        });
+      } catch (error) {
+        console.error('Failed to start voice recognition:', error);
+        const errorMessage = {
+          id: Date.now(),
+          type: 'assistant',
+          content: 'Failed to start voice input. Please check microphone permissions.',
+          timestamp: new Date(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    }
   };
 
   const handleClearChat = async () => {
@@ -256,10 +365,11 @@ const AIAssistant = () => {
                 {digitalHumanEnabled ? <VideocamIcon /> : <VideocamOffIcon />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="Voice Chat">
+            <Tooltip title={`Voice Chat ${speechService.isRecognitionSupported() ? '' : '(Not Supported)'}`}>
               <IconButton 
                 color={voiceEnabled ? 'primary' : 'default'}
                 onClick={() => setVoiceEnabled(!voiceEnabled)}
+                disabled={!speechService.isRecognitionSupported()}
               >
                 {voiceEnabled ? <VolumeUpIcon /> : <VolumeOffIcon />}
               </IconButton>
@@ -377,17 +487,39 @@ const AIAssistant = () => {
                       <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                         {message.content}
                       </Typography>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          display: 'block', 
-                          mt: 1, 
-                          opacity: 0.7,
-                          textAlign: message.type === 'user' ? 'right' : 'left'
-                        }}
-                      >
-                        {message.timestamp.toLocaleTimeString()}
-                      </Typography>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: message.type === 'user' ? 'flex-end' : 'space-between',
+                        alignItems: 'center',
+                        mt: 1 
+                      }}>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ opacity: 0.7 }}
+                        >
+                          {message.timestamp.toLocaleTimeString()}
+                        </Typography>
+                        {message.type === 'assistant' && voiceEnabled && speechService.isSynthesisSupported() && (
+                          <Tooltip title={speechService.isCurrentlySpeaking() ? "Stop speaking" : "Speak this message"}>
+                            <IconButton 
+                              size="small"
+                              onClick={() => {
+                                if (speechService.isCurrentlySpeaking()) {
+                                  speechService.stopSpeaking();
+                                } else {
+                                  speechService.speak(message.content);
+                                }
+                              }}
+                              sx={{ opacity: 0.7, ml: 1 }}
+                            >
+                              {speechService.isCurrentlySpeaking() ? 
+                                <StopIcon fontSize="small" /> : 
+                                <PlayArrowIcon fontSize="small" />
+                              }
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
                     </Paper>
                     
                     {/* Suggestions */}
@@ -439,6 +571,7 @@ const AIAssistant = () => {
                 onKeyPress={handleKeyPress}
                 disabled={isLoading}
                 size="small"
+                helperText={isListening && interimTranscript ? `Listening: ${interimTranscript}` : ''}
               />
               {voiceEnabled && (
                 <Tooltip title={isListening ? "Stop listening" : "Start voice input"}>
@@ -502,14 +635,30 @@ const AIAssistant = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={isVoiceEnabled}
-                    onChange={(e) => setIsVoiceEnabled(e.target.checked)}
+                    checked={autoVoiceResponse}
+                    onChange={(e) => setAutoVoiceResponse(e.target.checked)}
+                    disabled={!voiceEnabled}
                   />
                 }
                 label="Auto-play Voice Responses"
               />
               
-              <Alert severity="info" sx={{ mt: 2 }}>
+              {speechSupported && (
+                <Alert 
+                  severity={speechSupported.fullSupport ? 'success' : 'warning'} 
+                  sx={{ mt: 2 }}
+                >
+                  <Typography variant="body2">
+                    <strong>Voice Support:</strong> 
+                    {speechSupported.fullSupport 
+                      ? ' Full voice chat supported in this browser!' 
+                      : ` Limited support. ${speechSupported.recommendedBrowser}`
+                    }
+                  </Typography>
+                </Alert>
+              )}
+              
+              <Alert severity="info" sx={{ mt: 1 }}>
                 <Typography variant="body2">
                   <strong>Digital Human Avatar:</strong> This feature uses NVIDIA's Digital Human technology 
                   to provide a more engaging experience. Currently in beta phase.
