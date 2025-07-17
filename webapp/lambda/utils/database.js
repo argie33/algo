@@ -43,21 +43,51 @@ async function getDbConfig() {
                 
                 let secret;
                 
+                // Enhanced debugging and parsing logic
+                console.log('=== SECRET DEBUGGING ===');
+                console.log('result keys:', Object.keys(result));
+                console.log('result.SecretString exists:', 'SecretString' in result);
+                console.log('result.SecretBinary exists:', 'SecretBinary' in result);
+                
                 // Check if SecretString is already an object (parsed by AWS SDK)
                 if (typeof result.SecretString === 'object' && result.SecretString !== null) {
                     console.log('SecretString is already an object, using directly');
                     secret = result.SecretString;
                 } else if (typeof result.SecretString === 'string') {
+                    console.log('SecretString is a string, attempting to parse');
                     try {
                         secret = JSON.parse(result.SecretString);
+                        console.log('Successfully parsed SecretString as JSON');
                     } catch (parseError) {
                         console.error('Failed to parse SecretString as JSON:', parseError);
                         console.error('Raw SecretString type:', typeof result.SecretString);
                         console.error('Raw SecretString length:', result.SecretString?.length);
                         console.error('Raw SecretString (escaped):', JSON.stringify(result.SecretString));
+                        
+                        // Try to identify the issue more specifically
+                        if (result.SecretString.startsWith('o') || result.SecretString.startsWith('[o')) {
+                            console.error('SecretString appears to start with "o" which might indicate an object literal');
+                            console.error('This suggests the secret might be malformed or contain JavaScript object syntax instead of JSON');
+                        }
+                        
                         throw new Error(`Secret parsing failed: ${parseError.message}. Raw value type: ${typeof result.SecretString}, length: ${result.SecretString?.length}`);
                     }
+                } else if (result.SecretString === undefined && result.SecretBinary) {
+                    console.log('SecretString is undefined but SecretBinary exists, trying to decode');
+                    try {
+                        const decoded = Buffer.from(result.SecretBinary, 'base64').toString('utf-8');
+                        console.log('Decoded SecretBinary:', decoded);
+                        secret = JSON.parse(decoded);
+                    } catch (decodeError) {
+                        console.error('Failed to decode SecretBinary:', decodeError);
+                        throw new Error(`Secret binary decoding failed: ${decodeError.message}`);
+                    }
                 } else {
+                    console.error('Unexpected secret format:', {
+                        secretStringType: typeof result.SecretString,
+                        secretStringValue: result.SecretString,
+                        secretBinaryExists: !!result.SecretBinary
+                    });
                     throw new Error(`Unexpected SecretString type: ${typeof result.SecretString}`)
                 }
                 
