@@ -3627,4 +3627,1017 @@ router.get('/analytics', createValidationMiddleware(portfolioValidationSchemas.a
   }
 });
 
+// Portfolio rebalancing and optimization endpoints
+const PortfolioOptimizationEngine = require('../utils/portfolioOptimizationEngine');
+
+/**
+ * GET /portfolio/rebalance/recommendations
+ * Get portfolio rebalancing recommendations
+ */
+router.get('/rebalance/recommendations', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📊 [${requestId}] Portfolio rebalancing recommendations requested for user: ${userId.substring(0, 8)}...`);
+    
+    // Get current portfolio holdings
+    const holdingsResult = await query(`
+      SELECT 
+        h.symbol,
+        h.shares,
+        h.avg_cost,
+        h.current_price,
+        h.market_value,
+        h.gain_loss,
+        h.gain_loss_percent,
+        h.sector,
+        h.industry,
+        h.last_updated
+      FROM portfolio_holdings h
+      WHERE h.user_id = $1 AND h.shares > 0
+      ORDER BY h.market_value DESC
+    `, [userId]);
+    
+    if (holdingsResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          recommendations: [],
+          summary: {
+            message: 'No portfolio holdings found. Add positions to get rebalancing recommendations.',
+            totalValue: 0,
+            positionsCount: 0
+          }
+        },
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime
+      });
+    }
+    
+    const holdings = holdingsResult.rows;
+    const optimizer = new PortfolioOptimizationEngine();
+    
+    // Get user preferences or use defaults
+    const preferences = {
+      riskTolerance: req.query.riskTolerance || 'moderate',
+      objective: req.query.objective || 'balanced',
+      maxPositionSize: parseFloat(req.query.maxPosition) || 0.25,
+      minPositionSize: parseFloat(req.query.minPosition) || 0.05,
+      rebalanceThreshold: parseFloat(req.query.threshold) || 0.05
+    };
+    
+    // Generate rebalancing recommendations
+    const optimizationResults = await optimizer.optimizePortfolio(holdings, userId, preferences);
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Rebalancing recommendations generated in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        recommendations: optimizationResults.rebalancingRecommendations,
+        currentAllocation: optimizationResults.currentAllocation,
+        targetAllocation: optimizationResults.targetAllocation,
+        optimization: {
+          expectedReturn: optimizationResults.expectedReturn,
+          expectedVolatility: optimizationResults.expectedVolatility,
+          sharpeRatio: optimizationResults.sharpeRatio,
+          objective: preferences.objective
+        },
+        summary: {
+          totalValue: optimizationResults.currentPortfolioValue,
+          positionsCount: holdings.length,
+          rebalanceNeeded: optimizationResults.rebalanceNeeded,
+          estimatedTradingCost: optimizationResults.estimatedTradingCost
+        }
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio rebalancing recommendations failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to generate rebalancing recommendations',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * POST /portfolio/rebalance/execute
+ * Execute portfolio rebalancing trades
+ */
+router.post('/rebalance/execute', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`🔄 [${requestId}] Portfolio rebalancing execution requested for user: ${userId.substring(0, 8)}...`);
+    
+    const { trades, dryRun = true } = req.body;
+    
+    if (!trades || !Array.isArray(trades) || trades.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid trades data',
+        message: 'Trades array is required and must contain at least one trade',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Get user's API credentials for trading
+    const apiKey = await getUserApiKey(userId, 'alpaca');
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API key required',
+        message: 'Please configure your Alpaca API key in settings to execute trades',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const alpacaService = new AlpacaService(apiKey.apiKey, apiKey.apiSecret, apiKey.isSandbox);
+    
+    // Execute trades (or simulate if dry run)
+    const executionResults = [];
+    let totalEstimatedCost = 0;
+    
+    for (const trade of trades) {
+      try {
+        const result = {
+          symbol: trade.symbol,
+          action: trade.action,
+          quantity: trade.quantity,
+          type: trade.type || 'market',
+          status: 'pending'
+        };
+        
+        if (dryRun) {
+          // Simulate trade execution
+          result.status = 'simulated';
+          result.estimatedPrice = trade.estimatedPrice;
+          result.estimatedCost = trade.quantity * trade.estimatedPrice;
+          totalEstimatedCost += result.estimatedCost;
+        } else {
+          // Execute actual trade
+          const order = await alpacaService.createOrder({
+            symbol: trade.symbol,
+            qty: trade.quantity,
+            side: trade.action,
+            type: trade.type || 'market',
+            time_in_force: trade.timeInForce || 'day'
+          });
+          
+          result.status = 'executed';
+          result.orderId = order.id;
+          result.filledPrice = order.filled_avg_price;
+          result.filledQuantity = order.filled_qty;
+        }
+        
+        executionResults.push(result);
+        
+      } catch (tradeError) {
+        console.error(`❌ [${requestId}] Trade execution failed for ${trade.symbol}:`, tradeError.message);
+        executionResults.push({
+          symbol: trade.symbol,
+          action: trade.action,
+          quantity: trade.quantity,
+          status: 'failed',
+          error: tradeError.message
+        });
+      }
+    }
+    
+    // Update portfolio holdings if not dry run
+    if (!dryRun) {
+      // This would typically update the portfolio_holdings table
+      // For now, we'll let the next sync update the holdings
+      if (shouldLog('INFO')) console.log(`📊 [${requestId}] Portfolio holdings will be updated on next sync`);
+    }
+    
+    const successfulTrades = executionResults.filter(r => r.status === 'executed' || r.status === 'simulated');
+    const failedTrades = executionResults.filter(r => r.status === 'failed');
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Rebalancing execution completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        executionResults,
+        summary: {
+          totalTrades: trades.length,
+          successfulTrades: successfulTrades.length,
+          failedTrades: failedTrades.length,
+          totalEstimatedCost,
+          dryRun,
+          executionTime: Date.now() - startTime
+        }
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio rebalancing execution failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to execute rebalancing trades',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * GET /portfolio/allocation/analysis
+ * Get portfolio allocation analysis and optimization suggestions
+ */
+router.get('/allocation/analysis', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📊 [${requestId}] Portfolio allocation analysis requested for user: ${userId.substring(0, 8)}...`);
+    
+    // Get current portfolio holdings with extended data
+    const holdingsResult = await query(`
+      SELECT 
+        h.symbol,
+        h.shares,
+        h.avg_cost,
+        h.current_price,
+        h.market_value,
+        h.gain_loss,
+        h.gain_loss_percent,
+        h.sector,
+        h.industry,
+        h.last_updated,
+        p.market_cap,
+        p.beta,
+        p.pe_ratio,
+        p.dividend_yield
+      FROM portfolio_holdings h
+      LEFT JOIN latest_prices p ON h.symbol = p.symbol
+      WHERE h.user_id = $1 AND h.shares > 0
+      ORDER BY h.market_value DESC
+    `, [userId]);
+    
+    if (holdingsResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          analysis: {
+            message: 'No portfolio holdings found for analysis',
+            totalValue: 0,
+            positionsCount: 0
+          }
+        },
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime
+      });
+    }
+    
+    const holdings = holdingsResult.rows;
+    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+    
+    // Calculate allocation breakdowns
+    const sectorAllocation = {};
+    const industryAllocation = {};
+    const marketCapAllocation = { large: 0, mid: 0, small: 0 };
+    
+    holdings.forEach(holding => {
+      const value = parseFloat(holding.market_value || 0);
+      const allocation = totalValue > 0 ? (value / totalValue) * 100 : 0;
+      
+      // Sector allocation
+      const sector = holding.sector || 'Other';
+      sectorAllocation[sector] = (sectorAllocation[sector] || 0) + allocation;
+      
+      // Industry allocation
+      const industry = holding.industry || 'Other';
+      industryAllocation[industry] = (industryAllocation[industry] || 0) + allocation;
+      
+      // Market cap allocation
+      const marketCap = parseFloat(holding.market_cap || 0);
+      if (marketCap > 10000000000) { // > $10B
+        marketCapAllocation.large += allocation;
+      } else if (marketCap > 2000000000) { // > $2B
+        marketCapAllocation.mid += allocation;
+      } else {
+        marketCapAllocation.small += allocation;
+      }
+    });
+    
+    // Calculate risk metrics
+    const portfolioBeta = holdings.reduce((sum, h) => {
+      const allocation = parseFloat(h.market_value || 0) / totalValue;
+      const beta = parseFloat(h.beta || 1);
+      return sum + (allocation * beta);
+    }, 0);
+    
+    const avgPE = holdings.reduce((sum, h) => {
+      const allocation = parseFloat(h.market_value || 0) / totalValue;
+      const pe = parseFloat(h.pe_ratio || 0);
+      return sum + (allocation * pe);
+    }, 0);
+    
+    const avgDividendYield = holdings.reduce((sum, h) => {
+      const allocation = parseFloat(h.market_value || 0) / totalValue;
+      const dividend = parseFloat(h.dividend_yield || 0);
+      return sum + (allocation * dividend);
+    }, 0);
+    
+    // Generate optimization suggestions
+    const suggestions = [];
+    
+    // Concentration risk check
+    const topPositions = holdings.slice(0, 5);
+    const top5Concentration = topPositions.reduce((sum, h) => sum + (parseFloat(h.market_value) / totalValue) * 100, 0);
+    
+    if (top5Concentration > 70) {
+      suggestions.push({
+        type: 'concentration_risk',
+        severity: 'high',
+        message: `Top 5 positions represent ${top5Concentration.toFixed(1)}% of portfolio. Consider reducing concentration risk.`,
+        recommendation: 'Diversify holdings across more positions or sectors'
+      });
+    }
+    
+    // Sector concentration check
+    const maxSectorAllocation = Math.max(...Object.values(sectorAllocation));
+    if (maxSectorAllocation > 40) {
+      suggestions.push({
+        type: 'sector_concentration',
+        severity: 'medium',
+        message: `High sector concentration detected (${maxSectorAllocation.toFixed(1)}%).`,
+        recommendation: 'Consider diversifying across different sectors'
+      });
+    }
+    
+    // Risk level assessment
+    if (portfolioBeta > 1.5) {
+      suggestions.push({
+        type: 'high_beta',
+        severity: 'medium',
+        message: `Portfolio beta is ${portfolioBeta.toFixed(2)}, indicating higher volatility than market.`,
+        recommendation: 'Consider adding some defensive stocks or bonds to reduce risk'
+      });
+    }
+    
+    if (suggestions.length === 0) {
+      suggestions.push({
+        type: 'well_diversified',
+        severity: 'info',
+        message: 'Portfolio appears well-diversified with good risk management.',
+        recommendation: 'Continue monitoring and periodic rebalancing'
+      });
+    }
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio allocation analysis completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        analysis: {
+          totalValue,
+          positionsCount: holdings.length,
+          allocations: {
+            sector: Object.entries(sectorAllocation).map(([name, percentage]) => ({
+              name,
+              percentage: parseFloat(percentage.toFixed(2))
+            })).sort((a, b) => b.percentage - a.percentage),
+            industry: Object.entries(industryAllocation).map(([name, percentage]) => ({
+              name,
+              percentage: parseFloat(percentage.toFixed(2))
+            })).sort((a, b) => b.percentage - a.percentage),
+            marketCap: [
+              { name: 'Large Cap', percentage: parseFloat(marketCapAllocation.large.toFixed(2)) },
+              { name: 'Mid Cap', percentage: parseFloat(marketCapAllocation.mid.toFixed(2)) },
+              { name: 'Small Cap', percentage: parseFloat(marketCapAllocation.small.toFixed(2)) }
+            ]
+          },
+          riskMetrics: {
+            portfolioBeta: parseFloat(portfolioBeta.toFixed(2)),
+            avgPE: parseFloat(avgPE.toFixed(2)),
+            avgDividendYield: parseFloat(avgDividendYield.toFixed(2)),
+            top5Concentration: parseFloat(top5Concentration.toFixed(2))
+          },
+          suggestions
+        }
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio allocation analysis failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to analyze portfolio allocation',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * GET /portfolio/export/csv
+ * Export portfolio holdings to CSV format
+ */
+router.get('/export/csv', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📊 [${requestId}] Portfolio CSV export requested for user: ${userId.substring(0, 8)}...`);
+    
+    // Get portfolio holdings with all relevant data
+    const holdingsResult = await query(`
+      SELECT 
+        h.symbol,
+        h.shares,
+        h.avg_cost,
+        h.current_price,
+        h.market_value,
+        h.gain_loss,
+        h.gain_loss_percent,
+        h.sector,
+        h.industry,
+        h.last_updated,
+        h.purchase_date,
+        p.company_name,
+        p.market_cap,
+        p.beta,
+        p.pe_ratio,
+        p.dividend_yield,
+        p.volume
+      FROM portfolio_holdings h
+      LEFT JOIN company_profiles p ON h.symbol = p.symbol
+      WHERE h.user_id = $1 AND h.shares > 0
+      ORDER BY h.market_value DESC
+    `, [userId]);
+    
+    if (holdingsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No portfolio holdings found',
+        message: 'Cannot export empty portfolio',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const holdings = holdingsResult.rows;
+    
+    // Generate CSV content
+    const csvHeaders = [
+      'Symbol',
+      'Company Name',
+      'Shares',
+      'Avg Cost',
+      'Current Price',
+      'Market Value',
+      'Gain/Loss',
+      'Gain/Loss %',
+      'Sector',
+      'Industry',
+      'Purchase Date',
+      'Market Cap',
+      'Beta',
+      'P/E Ratio',
+      'Dividend Yield',
+      'Volume',
+      'Last Updated'
+    ];
+    
+    const csvRows = holdings.map(holding => [
+      holding.symbol,
+      holding.company_name || '',
+      holding.shares,
+      holding.avg_cost,
+      holding.current_price,
+      holding.market_value,
+      holding.gain_loss,
+      holding.gain_loss_percent,
+      holding.sector || '',
+      holding.industry || '',
+      holding.purchase_date ? new Date(holding.purchase_date).toISOString().split('T')[0] : '',
+      holding.market_cap || '',
+      holding.beta || '',
+      holding.pe_ratio || '',
+      holding.dividend_yield || '',
+      holding.volume || '',
+      holding.last_updated ? new Date(holding.last_updated).toISOString() : ''
+    ]);
+    
+    // Create CSV content
+    const csvContent = [csvHeaders, ...csvRows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `portfolio_export_${timestamp}.csv`;
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio CSV export completed in ${Date.now() - startTime}ms`);
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(csvContent);
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio CSV export failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to export portfolio to CSV',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * GET /portfolio/export/json
+ * Export portfolio holdings to JSON format
+ */
+router.get('/export/json', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📊 [${requestId}] Portfolio JSON export requested for user: ${userId.substring(0, 8)}...`);
+    
+    // Get comprehensive portfolio data
+    const [holdingsResult, summaryResult] = await Promise.all([
+      query(`
+        SELECT 
+          h.symbol,
+          h.shares,
+          h.avg_cost,
+          h.current_price,
+          h.market_value,
+          h.gain_loss,
+          h.gain_loss_percent,
+          h.sector,
+          h.industry,
+          h.last_updated,
+          h.purchase_date,
+          p.company_name,
+          p.market_cap,
+          p.beta,
+          p.pe_ratio,
+          p.dividend_yield
+        FROM portfolio_holdings h
+        LEFT JOIN company_profiles p ON h.symbol = p.symbol
+        WHERE h.user_id = $1 AND h.shares > 0
+        ORDER BY h.market_value DESC
+      `, [userId]),
+      query(`
+        SELECT 
+          SUM(market_value) as total_value,
+          SUM(gain_loss) as total_gain_loss,
+          COUNT(*) as positions_count
+        FROM portfolio_holdings
+        WHERE user_id = $1 AND shares > 0
+      `, [userId])
+    ]);
+    
+    if (holdingsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No portfolio holdings found',
+        message: 'Cannot export empty portfolio',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const holdings = holdingsResult.rows;
+    const summary = summaryResult.rows[0];
+    
+    // Calculate sector allocation
+    const totalValue = parseFloat(summary.total_value || 0);
+    const sectorAllocation = {};
+    
+    holdings.forEach(holding => {
+      const sector = holding.sector || 'Other';
+      const value = parseFloat(holding.market_value || 0);
+      sectorAllocation[sector] = (sectorAllocation[sector] || 0) + value;
+    });
+    
+    // Convert to percentages
+    const sectorBreakdown = Object.entries(sectorAllocation).map(([sector, value]) => ({
+      sector,
+      value: parseFloat(value.toFixed(2)),
+      percentage: totalValue > 0 ? parseFloat(((value / totalValue) * 100).toFixed(2)) : 0
+    })).sort((a, b) => b.value - a.value);
+    
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        exportType: 'portfolio_holdings',
+        userId: userId.substring(0, 8) + '...',
+        totalPositions: holdings.length,
+        totalValue: parseFloat(summary.total_value || 0),
+        totalGainLoss: parseFloat(summary.total_gain_loss || 0),
+        totalGainLossPercent: totalValue > 0 ? parseFloat(((summary.total_gain_loss / (totalValue - summary.total_gain_loss)) * 100).toFixed(2)) : 0
+      },
+      holdings: holdings.map(holding => ({
+        symbol: holding.symbol,
+        companyName: holding.company_name,
+        shares: parseFloat(holding.shares),
+        avgCost: parseFloat(holding.avg_cost),
+        currentPrice: parseFloat(holding.current_price),
+        marketValue: parseFloat(holding.market_value),
+        gainLoss: parseFloat(holding.gain_loss),
+        gainLossPercent: parseFloat(holding.gain_loss_percent),
+        sector: holding.sector,
+        industry: holding.industry,
+        purchaseDate: holding.purchase_date,
+        marketCap: holding.market_cap,
+        beta: holding.beta,
+        peRatio: holding.pe_ratio,
+        dividendYield: holding.dividend_yield,
+        lastUpdated: holding.last_updated
+      })),
+      sectorBreakdown,
+      summary: {
+        totalValue: parseFloat(summary.total_value || 0),
+        totalGainLoss: parseFloat(summary.total_gain_loss || 0),
+        positionsCount: parseInt(summary.positions_count || 0),
+        averageGainLoss: holdings.length > 0 ? parseFloat((summary.total_gain_loss / holdings.length).toFixed(2)) : 0
+      }
+    };
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio JSON export completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: exportData,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio JSON export failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to export portfolio to JSON',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * POST /portfolio/import/csv
+ * Import portfolio holdings from CSV file
+ */
+router.post('/import/csv', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📥 [${requestId}] Portfolio CSV import requested for user: ${userId.substring(0, 8)}...`);
+    
+    const { csvData, importMode = 'append' } = req.body;
+    
+    if (!csvData || typeof csvData !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid CSV data',
+        message: 'CSV data is required as a string',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Parse CSV data
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid CSV format',
+        message: 'CSV must contain at least a header and one data row',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim().toLowerCase());
+    const dataLines = lines.slice(1);
+    
+    // Validate required columns
+    const requiredColumns = ['symbol', 'shares', 'avg_cost'];
+    const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+    
+    if (missingColumns.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required columns',
+        message: `Required columns: ${missingColumns.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Parse holdings data
+    const importedHoldings = [];
+    const errors = [];
+    
+    for (let i = 0; i < dataLines.length; i++) {
+      const line = dataLines[i];
+      const values = line.split(',').map(v => v.replace(/"/g, '').trim());
+      
+      if (values.length !== headers.length) {
+        errors.push(`Line ${i + 2}: Column count mismatch`);
+        continue;
+      }
+      
+      const holding = {};
+      headers.forEach((header, index) => {
+        holding[header] = values[index];
+      });
+      
+      // Validate and convert data types
+      try {
+        const parsedHolding = {
+          symbol: holding.symbol.toUpperCase(),
+          shares: parseFloat(holding.shares),
+          avg_cost: parseFloat(holding.avg_cost),
+          current_price: holding.current_price ? parseFloat(holding.current_price) : null,
+          sector: holding.sector || null,
+          industry: holding.industry || null,
+          purchase_date: holding.purchase_date || null
+        };
+        
+        if (!parsedHolding.symbol || parsedHolding.shares <= 0 || parsedHolding.avg_cost <= 0) {
+          errors.push(`Line ${i + 2}: Invalid symbol, shares, or avg_cost`);
+          continue;
+        }
+        
+        importedHoldings.push(parsedHolding);
+      } catch (parseError) {
+        errors.push(`Line ${i + 2}: ${parseError.message}`);
+      }
+    }
+    
+    if (importedHoldings.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid holdings to import',
+        message: 'All rows contained errors',
+        errors,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // If replace mode, clear existing holdings
+    if (importMode === 'replace') {
+      await query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
+    }
+    
+    // Insert or update holdings
+    let insertedCount = 0;
+    let updatedCount = 0;
+    
+    for (const holding of importedHoldings) {
+      try {
+        const existingResult = await query(
+          'SELECT id FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
+          [userId, holding.symbol]
+        );
+        
+        if (existingResult.rows.length > 0) {
+          // Update existing holding
+          await query(`
+            UPDATE portfolio_holdings 
+            SET shares = $1, avg_cost = $2, current_price = $3, 
+                sector = $4, industry = $5, purchase_date = $6, 
+                market_value = $1 * COALESCE($3, avg_cost),
+                gain_loss = ($1 * COALESCE($3, avg_cost)) - ($1 * $2),
+                gain_loss_percent = CASE 
+                  WHEN $2 > 0 THEN (((COALESCE($3, avg_cost) - $2) / $2) * 100)
+                  ELSE 0 
+                END,
+                last_updated = NOW()
+            WHERE user_id = $7 AND symbol = $8
+          `, [
+            holding.shares, holding.avg_cost, holding.current_price,
+            holding.sector, holding.industry, holding.purchase_date,
+            userId, holding.symbol
+          ]);
+          updatedCount++;
+        } else {
+          // Insert new holding
+          await query(`
+            INSERT INTO portfolio_holdings (
+              user_id, symbol, shares, avg_cost, current_price, 
+              sector, industry, purchase_date, market_value, 
+              gain_loss, gain_loss_percent, last_updated
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 
+              $3 * COALESCE($5, $4),
+              ($3 * COALESCE($5, $4)) - ($3 * $4),
+              CASE 
+                WHEN $4 > 0 THEN (((COALESCE($5, $4) - $4) / $4) * 100)
+                ELSE 0 
+              END,
+              NOW()
+            )
+          `, [
+            userId, holding.symbol, holding.shares, holding.avg_cost,
+            holding.current_price, holding.sector, holding.industry,
+            holding.purchase_date
+          ]);
+          insertedCount++;
+        }
+      } catch (dbError) {
+        errors.push(`${holding.symbol}: ${dbError.message}`);
+      }
+    }
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio CSV import completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalRows: dataLines.length,
+          validRows: importedHoldings.length,
+          insertedCount,
+          updatedCount,
+          errorCount: errors.length,
+          importMode
+        },
+        errors: errors.length > 0 ? errors : undefined
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio CSV import failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to import portfolio from CSV',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
+ * POST /portfolio/import/alpaca
+ * Import portfolio holdings from Alpaca API
+ */
+router.post('/import/alpaca', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().split('-')[0];
+  const userId = req.user.userId;
+  
+  try {
+    if (shouldLog('INFO')) console.log(`📥 [${requestId}] Portfolio Alpaca import requested for user: ${userId.substring(0, 8)}...`);
+    
+    const { forceRefresh = false } = req.body;
+    
+    // Get user's Alpaca API credentials
+    const apiKey = await getUserApiKey(userId, 'alpaca');
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Alpaca API key required',
+        message: 'Please configure your Alpaca API key in settings to import portfolio',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const alpacaService = new AlpacaService(apiKey.apiKey, apiKey.apiSecret, apiKey.isSandbox);
+    
+    // Get positions from Alpaca
+    const positions = await alpacaService.getPositions();
+    
+    if (!positions || positions.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          summary: {
+            totalPositions: 0,
+            insertedCount: 0,
+            updatedCount: 0,
+            message: 'No positions found in Alpaca account'
+          }
+        },
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime
+      });
+    }
+    
+    // Process positions and update database
+    let insertedCount = 0;
+    let updatedCount = 0;
+    const errors = [];
+    
+    for (const position of positions) {
+      try {
+        const symbol = position.symbol;
+        const shares = parseFloat(position.qty);
+        const avgCost = parseFloat(position.avg_cost);
+        const currentPrice = parseFloat(position.market_value) / shares;
+        const marketValue = parseFloat(position.market_value);
+        const gainLoss = parseFloat(position.unrealized_pl);
+        const gainLossPercent = parseFloat(position.unrealized_plpc) * 100;
+        
+        // Check if position already exists
+        const existingResult = await query(
+          'SELECT id FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
+          [userId, symbol]
+        );
+        
+        if (existingResult.rows.length > 0) {
+          // Update existing position
+          await query(`
+            UPDATE portfolio_holdings 
+            SET shares = $1, avg_cost = $2, current_price = $3, 
+                market_value = $4, gain_loss = $5, gain_loss_percent = $6,
+                last_updated = NOW()
+            WHERE user_id = $7 AND symbol = $8
+          `, [shares, avgCost, currentPrice, marketValue, gainLoss, gainLossPercent, userId, symbol]);
+          updatedCount++;
+        } else {
+          // Insert new position
+          await query(`
+            INSERT INTO portfolio_holdings (
+              user_id, symbol, shares, avg_cost, current_price, 
+              market_value, gain_loss, gain_loss_percent, last_updated
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+          `, [userId, symbol, shares, avgCost, currentPrice, marketValue, gainLoss, gainLossPercent]);
+          insertedCount++;
+        }
+        
+        // Get additional company info if available
+        try {
+          const companyResult = await query(
+            'SELECT sector, industry FROM company_profiles WHERE symbol = $1',
+            [symbol]
+          );
+          
+          if (companyResult.rows.length > 0) {
+            const company = companyResult.rows[0];
+            await query(`
+              UPDATE portfolio_holdings 
+              SET sector = $1, industry = $2
+              WHERE user_id = $3 AND symbol = $4
+            `, [company.sector, company.industry, userId, symbol]);
+          }
+        } catch (companyError) {
+          // Non-critical error, continue processing
+          if (shouldLog('DEBUG')) console.log(`Company info not found for ${symbol}`);
+        }
+        
+      } catch (positionError) {
+        errors.push(`${position.symbol}: ${positionError.message}`);
+      }
+    }
+    
+    if (shouldLog('INFO')) console.log(`✅ [${requestId}] Portfolio Alpaca import completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalPositions: positions.length,
+          insertedCount,
+          updatedCount,
+          errorCount: errors.length,
+          importSource: 'alpaca',
+          sandbox: apiKey.isSandbox
+        },
+        errors: errors.length > 0 ? errors : undefined
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Portfolio Alpaca import failed:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to import portfolio from Alpaca',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - startTime
+    });
+  }
+});
+
 module.exports = router;
