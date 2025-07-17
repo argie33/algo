@@ -2,9 +2,9 @@ const express = require('express');
 const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
-let jwt, apiKeyService, alpacaService, validationMiddleware;
+const { authenticateToken } = require('../middleware/auth');
+let apiKeyService, alpacaService, validationMiddleware;
 try {
-  jwt = require('aws-jwt-verify');
   apiKeyService = require('../utils/apiKeyServiceResilient');
   alpacaService = require('../utils/alpacaService');
   const validation = require('../middleware/validation');
@@ -25,24 +25,54 @@ const createErrorResponse = (message, details = {}) => ({
 
 // Basic health endpoint for websocket service
 router.get('/health', (req, res) => {
-  res.json(success({
-    status: 'operational',
-    service: 'websocket',
-    timestamp: new Date().toISOString(),
-    message: 'WebSocket service is running',
-    type: 'http_polling_realtime_data'
-  }));
+  try {
+    res.json(success({
+      status: 'operational',
+      service: 'websocket',
+      timestamp: new Date().toISOString(),
+      message: 'WebSocket service is running',
+      type: 'http_polling_realtime_data',
+      dependencies: {
+        apiKeyService: !!apiKeyService,
+        alpacaService: !!alpacaService,
+        validationMiddleware: !!validationMiddleware
+      }
+    }));
+  } catch (healthError) {
+    console.error('WebSocket health check error:', healthError);
+    res.status(500).json({
+      success: false,
+      error: 'Health check failed',
+      message: healthError.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Basic status endpoint
 router.get('/status', (req, res) => {
-  res.json(success({
-    activeUsers: 0,
-    cachedSymbols: 0,
-    service: 'websocket',
-    serverTime: new Date().toISOString(),
-    uptime: process.uptime()
-  }));
+  try {
+    res.json(success({
+      activeUsers: 0,
+      cachedSymbols: 0,
+      service: 'websocket',
+      serverTime: new Date().toISOString(),
+      uptime: process.uptime(),
+      dependencies: {
+        apiKeyService: !!apiKeyService,
+        alpacaService: !!alpacaService,
+        validationMiddleware: !!validationMiddleware
+      }
+    }));
+  } catch (statusError) {
+    console.error('WebSocket status check error:', statusError);
+    res.status(500).json({
+      success: false,
+      error: 'Status check failed',
+      message: statusError.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Validation schemas for websocket endpoints
