@@ -11,7 +11,9 @@ import {
   Link,
   InputAdornment,
   IconButton,
-  Divider
+  Divider,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,6 +25,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   const { login, isLoading, error, clearError } = useAuth();
 
@@ -46,6 +49,9 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
       return;
     }
 
+    // Store remember me preference
+    localStorage.setItem('rememberMe', rememberMe.toString());
+    
     const result = await login(formData.username, formData.password);
     
     if (!result.success && result.error) {
@@ -117,6 +123,19 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
                 </InputAdornment>
               )
             }}
+          />
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                color="primary"
+                disabled={isLoading}
+              />
+            }
+            label="Remember me for 30 days"
+            sx={{ mt: 1, mb: 1 }}
           />
 
           <Button

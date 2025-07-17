@@ -14,8 +14,8 @@ let initPromise = null;
 // Database configuration cache
 let dbConfig = null;
 
-// console.log('*** DATABASE.JS PATCHED VERSION RUNNING - v2.1.0 ***');
-// console.log('*** CONFIG SCOPE FIX APPLIED - ' + new Date().toISOString() + ' ***');
+// SSL Configuration Fix Applied - v2.2.0 
+// Fixed SSL configuration to match working ECS patterns with DB_SSL environment variable support
 
 /**
  * Get database configuration from AWS Secrets Manager or environment variables
@@ -34,7 +34,18 @@ async function getDbConfig() {
                 console.log('Getting DB credentials from Secrets Manager...');
                 const command = new GetSecretValueCommand({ SecretId: secretArn });
                 const result = await secretsManager.send(command);
-                const secret = JSON.parse(result.SecretString);
+                
+                console.log('Secrets Manager response type:', typeof result.SecretString);
+                console.log('Secrets Manager response preview:', result.SecretString?.substring(0, 100));
+                
+                let secret;
+                try {
+                    secret = JSON.parse(result.SecretString);
+                } catch (parseError) {
+                    console.error('Failed to parse SecretString as JSON:', parseError);
+                    console.error('Raw SecretString:', result.SecretString);
+                    throw new Error(`Secret parsing failed: ${parseError.message}. Raw value: ${result.SecretString}`);
+                }
                 
                 dbConfig = {
                     host: secret.host || process.env.DB_ENDPOINT,
@@ -45,7 +56,7 @@ async function getDbConfig() {
                     max: parseInt(process.env.DB_POOL_MAX) || 5,
                     idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
                     connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-                    ssl: {
+                    ssl: process.env.DB_SSL === 'false' ? false : {
                         rejectUnauthorized: false
                     }
                 };

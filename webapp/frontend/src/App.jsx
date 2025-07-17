@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
   AppBar, 
@@ -77,6 +77,8 @@ import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import OnboardingWizard from './components/onboarding/OnboardingWizard'
+import { useOnboarding } from './hooks/useOnboarding'
 import ComingSoon from './pages/ComingSoon'
 import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
@@ -148,6 +150,14 @@ function App() {
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { showOnboarding, completeOnboarding, loading: onboardingLoading } = useOnboarding()
+  
+  // Auto-close auth modal when user successfully authenticates
+  useEffect(() => {
+    if (isAuthenticated && authModalOpen) {
+      setAuthModalOpen(false)
+    }
+  }, [isAuthenticated, authModalOpen])
   
   // Mock premium status - replace with actual premium check
   const isPremium = user?.isPremium || false
@@ -479,6 +489,15 @@ function App() {
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
       />
+      
+      {/* Onboarding Wizard */}
+      {isAuthenticated && showOnboarding && !onboardingLoading && (
+        <OnboardingWizard
+          open={true}
+          onClose={() => {}}
+          onComplete={completeOnboarding}
+        />
+      )}
     </Box>
   )
 }

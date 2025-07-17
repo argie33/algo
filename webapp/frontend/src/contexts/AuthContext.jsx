@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
 import { isCognitoConfigured } from '../config/amplify';
 import devAuth from '../services/devAuth';
+import sessionManager from '../services/sessionManager';
+import SessionWarningDialog from '../components/auth/SessionWarningDialog';
 
 // Initial auth state
 const initialState = {
@@ -91,11 +93,55 @@ const AuthContext = createContext();
 // Auth provider component
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const [sessionWarning, setSessionWarning] = useState({
+    show: false,
+    timeRemaining: 0
+  });
 
   // Check if user is authenticated on app start
   useEffect(() => {
     checkAuthState();
   }, []);
+
+  // Initialize session manager when authenticated
+  useEffect(() => {
+    if (state.isAuthenticated && state.user) {
+      // Initialize session manager
+      sessionManager.initialize({
+        refreshSession,
+        logout
+      });
+      
+      // Set session manager callbacks
+      sessionManager.setCallbacks({
+        onTokenRefresh: (result) => {
+          console.log('🔄 Tokens refreshed automatically');
+        },
+        onSessionWarning: (warningData) => {
+          setSessionWarning({
+            show: true,
+            timeRemaining: warningData.timeRemaining
+          });
+        },
+        onSessionExpired: async () => {
+          console.log('❌ Session expired, logging out');
+          await logout();
+        },
+        onRefreshError: (error, attempts) => {
+          console.error(`❌ Token refresh failed (attempt ${attempts}):`, error);
+        }
+      });
+      
+      // Start session
+      const rememberMe = localStorage.getItem('rememberMe') === 'true';
+      sessionManager.startSession(rememberMe);
+      
+    } else if (!state.isAuthenticated) {
+      // End session when logged out
+      sessionManager.endSession();
+      setSessionWarning({ show: false, timeRemaining: 0 });
+    }
+  }, [state.isAuthenticated, state.user]);
 
   const checkAuthState = async () => {
     try {
@@ -528,6 +574,21 @@ export function AuthProvider({ children }) {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   };
 
+  // Session warning handlers
+  const handleExtendSession = async () => {
+    sessionManager.extendSession();
+    setSessionWarning({ show: false, timeRemaining: 0 });
+  };
+
+  const handleSessionLogout = async () => {
+    setSessionWarning({ show: false, timeRemaining: 0 });
+    await logout();
+  };
+
+  const handleCloseWarning = () => {
+    setSessionWarning({ show: false, timeRemaining: 0 });
+  };
+
   // Helper function to get user-friendly error messages
   const getErrorMessage = (error) => {
     if (error.name === 'NotAuthorizedException') {
@@ -564,6 +625,15 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      
+      {/* Session Warning Dialog */}
+      <SessionWarningDialog
+        open={sessionWarning.show}
+        timeRemaining={sessionWarning.timeRemaining}
+        onExtend={handleExtendSession}
+        onLogout={handleSessionLogout}
+        onClose={handleCloseWarning}
+      />
     </AuthContext.Provider>
   );
 }

@@ -1,9 +1,15 @@
 # Financial Platform Technical Blueprint
-*Building the World's Premier AI-Driven Financial Analysis Website*
+*Complete Technical Architecture & Design for Institutional-Grade Financial Analysis Platform*
 
 ## Executive Summary
 
-This blueprint outlines the construction of an institutional-grade financial analysis platform using proven academic research, industry best practices, and cutting-edge AI technology. The platform will deliver professional-level analysis using cost-effective data sources while maintaining the analytical rigor of hedge funds and investment banks.
+This blueprint defines the complete technical architecture and design for an institutional-grade financial analysis platform. It combines proven academic research methodologies, industry best practices, and enterprise-grade technology patterns to deliver professional-level financial analysis capabilities.
+
+**ARCHITECTURE PHILOSOPHY:**
+- **Serverless-First Design**: Lambda + API Gateway for infinite scalability
+- **Security-First Approach**: Multi-layer authentication, encryption, and validation
+- **Data-Driven Intelligence**: Real-time market data with advanced factor analysis
+- **Cost-Effective Excellence**: Professional-grade capabilities using efficient data sources
 
 ---
 
@@ -32,7 +38,66 @@ This blueprint outlines the construction of an institutional-grade financial ana
 
 ---
 
-## 2. Data Architecture & Sources
+## 2. Production Architecture & Infrastructure Design
+
+### 2.1 Core Infrastructure (Serverless AWS)
+
+**Primary Stack:**
+```yaml
+Frontend: React + Vite + CloudFront CDN
+API Layer: AWS API Gateway + Lambda Functions  
+Database: RDS PostgreSQL with connection pooling
+Authentication: AWS Cognito User Pools + JWT
+Storage: S3 for static assets, encrypted EBS volumes
+Monitoring: CloudWatch + comprehensive structured logging
+```
+
+**Deployment Pattern:**
+```yaml
+Infrastructure as Code: CloudFormation + SAM templates
+CI/CD: GitHub Actions with multi-environment promotion
+Secrets Management: AWS Secrets Manager + Parameter Store
+Security: WAF, VPC, Security Groups, IAM roles
+Scaling: Auto-scaling Lambda, RDS read replicas
+```
+
+### 2.2 Service Architecture Patterns
+
+**Microservices Design:**
+- **Stock Analysis Service**: `/stocks/*` - Market data, screening, fundamentals
+- **Real-Time Data Service**: `/websocket/*` - Live market data streaming via HTTP polling
+- **Portfolio Service**: `/portfolio/*` - Holdings, performance, risk analytics
+- **Authentication Service**: `/auth/*` - JWT verification, user management
+- **Settings Service**: `/settings/*` - API key management, user preferences
+
+**Resilience Patterns:**
+- **Circuit Breakers**: External API failure protection with automatic recovery
+- **Timeout Management**: Service-specific timeout configurations (5s-30s)
+- **Graceful Degradation**: Fallback to cached data when live data unavailable
+- **Retry Logic**: Exponential backoff for transient failures
+- **Health Checks**: Multi-layer health monitoring with dependency validation
+
+### 2.3 Security Architecture
+
+**Authentication & Authorization:**
+```yaml
+Primary Auth: AWS Cognito JWT tokens
+API Protection: Bearer token validation on all endpoints
+Encryption: AES-256-GCM for API keys, TLS 1.3 for transport
+Input Validation: Comprehensive sanitization and schema validation
+CORS: Dynamic origin detection with whitelist
+Rate Limiting: API Gateway throttling + custom business logic
+```
+
+**Data Protection:**
+- **API Key Storage**: Encrypted with user-specific salts
+- **Database Security**: VPC isolation, encrypted at rest/transit
+- **Audit Logging**: All financial operations logged with correlation IDs
+- **PII Handling**: Minimal data collection, secure storage patterns
+
+---
+
+## 3. Data Architecture & Sources
 
 ### 2.1 Primary Data Sources (Cost-Effective)
 **Financial Data:**
