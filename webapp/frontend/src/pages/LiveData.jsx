@@ -769,41 +769,25 @@ import {
   FlipToFront as FlipToFrontIcon,
   Transform as TransformIcon
 } from '@mui/icons-material';
-import { Line, Bar, Doughnut, Radar, Scatter, Bubble, PolarArea } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  Filler,
-  RadialLinearScale,
-  TimeScale,
-  TimeSeriesScale
-} from 'chart.js';
-import 'chartjs-adapter-date-fns';
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  Filler,
-  RadialLinearScale,
-  TimeScale,
-  TimeSeriesScale
-);
+import { 
+  LineChart, 
+  Line, 
+  BarChart as RechartsBarChart, 
+  Bar, 
+  PieChart as RechartsPieChart, 
+  Pie, 
+  Cell, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend as RechartsLegend, 
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  ScatterChart,
+  Scatter
+} from 'recharts';
 
 // Styled components for enhanced visuals
 const pulse = keyframes`
