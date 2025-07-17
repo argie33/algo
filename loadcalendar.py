@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Testing workflow deployment - small change
+# Testing workflow cleanup - trigger test
 import sys
 import time
 import logging
