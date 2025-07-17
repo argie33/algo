@@ -37,14 +37,28 @@ async function getDbConfig() {
                 
                 console.log('Secrets Manager response type:', typeof result.SecretString);
                 console.log('Secrets Manager response preview:', result.SecretString?.substring(0, 100));
+                console.log('First 5 characters:', JSON.stringify(result.SecretString?.substring(0, 5)));
+                console.log('Is string?', typeof result.SecretString === 'string');
+                console.log('Full SecretString:', result.SecretString);
                 
                 let secret;
-                try {
-                    secret = JSON.parse(result.SecretString);
-                } catch (parseError) {
-                    console.error('Failed to parse SecretString as JSON:', parseError);
-                    console.error('Raw SecretString:', result.SecretString);
-                    throw new Error(`Secret parsing failed: ${parseError.message}. Raw value: ${result.SecretString}`);
+                
+                // Check if SecretString is already an object (parsed by AWS SDK)
+                if (typeof result.SecretString === 'object' && result.SecretString !== null) {
+                    console.log('SecretString is already an object, using directly');
+                    secret = result.SecretString;
+                } else if (typeof result.SecretString === 'string') {
+                    try {
+                        secret = JSON.parse(result.SecretString);
+                    } catch (parseError) {
+                        console.error('Failed to parse SecretString as JSON:', parseError);
+                        console.error('Raw SecretString type:', typeof result.SecretString);
+                        console.error('Raw SecretString length:', result.SecretString?.length);
+                        console.error('Raw SecretString (escaped):', JSON.stringify(result.SecretString));
+                        throw new Error(`Secret parsing failed: ${parseError.message}. Raw value type: ${typeof result.SecretString}, length: ${result.SecretString?.length}`);
+                    }
+                } else {
+                    throw new Error(`Unexpected SecretString type: ${typeof result.SecretString}`)
                 }
                 
                 dbConfig = {
