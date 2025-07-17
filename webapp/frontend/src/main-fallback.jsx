@@ -2,19 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
-import ThemeErrorBoundary from './components/ThemeErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
-import { createTheme } from '@mui/material/styles'
 import ApiKeyProvider from './components/ApiKeyProvider'
 
-console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
-console.log('Window location:', window.location.href);
-console.log('Document ready state:', document.readyState);
-console.log('Root element exists:', !!document.getElementById('root'));
+console.log('🚀 main-fallback.jsx loaded - NO MUI');
 
 // Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'
@@ -41,23 +34,22 @@ const queryClient = new QueryClient({
   },
 })
 
-// Create a simple theme directly
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-  },
-});
-
-const AppWithTheme = () => {
+// Simple app without MUI
+const AppWithoutMUI = () => {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <div style={{
+      fontFamily: 'Arial, sans-serif',
+      margin: 0,
+      padding: '20px',
+      backgroundColor: '#f5f5f5',
+      minHeight: '100vh'
+    }}>
       <AuthProvider>
         <ApiKeyProvider>
           <App />
         </ApiKeyProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </div>
   );
 };
 
@@ -65,14 +57,12 @@ try {
   console.log('🔧 Creating React root...');
   const root = ReactDOM.createRoot(document.getElementById('root'));
   
-  console.log('🔧 Rendering full dashboard...');
+  console.log('🔧 Rendering fallback dashboard...');
   root.render(
     <ErrorBoundary>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <ThemeErrorBoundary>
-            <AppWithTheme />
-          </ThemeErrorBoundary>
+          <AppWithoutMUI />
         </QueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
