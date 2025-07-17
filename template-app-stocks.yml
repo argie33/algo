@@ -68,7 +68,7 @@ Resources:
     DeletionPolicy: Retain
     DependsOn: StocksDBInstance
     Properties:
-      Name: !Sub stocks-db-secrets-${AWS::StackName}-${AWS::Region}-001
+      Name: !Sub stocks-app-db-credentials-${AWS::StackName}-${AWS::Region}-001
       Description: JSON with username, password, host, port, dbname
       SecretString:
         Fn::Join:
