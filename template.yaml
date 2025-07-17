@@ -107,6 +107,9 @@ Resources:
               AWS: !Sub 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${OriginAccessIdentity}'
             Action: 's3:GetObject'
             Resource: !Sub '${FrontendBucket}/*'
+    DependsOn:
+      - FrontendBucket
+      - OriginAccessIdentity
 
   # CloudFront Origin Access Identity
   OriginAccessIdentity:
@@ -114,6 +117,16 @@ Resources:
     Properties:
       CloudFrontOriginAccessIdentityConfig:
         Comment: !Sub 'OAI for ${AWS::StackName}'
+
+  # API Gateway (defined first to avoid circular dependency)
+  ServerlessRestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref EnvironmentName
+      Cors:
+        AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
 
   # API Lambda Function
   ApiFunction:
@@ -144,16 +157,6 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
-  # API Gateway (using implicit ServerlessRestApi)
-  ServerlessRestApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: !Ref EnvironmentName
-      Cors:
-        AllowMethods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-
   # CloudFront Distribution - NO CIRCULAR DEPENDENCY
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -173,6 +176,9 @@ Resources:
               HTTPPort: 443
               OriginProtocolPolicy: https-only
             OriginPath: !Sub '/${EnvironmentName}'
+    DependsOn:
+      - ServerlessRestApi
+      - ApiFunction
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
