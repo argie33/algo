@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import apiService from '../utils/apiService.jsx';
 
 /**
  * Hook to manage user onboarding state
@@ -29,16 +29,16 @@ export const useOnboarding = () => {
       setOnboardingState(prev => ({ ...prev, loading: true }));
       
       // Check if onboarding is marked as complete
-      const onboardingResponse = await api.get('/api/settings/onboarding-status');
-      const isComplete = onboardingResponse.data?.isComplete || false;
+      const onboardingResponse = await apiService.apiCall('/api/settings/onboarding-status', { method: 'GET' }, 'useOnboarding');
+      const isComplete = onboardingResponse?.isComplete || false;
       
       // Check if user has API keys
-      const apiKeysResponse = await api.get('/api/settings/api-keys');
-      const hasApiKeys = apiKeysResponse.data?.keys?.length > 0 || false;
+      const apiKeysResponse = await apiService.apiCall('/api/settings/api-keys', { method: 'GET' }, 'useOnboarding');
+      const hasApiKeys = apiKeysResponse?.keys?.length > 0 || false;
       
       // Check if user has set preferences
-      const preferencesResponse = await api.get('/api/settings/preferences');
-      const hasPreferences = preferencesResponse.data?.riskTolerance ? true : false;
+      const preferencesResponse = await apiService.apiCall('/api/settings/preferences', { method: 'GET' }, 'useOnboarding');
+      const hasPreferences = preferencesResponse?.riskTolerance ? true : false;
       
       // Determine if we should show onboarding
       const shouldShowOnboarding = !isComplete && (!hasApiKeys || !hasPreferences);
@@ -83,7 +83,7 @@ export const useOnboarding = () => {
 
   const skipOnboarding = async () => {
     try {
-      await api.post('/api/settings/onboarding-complete');
+      await apiService.apiCall('/api/settings/onboarding-complete', { method: 'POST' }, 'useOnboarding');
       completeOnboarding();
     } catch (error) {
       console.error('Failed to skip onboarding:', error);
