@@ -1,6 +1,6 @@
 name: deploy-webapp
 
-on:  
+on:
   push:
     branches:
       - '*'

@@ -1,4 +1,4 @@
-// FINANCIAL DASHBOARD API - FULL VERSION WITH CORS RELIABILITY - NEW WEBAPP WORKFLOW
+// FINANCIAL DASHBOARD API - FULL VERSION WITH CORS RELIABILITY - FIXED YAML ERROR
 console.log('🚀 Financial Dashboard API Lambda starting - FULL VERSION...');
 
 const serverless = require('serverless-http');

@@ -45,10 +45,18 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'webapp/**'
+      - 'template-webapp-lambda.yml'
+      - '.github/workflows/deploy-webapp.yml'
   pull_request:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'webapp/**'
+      - 'template-webapp-lambda.yml'
+      - '.github/workflows/deploy-webapp.yml'
 
 permissions:
   id-token: write
