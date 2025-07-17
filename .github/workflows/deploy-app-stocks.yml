@@ -281,8 +281,21 @@ jobs:
             --query "Stacks[0].Outputs[].OutputKey" \
             --output table || echo "Could not list outputs"
           
-          # Use direct task definition name instead of dynamic lookup
-          TASK_DEF_NAME="load${{ matrix.loader }}"
+          # Use correct task definition name mapping
+          case "${{ matrix.loader }}" in
+            aaiidata)
+              TASK_DEF_NAME="aaiidata-loader"
+              ;;
+            calendar)
+              TASK_DEF_NAME="calendar-loader"
+              ;;
+            earningsestimate)
+              TASK_DEF_NAME="earningsestimate-loader"
+              ;;
+            *)
+              TASK_DEF_NAME="${{ matrix.loader }}-loader"
+              ;;
+          esac
           echo "Looking for task definition: $TASK_DEF_NAME"
           
           # Try to get the task definition ARN from ECS directly
