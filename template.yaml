@@ -130,10 +130,10 @@ Resources:
         AllowOrigin: "'*'"
 
   # API Lambda Function
-  ApiFunction:
+  ApiFunctionV2:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'financial-dashboard-api-${EnvironmentName}'
+      FunctionName: !Sub 'financial-dashboard-api-v2-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
       Description: Financial Dashboard API Lambda Function
@@ -179,7 +179,7 @@ Resources:
             OriginPath: !Sub '/${EnvironmentName}'
     DependsOn:
       - ServerlessRestApi
-      - ApiFunction
+      - ApiFunctionV2
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -278,6 +278,6 @@ Outputs:
 
   LambdaFunctionArn:
     Description: Lambda Function ARN
-    Value: !GetAtt ApiFunction.Arn
+    Value: !GetAtt ApiFunctionV2.Arn
     Export:
       Name: !Sub '${AWS::StackName}-LambdaArn'
