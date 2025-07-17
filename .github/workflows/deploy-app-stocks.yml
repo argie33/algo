@@ -1,4 +1,4 @@
-name: Data Loaders Pipeline
+name: deploy-app-stocks
 
 on:
   workflow_dispatch:
@@ -181,18 +181,25 @@ jobs:
           echo "Repository name: $REPO_NAME"
           echo "repository-name=$REPO_NAME" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
+      - name: Set up Docker Buildx for multi-platform builds
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image for ARM64
         run: |
-          echo "Building and pushing loader container to ${{ steps.ecr.outputs.repository-uri }}..."
+          echo "Building and pushing ARM64 loader container to ${{ steps.ecr.outputs.repository-uri }}..."
           
           # Login to ECR
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.repository-uri }}
           
-          # Build and push image
-          docker build -t ${{ steps.ecr.outputs.repository-uri }}:latest -f Dockerfile.dataloader .
-          docker push ${{ steps.ecr.outputs.repository-uri }}:latest
+          # Build and push ARM64 image
+          docker buildx build \
+            --platform linux/arm64 \
+            --tag ${{ steps.ecr.outputs.repository-uri }}:latest \
+            --file Dockerfile.dataloader \
+            --push \
+            .
           
-          echo "✅ Docker image built and pushed successfully to ${{ steps.ecr.outputs.repository-uri }}:latest"
+          echo "✅ ARM64 Docker image built and pushed successfully to ${{ steps.ecr.outputs.repository-uri }}:latest"
 
   # 3. Deploy infrastructure if needed
   deploy-infrastructure:
