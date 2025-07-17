@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Test workflow trigger - updated comment
 import sys
 import time
 import logging

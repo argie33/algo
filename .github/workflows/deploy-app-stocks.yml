@@ -20,36 +20,6 @@ env:
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
 jobs:
-################################################################################
-# Path filtering                                                              #
-################################################################################
-  filter:
-    runs-on: ubuntu-latest
-    outputs:
-      app: ${{ steps.filter.outputs.app }}
-      tasks: ${{ steps.filter.outputs.tasks }}
-      qualitymetrics: ${{ steps.filter.outputs.qualitymetrics }}
-      valuemetrics: ${{ steps.filter.outputs.valuemetrics }}
-      stepfunctions: ${{ steps.filter.outputs.stepfunctions }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dorny/paths-filter@v2
-        id: filter
-        with:
-          filters: |
-            app:
-              - 'template-app-stocks.yml'
-              - '.github/workflows/deploy-app-stocks.yml'
-            tasks:
-              - 'cloudformation/template-app-ecs-tasks.yml'
-              - 'requirements.txt'
-              - 'scripts/**'
-            qualitymetrics:
-              - 'scripts/quality-metrics/**'
-            valuemetrics:
-              - 'scripts/value-metrics/**'
-            stepfunctions:
-              - 'cloudformation/template-step-functions-orchestration.yml'
 
 # 6) Run value-metrics loader
   run_valuemetrics:
