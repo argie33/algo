@@ -1,4 +1,4 @@
-// FINANCIAL DASHBOARD API - FULL VERSION WITH CORS RELIABILITY - FORCE WEBAPP
+// FINANCIAL DASHBOARD API - FULL VERSION WITH CORS RELIABILITY - EXCLUSIVE WEBAPP
 console.log('🚀 Financial Dashboard API Lambda starting - FULL VERSION...');
 
 const serverless = require('serverless-http');

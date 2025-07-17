@@ -23,12 +23,10 @@ on:
         type: boolean
   push:
     branches:
-      - initialbuild
       - main
       - develop
   pull_request:
     branches:
-      - initialbuild
       - main
       - develop
 
