@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Test template for Cognito UserPool PasswordPolicy syntax'
+
+Resources:
+  TestUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: test-user-pool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+
+Outputs:
+  UserPoolId:
+    Description: Test User Pool ID
+    Value: !Ref TestUserPool

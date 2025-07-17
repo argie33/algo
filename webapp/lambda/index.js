@@ -34,7 +34,10 @@ const scoringRoutes = require('./routes/scoring');
 const priceRoutes = require('./routes/price');
 const settingsRoutes = require('./routes/settings');
 const liveDataRoutes = require('./routes/liveData');
+const liveDataAdminRoutes = require('./routes/liveDataAdmin');
 const ordersRoutes = require('./routes/orders');
+const newsRoutes = require('./routes/news');
+const cryptoRoutes = require('./routes/crypto');
 
 const app = express();
 
@@ -311,7 +314,10 @@ app.use('/scoring', scoringRoutes);
 app.use('/price', priceRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/live-data', liveDataRoutes);
+app.use('/liveDataAdmin', liveDataAdminRoutes);
 app.use('/orders', ordersRoutes);
+app.use('/news', newsRoutes);
+app.use('/crypto', cryptoRoutes);
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use('/api/health', healthRoutes);
@@ -335,7 +341,10 @@ app.use('/api/scoring', scoringRoutes);
 app.use('/api/price', priceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/live-data', liveDataRoutes);
+app.use('/api/liveDataAdmin', liveDataAdminRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/crypto', cryptoRoutes);
 
 // Default route
 app.get('/', (req, res) => {

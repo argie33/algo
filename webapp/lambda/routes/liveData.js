@@ -1,48 +1,115 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateToken } = require('../middleware/auth');
+const logger = require('../utils/logger');
+const realTimeDataService = require('../utils/realTimeDataService');
+const liveDataManager = require('../utils/liveDataManager');
 
 /**
  * Live Data Management Routes
  * Centralized live data service administration endpoints
  * Based on FINANCIAL_PLATFORM_BLUEPRINT.md architecture
+ * 
+ * Provides real provider metrics, connection status, and service management
  */
 
-// Status endpoint for health checking
+// Status endpoint for health checking with real service metrics
 router.get('/status', async (req, res) => {
+  const correlationId = req.headers['x-correlation-id'] || `livedata-status-${Date.now()}`;
+  const startTime = Date.now();
+  
   try {
+    logger.info('Processing live data status request', { correlationId });
+    
+    // Get comprehensive dashboard status from liveDataManager
+    const dashboardStatus = liveDataManager.getDashboardStatus();
+    const cacheStats = realTimeDataService.getCacheStats();
+    const serviceUptime = process.uptime();
+    
     const status = {
       service: 'live-data',
       status: 'operational',
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: '2.0.0',
+      correlationId,
+      // Include live data manager dashboard data
+      ...dashboardStatus,
       components: {
-        webSocket: {
-          status: 'ready',
-          connections: 0,
-          symbols: 0
+        liveDataManager: {
+          status: 'operational',
+          totalConnections: dashboardStatus.global?.totalConnections || 0,
+          totalSymbols: dashboardStatus.global?.totalSymbols || 0,
+          dailyCost: dashboardStatus.global?.dailyCost || 0,
+          performance: dashboardStatus.global?.performance || {}
         },
-        dataProviders: {
-          alpaca: { status: 'ready', latency: 45 },
-          polygon: { status: 'ready', latency: 32 },
-          finnhub: { status: 'ready', latency: 67 }
+        realTimeService: {
+          status: 'operational',
+          cacheEntries: cacheStats.totalEntries,
+          freshEntries: cacheStats.freshEntries,
+          staleEntries: cacheStats.staleEntries,
+          cacheTimeout: `${cacheStats.cacheTimeout / 1000}s`
         },
-        admin: {
-          status: 'ready',
-          features: ['provider-management', 'cost-optimization', 'real-time-monitoring']
+        cache: {
+          status: 'operational',
+          totalEntries: cacheStats.totalEntries,
+          hitRate: cacheStats.freshEntries > 0 ? 
+            ((cacheStats.freshEntries / cacheStats.totalEntries) * 100).toFixed(1) + '%' : '0%',
+          cleanupInterval: '30s'
         }
       },
       metrics: {
-        totalSymbols: 487,
-        activeFeeds: 234,
-        costSavings: '$24.67/day',
-        uptime: '99.9%'
-      }
+        totalSymbols: realTimeDataService.watchedSymbols.size + realTimeDataService.indexSymbols.size,
+        watchedSymbols: realTimeDataService.watchedSymbols.size,
+        indexSymbols: realTimeDataService.indexSymbols.size,
+        serviceUptime: `${Math.floor(serviceUptime / 60)}m ${Math.floor(serviceUptime % 60)}s`,
+        memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
+      },
+      features: [
+        'real-time-quotes',
+        'historical-price-changes',
+        'sector-performance-analysis',
+        'market-indices-tracking',
+        'intelligent-caching',
+        'rate-limit-protection',
+        'error-recovery',
+        'live-data-management',
+        'provider-monitoring',
+        'connection-control'
+      ]
     };
 
-    res.success(status);
+    const duration = Date.now() - startTime;
+    logger.success('Live data status request completed', {
+      correlationId,
+      duration,
+      cacheEntries: cacheStats.totalEntries,
+      totalConnections: dashboardStatus.global?.totalConnections || 0
+    });
+
+    res.json({
+      success: true,
+      data: status,
+      meta: {
+        correlationId,
+        duration,
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    console.error('Live data status error:', error);
-    res.error('Failed to retrieve live data status', 500);
+    const duration = Date.now() - startTime;
+    logger.error('Live data status request failed', {
+      correlationId,
+      duration,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Failed to retrieve live data status',
+      correlationId,
+      timestamp: new Date().toISOString(),
+      duration
+    });
   }
 });
 
@@ -164,6 +231,181 @@ router.post('/admin/optimize', async (req, res) => {
   } catch (error) {
     console.error('Live data optimization error:', error);
     res.error('Failed to optimize live data service', 500);
+  }
+});
+
+// GET /api/liveData/market - Real-time market overview
+router.get('/market', authenticateToken, async (req, res) => {
+  const correlationId = req.headers['x-correlation-id'] || `livedata-market-${Date.now()}`;
+  const startTime = Date.now();
+  
+  try {
+    logger.info('Processing live market data request', {
+      correlationId,
+      userId: req.user?.sub,
+      query: req.query
+    });
+
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        correlationId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { includeIndices = 'true', includeWatchlist = 'true' } = req.query;
+    
+    const marketOverview = await realTimeDataService.getMarketOverview(userId, {
+      includeIndices: includeIndices === 'true',
+      includeWatchlist: includeWatchlist === 'true'
+    });
+
+    const duration = Date.now() - startTime;
+    logger.success('Live market data request completed', {
+      correlationId,
+      duration,
+      hasIndices: !!marketOverview.indices,
+      hasWatchlist: !!marketOverview.watchlistData,
+      errors: marketOverview.errors?.length || 0
+    });
+
+    res.json({
+      success: true,
+      data: marketOverview,
+      meta: {
+        correlationId,
+        duration,
+        timestamp: new Date().toISOString(),
+        dataSource: 'real-time-service'
+      }
+    });
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.error('Live market data request failed', {
+      correlationId,
+      duration,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Failed to fetch live market data',
+      correlationId,
+      timestamp: new Date().toISOString(),
+      duration
+    });
+  }
+});
+
+// GET /api/liveData/sectors - Real-time sector performance
+router.get('/sectors', authenticateToken, async (req, res) => {
+  const correlationId = req.headers['x-correlation-id'] || `livedata-sectors-${Date.now()}`;
+  const startTime = Date.now();
+  
+  try {
+    logger.info('Processing sector performance request', {
+      correlationId,
+      userId: req.user?.sub
+    });
+
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        correlationId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const sectorPerformance = await realTimeDataService.getSectorPerformance(userId);
+
+    const duration = Date.now() - startTime;
+    logger.success('Sector performance request completed', {
+      correlationId,
+      duration,
+      sectorCount: sectorPerformance.sectors?.length || 0,
+      marketSentiment: sectorPerformance.summary?.marketSentiment
+    });
+
+    res.json({
+      success: true,
+      data: sectorPerformance,
+      meta: {
+        correlationId,
+        duration,
+        timestamp: new Date().toISOString(),
+        dataSource: 'real-time-service'
+      }
+    });
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.error('Sector performance request failed', {
+      correlationId,
+      duration,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Failed to fetch sector performance data',
+      correlationId,
+      timestamp: new Date().toISOString(),
+      duration
+    });
+  }
+});
+
+// POST /api/liveData/cache/clear - Clear service cache
+router.post('/cache/clear', authenticateToken, async (req, res) => {
+  const correlationId = req.headers['x-correlation-id'] || `livedata-clear-${Date.now()}`;
+  
+  try {
+    logger.info('Processing cache clear request', {
+      correlationId,
+      userId: req.user?.sub
+    });
+
+    const beforeStats = realTimeDataService.getCacheStats();
+    realTimeDataService.clearCache();
+    const afterStats = realTimeDataService.getCacheStats();
+
+    logger.success('Cache cleared successfully', {
+      correlationId,
+      entriesCleared: beforeStats.totalEntries,
+      freshEntriesCleared: beforeStats.freshEntries
+    });
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Cache cleared successfully',
+        before: beforeStats,
+        after: afterStats,
+        entriesCleared: beforeStats.totalEntries
+      },
+      meta: {
+        correlationId,
+        timestamp: new Date().toISOString(),
+        operation: 'cache-clear'
+      }
+    });
+
+  } catch (error) {
+    logger.error('Cache clear request failed', {
+      correlationId,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Failed to clear cache',
+      correlationId,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

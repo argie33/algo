@@ -91,93 +91,15 @@ router.get('/analytics', async (req, res) => {
     
   } catch (error) {
     console.error('Error fetching portfolio analytics:', error);
-    console.log('Falling back to mock portfolio data...');
     
-    // Return mock portfolio data when database is not available
-    const mockPortfolioData = {
-      success: true,
-      data: {
-        holdings: [
-          {
-            symbol: 'AAPL',
-            quantity: 150,
-            market_value: 28500.00,
-            cost_basis: 25200.00,
-            pnl: 3300.00,
-            pnl_percent: 13.10,
-            weight: 0.285,
-            sector: 'Technology',
-            last_updated: new Date().toISOString()
-          },
-          {
-            symbol: 'MSFT',
-            quantity: 75,
-            market_value: 22875.00,
-            cost_basis: 21000.00,
-            pnl: 1875.00,
-            pnl_percent: 8.93,
-            weight: 0.229,
-            sector: 'Technology',
-            last_updated: new Date().toISOString()
-          },
-          {
-            symbol: 'GOOGL',
-            quantity: 50,
-            market_value: 18500.00,
-            cost_basis: 17200.00,
-            pnl: 1300.00,
-            pnl_percent: 7.56,
-            weight: 0.185,
-            sector: 'Technology',
-            last_updated: new Date().toISOString()
-          },
-          {
-            symbol: 'AMZN',
-            quantity: 60,
-            market_value: 15600.00,
-            cost_basis: 16800.00,
-            pnl: -1200.00,
-            pnl_percent: -7.14,
-            weight: 0.156,
-            sector: 'Consumer Discretionary',
-            last_updated: new Date().toISOString()
-          },
-          {
-            symbol: 'TSLA',
-            quantity: 40,
-            market_value: 14500.00,
-            cost_basis: 13000.00,
-            pnl: 1500.00,
-            pnl_percent: 11.54,
-            weight: 0.145,
-            sector: 'Consumer Discretionary',
-            last_updated: new Date().toISOString()
-          }
-        ],
-        performance: generateMockPerformance(),
-        analytics: {
-          totalReturn: 6475.00,
-          totalReturnPercent: 6.98,
-          sharpeRatio: 1.24,
-          volatility: 18.5,
-          beta: 1.12,
-          maxDrawdown: -12.3,
-          riskScore: 6.2
-        },
-        summary: {
-          totalValue: 100000.00,
-          totalPnL: 6475.00,
-          numPositions: 5,
-          topSector: 'Technology',
-          concentration: 0.285,
-          riskScore: 6.2
-        }
-      },
+    // Return proper error response instead of mock data
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch portfolio analytics',
+      details: error.message,
       timestamp: new Date().toISOString(),
-      isMockData: true
-    };
-    
-    res.json(mockPortfolioData);
+      suggestion: 'Please ensure you have portfolio positions configured or try again later'
+    });
   }
 });
 
@@ -227,345 +149,906 @@ router.get('/risk-analysis', async (req, res) => {
     
   } catch (error) {
     console.error('Error performing portfolio risk analysis:', error);
-    console.log('Falling back to mock risk analysis data...');
     
-    // Return mock risk analysis data
-    const mockRiskData = {
-      success: true,
-      data: {
-        var95: 4275.00,
-        var99: 6850.00,
-        expectedShortfall: 5200.00,
-        volatility: 18.5,
-        beta: 1.12,
-        correlationRisk: 0.68,
-        concentrationRisk: 0.72,
-        sectorConcentration: {
-          'Technology': 69.9,
-          'Consumer Discretionary': 30.1
-        },
-        positionConcentration: {
-          'AAPL': 28.5,
-          'MSFT': 22.9,
-          'GOOGL': 18.5,
-          'AMZN': 15.6,
-          'TSLA': 14.5
-        },
-        correlationMatrix: {
-          'AAPL-MSFT': 0.65,
-          'AAPL-GOOGL': 0.58,
-          'MSFT-GOOGL': 0.72,
-          'AMZN-TSLA': 0.45
-        },
-        riskScore: 6.2,
-        recommendations: [
-          {
-            type: 'diversification',
-            severity: 'medium',
-            message: 'Consider reducing technology sector concentration (69.9% of portfolio)'
-          },
-          {
-            type: 'position_size',
-            severity: 'medium',
-            message: 'AAPL position represents 28.5% of portfolio - consider rebalancing'
-          }
-        ]
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true
-    };
-    
-    res.json(mockRiskData);
-  }
-});
-
-// Portfolio performance endpoint (compatibility)
-router.get('/performance', async (req, res) => {
-  try {
-    const { timeframe = '1y' } = req.query;
-    
-    // This is a compatibility endpoint - just return mock performance data
-    console.log('Portfolio performance endpoint called, returning mock data');
-    
-    res.json({
-      success: true,
-      data: {
-        performance: generateMockPerformance(),
-        metrics: {
-          totalReturn: 6475.00,
-          totalReturnPercent: 6.98,
-          annualizedReturn: 12.5,
-          volatility: 18.5,
-          sharpeRatio: 1.24,
-          maxDrawdown: -12.3,
-          beta: 1.12,
-          alpha: 2.8
-        },
-        timeframe
-      },
-      timestamp: new Date().toISOString(),
-      isMockData: true
-    });
-  } catch (error) {
-    console.error('Portfolio performance error:', error);
+    // Return proper error response instead of mock data
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch portfolio performance',
-      details: error.message
+      error: 'Failed to perform portfolio risk analysis',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+      suggestion: 'Ensure you have portfolio holdings with sector and beta data available'
     });
   }
 });
 
-// Portfolio benchmark data
-router.get('/benchmark', async (req, res) => {
+// Portfolio performance endpoint with real database integration
+router.get('/performance', async (req, res) => {
   try {
+    const userId = req.user.sub;
     const { timeframe = '1y' } = req.query;
     
-    console.log('Portfolio benchmark endpoint called, returning mock data');
+    console.log(`Portfolio performance endpoint called for user: ${userId}, timeframe: ${timeframe}`);
     
-    // Generate mock benchmark performance (S&P 500)
-    const days = 365;
-    const benchmarkData = [];
-    let value = 100;
+    // Get portfolio performance history from database
+    const timeframeMap = {
+      '1w': '7 days',
+      '1m': '30 days',
+      '3m': '90 days',
+      '6m': '180 days',
+      '1y': '365 days',
+      '2y': '730 days'
+    };
+
+    const performanceQuery = `
+      SELECT 
+        date,
+        total_value,
+        daily_pnl,
+        daily_pnl_percent,
+        total_pnl,
+        total_pnl_percent,
+        benchmark_return,
+        alpha,
+        beta,
+        sharpe_ratio,
+        max_drawdown,
+        volatility
+      FROM portfolio_performance
+      WHERE user_id = $1
+      AND date >= NOW() - INTERVAL '${timeframeMap[timeframe] || '365 days'}'
+      ORDER BY date ASC
+    `;
+
+    const performanceResult = await query(performanceQuery, [userId]);
+    const performance = performanceResult.rows;
     
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
+    // Calculate summary metrics from performance data
+    let metrics = {
+      totalReturn: 0,
+      totalReturnPercent: 0,
+      annualizedReturn: 0,
+      volatility: 0,
+      sharpeRatio: 0,
+      maxDrawdown: 0,
+      beta: 1,
+      alpha: 0
+    };
+
+    if (performance.length > 0) {
+      const latest = performance[performance.length - 1];
+      const first = performance[0];
       
-      const dailyChange = (Math.random() - 0.5) * 0.04; // Slightly lower volatility than portfolio
-      value *= (1 + dailyChange);
-      
-      benchmarkData.push({
-        date: date.toISOString().split('T')[0],
-        value: Math.round(value * 100) / 100,
-        return: Math.round(((value - 100) / 100) * 10000) / 100
-      });
+      metrics = {
+        totalReturn: parseFloat(latest.total_pnl || 0),
+        totalReturnPercent: parseFloat(latest.total_pnl_percent || 0),
+        annualizedReturn: calculateAnnualizedReturn(performance),
+        volatility: parseFloat(latest.volatility || 0),
+        sharpeRatio: parseFloat(latest.sharpe_ratio || 0),
+        maxDrawdown: parseFloat(latest.max_drawdown || 0),
+        beta: parseFloat(latest.beta || 1),
+        alpha: parseFloat(latest.alpha || 0)
+      };
     }
     
     res.json({
       success: true,
       data: {
-        benchmark: 'SPY',
-        performance: benchmarkData,
-        totalReturn: Math.round(((value - 100) / 100) * 10000) / 100,
-        timeframe
+        performance: performance,
+        metrics: metrics,
+        timeframe,
+        dataPoints: performance.length
       },
-      timestamp: new Date().toISOString(),
-      isMockData: true
+      timestamp: new Date().toISOString()
     });
+    
+  } catch (error) {
+    console.error('Portfolio performance error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch portfolio performance',
+      details: error.message,
+      suggestion: 'Ensure portfolio performance data has been recorded or import from broker'
+    });
+  }
+});
+
+// Portfolio benchmark data with real market data
+router.get('/benchmark', async (req, res) => {
+  try {
+    const { timeframe = '1y', benchmark = 'SPY' } = req.query;
+    
+    console.log(`Portfolio benchmark endpoint called for ${benchmark}, timeframe: ${timeframe}`);
+    
+    // Get benchmark data from price_daily table
+    const timeframeMap = {
+      '1w': '7 days',
+      '1m': '30 days',
+      '3m': '90 days',
+      '6m': '180 days',
+      '1y': '365 days',
+      '2y': '730 days'
+    };
+
+    const benchmarkQuery = `
+      SELECT 
+        date,
+        close_price as price,
+        volume,
+        change_percent as daily_return
+      FROM price_daily
+      WHERE symbol = $1
+      AND date >= NOW() - INTERVAL '${timeframeMap[timeframe] || '365 days'}'
+      ORDER BY date ASC
+    `;
+
+    const benchmarkResult = await query(benchmarkQuery, [benchmark]);
+    const benchmarkData = benchmarkResult.rows;
+    
+    // Calculate benchmark performance metrics
+    let totalReturn = 0;
+    if (benchmarkData.length > 1) {
+      const first = parseFloat(benchmarkData[0].price);
+      const last = parseFloat(benchmarkData[benchmarkData.length - 1].price);
+      totalReturn = ((last - first) / first) * 100;
+    }
+
+    // Transform data for frontend consumption
+    const performance = benchmarkData.map((row, index) => {
+      const price = parseFloat(row.price);
+      const basePrice = parseFloat(benchmarkData[0]?.price || price);
+      
+      return {
+        date: row.date.toISOString().split('T')[0],
+        value: price,
+        return: ((price - basePrice) / basePrice) * 100,
+        dailyReturn: parseFloat(row.daily_return || 0),
+        volume: parseInt(row.volume || 0)
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        benchmark: benchmark,
+        performance: performance,
+        totalReturn: Math.round(totalReturn * 100) / 100,
+        timeframe,
+        dataPoints: performance.length
+      },
+      timestamp: new Date().toISOString()
+    });
+    
   } catch (error) {
     console.error('Portfolio benchmark error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch benchmark data',
-      details: error.message
+      details: error.message,
+      suggestion: `Ensure ${req.query.benchmark || 'SPY'} price data is available in the database`
     });
   }
 });
 
-// Portfolio holdings endpoint
+// Portfolio holdings endpoint with real database integration
 router.get('/holdings', async (req, res) => {
   try {
-    console.log('Portfolio holdings endpoint called, returning mock data');
+    const userId = req.user.sub;
     
+    console.log(`Portfolio holdings endpoint called for authenticated user: ${userId}`);
+    
+    // Get portfolio holdings with enriched data
+    const holdingsQuery = `
+      SELECT 
+        ph.id,
+        ph.symbol,
+        ph.quantity,
+        ph.market_value,
+        ph.cost_basis,
+        ph.pnl,
+        ph.pnl_percent,
+        ph.weight,
+        ph.sector,
+        ph.current_price,
+        ph.average_entry_price,
+        ph.day_change,
+        ph.day_change_percent,
+        ph.asset_class,
+        ph.broker,
+        ph.last_updated,
+        -- Join with stock symbols for company name and additional data
+        ss.company_name,
+        ss.market_cap,
+        ss.market_cap_tier,
+        ss.industry,
+        -- Get latest price data
+        pd.close_price as latest_price,
+        pd.change_percent as latest_change_percent,
+        pd.volume as latest_volume
+      FROM portfolio_holdings ph
+      LEFT JOIN stock_symbols_enhanced ss ON ph.symbol = ss.symbol
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      WHERE ph.user_id = $1
+      ORDER BY ph.market_value DESC
+    `;
+
+    const holdingsResult = await query(holdingsQuery, [userId]);
+    const holdings = holdingsResult.rows;
+    
+    // Update market values with latest prices and recalculate metrics
+    const enrichedHoldings = holdings.map(holding => {
+      const latestPrice = parseFloat(holding.latest_price || holding.current_price || 0);
+      const quantity = parseFloat(holding.quantity || 0);
+      const costBasis = parseFloat(holding.cost_basis || 0);
+      const averageEntryPrice = parseFloat(holding.average_entry_price || 0);
+      
+      // Recalculate values with latest prices
+      const marketValue = quantity * latestPrice;
+      const totalCost = quantity * averageEntryPrice;
+      const unrealizedPnl = marketValue - totalCost;
+      const unrealizedPnlPercent = totalCost > 0 ? (unrealizedPnl / totalCost) * 100 : 0;
+      const dayChange = marketValue * (parseFloat(holding.latest_change_percent || 0) / 100);
+      const dayChangePercent = parseFloat(holding.latest_change_percent || 0);
+
+      return {
+        id: holding.id,
+        symbol: holding.symbol,
+        name: holding.company_name || `${holding.symbol} Corp.`,
+        quantity: quantity,
+        avgCost: averageEntryPrice,
+        currentPrice: latestPrice,
+        marketValue: Math.round(marketValue * 100) / 100,
+        totalCost: Math.round(totalCost * 100) / 100,
+        unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+        unrealizedPnlPercent: Math.round(unrealizedPnlPercent * 100) / 100,
+        dayChange: Math.round(dayChange * 100) / 100,
+        dayChangePercent: Math.round(dayChangePercent * 100) / 100,
+        weight: parseFloat(holding.weight || 0),
+        sector: holding.sector || 'Unknown',
+        industry: holding.industry,
+        marketCap: holding.market_cap,
+        marketCapTier: holding.market_cap_tier,
+        assetClass: holding.asset_class || 'equity',
+        broker: holding.broker || 'manual',
+        volume: parseInt(holding.latest_volume || 0),
+        lastUpdated: holding.last_updated
+      };
+    });
+
+    // Calculate portfolio summary
+    const totalValue = enrichedHoldings.reduce((sum, h) => sum + h.marketValue, 0);
+    const totalCost = enrichedHoldings.reduce((sum, h) => sum + h.totalCost, 0);
+    const totalPnl = totalValue - totalCost;
+    const totalPnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+    const dayPnl = enrichedHoldings.reduce((sum, h) => sum + h.dayChange, 0);
+    const dayPnlPercent = totalValue > 0 ? (dayPnl / totalValue) * 100 : 0;
+
+    // Update portfolio weights based on current values
+    const updatedHoldings = enrichedHoldings.map(holding => ({
+      ...holding,
+      weight: totalValue > 0 ? Math.round((holding.marketValue / totalValue) * 100 * 100) / 100 : 0
+    }));
+
     res.json({
       success: true,
       data: {
-        holdings: [
-          {
-            id: 1,
-            symbol: 'AAPL',
-            name: 'Apple Inc.',
-            quantity: 150,
-            avgCost: 168.00,
-            currentPrice: 190.00,
-            marketValue: 28500.00,
-            totalCost: 25200.00,
-            unrealizedPnl: 3300.00,
-            unrealizedPnlPercent: 13.10,
-            dayChange: 450.00,
-            dayChangePercent: 1.6,
-            weight: 28.5,
-            sector: 'Technology'
-          },
-          {
-            id: 2,
-            symbol: 'MSFT',
-            name: 'Microsoft Corporation',
-            quantity: 75,
-            avgCost: 280.00,
-            currentPrice: 305.00,
-            marketValue: 22875.00,
-            totalCost: 21000.00,
-            unrealizedPnl: 1875.00,
-            unrealizedPnlPercent: 8.93,
-            dayChange: 225.00,
-            dayChangePercent: 1.0,
-            weight: 22.9,
-            sector: 'Technology'
-          },
-          {
-            id: 3,
-            symbol: 'GOOGL',
-            name: 'Alphabet Inc.',
-            quantity: 50,
-            avgCost: 344.00,
-            currentPrice: 370.00,
-            marketValue: 18500.00,
-            totalCost: 17200.00,
-            unrealizedPnl: 1300.00,
-            unrealizedPnlPercent: 7.56,
-            dayChange: -185.00,
-            dayChangePercent: -1.0,
-            weight: 18.5,
-            sector: 'Technology'
-          },
-          {
-            id: 4,
-            symbol: 'AMZN',
-            name: 'Amazon.com Inc.',
-            quantity: 60,
-            avgCost: 280.00,
-            currentPrice: 260.00,
-            marketValue: 15600.00,
-            totalCost: 16800.00,
-            unrealizedPnl: -1200.00,
-            unrealizedPnlPercent: -7.14,
-            dayChange: 156.00,
-            dayChangePercent: 1.0,
-            weight: 15.6,
-            sector: 'Consumer Discretionary'
-          },
-          {
-            id: 5,
-            symbol: 'TSLA',
-            name: 'Tesla Inc.',
-            quantity: 40,
-            avgCost: 325.00,
-            currentPrice: 362.50,
-            marketValue: 14500.00,
-            totalCost: 13000.00,
-            unrealizedPnl: 1500.00,
-            unrealizedPnlPercent: 11.54,
-            dayChange: -290.00,
-            dayChangePercent: -2.0,
-            weight: 14.5,
-            sector: 'Consumer Discretionary'
-          }
-        ],
+        holdings: updatedHoldings,
         summary: {
-          totalValue: 100000.00,
-          totalCost: 93200.00,
-          totalPnl: 6800.00,
-          totalPnlPercent: 7.30,
-          dayPnl: 356.00,
-          dayPnlPercent: 0.36,
-          positions: 5
+          totalValue: Math.round(totalValue * 100) / 100,
+          totalCost: Math.round(totalCost * 100) / 100,
+          totalPnl: Math.round(totalPnl * 100) / 100,
+          totalPnlPercent: Math.round(totalPnlPercent * 100) / 100,
+          dayPnl: Math.round(dayPnl * 100) / 100,
+          dayPnlPercent: Math.round(dayPnlPercent * 100) / 100,
+          positions: updatedHoldings.length
         }
       },
-      timestamp: new Date().toISOString(),
-      isMockData: true
+      timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
     console.error('Portfolio holdings error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch portfolio holdings',
-      details: error.message
+      details: error.message,
+      suggestion: 'Ensure you have portfolio positions or import from your broker'
     });
   }
 });
 
 // Portfolio rebalance suggestions
 router.get('/rebalance', async (req, res) => {
+  const userId = req.user.sub;
+  
   try {
-    console.log('Portfolio rebalance endpoint called, returning mock data');
+    const { targetStrategy = 'balanced', rebalanceThreshold = 5.0 } = req.query;
     
+    console.log(`Portfolio rebalance endpoint called for user: ${userId}, strategy: ${targetStrategy}`);
+    
+    // Get current portfolio holdings
+    const holdingsQuery = `
+      SELECT 
+        ph.symbol,
+        ph.quantity,
+        ph.market_value,
+        ph.weight,
+        ph.current_price,
+        ss.sector,
+        ss.market_cap_tier,
+        pd.close_price as latest_price
+      FROM portfolio_holdings ph
+      LEFT JOIN stock_symbols_enhanced ss ON ph.symbol = ss.symbol
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      WHERE ph.user_id = $1
+      ORDER BY ph.market_value DESC
+    `;
+
+    const holdingsResult = await query(holdingsQuery, [userId]);
+    const holdings = holdingsResult.rows;
+    
+    if (holdings.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          recommendations: [],
+          rebalanceScore: 0,
+          estimatedCost: 0,
+          expectedImprovement: 0,
+          message: 'No holdings found to rebalance'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Calculate total portfolio value
+    const totalValue = holdings.reduce((sum, holding) => {
+      const latestPrice = parseFloat(holding.latest_price || holding.current_price || 0);
+      const quantity = parseFloat(holding.quantity || 0);
+      return sum + (quantity * latestPrice);
+    }, 0);
+
+    // Define target allocation strategies
+    const strategies = {
+      balanced: { large_cap: 60, mid_cap: 25, small_cap: 15 },
+      growth: { large_cap: 70, mid_cap: 20, small_cap: 10 },
+      aggressive: { large_cap: 50, mid_cap: 30, small_cap: 20 },
+      conservative: { large_cap: 80, mid_cap: 15, small_cap: 5 }
+    };
+
+    const targetAllocation = strategies[targetStrategy] || strategies.balanced;
+
+    // Calculate current allocations by market cap tier
+    const currentAllocation = {};
+    holdings.forEach(holding => {
+      const tier = holding.market_cap_tier || 'large_cap';
+      const weight = (holding.market_value / totalValue) * 100;
+      currentAllocation[tier] = (currentAllocation[tier] || 0) + weight;
+    });
+
+    // Generate rebalancing recommendations
+    const recommendations = [];
+    let rebalanceScore = 0;
+    let totalRebalanceAmount = 0;
+
+    for (const [tier, targetWeight] of Object.entries(targetAllocation)) {
+      const currentWeight = currentAllocation[tier] || 0;
+      const deviation = Math.abs(currentWeight - targetWeight);
+      
+      if (deviation > rebalanceThreshold) {
+        const tierHoldings = holdings.filter(h => (h.market_cap_tier || 'large_cap') === tier);
+        
+        if (currentWeight > targetWeight) {
+          // Need to sell - recommend largest position in this tier
+          const largestHolding = tierHoldings.reduce((max, holding) => 
+            holding.market_value > (max?.market_value || 0) ? holding : max, null);
+          
+          if (largestHolding) {
+            const sellAmount = (currentWeight - targetWeight) / 100 * totalValue;
+            const sellShares = Math.floor(sellAmount / (largestHolding.latest_price || largestHolding.current_price));
+            
+            recommendations.push({
+              symbol: largestHolding.symbol,
+              action: 'sell',
+              currentWeight: parseFloat(((largestHolding.market_value / totalValue) * 100).toFixed(2)),
+              targetWeight: targetWeight,
+              amount: Math.round(sellAmount),
+              shares: sellShares,
+              reason: `Reduce ${tier.replace('_', ' ')} allocation from ${currentWeight.toFixed(1)}% to ${targetWeight}%`
+            });
+            
+            totalRebalanceAmount += sellAmount;
+          }
+        } else {
+          // Need to buy more in this tier
+          recommendations.push({
+            symbol: 'CASH',
+            action: 'allocate',
+            currentWeight: currentWeight,
+            targetWeight: targetWeight,
+            amount: Math.round((targetWeight - currentWeight) / 100 * totalValue),
+            shares: 0,
+            reason: `Increase ${tier.replace('_', ' ')} allocation from ${currentWeight.toFixed(1)}% to ${targetWeight}%`
+          });
+        }
+        
+        rebalanceScore += deviation;
+      }
+    }
+
+    // Get last rebalance date from user settings or transactions
+    const lastRebalanceQuery = `
+      SELECT MAX(created_at) as last_rebalance
+      FROM portfolio_transactions pt
+      WHERE pt.user_id = $1 AND pt.transaction_type = 'rebalance'
+    `;
+    
+    const lastRebalanceResult = await query(lastRebalanceQuery, [userId]);
+    const lastRebalance = lastRebalanceResult.rows[0]?.last_rebalance || null;
+
     res.json({
       success: true,
       data: {
-        recommendations: [
-          {
-            symbol: 'AAPL',
-            action: 'sell',
-            currentWeight: 28.5,
-            targetWeight: 20.0,
-            amount: 8500,
-            shares: 45,
-            reason: 'Reduce overconcentration in single position'
-          },
-          {
-            symbol: 'MSFT',
-            action: 'buy',
-            currentWeight: 22.9,
-            targetWeight: 25.0,
-            amount: 2100,
-            shares: 7,
-            reason: 'Increase allocation to match target'
-          }
-        ],
-        rebalanceScore: 7.2,
-        estimatedCost: 15.50,
-        expectedImprovement: 0.15,
-        lastRebalance: '2024-06-15'
+        recommendations,
+        rebalanceScore: Math.round(rebalanceScore * 100) / 100,
+        estimatedCost: recommendations.length * 7.95, // Estimated trading fees
+        expectedImprovement: Math.min(rebalanceScore * 0.02, 0.5), // Estimated improvement
+        lastRebalance: lastRebalance ? lastRebalance.toISOString().split('T')[0] : null,
+        currentAllocation,
+        targetAllocation,
+        strategy: targetStrategy,
+        totalValue: Math.round(totalValue * 100) / 100
       },
-      timestamp: new Date().toISOString(),
-      isMockData: true
+      timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
     console.error('Portfolio rebalance error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to generate rebalance suggestions',
-      details: error.message
+      details: error.message,
+      suggestion: 'Ensure portfolio holdings and price data are available'
     });
   }
 });
 
 // General portfolio risk endpoint
 router.get('/risk', async (req, res) => {
+  const userId = req.user.sub;
+  
   try {
-    console.log('Portfolio risk endpoint called, returning mock data');
+    console.log(`Portfolio risk endpoint called for user: ${userId}`);
     
+    // Get portfolio holdings with risk metrics
+    const holdingsQuery = `
+      SELECT 
+        ph.symbol,
+        ph.quantity,
+        ph.market_value,
+        ph.weight,
+        ph.sector,
+        ph.current_price,
+        ss.beta,
+        ss.market_cap,
+        ss.volatility_30d,
+        pd.close_price as latest_price,
+        pd.volume
+      FROM portfolio_holdings ph
+      LEFT JOIN stock_symbols_enhanced ss ON ph.symbol = ss.symbol
+      LEFT JOIN price_daily pd ON ph.symbol = pd.symbol 
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = ph.symbol)
+      WHERE ph.user_id = $1
+      ORDER BY ph.market_value DESC
+    `;
+
+    const holdingsResult = await query(holdingsQuery, [userId]);
+    const holdings = holdingsResult.rows;
+    
+    if (holdings.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          riskScore: 0,
+          riskLevel: 'No Holdings',
+          metrics: {
+            volatility: 0,
+            beta: 0,
+            var95: 0,
+            sharpeRatio: 0,
+            maxDrawdown: 0
+          },
+          concentration: {
+            positionRisk: 'Low',
+            sectorRisk: 'Low',
+            geographicRisk: 'Low'
+          },
+          alerts: [],
+          message: 'No holdings found for risk analysis'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Calculate total portfolio value
+    const totalValue = holdings.reduce((sum, holding) => {
+      const price = parseFloat(holding.latest_price || holding.current_price || 0);
+      const quantity = parseFloat(holding.quantity || 0);
+      return sum + (quantity * price);
+    }, 0);
+
+    // Calculate portfolio-weighted metrics
+    let portfolioBeta = 0;
+    let portfolioVolatility = 0;
+    const sectorConcentration = {};
+    let largestPosition = 0;
+    let largestPositionSymbol = '';
+
+    holdings.forEach(holding => {
+      const weight = holding.market_value / totalValue;
+      const beta = parseFloat(holding.beta || 1.0);
+      const volatility = parseFloat(holding.volatility_30d || 20.0);
+      const sector = holding.sector || 'Unknown';
+      
+      portfolioBeta += weight * beta;
+      portfolioVolatility += Math.pow(weight * volatility, 2); // Simplified portfolio volatility
+      
+      // Track sector concentration
+      sectorConcentration[sector] = (sectorConcentration[sector] || 0) + weight * 100;
+      
+      // Track largest position
+      if (weight * 100 > largestPosition) {
+        largestPosition = weight * 100;
+        largestPositionSymbol = holding.symbol;
+      }
+    });
+
+    portfolioVolatility = Math.sqrt(portfolioVolatility);
+
+    // Calculate VaR (95% confidence level) - simplified calculation
+    const var95 = totalValue * portfolioVolatility * 1.645 / 100; // Assumes normal distribution
+
+    // Estimate Sharpe ratio (simplified - would need risk-free rate and returns)
+    const estimatedReturn = Math.max(0, (portfolioBeta - 1) * 8 + 5); // Rough estimate based on beta
+    const sharpeRatio = portfolioVolatility > 0 ? estimatedReturn / portfolioVolatility : 0;
+
+    // Calculate risk score (0-10 scale)
+    let riskScore = 0;
+    riskScore += Math.min(portfolioVolatility / 5, 3); // Volatility component (0-3)
+    riskScore += Math.min(Math.abs(portfolioBeta - 1) * 2, 2); // Beta deviation component (0-2)
+    riskScore += Math.min(largestPosition / 10, 2); // Position concentration (0-2)
+    riskScore += Math.min(Math.max(...Object.values(sectorConcentration)) / 20, 3); // Sector concentration (0-3)
+
+    // Determine risk level
+    let riskLevel = 'Low';
+    if (riskScore >= 7) riskLevel = 'Very High';
+    else if (riskScore >= 5.5) riskLevel = 'High';
+    else if (riskScore >= 4) riskLevel = 'Moderate';
+    else if (riskScore >= 2) riskLevel = 'Low-Moderate';
+
+    // Generate risk alerts
+    const alerts = [];
+    
+    // Position concentration alerts
+    if (largestPosition > 25) {
+      alerts.push({
+        type: 'concentration',
+        severity: largestPosition > 40 ? 'high' : 'medium',
+        message: `${largestPositionSymbol} position represents ${largestPosition.toFixed(1)}% of portfolio`
+      });
+    }
+
+    // Sector concentration alerts
+    const topSector = Object.entries(sectorConcentration).reduce((max, [sector, weight]) => 
+      weight > (max.weight || 0) ? { sector, weight } : max, {});
+    
+    if (topSector.weight > 50) {
+      alerts.push({
+        type: 'sector',
+        severity: topSector.weight > 70 ? 'high' : 'medium',
+        message: `${topSector.sector} sector represents ${topSector.weight.toFixed(1)}% of portfolio`
+      });
+    }
+
+    // Beta alerts
+    if (portfolioBeta > 1.5 || portfolioBeta < 0.5) {
+      alerts.push({
+        type: 'beta',
+        severity: 'medium',
+        message: `Portfolio beta of ${portfolioBeta.toFixed(2)} indicates ${portfolioBeta > 1.5 ? 'high' : 'low'} market sensitivity`
+      });
+    }
+
+    // Volatility alerts
+    if (portfolioVolatility > 25) {
+      alerts.push({
+        type: 'volatility',
+        severity: 'medium',
+        message: `Portfolio volatility of ${portfolioVolatility.toFixed(1)}% is above recommended levels`
+      });
+    }
+
     res.json({
       success: true,
       data: {
-        riskScore: 6.2,
-        riskLevel: 'Moderate',
+        riskScore: Math.round(riskScore * 100) / 100,
+        riskLevel,
         metrics: {
-          volatility: 18.5,
-          beta: 1.12,
-          var95: 4275.00,
-          sharpeRatio: 1.24,
-          maxDrawdown: 12.3
+          volatility: Math.round(portfolioVolatility * 100) / 100,
+          beta: Math.round(portfolioBeta * 100) / 100,
+          var95: Math.round(var95 * 100) / 100,
+          sharpeRatio: Math.round(sharpeRatio * 100) / 100,
+          maxDrawdown: 0 // Would need historical data to calculate
         },
         concentration: {
-          positionRisk: 'High',
-          sectorRisk: 'High',
-          geographicRisk: 'Low'
+          positionRisk: largestPosition > 25 ? 'High' : largestPosition > 15 ? 'Medium' : 'Low',
+          sectorRisk: topSector.weight > 50 ? 'High' : topSector.weight > 30 ? 'Medium' : 'Low',
+          geographicRisk: 'Low' // Assuming US-focused portfolio
         },
-        alerts: [
-          {
-            type: 'concentration',
-            severity: 'medium',
-            message: 'Technology sector represents 69.9% of portfolio'
-          },
-          {
-            type: 'position',
-            severity: 'medium',
-            message: 'AAPL position exceeds 25% threshold'
-          }
-        ]
+        sectorAllocation: sectorConcentration,
+        largestPosition: {
+          symbol: largestPositionSymbol,
+          weight: Math.round(largestPosition * 100) / 100
+        },
+        alerts,
+        holdingsCount: holdings.length,
+        portfolioValue: Math.round(totalValue * 100) / 100
       },
-      timestamp: new Date().toISOString(),
-      isMockData: true
+      timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
     console.error('Portfolio risk error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch risk analysis',
-      details: error.message
+      details: error.message,
+      suggestion: 'Ensure portfolio holdings with beta and volatility data are available'
+    });
+  }
+});
+
+// Real-time portfolio sync endpoint
+router.post('/sync/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    
+    console.log(`Portfolio sync initiated for user ${userId}, broker: ${brokerName}`);
+    
+    // Get encrypted API credentials
+    const keyQuery = `
+      SELECT encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, 
+             secret_iv, secret_auth_tag, is_sandbox
+      FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const keyResult = await query(keyQuery, [userId, brokerName]);
+    
+    if (keyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No API key found for this broker. Please connect your account first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const keyData = keyResult.rows[0];
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Decrypt API credentials
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, userSalt);
+    
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, userSalt) : null;
+    
+    // Sync portfolio data based on broker
+    let syncResult;
+    switch (brokerName.toLowerCase()) {
+      case 'alpaca':
+        syncResult = await syncAlpacaPortfolio(userId, apiKey, apiSecret, keyData.is_sandbox);
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Real-time sync not supported for broker '${brokerName}' yet`,
+          supportedBrokers: ['alpaca'],
+          timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Update last used timestamp
+    await query(
+      'UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2',
+      [userId, brokerName]
+    );
+    
+    console.log(`Portfolio sync completed successfully for user ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Portfolio synchronized successfully',
+      data: syncResult,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Portfolio sync error for broker ${req.params.brokerName}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to sync portfolio. Please check your API credentials and try again.',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get portfolio transactions from broker
+router.get('/transactions/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    const { limit = 50, activityTypes = 'FILL' } = req.query;
+    
+    console.log(`Portfolio transactions requested for user ${userId}, broker: ${brokerName}`);
+    
+    // Get encrypted API credentials
+    const keyQuery = `
+      SELECT encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, 
+             secret_iv, secret_auth_tag, is_sandbox
+      FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const keyResult = await query(keyQuery, [userId, brokerName]);
+    
+    if (keyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No API key found for this broker. Please connect your account first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const keyData = keyResult.rows[0];
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Decrypt API credentials
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, userSalt);
+    
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, userSalt) : null;
+    
+    // Get transactions based on broker
+    let transactions;
+    switch (brokerName.toLowerCase()) {
+      case 'alpaca':
+        transactions = await getAlpacaTransactions(apiKey, apiSecret, keyData.is_sandbox, {
+          limit: parseInt(limit),
+          activityTypes: activityTypes
+        });
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Transaction history not supported for broker '${brokerName}' yet`,
+          supportedBrokers: ['alpaca'],
+          timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Store transactions in database
+    await storePortfolioTransactions(userId, brokerName, transactions);
+    
+    res.json({
+      success: true,
+      message: 'Transactions retrieved successfully',
+      data: {
+        transactions: transactions,
+        count: transactions.length,
+        broker: brokerName
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Portfolio transactions error for broker ${req.params.brokerName}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve transactions. Please check your API credentials and try again.',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Real-time portfolio valuation with live price updates
+router.get('/valuation/:brokerName', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { brokerName } = req.params;
+    
+    console.log(`Portfolio valuation requested for user ${userId}, broker: ${brokerName}`);
+    
+    // Get encrypted API credentials
+    const keyQuery = `
+      SELECT encrypted_api_key, encrypted_api_secret, key_iv, key_auth_tag, 
+             secret_iv, secret_auth_tag, is_sandbox
+      FROM user_api_keys 
+      WHERE user_id = $1 AND broker_name = $2
+    `;
+    
+    const keyResult = await query(keyQuery, [userId, brokerName]);
+    
+    if (keyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No API key found for this broker. Please connect your account first.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const keyData = keyResult.rows[0];
+    const userSalt = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
+    
+    // Decrypt API credentials
+    const apiKey = decryptApiKey({
+      encrypted: keyData.encrypted_api_key,
+      iv: keyData.key_iv,
+      authTag: keyData.key_auth_tag
+    }, userSalt);
+    
+    const apiSecret = keyData.encrypted_api_secret ? decryptApiKey({
+      encrypted: keyData.encrypted_api_secret,
+      iv: keyData.secret_iv,
+      authTag: keyData.secret_auth_tag
+    }, userSalt) : null;
+    
+    // Get real-time valuation based on broker
+    let valuation;
+    switch (brokerName.toLowerCase()) {
+      case 'alpaca':
+        valuation = await getAlpacaRealTimeValuation(userId, apiKey, apiSecret, keyData.is_sandbox);
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Real-time valuation not supported for broker '${brokerName}' yet`,
+          supportedBrokers: ['alpaca'],
+          timestamp: new Date().toISOString()
+        });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Portfolio valuation retrieved successfully',
+      data: valuation,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(`Portfolio valuation error for broker ${req.params.brokerName}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve portfolio valuation. Please check your API credentials and try again.',
+      details: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -2117,6 +2600,304 @@ function generateMockEfficientFrontier() {
     });
   }
   return points;
+}
+
+// Real-time Alpaca portfolio sync function
+async function syncAlpacaPortfolio(userId, apiKey, apiSecret, sandbox) {
+  try {
+    const AlpacaService = require('../utils/alpacaService');
+    const alpaca = new AlpacaService(apiKey, apiSecret, sandbox);
+    
+    console.log(`🔄 Starting real-time Alpaca portfolio sync for user ${userId}`);
+    
+    // Get current positions and account info
+    const [account, positions] = await Promise.all([
+      alpaca.getAccount(),
+      alpaca.getPositions()
+    ]);
+    
+    console.log(`📊 Retrieved ${positions.length} positions from Alpaca`);
+    
+    // Update portfolio holdings in database
+    await query('BEGIN');
+    
+    try {
+      // Update portfolio metadata
+      const updateMetaQuery = `
+        UPDATE portfolio_metadata 
+        SET 
+          total_value = $1,
+          total_cash = $2,
+          buying_power = $3,
+          account_status = $4,
+          last_sync = CURRENT_TIMESTAMP
+        WHERE user_id = $5 AND broker = 'alpaca'
+      `;
+      
+      await query(updateMetaQuery, [
+        account.portfolioValue,
+        account.cash,
+        account.buyingPower,
+        account.status,
+        userId
+      ]);
+      
+      // Update or insert current positions
+      for (const position of positions) {
+        const upsertQuery = `
+          INSERT INTO portfolio_holdings (
+            user_id, symbol, quantity, market_value, cost_basis, 
+            pnl, pnl_percent, current_price, average_entry_price,
+            day_change, day_change_percent, asset_class, broker, last_updated
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, symbol, broker) 
+          DO UPDATE SET
+            quantity = EXCLUDED.quantity,
+            market_value = EXCLUDED.market_value,
+            cost_basis = EXCLUDED.cost_basis,
+            pnl = EXCLUDED.pnl,
+            pnl_percent = EXCLUDED.pnl_percent,
+            current_price = EXCLUDED.current_price,
+            average_entry_price = EXCLUDED.average_entry_price,
+            day_change = EXCLUDED.day_change,
+            day_change_percent = EXCLUDED.day_change_percent,
+            last_updated = CURRENT_TIMESTAMP
+        `;
+        
+        await query(upsertQuery, [
+          userId,
+          position.symbol,
+          position.quantity,
+          position.marketValue,
+          position.costBasis,
+          position.unrealizedPL,
+          position.unrealizedPLPercent,
+          position.currentPrice,
+          position.averageEntryPrice,
+          position.unrealizedIntradayPL,
+          position.unrealizedIntradayPLPercent,
+          position.assetClass,
+          'alpaca'
+        ]);
+      }
+      
+      // Remove positions that are no longer held
+      const currentSymbols = positions.map(p => p.symbol);
+      if (currentSymbols.length > 0) {
+        const deleteQuery = `
+          DELETE FROM portfolio_holdings 
+          WHERE user_id = $1 AND broker = 'alpaca' AND symbol NOT IN (${currentSymbols.map((_, i) => `$${i + 2}`).join(',')})
+        `;
+        await query(deleteQuery, [userId, ...currentSymbols]);
+      }
+      
+      await query('COMMIT');
+      
+      console.log(`✅ Portfolio sync completed for user ${userId}`);
+      
+      return {
+        positionsUpdated: positions.length,
+        totalValue: account.portfolioValue,
+        cash: account.cash,
+        buyingPower: account.buyingPower,
+        lastSync: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('Alpaca portfolio sync error:', error.message);
+    throw new Error(`Failed to sync Alpaca portfolio: ${error.message}`);
+  }
+}
+
+// Get Alpaca transactions and activities
+async function getAlpacaTransactions(apiKey, apiSecret, sandbox, options = {}) {
+  try {
+    const AlpacaService = require('../utils/alpacaService');
+    const alpaca = new AlpacaService(apiKey, apiSecret, sandbox);
+    
+    const { limit = 50, activityTypes = 'FILL' } = options;
+    
+    console.log(`📋 Fetching Alpaca transactions: limit=${limit}, types=${activityTypes}`);
+    
+    // Get activities from Alpaca
+    const activities = await alpaca.getActivities(activityTypes, limit);
+    
+    console.log(`📊 Retrieved ${activities.length} activities from Alpaca`);
+    
+    // Transform activities to our transaction format
+    const transactions = activities.map(activity => ({
+      externalId: activity.id,
+      symbol: activity.symbol,
+      type: activity.activityType,
+      side: activity.side,
+      quantity: activity.qty,
+      price: activity.price,
+      amount: activity.netAmount,
+      date: activity.date,
+      description: activity.description,
+      broker: 'alpaca',
+      status: 'completed'
+    }));
+    
+    return transactions;
+    
+  } catch (error) {
+    console.error('Alpaca transactions fetch error:', error.message);
+    throw new Error(`Failed to fetch Alpaca transactions: ${error.message}`);
+  }
+}
+
+// Store portfolio transactions in database
+async function storePortfolioTransactions(userId, broker, transactions) {
+  try {
+    console.log(`💾 Storing ${transactions.length} transactions for user ${userId}, broker: ${broker}`);
+    
+    for (const transaction of transactions) {
+      const insertQuery = `
+        INSERT INTO portfolio_transactions (
+          user_id, external_id, symbol, transaction_type, side, quantity, 
+          price, amount, transaction_date, description, broker, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, external_id, broker) 
+        DO UPDATE SET
+          symbol = EXCLUDED.symbol,
+          transaction_type = EXCLUDED.transaction_type,
+          side = EXCLUDED.side,
+          quantity = EXCLUDED.quantity,
+          price = EXCLUDED.price,
+          amount = EXCLUDED.amount,
+          transaction_date = EXCLUDED.transaction_date,
+          description = EXCLUDED.description,
+          status = EXCLUDED.status,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+      
+      await query(insertQuery, [
+        userId,
+        transaction.externalId,
+        transaction.symbol,
+        transaction.type,
+        transaction.side,
+        transaction.quantity,
+        transaction.price,
+        transaction.amount,
+        transaction.date,
+        transaction.description,
+        broker,
+        transaction.status
+      ]);
+    }
+    
+    console.log(`✅ Successfully stored ${transactions.length} transactions`);
+    
+  } catch (error) {
+    console.error('Error storing portfolio transactions:', error.message);
+    throw new Error(`Failed to store transactions: ${error.message}`);
+  }
+}
+
+// Get real-time portfolio valuation from Alpaca
+async function getAlpacaRealTimeValuation(userId, apiKey, apiSecret, sandbox) {
+  try {
+    const AlpacaService = require('../utils/alpacaService');
+    const alpaca = new AlpacaService(apiKey, apiSecret, sandbox);
+    
+    console.log(`💰 Getting real-time Alpaca valuation for user ${userId}`);
+    
+    // Get current holdings from database
+    const holdingsQuery = `
+      SELECT symbol, quantity, cost_basis, average_entry_price
+      FROM portfolio_holdings
+      WHERE user_id = $1 AND broker = 'alpaca' AND quantity > 0
+      ORDER BY symbol
+    `;
+    
+    const holdingsResult = await query(holdingsQuery, [userId]);
+    const holdings = holdingsResult.rows;
+    
+    if (holdings.length === 0) {
+      return {
+        totalValue: 0,
+        totalCost: 0,
+        totalPnL: 0,
+        totalPnLPercent: 0,
+        positions: [],
+        message: 'No holdings found'
+      };
+    }
+    
+    console.log(`📊 Fetching real-time quotes for ${holdings.length} positions`);
+    
+    // Get real-time quotes for all positions
+    const quotesPromises = holdings.map(async (holding) => {
+      const trade = await alpaca.getLatestTrade(holding.symbol);
+      return {
+        symbol: holding.symbol,
+        quantity: parseFloat(holding.quantity),
+        costBasis: parseFloat(holding.cost_basis),
+        averageEntryPrice: parseFloat(holding.average_entry_price),
+        currentPrice: trade ? trade.price : 0,
+        timestamp: trade ? trade.timestamp : new Date().toISOString()
+      };
+    });
+    
+    const quotedPositions = await Promise.all(quotesPromises);
+    
+    // Calculate portfolio totals
+    let totalValue = 0;
+    let totalCost = 0;
+    
+    const positionsWithValues = quotedPositions.map(position => {
+      const marketValue = position.quantity * position.currentPrice;
+      const costBasis = position.quantity * position.averageEntryPrice;
+      const pnl = marketValue - costBasis;
+      const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+      
+      totalValue += marketValue;
+      totalCost += costBasis;
+      
+      return {
+        symbol: position.symbol,
+        quantity: position.quantity,
+        currentPrice: position.currentPrice,
+        marketValue: Math.round(marketValue * 100) / 100,
+        costBasis: Math.round(costBasis * 100) / 100,
+        pnl: Math.round(pnl * 100) / 100,
+        pnlPercent: Math.round(pnlPercent * 100) / 100,
+        weight: 0, // Will be calculated below
+        lastUpdated: position.timestamp
+      };
+    });
+    
+    // Calculate position weights
+    positionsWithValues.forEach(position => {
+      position.weight = totalValue > 0 ? Math.round((position.marketValue / totalValue) * 100 * 100) / 100 : 0;
+    });
+    
+    const totalPnL = totalValue - totalCost;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+    
+    console.log(`✅ Real-time valuation calculated: $${totalValue.toFixed(2)}, PnL: ${totalPnLPercent.toFixed(2)}%`);
+    
+    return {
+      totalValue: Math.round(totalValue * 100) / 100,
+      totalCost: Math.round(totalCost * 100) / 100,
+      totalPnL: Math.round(totalPnL * 100) / 100,
+      totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
+      positions: positionsWithValues,
+      positionsCount: positionsWithValues.length,
+      lastUpdated: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('Alpaca real-time valuation error:', error.message);
+    throw new Error(`Failed to get real-time valuation: ${error.message}`);
+  }
 }
 
 module.exports = router;

@@ -89,6 +89,9 @@ import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
 import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
 import AuthTest from './pages/AuthTest'
+import CryptoDashboard from './pages/CryptoDashboard'
+import CryptoPortfolio from './pages/CryptoPortfolio'
+import LiveDataAdmin from './components/admin/LiveDataAdmin'
 
 const drawerWidth = 240
 
@@ -99,6 +102,7 @@ const menuItems = [
   
   // Markets Section
   { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/market', category: 'markets' },
+  { text: 'Cryptocurrency', icon: <Stars />, path: '/crypto', category: 'markets' },
   { text: 'Sector Analysis', icon: <BusinessIcon />, path: '/sectors', category: 'markets' },
   { text: 'Economic Indicators', icon: <PublicIcon />, path: '/economic', category: 'markets' },
   
@@ -118,6 +122,7 @@ const menuItems = [
   
   // Portfolio Section
   { text: 'Portfolio Overview', icon: <AccountBalanceIcon />, path: '/portfolio', category: 'portfolio' },
+  { text: 'Crypto Portfolio', icon: <Stars />, path: '/crypto-portfolio', category: 'portfolio' },
   { text: 'Trade History', icon: <TimelineIcon />, path: '/trade-history', category: 'portfolio' },
   { text: 'Order Management', icon: <PlayArrow />, path: '/orders', category: 'portfolio' },
   { text: 'Performance Analysis', icon: <AssessmentIcon />, path: '/portfolio/performance', category: 'portfolio', premium: true },
@@ -135,6 +140,9 @@ const menuItems = [
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   
+  // Admin Section
+  { text: 'Live Data Admin', icon: <NetworkIcon />, path: '/admin/live-data', category: 'admin', premium: true },
+  
   // Settings Section
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'settings' },
 ]
@@ -151,6 +159,7 @@ function App() {
     portfolio: true,
     research: false,
     tools: false,
+    admin: false,
     settings: false
   })
   const theme = useTheme()
@@ -217,7 +226,8 @@ function App() {
     sentiment: 'Sentiment Analysis',
     portfolio: 'Portfolio',
     research: 'Research & Education',
-    tools: 'Tools'
+    tools: 'Tools',
+    admin: 'Administration'
   }
 
   const drawer = (
@@ -479,6 +489,9 @@ function App() {
             <Route path="/portfolio/performance-debug" element={<PortfolioPerformanceDebug />} />
             <Route path="/auth-test" element={<AuthTest />} />
             <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
+            <Route path="/crypto" element={<CryptoDashboard />} />
+            <Route path="/crypto-portfolio" element={<CryptoPortfolio />} />
+            <Route path="/admin/live-data" element={<LiveDataAdmin />} />
             
             {/* Missing pages - Coming Soon */}
             <Route path="/sectors" element={<SectorAnalysis />} />
