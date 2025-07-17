@@ -28,29 +28,24 @@ on:
         required: false
         default: ''
       environment:
-        description: 'Environment to deploy to'
+        description: 'Deployment environment'
         required: false
-        default: 'production'
+        default: 'dev'
         type: choice
         options:
-          - production
+          - dev
           - staging
-          - development
-      historical:
-        description: 'Run historical data loading'
-        required: false
-        default: false
-        type: boolean
-      incremental:
-        description: 'Run incremental data loading'
-        required: false
-        default: false
-        type: boolean
+          - prod
       force_all:
         description: 'Force run all loaders regardless of changes'
         required: false
         default: false
         type: boolean
+  push:
+    branches:
+      - initialbuild
+      - main
+      - develop
   pull_request:
     branches:
       - initialbuild
