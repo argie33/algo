@@ -1,5 +1,5 @@
 #!/usr/bin/env python3 
-# Updated for deployment verification test - trigger v1.4 - initialbuild branch test
+# Updated for deployment verification test - trigger v1.5 - ARM64 architecture test
 import sys
 import time
 import logging

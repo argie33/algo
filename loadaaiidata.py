@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.5 - test initialbuild branch
+# Trigger deploy-app-stocks workflow - loadaaiidata update v5.6 - ARM64 architecture test
 import sys
 import time
 import logging
