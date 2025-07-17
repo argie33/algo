@@ -3,6 +3,7 @@ Description: >
   Unified Financial Dashboard Webapp Infrastructure
   Creates: API Gateway + Lambda + CORS + CloudFront + S3 + Cognito as single unit
   Eliminates V2 naming, duplicates, and deployment conflicts
+  Updated: 2025-07-17 - Ready for production deployment
 
 Parameters:
   LambdaCodeKey:
