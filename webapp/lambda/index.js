@@ -1,4 +1,4 @@
-// MINIMAL LAMBDA - RESTORE ORIGINAL WEBAPP WORKFLOW
+// MINIMAL LAMBDA - TEST PUSH TO VERIFY WORKFLOW
 console.log('=== LAMBDA STARTUP - NO DEPENDENCIES ===');
 
 // Test if the issue is with AWS Lambda runtime itself
