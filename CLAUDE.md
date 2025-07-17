@@ -50,7 +50,7 @@ breaker = {
 - **Deployment**: AWS infrastructure as code (IaC) via CloudFormation templates with comprehensive error handling
 - **Database**: PostgreSQL with comprehensive schema validation, categorized table dependencies, and performance monitoring
 - **Integration**: Centralized live data service with admin-managed feeds (replacing per-user websockets for cost efficiency)
-- **Branch**: Use `loaddata` branch for all changes and pushes
+- **Branch**: Never deploy to `main` branch unless explicitly specified by user
 - **Services**: Lambda functions, ECS tasks, Step Functions orchestration with full observability
 - **API Gateway**: Standardized response formatting across all endpoints with CORS resolution
 - **Security**: Comprehensive input validation, timeout management, error handling, and route protection
