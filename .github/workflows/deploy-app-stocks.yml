@@ -21,6 +21,16 @@ on:
         required: false
         default: false
         type: boolean
+  push:
+    branches:
+      - initialbuild
+      - main
+      - develop
+  pull_request:
+    branches:
+      - initialbuild
+      - main
+      - develop
 
 permissions:
   id-token: write
