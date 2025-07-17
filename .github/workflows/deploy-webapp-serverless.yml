@@ -3,11 +3,9 @@ name: Deploy Serverless Webapp
 on:
   push:
     branches: [ main, initialbuild ]
-    paths:
-      - 'webapp/**'
-      - '.github/workflows/deploy-webapp-serverless.yml'
-      - 'trigger-workflow.txt'
   workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes for testing
 
 env:
   AWS_REGION: us-east-1
