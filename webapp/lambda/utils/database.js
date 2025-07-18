@@ -25,7 +25,7 @@ const secretsManager = new SecretsManagerClient({
 });
 
 /**
- * Get database configuration from AWS Secrets Manager with enhanced error handling
+ * Get database configuration from environment variables or AWS Secrets Manager with enhanced error handling
  */
 async function getDbConfig() {
     if (dbConfig) {
@@ -35,9 +35,36 @@ async function getDbConfig() {
 
     const configStart = Date.now();
     try {
+        // First try direct environment variables
+        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
+            console.log('🔧 Using direct database environment variables');
+            
+            dbConfig = {
+                host: process.env.DB_HOST || process.env.DB_ENDPOINT,
+                port: parseInt(process.env.DB_PORT) || 5432,
+                database: process.env.DB_NAME || process.env.DB_DATABASE || 'stocks',
+                user: process.env.DB_USER || process.env.DB_USERNAME,
+                password: process.env.DB_PASSWORD,
+                ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+                max: parseInt(process.env.DB_POOL_MAX) || 3,
+                idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
+            };
+
+            console.log('✅ Database config loaded from environment variables successfully');
+            console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
+            console.log(`   🏊 Pool Max: ${dbConfig.max}`);
+            console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
+            console.log(`   📚 Database: ${dbConfig.database}`);
+            console.log(`   👤 User: ${dbConfig.user}`);
+
+            return dbConfig;
+        }
+
+        // Fallback to Secrets Manager if environment variables not available
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn) {
-            throw new Error('DB_SECRET_ARN environment variable not set');
+            throw new Error('Either DB_HOST/DB_USER/DB_PASSWORD environment variables or DB_SECRET_ARN must be set');
         }
 
         console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);
@@ -92,6 +119,18 @@ async function getDbConfig() {
             code: error.code,
             stack: error.stack?.split('\n').slice(0, 3).join('\n')
         });
+        
+        // Provide helpful troubleshooting info
+        console.error('❌ Database configuration troubleshooting:');
+        console.error('   Set DB_HOST, DB_USER, DB_PASSWORD environment variables');
+        console.error('   Current environment variables:', {
+            DB_HOST: !!process.env.DB_HOST,
+            DB_USER: !!process.env.DB_USER,
+            DB_PASSWORD: !!process.env.DB_PASSWORD,
+            DB_SECRET_ARN: !!process.env.DB_SECRET_ARN,
+            DB_ENDPOINT: !!process.env.DB_ENDPOINT
+        });
+        
         throw error;
     }
 }

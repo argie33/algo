@@ -73,20 +73,364 @@ const websocketValidationSchemas = {
 };
 
 // Real-time data endpoints for authenticated Alpaca data
-// Simplified approach using HTTP polling instead of WebSocket for Lambda compatibility
+// WebSocket streaming for true real-time market data
 
-// In-memory cache for real-time data (Lambda-friendly)
-const realtimeDataCache = new Map();
+// WebSocket connection management for real-time streaming
+const activeConnections = new Map(); // connectionId -> WebSocket
 const userSubscriptions = new Map(); // userId -> Set of symbols
-const lastUpdateTime = new Map(); // symbol -> timestamp
+const streamingData = new Map(); // symbol -> latest streaming data
 
-// Cache TTL in milliseconds
-const CACHE_TTL = 30000; // 30 seconds
-const UPDATE_INTERVAL = 5000; // 5 seconds
+// Real-time streaming settings
+const STREAM_INTERVAL = 1000; // 1 second for real-time updates
+const CONNECTION_TIMEOUT = 30000; // 30 seconds
 
 /**
- * Get real-time market data for subscribed symbols with comprehensive authentication logging
- * This endpoint replaces WebSocket functionality with HTTP polling for Lambda compatibility
+ * WebSocket connection handler for real-time streaming
+ * Establishes and manages WebSocket connections for live market data
+ */
+router.ws('/stream', (ws, req) => {
+  const connectionId = require('crypto').randomUUID();
+  const connectionStart = Date.now();
+  
+  console.log(`🔌 [${connectionId}] WebSocket connection established`);
+  
+  // Store connection
+  activeConnections.set(connectionId, {
+    ws,
+    userId: null,
+    subscriptions: new Set(),
+    lastSeen: Date.now(),
+    authenticated: false
+  });
+  
+  // Handle messages
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+      await handleWebSocketMessage(connectionId, data);
+    } catch (error) {
+      console.error(`❌ [${connectionId}] Message handling error:`, error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Invalid message format'
+      }));
+    }
+  });
+  
+  // Handle connection close
+  ws.on('close', () => {
+    console.log(`🔌 [${connectionId}] WebSocket connection closed`);
+    activeConnections.delete(connectionId);
+  });
+  
+  // Handle errors
+  ws.on('error', (error) => {
+    console.error(`❌ [${connectionId}] WebSocket error:`, error);
+    activeConnections.delete(connectionId);
+  });
+  
+  // Send welcome message
+  ws.send(JSON.stringify({
+    type: 'connected',
+    connectionId,
+    timestamp: new Date().toISOString(),
+    message: 'WebSocket connection established'
+  }));
+});
+
+/**
+ * Handle WebSocket messages for authentication and subscription management
+ */
+async function handleWebSocketMessage(connectionId, data) {
+  const connection = activeConnections.get(connectionId);
+  if (!connection) return;
+  
+  const { ws } = connection;
+  
+  switch (data.type) {
+    case 'authenticate':
+      await handleAuthentication(connectionId, data);
+      break;
+      
+    case 'subscribe':
+      await handleSubscription(connectionId, data);
+      break;
+      
+    case 'unsubscribe':
+      await handleUnsubscription(connectionId, data);
+      break;
+      
+    case 'ping':
+      ws.send(JSON.stringify({
+        type: 'pong',
+        timestamp: new Date().toISOString()
+      }));
+      break;
+      
+    default:
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Unknown message type'
+      }));
+  }
+}
+
+/**
+ * Handle WebSocket authentication
+ */
+async function handleAuthentication(connectionId, data) {
+  const connection = activeConnections.get(connectionId);
+  if (!connection) return;
+  
+  const { ws } = connection;
+  
+  try {
+    if (!data.token) {
+      throw new Error('Authentication token required');
+    }
+    
+    // Verify JWT token
+    const verifier = jwt.CognitoJwtVerifier.create({
+      userPoolId: process.env.COGNITO_USER_POOL_ID,
+      tokenUse: 'access',
+      clientId: process.env.COGNITO_CLIENT_ID
+    });
+    
+    const payload = await verifier.verify(data.token);
+    
+    // Update connection with authenticated user
+    connection.userId = payload.sub;
+    connection.authenticated = true;
+    connection.lastSeen = Date.now();
+    
+    console.log(`✅ [${connectionId}] User authenticated: ${payload.sub.substring(0, 8)}...`);
+    
+    ws.send(JSON.stringify({
+      type: 'authenticated',
+      userId: payload.sub,
+      timestamp: new Date().toISOString()
+    }));
+    
+  } catch (error) {
+    console.error(`❌ [${connectionId}] Authentication failed:`, error);
+    ws.send(JSON.stringify({
+      type: 'auth_error',
+      message: 'Authentication failed'
+    }));
+  }
+}
+
+/**
+ * Handle subscription requests
+ */
+async function handleSubscription(connectionId, data) {
+  const connection = activeConnections.get(connectionId);
+  if (!connection || !connection.authenticated) {
+    connection.ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Authentication required'
+    }));
+    return;
+  }
+  
+  const { ws, userId } = connection;
+  
+  try {
+    const symbols = data.symbols || [];
+    if (!Array.isArray(symbols) || symbols.length === 0) {
+      throw new Error('Valid symbols array required');
+    }
+    
+    // Add to user subscriptions
+    if (!userSubscriptions.has(userId)) {
+      userSubscriptions.set(userId, new Set());
+    }
+    
+    const userSymbols = userSubscriptions.get(userId);
+    symbols.forEach(symbol => {
+      userSymbols.add(symbol.toUpperCase());
+      connection.subscriptions.add(symbol.toUpperCase());
+    });
+    
+    console.log(`📊 [${connectionId}] Subscribed to:`, symbols);
+    
+    ws.send(JSON.stringify({
+      type: 'subscribed',
+      symbols: symbols,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Start streaming for this connection
+    startStreamingForConnection(connectionId);
+    
+  } catch (error) {
+    console.error(`❌ [${connectionId}] Subscription failed:`, error);
+    ws.send(JSON.stringify({
+      type: 'subscription_error',
+      message: error.message
+    }));
+  }
+}
+
+/**
+ * Start real-time streaming for a connection
+ */
+async function startStreamingForConnection(connectionId) {
+  const connection = activeConnections.get(connectionId);
+  if (!connection || !connection.authenticated) return;
+  
+  const { ws, userId, subscriptions } = connection;
+  
+  try {
+    // Get user's API credentials
+    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    if (!credentials) {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'API credentials not configured'
+      }));
+      return;
+    }
+    
+    // Initialize Alpaca service
+    const userAlpacaService = new alpacaService.AlpacaService(
+      credentials.apiKey,
+      credentials.apiSecret,
+      credentials.isSandbox
+    );
+    
+    // Stream live data
+    const streamData = async () => {
+      if (!activeConnections.has(connectionId)) return;
+      
+      const symbols = Array.from(subscriptions);
+      if (symbols.length === 0) return;
+      
+      try {
+        const quotes = {};
+        
+        for (const symbol of symbols) {
+          const quote = await userAlpacaService.getLatestQuote(symbol);
+          if (quote) {
+            quotes[symbol] = {
+              symbol,
+              bidPrice: quote.bidPrice,
+              askPrice: quote.askPrice,
+              bidSize: quote.bidSize,
+              askSize: quote.askSize,
+              timestamp: quote.timestamp || Date.now()
+            };
+            
+            // Cache the data
+            streamingData.set(symbol, quotes[symbol]);
+          }
+        }
+        
+        // Send to WebSocket
+        if (Object.keys(quotes).length > 0) {
+          ws.send(JSON.stringify({
+            type: 'market_data',
+            data: quotes,
+            timestamp: new Date().toISOString()
+          }));
+        }
+        
+      } catch (error) {
+        console.error(`❌ [${connectionId}] Streaming error:`, error);
+        ws.send(JSON.stringify({
+          type: 'streaming_error',
+          message: 'Error fetching market data'
+        }));
+      }
+    };
+    
+    // Start streaming loop
+    const streamingInterval = setInterval(streamData, STREAM_INTERVAL);
+    
+    // Store interval for cleanup
+    connection.streamingInterval = streamingInterval;
+    
+    // Initial data fetch
+    streamData();
+    
+  } catch (error) {
+    console.error(`❌ [${connectionId}] Failed to start streaming:`, error);
+    ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Failed to start streaming'
+    }));
+  }
+}
+
+/**
+ * Handle unsubscription requests
+ */
+async function handleUnsubscription(connectionId, data) {
+  const connection = activeConnections.get(connectionId);
+  if (!connection || !connection.authenticated) {
+    connection.ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Authentication required'
+    }));
+    return;
+  }
+  
+  const { ws, userId } = connection;
+  
+  try {
+    const symbols = data.symbols || [];
+    
+    if (symbols.length === 0) {
+      // Unsubscribe from all symbols
+      connection.subscriptions.clear();
+      userSubscriptions.delete(userId);
+      
+      // Clear streaming interval
+      if (connection.streamingInterval) {
+        clearInterval(connection.streamingInterval);
+        connection.streamingInterval = null;
+      }
+      
+      ws.send(JSON.stringify({
+        type: 'unsubscribed',
+        message: 'Unsubscribed from all symbols',
+        timestamp: new Date().toISOString()
+      }));
+      
+    } else {
+      // Unsubscribe from specific symbols
+      const userSymbols = userSubscriptions.get(userId);
+      if (userSymbols) {
+        symbols.forEach(symbol => {
+          userSymbols.delete(symbol.toUpperCase());
+          connection.subscriptions.delete(symbol.toUpperCase());
+        });
+        
+        if (userSymbols.size === 0) {
+          userSubscriptions.delete(userId);
+        }
+      }
+      
+      ws.send(JSON.stringify({
+        type: 'unsubscribed',
+        symbols: symbols,
+        timestamp: new Date().toISOString()
+      }));
+    }
+    
+    console.log(`📊 [${connectionId}] Unsubscribed from:`, symbols.length > 0 ? symbols : 'all symbols');
+    
+  } catch (error) {
+    console.error(`❌ [${connectionId}] Unsubscription failed:`, error);
+    ws.send(JSON.stringify({
+      type: 'unsubscription_error',
+      message: error.message
+    }));
+  }
+}
+
+/**
+ * HTTP endpoint for WebSocket connection info (fallback)
  */
 router.get('/stream/:symbols', async (req, res) => {
   const requestId = require('crypto').randomUUID().split('-')[0];
@@ -776,40 +1120,50 @@ router.delete('/subscribe', async (req, res) => {
 
 // Health check endpoint
 router.get('/health', (req, res) => {
-  const cacheStats = {
-    cachedSymbols: realtimeDataCache.size,
-    activeUsers: userSubscriptions.size,
-    totalSubscriptions: Array.from(userSubscriptions.values()).reduce((sum, set) => sum + set.size, 0)
+  const connectionStats = {
+    activeConnections: activeConnections.size,
+    authenticatedUsers: Array.from(activeConnections.values()).filter(c => c.authenticated).length,
+    totalSubscriptions: Array.from(userSubscriptions.values()).reduce((sum, set) => sum + set.size, 0),
+    streamingSymbols: streamingData.size
   };
   
   res.json(success({
     status: 'operational',
-    type: 'http_polling_realtime_data',
-    updateInterval: UPDATE_INTERVAL,
-    cacheTtl: CACHE_TTL,
-    ...cacheStats
+    type: 'websocket_realtime_streaming',
+    streamInterval: STREAM_INTERVAL,
+    connectionTimeout: CONNECTION_TIMEOUT,
+    ...connectionStats
   }));
 });
 
 // Status endpoint with detailed metrics
 router.get('/status', (req, res) => {
   const now = Date.now();
-  const cacheDetails = {};
+  const streamingDetails = {};
   
-  for (const [key, value] of realtimeDataCache.entries()) {
-    const symbol = key.split(':')[1];
-    const lastUpdate = lastUpdateTime.get(symbol) || 0;
-    cacheDetails[symbol] = {
-      lastUpdate: new Date(lastUpdate).toISOString(),
-      age: now - lastUpdate,
-      fresh: (now - lastUpdate) < CACHE_TTL
+  for (const [symbol, data] of streamingData.entries()) {
+    streamingDetails[symbol] = {
+      lastUpdate: new Date(data.timestamp).toISOString(),
+      age: now - data.timestamp,
+      bidPrice: data.bidPrice,
+      askPrice: data.askPrice
     };
   }
 
+  const connectionDetails = Array.from(activeConnections.entries()).map(([connectionId, conn]) => ({
+    connectionId: connectionId.substring(0, 8) + '...',
+    authenticated: conn.authenticated,
+    userId: conn.userId ? conn.userId.substring(0, 8) + '...' : null,
+    subscriptions: Array.from(conn.subscriptions),
+    lastSeen: new Date(conn.lastSeen).toISOString()
+  }));
+
   res.json(success({
-    activeUsers: userSubscriptions.size,
-    cachedSymbols: realtimeDataCache.size,
-    cacheDetails,
+    activeConnections: activeConnections.size,
+    authenticatedUsers: Array.from(activeConnections.values()).filter(c => c.authenticated).length,
+    streamingSymbols: streamingData.size,
+    streamingDetails,
+    connectionDetails,
     userSubscriptions: Object.fromEntries(
       Array.from(userSubscriptions.entries()).map(([userId, symbols]) => [
         userId.substring(0, 8) + '...', 
@@ -821,26 +1175,41 @@ router.get('/status', (req, res) => {
   }));
 });
 
-// Cleanup expired cache entries periodically
+// Cleanup inactive connections periodically
 setInterval(() => {
   const now = Date.now();
-  const expiredKeys = [];
+  const inactiveConnections = [];
   
-  for (const [key, data] of realtimeDataCache.entries()) {
-    const symbol = key.split(':')[1];
-    const lastUpdate = lastUpdateTime.get(symbol) || 0;
-    
-    if (now - lastUpdate > CACHE_TTL * 2) { // Double TTL for cleanup
-      expiredKeys.push(key);
-      lastUpdateTime.delete(symbol);
+  for (const [connectionId, connection] of activeConnections.entries()) {
+    if (now - connection.lastSeen > CONNECTION_TIMEOUT) {
+      inactiveConnections.push(connectionId);
+      
+      // Clear streaming interval
+      if (connection.streamingInterval) {
+        clearInterval(connection.streamingInterval);
+      }
     }
   }
   
-  expiredKeys.forEach(key => realtimeDataCache.delete(key));
+  inactiveConnections.forEach(connectionId => {
+    activeConnections.delete(connectionId);
+    console.log(`🧹 Cleaned up inactive connection: ${connectionId}`);
+  });
   
-  if (expiredKeys.length > 0) {
-    console.log(`Cleaned up ${expiredKeys.length} expired cache entries`);
+  // Clean up streaming data for symbols with no active subscriptions
+  const activeSymbols = new Set();
+  for (const connection of activeConnections.values()) {
+    if (connection.authenticated) {
+      connection.subscriptions.forEach(symbol => activeSymbols.add(symbol));
+    }
   }
-}, CACHE_TTL);
+  
+  for (const symbol of streamingData.keys()) {
+    if (!activeSymbols.has(symbol)) {
+      streamingData.delete(symbol);
+    }
+  }
+  
+}, CONNECTION_TIMEOUT / 2);
 
 module.exports = router;

@@ -260,13 +260,18 @@ const PortfolioOptimization = () => {
   const [optimizing, setOptimizing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   
-  // Portfolio data
-  const [symbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V', 'PG']);
+  // Portfolio data - now database-driven
+  const [symbols, setSymbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V', 'PG']);
+  const [availableSymbols, setAvailableSymbols] = useState([]);
   const [currentPortfolio, setCurrentPortfolio] = useState(null);
   const [optimizedPortfolio, setOptimizedPortfolio] = useState(null);
   const [efficientFrontier, setEfficientFrontier] = useState([]);
   const [riskAnalysis, setRiskAnalysis] = useState(null);
   const [rebalanceRecommendations, setRebalanceRecommendations] = useState([]);
+  const [historicalData, setHistoricalData] = useState({});
+  const [marketData, setMarketData] = useState({});
+  const [correlationMatrix, setCorrelationMatrix] = useState({});
+  const [loadingData, setLoadingData] = useState(false);
   
   // Optimization parameters
   const [optimizationParams, setOptimizationParams] = useState({
@@ -288,13 +293,30 @@ const PortfolioOptimization = () => {
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   
-  // Initialize with current portfolio data
+  // Load available symbols from database
   useEffect(() => {
+    const loadAvailableSymbols = async () => {
+      try {
+        const { symbolService } = await import('../services/symbolService');
+        const dynamicSymbols = await symbolService.getSymbols('popular', { limit: 50 });
+        if (dynamicSymbols.length > 0) {
+          setAvailableSymbols(dynamicSymbols);
+          console.log(`📊 Loaded ${dynamicSymbols.length} symbols for portfolio optimization`);
+        }
+      } catch (error) {
+        console.error('Failed to load symbols for portfolio optimization:', error);
+        // Keep default symbols on error
+        setAvailableSymbols(['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V', 'PG']);
+      }
+    };
+    
+    loadAvailableSymbols();
     initializePortfolio();
   }, []);
   
   const initializePortfolio = async () => {
     setLoading(true);
+    setLoadingData(true);
     try {
       console.log('🔄 Loading real portfolio data for optimization...');
       
@@ -312,18 +334,38 @@ const PortfolioOptimization = () => {
           portfolioSymbols = portfolioData.holdings.map(h => h.symbol);
           const portfolioTotalValue = portfolioData.holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
           
-          if (portfolioTotalValue > 0) {
-            currentWeights = portfolioData.holdings.map(h => (h.marketValue || 0) / portfolioTotalValue);
-            totalValue = portfolioTotalValue;
-          }
+          // Calculate actual weights
+          currentWeights = portfolioData.holdings.map(h => 
+            portfolioTotalValue > 0 ? (h.marketValue || 0) / portfolioTotalValue : 0
+          );
+          totalValue = portfolioTotalValue;
           
-          console.log('📊 Real portfolio:', { symbols: portfolioSymbols, totalValue });
+          // Update symbols with real portfolio holdings
+          setSymbols(portfolioSymbols);
+          
+          console.log(`📊 Portfolio loaded: ${portfolioSymbols.length} holdings, $${totalValue.toLocaleString()} total value`);
         } else {
-          console.log('📋 No real portfolio data, using demo data');
+          console.log('⚠️ No real portfolio data found, using default diversified portfolio');
+          // Use available symbols if loaded
+          if (availableSymbols.length > 0) {
+            portfolioSymbols = availableSymbols.slice(0, 10);
+            setSymbols(portfolioSymbols);
+          }
         }
-      } catch (apiError) {
-        console.warn('⚠️ Portfolio API failed, using demo data:', apiError.message);
+      } catch (portfolioError) {
+        console.warn('Failed to load portfolio data, using default symbols:', portfolioError);
+        // Use available symbols if loaded
+        if (availableSymbols.length > 0) {
+          portfolioSymbols = availableSymbols.slice(0, 10);
+          setSymbols(portfolioSymbols);
+        }
       }
+      
+      // Load historical data for optimization
+      await loadHistoricalData(portfolioSymbols);
+      
+      // Load market data for each symbol
+      await loadMarketData(portfolioSymbols);
       
       // Generate analysis data (use mock for now, could be enhanced with real market data)
       const { returns, covariance } = generateMockData(portfolioSymbols);
@@ -390,6 +432,63 @@ const PortfolioOptimization = () => {
       console.error('Portfolio initialization error:', err);
     } finally {
       setLoading(false);
+      setLoadingData(false);
+    }
+  };
+  
+  // Load historical data for portfolio optimization
+  const loadHistoricalData = async (symbols) => {
+    try {
+      console.log('📈 Loading historical data for optimization...');
+      const histData = {};
+      
+      // Load price history for each symbol
+      for (const symbol of symbols) {
+        try {
+          const response = await fetch(`${apiUrl}/market-data/historical/${symbol}?days=${optimizationParams.lookbackDays}`);
+          if (response.ok) {
+            const data = await response.json();
+            histData[symbol] = data;
+          } else {
+            console.warn(`Failed to load historical data for ${symbol}`);
+          }
+        } catch (error) {
+          console.warn(`Error loading historical data for ${symbol}:`, error);
+        }
+      }
+      
+      setHistoricalData(histData);
+      console.log(`✅ Historical data loaded for ${Object.keys(histData).length} symbols`);
+    } catch (error) {
+      console.error('Failed to load historical data:', error);
+    }
+  };
+  
+  // Load current market data
+  const loadMarketData = async (symbols) => {
+    try {
+      console.log('📊 Loading current market data...');
+      const marketDataMap = {};
+      
+      // Load current quotes for each symbol
+      for (const symbol of symbols) {
+        try {
+          const response = await fetch(`${apiUrl}/market-data/quote/${symbol}`);
+          if (response.ok) {
+            const data = await response.json();
+            marketDataMap[symbol] = data;
+          } else {
+            console.warn(`Failed to load market data for ${symbol}`);
+          }
+        } catch (error) {
+          console.warn(`Error loading market data for ${symbol}:`, error);
+        }
+      }
+      
+      setMarketData(marketDataMap);
+      console.log(`✅ Market data loaded for ${Object.keys(marketDataMap).length} symbols`);
+    } catch (error) {
+      console.error('Failed to load market data:', error);
     }
   };
   

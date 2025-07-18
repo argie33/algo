@@ -411,6 +411,7 @@ const routes = [
   // User & Settings Routes
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
+  { path: './routes/auth-status', name: 'Auth Status', mount: '/api/auth-status' },
   { path: './routes/security', name: 'Security', mount: '/api/security' },
   { path: './routes/compliance', name: 'Compliance', mount: '/api/compliance' },
   

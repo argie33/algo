@@ -8,7 +8,7 @@ class RealTimeDataFeed extends EventEmitter {
     this.subscriptions = new Map();
     this.dataUpdateInterval = null;
     this.isRunning = false;
-    this.updateFrequency = 5000; // 5 seconds
+    this.updateFrequency = 1000; // 1 second for real-time streaming
     this.dataTypes = {
       MARKET_OVERVIEW: 'market_overview',
       PORTFOLIO: 'portfolio',
@@ -17,8 +17,15 @@ class RealTimeDataFeed extends EventEmitter {
       ECONOMIC: 'economic',
       PATTERNS: 'patterns',
       SENTIMENT: 'sentiment',
-      RISK_METRICS: 'risk_metrics'
+      RISK_METRICS: 'risk_metrics',
+      LIVE_QUOTES: 'live_quotes',
+      LIVE_TRADES: 'live_trades'
     };
+    
+    // Enhanced real-time capabilities
+    this.alpacaConnections = new Map(); // userId -> AlpacaService
+    this.liveDataCache = new Map(); // symbol -> latest data
+    this.streamingActive = false;
   }
 
   start() {

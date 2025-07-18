@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { keyframes } from '@mui/system';
+// REMOVED: import { keyframes } from '@mui/system'; - causes theme issues
 import {
   Box,
   Container,
@@ -117,16 +117,13 @@ import { api } from '../services/api';
 import { formatPercentage, formatNumber, formatCurrency } from '../utils/formatters';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
-// Animation keyframes
-const pulse = keyframes`
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-  100% {
-    opacity: 1;
+// CSS keyframes - replaced MUI keyframes with CSS
+const pulseAnimation = 'pulse 2s ease-in-out infinite';
+const pulseKeyframes = `
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
   }
 `;
 
@@ -259,7 +256,7 @@ const CurrentPeriodBadge = ({ isCurrentPeriod, daysSince }) => {
         backgroundColor: '#1976d21A',
         color: '#1976d2',
         border: '1px solid #1976d24D',
-        animation: `${pulse} 2s infinite`
+        animation: pulseAnimation
       }}
     />
   );
@@ -338,6 +335,14 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const TradingSignals = () => {
+  // Inject CSS keyframes
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = pulseKeyframes;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   const [activeTab, setActiveTab] = useState(0);
   const [timeframe, setTimeframe] = useState('daily');
   const [aggregateSignals, setAggregateSignals] = useState([]);
