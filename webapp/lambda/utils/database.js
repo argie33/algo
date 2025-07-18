@@ -35,9 +35,9 @@ async function getDbConfig() {
 
     const configStart = Date.now();
     try {
-        // First try direct environment variables
+        // First try direct environment variables (full set)
         if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
-            console.log('🔧 Using direct database environment variables');
+            console.log('🔧 Using complete direct database environment variables');
             
             dbConfig = {
                 host: process.env.DB_HOST || process.env.DB_ENDPOINT,
@@ -51,7 +51,47 @@ async function getDbConfig() {
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
             };
 
-            console.log('✅ Database config loaded from environment variables successfully');
+            console.log('✅ Database config loaded from complete environment variables');
+            console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
+            console.log(`   🏊 Pool Max: ${dbConfig.max}`);
+            console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
+            console.log(`   📚 Database: ${dbConfig.database}`);
+            console.log(`   👤 User: ${dbConfig.user}`);
+
+            return dbConfig;
+        }
+
+        // Hybrid approach: use environment variables but get password from secret
+        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_SECRET_ARN) {
+            console.log('🔧 Using hybrid approach: env vars + secret for password');
+            
+            const secretArn = process.env.DB_SECRET_ARN;
+            console.log(`🔑 Getting password from Secrets Manager: ${secretArn}`);
+            
+            // Use diagnostic tool to get password from secret
+            const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
+            const diagnostic = new SecretsManagerDiagnostic();
+            
+            const diagnosis = await diagnostic.diagnoseSecret(secretArn);
+            if (!diagnosis.success) {
+                throw new Error(`Failed to get password from Secrets Manager: ${diagnosis.error}`);
+            }
+            
+            const secret = diagnosis.config;
+            
+            dbConfig = {
+                host: process.env.DB_HOST || process.env.DB_ENDPOINT,
+                port: parseInt(process.env.DB_PORT) || 5432,
+                database: process.env.DB_NAME || process.env.DB_DATABASE || 'stocks',
+                user: process.env.DB_USER || process.env.DB_USERNAME,
+                password: secret.password,  // Password from secret
+                ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+                max: parseInt(process.env.DB_POOL_MAX) || 3,
+                idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
+            };
+
+            console.log('✅ Database config loaded from hybrid env vars + secret');
             console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
             console.log(`   🏊 Pool Max: ${dbConfig.max}`);
             console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
@@ -64,7 +104,7 @@ async function getDbConfig() {
         // Fallback to Secrets Manager if environment variables not available
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn) {
-            throw new Error('Either DB_HOST/DB_USER/DB_PASSWORD environment variables or DB_SECRET_ARN must be set');
+            throw new Error(`Database configuration incomplete. Available: DB_HOST=${!!process.env.DB_HOST}, DB_USER=${!!process.env.DB_USER}, DB_PASSWORD=${!!process.env.DB_PASSWORD}, DB_SECRET_ARN=${!!process.env.DB_SECRET_ARN}. Need either complete env vars or DB_SECRET_ARN.`);
         }
 
         console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);

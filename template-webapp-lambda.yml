@@ -220,13 +220,28 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          # Direct database environment variables (primary method)
+          DB_HOST: !Ref DatabaseEndpoint
           DB_ENDPOINT: !Ref DatabaseEndpoint
+          DB_NAME: 'stocks'
+          DB_DATABASE: 'stocks'
+          DB_USER: !ImportValue StocksApp-DBUsername
+          DB_USERNAME: !ImportValue StocksApp-DBUsername
+          DB_PORT: '5432'
+          DB_SSL: 'false'
+          # Secrets Manager fallback
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          # Application settings
           ENVIRONMENT: !Ref EnvironmentName
           NODE_ENV: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
+          AWS_REGION: !Ref AWS::Region
+          # Cognito configuration
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
+          # API Key and JWT Secret Management
+          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+          JWT_SECRET_ARN: !ImportValue StocksApp-JwtSecretArn
           # Enhanced database connection settings
           DB_CONNECT_TIMEOUT: '30000'
           DB_POOL_MAX: '3'
