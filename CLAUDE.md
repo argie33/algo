@@ -237,41 +237,47 @@ Frontend configuration now working with real Cognito values:
 ## 3 Core Documentation System - CRITICAL
 The project is driven by 3 core documents that must be continuously updated and reviewed:
 
-### 1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical Architecture & Design
-- **Purpose**: Complete technical blueprint and system architecture for institutional-grade financial analysis platform
-- **Content**: System architecture, technology stack, core components, data architecture, security framework, deployment resilience design, business model
-- **Usage**: Primary reference for all technical decisions, system design, and implementation details
-- **Update When**: New features planned, architecture changes, technical requirements evolve, or system improvements implemented
-- **CRITICAL**: This is NOT a status report or project plan - it's the definitive design document
+### 1. **requirements.md** - Feature Requirements & Acceptance Criteria
+- **Purpose**: Complete feature requirements with detailed acceptance criteria for all system components
+- **Content**: Requirements specifications, acceptance criteria, completion status, validation methods
+- **Usage**: Primary reference for what needs to be built and how success is measured
+- **Update When**: New features identified, requirements evolve, or acceptance criteria change
+- **CRITICAL**: All development must be driven by requirements with clear acceptance criteria
 
-### 2. **TEST_PLAN.md** - Testing Methodology & Strategy
-- **Purpose**: Comprehensive testing framework and methodology for all system components with test-driven development approach
-- **Content**: Testing methodologies, test coverage requirements, automated testing pipelines, quality assurance processes, test implementation strategies
-- **Usage**: Guide for test implementation before feature development, quality assurance, and system validation
-- **Update When**: New features added, bugs discovered, testing requirements change, or new testing approaches adopted
-- **CRITICAL**: All new features must have associated test cases defined in TEST_PLAN.md before implementation begins
-- **CRITICAL**: This is NOT a status report - it's the testing methodology and strategy document
+### 2. **design.md** - Technical Design & Implementation Specifications  
+- **Purpose**: Detailed technical architecture and implementation specifications for each requirement
+- **Content**: System architecture, component design, data flow, security implementation, performance patterns
+- **Usage**: Technical blueprint for implementing each requirement with specific code patterns and designs
+- **Update When**: Architecture changes, new implementation patterns discovered, or design improvements identified
+- **CRITICAL**: All implementation must follow the detailed designs specified in this document
 
-### 3. **claude-todo.md** - Task Management & Change Log
-- **Purpose**: Centralized task tracking, change log, and project plan via TodoRead/TodoWrite tools
-- **Content**: Current work priorities, task status, implementation details, session continuity, and delivery plans
-- **Usage**: Primary source for current work priorities, task execution order, and project progress tracking
-- **Update When**: Automatically managed by TodoRead/TodoWrite tools - updates continuously throughout development
-- **CRITICAL**: This is the ONLY todo system - never create new task documents
-- **CRITICAL**: This serves as both task management AND change log/project plan
+### 3. **tasks.md** - Implementation Tasks & Delivery Plan
+- **Purpose**: Detailed task breakdown showing how each design will be delivered and implemented
+- **Content**: Task specifications, implementation steps, priority matrix, sprint planning, delivery timelines
+- **Usage**: Step-by-step implementation guide with clear deliverables and timelines
+- **Update When**: Task progress changes, new implementation steps discovered, or priorities shift
+- **CRITICAL**: All work must be tracked through specific tasks with clear delivery steps
 
 ### Documentation Workflow - CRITICAL PROCESS
-1. **Analyze the 2 content documents** (FINANCIAL_PLATFORM_BLUEPRINT.md, TEST_PLAN.md)
-2. **Determine remaining work** from gaps, issues, and requirements in those 2 documents
-3. **Populate claude-todo.md** with prioritized list of work items from the analysis
-4. **Always refer to claude-todo.md** when determining next items to work on
-5. **Update the 2 content documents** as work progresses to reflect current state
+1. **Analyze requirements.md** - Review all requirements and their completion status
+2. **Check design.md** - Ensure technical designs exist for each requirement
+3. **Update tasks.md** - Break down designs into specific implementation tasks
+4. **Work from TodoWrite/TodoRead** - All task management via todo tools
+5. **Update status continuously** - Mark tasks in_progress when starting, completed when finished
+6. **ONLY work on pending tasks** - Never work on tasks already in_progress or completed
 
 ### Documentation Management Commands
-- **Read All 3 Docs**: Start each session by reviewing all 3 documents
-- **Analyze → Prioritize → Execute**: Iterate through the 2 content docs to determine work, add to todos, then execute from todos
-- **Sync Requirements**: Ensure all 3 docs align with current system state
-- **Reference First**: Always check claude-todo.md before starting new work
+- **Read All 3 Docs**: Start each session by reviewing requirements.md, design.md, tasks.md
+- **Analyze → Prioritize → Execute**: Review requirements/designs → update tasks → work from TodoRead/TodoWrite
+- **Sync Status**: Ensure task status reflects actual completion state
+- **Reference Todo Tools**: Always check TodoRead before starting new work, update TodoWrite continuously
+
+### STRICT TASK MANAGEMENT RULES
+- **NEVER work on tasks marked 'in_progress' or 'completed'**
+- **ALWAYS mark tasks 'in_progress' when starting work**
+- **ALWAYS mark tasks 'completed' immediately when finished**
+- **ONLY work on tasks with status 'pending'**
+- **UPDATE TodoWrite after any status changes**
 
 ## Task Management - CRITICAL WORKFLOW
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system

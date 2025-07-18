@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
-import CssBaseline from '@mui/material/CssBaseline'
+import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
@@ -38,17 +38,14 @@ const queryClient = new QueryClient({
   },
 })
 
-// NO THEME PROVIDER AT ALL - Use MUI defaults to avoid createPalette
+// Use TailwindCSS instead of MUI to avoid createPalette issues
 const AppWithTheme = () => {
   return (
-    <>
-      <CssBaseline />
-      <AuthProvider>
-        <ApiKeyProvider>
-          <App />
-        </ApiKeyProvider>
-      </AuthProvider>
-    </>
+    <AuthProvider>
+      <ApiKeyProvider>
+        <App />
+      </ApiKeyProvider>
+    </AuthProvider>
   );
 };
 
