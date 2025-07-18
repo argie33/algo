@@ -319,26 +319,33 @@ Define features → Design architecture → Track implementation
 
 ## Document Content Guidelines
 
-### requirements.md SHOULD CONTAIN:
+### requirements.md MUST CONTAIN ONLY:
 - "REQ-XXX: Feature Name" with acceptance criteria
 - Business requirements and user stories
 - Quality standards and validation criteria
-- Status notation: ✅ Complete, 🔄 Partial, ❌ Missing, ⏳ Planned
+- **ABSOLUTELY NO STATUS, NO CURRENT STATE, NO IMPLEMENTATION PROGRESS**
+- **NEVER USE STATUS NOTATION IN requirements.md - IT'S PURE REQUIREMENTS**
 
-### DESIGN.md SHOULD CONTAIN:
+### design.md MUST CONTAIN ONLY:
 - Technical architecture patterns
 - Component design and data flow
 - Security and performance strategies  
 - Code examples and technical specifications
+- **ABSOLUTELY NO STATUS, NO CURRENT STATE, NO PROJECT MANAGEMENT**
 
-### tasks.md SHOULD CONTAIN:
+### tasks.md MUST CONTAIN ONLY:
 - "TASK-XXX: Task Name" with status tracking
 - Detailed implementation steps
 - Priority levels and sprint organization
 - Status tracking: ✅ Complete, 🔄 In Progress, ⏳ Planned, ❌ Blocked, 🚨 Critical
+- **ABSOLUTELY NO REQUIREMENTS, NO TECHNICAL DESIGN**
 
-## Violation Prevention:
+## ⚠️ CRITICAL VIOLATION PREVENTION:
+⚠️ **THE USER IS EXTREMELY FRUSTRATED WITH STATUS CONTAMINATION** ⚠️
+
 If you find status mixed into requirements.md, or requirements mixed into tasks.md, or architecture mixed into the wrong document - STOP and fix the content separation immediately. These documents must maintain their distinct purposes for effective project management.
+
+**NEVER ADD STATUS TO requirements.md OR design.md - THE USER WILL BE EXTREMELY FRUSTRATED**
 
 ## Task Management - CRITICAL WORKFLOW
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
