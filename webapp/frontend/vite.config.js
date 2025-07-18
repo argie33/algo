@@ -38,12 +38,6 @@ export default defineConfig(({ mode }) => {
               if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
                 return 'react-core';
               }
-              if (id.includes('@mui/material')) {
-                return 'mui-core';
-              }
-              if (id.includes('@mui/icons-material')) {
-                return 'mui-icons';
-              }
               if (id.includes('recharts')) {
                 return 'charts';
               }

@@ -700,7 +700,7 @@ api.interceptors.request.use(
     }
     
     const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
-    console.log('[API REQUEST FINAL URL]', fullUrl, config);
+    console.log('[API REQUEST FINAL URL]', fullUrl, { method: config.method, url: config.url });
     if (config.isServerless) {
       config.headers['X-Lambda-Request'] = 'true'
       config.headers['X-Request-Time'] = new Date().toISOString()
