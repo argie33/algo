@@ -11,7 +11,7 @@ import './mobile-responsive.css'
 // Essential utilities (carefully selected)
 import './utils/muiPrevention.js'
 import './utils/browserCompatibility.js'
-import performanceMonitor from './utils/performanceMonitor.js'
+import performanceMonitor from './utils/performanceMonitorSimple.js'
 
 // Import the completely MUI-free App component
 import App from './App.jsx'

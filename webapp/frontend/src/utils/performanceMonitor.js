@@ -471,9 +471,6 @@ export const usePerformanceMonitor = (componentName) => {
   };
 };
 
-// Add to React import
-const React = require('react');
-
 export default performanceMonitor;
 export { PerformanceMonitor };
 
