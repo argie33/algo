@@ -1,5 +1,5 @@
 #!/usr/bin/env python3  
-# DEPLOY: Database diagnostic phase - News loading v3 - Testing database connectivity pattern
+# DEPLOY: Circuit breaker database fix - News loading v4 - Enhanced connection stability
 import sys
 import time
 import logging

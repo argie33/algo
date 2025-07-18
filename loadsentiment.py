@@ -7,7 +7,7 @@ This script loads comprehensive sentiment analysis data including:
 - Social sentiment (Reddit mentions, news sentiment)
 - Market sentiment indicators (put/call ratios, options flow)
 - Google Trends data for search interest
-Updated: 2025-07-16 - Database diagnostic phase - Trigger sentiment loader v2
+Updated: 2025-07-18 - Circuit breaker database connection fix - Trigger sentiment loader v3
 
 Data Sources:
 - Primary: yfinance for analyst recommendations
