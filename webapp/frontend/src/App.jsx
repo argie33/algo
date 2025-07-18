@@ -96,7 +96,7 @@ function App() {
       {!isAuthenticated && (
         <button
           onClick={() => setAuthModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2"
           style={{ backgroundColor: '#3b82f6' }}
           onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
           onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
@@ -170,7 +170,7 @@ function App() {
           {/* Data Management Routes */}
           <Route path="/data-management" element={<UnifiedDataManagement />} />
           <Route path="/live-data" element={<LiveDataTailwind />} />
-          <Route path="/live-data-mui" element={<LiveData />} />
+          <Route path="/live-data-mui" element={<LiveDataTailwind />} />
           
           {/* Cryptocurrency Routes */}
           <Route path="/crypto" element={<CryptoMarketOverview />} />

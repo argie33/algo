@@ -1,4 +1,7 @@
 // COMPLETE TAILWINDCSS VERSION - NO MUI DEPENDENCIES
+// Prevent MUI createPalette errors FIRST
+import './utils/muiPrevention.js'
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -41,19 +44,14 @@ const queryClient = new QueryClient({
   },
 })
 
-// Theme already created above to prevent defaultTheme.js loading
-
-// Wrap app with proper MUI ThemeProvider to prevent createPalette errors
-const AppWithTheme = () => {
+// Pure TailwindCSS app wrapper - NO MUI
+const AppWithProviders = () => {
   return (
-    <ThemeProvider theme={muiTheme}>
-      <CssBaseline />
-      <AuthProvider>
-        <ApiKeyProvider>
-          <App />
-        </ApiKeyProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ApiKeyProvider>
+        <App />
+      </ApiKeyProvider>
+    </AuthProvider>
   );
 };
 
@@ -66,7 +64,7 @@ try {
     <ErrorBoundary>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <AppWithTheme />
+          <AppWithProviders />
         </QueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
