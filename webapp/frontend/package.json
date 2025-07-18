@@ -26,7 +26,8 @@
     "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
-    "recharts": "^2.15.4"
+    "recharts": "^2.15.4",
+    "use-sync-external-store": "1.2.0"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
@@ -75,5 +76,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "overrides": {
+    "use-sync-external-store": "1.2.0"
   }
 }
