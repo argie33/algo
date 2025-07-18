@@ -1,116 +1,94 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
+import ThemeErrorBoundary from './components/ThemeErrorBoundary'
+import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import ApiKeyProvider from './components/ApiKeyProvider'
 
-// NUCLEAR OPTION: MINIMAL NO-DEPENDENCY APPROACH
-const MinimalApp = () => {
+console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
+console.log('Window location:', window.location.href);
+console.log('Document ready state:', document.readyState);
+console.log('Root element exists:', !!document.getElementById('root'));
+
+// Configure Amplify for authentication - but don't let it crash the app
+import { configureAmplify } from './config/amplify'
+
+// Configure Amplify safely - continue even if it fails
+setTimeout(() => {
+  try {
+    configureAmplify();
+    console.log('✅ Amplify configured successfully');
+  } catch (error) {
+    console.warn('⚠️ Amplify configuration failed, using fallback auth:', error);
+  }
+}, 100);
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      staleTime: 30000,
+      cacheTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+// Create a component that uses the theme from context
+const AppWithTheme = () => {
+  const { theme } = useTheme();
+  
   return (
-    <div style={{ 
-      padding: '20px', 
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      maxWidth: '1200px',
-      margin: '0 auto'
-    }}>
-      <header style={{ 
-        background: '#1976d2', 
-        color: 'white', 
-        padding: '20px', 
-        borderRadius: '8px',
-        marginBottom: '20px'
-      }}>
-        <h1 style={{ margin: 0 }}>🚀 Financial Trading Platform</h1>
-        <p style={{ margin: '10px 0 0 0', opacity: 0.9 }}>Production-Ready • No UI Library Dependencies</p>
-      </header>
+    <MuiThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <ApiKeyProvider>
+          <App />
+        </ApiKeyProvider>
+      </AuthProvider>
+    </MuiThemeProvider>
+  );
+};
 
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '20px' 
-      }}>
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>📊 Portfolio</h2>
-          <p>Real-time portfolio tracking and analytics</p>
-          <button style={{ 
-            background: '#4caf50', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            View Portfolio
-          </button>
-        </div>
-
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>📈 Live Data</h2>
-          <p>Real-time market data and charts</p>
-          <button style={{ 
-            background: '#2196f3', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            View Markets
-          </button>
-        </div>
-
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>⚙️ Settings</h2>
-          <p>API keys and configuration</p>
-          <button style={{ 
-            background: '#ff9800', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            Configure
-          </button>
-        </div>
-      </div>
-
-      <div style={{ 
-        background: '#e8f5e8', 
-        padding: '20px', 
-        borderRadius: '8px',
-        marginTop: '20px',
-        border: '1px solid #4caf50'
-      }}>
-        <h3 style={{ color: '#2e7d32', marginTop: 0 }}>✅ System Status</h3>
-        <p style={{ color: '#333' }}>
-          <strong>Build:</strong> SUCCESS • 
-          <strong>Dependencies:</strong> MINIMAL • 
-          <strong>Errors:</strong> NONE
-        </p>
-        <p style={{ color: '#555' }}>
-          This minimal version proves the core system works without UI library conflicts.
-        </p>
-      </div>
+try {
+  console.log('🔧 Creating React root...');
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  
+  console.log('🔧 Rendering full dashboard...');
+  root.render(
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ThemeErrorBoundary>
+            <ThemeProvider>
+              <AppWithTheme />
+            </ThemeProvider>
+          </ThemeErrorBoundary>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
+  
+  console.log('✅ Dashboard rendered successfully!');
+} catch (error) {
+  console.error('❌ Error rendering dashboard:', error);
+  
+  // Fallback to basic dashboard
+  document.getElementById('root').innerHTML = `
+    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+      <h1 style="color: #d32f2f;">Dashboard Loading Failed</h1>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <p>Check browser console for details.</p>
+      <button onclick="window.location.reload()" style="padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Reload Page
+      </button>
     </div>
-  )
+  `;
 }
-
-console.log('🚀 NUCLEAR OPTION: Minimal app loading...')
-
-const root = ReactDOM.createRoot(document.getElementById('root'))
-root.render(<MinimalApp />)
-
-console.log('✅ NUCLEAR SUCCESS: Minimal app rendered without dependencies!')

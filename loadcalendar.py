@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Load calendar data - trigger v2.7 - DB timeout fix - production ready calendar loader
 # Updated 2025-07-15: Enhanced calendar data processing with improved error handling
-# TRIGGER DEPLOY: loadcalendar v3.3 - SSL certificate download fix test
+# TRIGGER DEPLOY: loadcalendar v3.4 - disable SSL to test basic connectivity
 import sys
 import time
 import logging
@@ -239,8 +239,7 @@ def main():
             user=user,
             password=pwd,
             dbname=dbname,
-            sslmode="require",
-            sslrootcert="rds-ca-2019-root.pem",
+            sslmode="disable",
             cursor_factory=DictCursor
         )
         

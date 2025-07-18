@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { styled, alpha, keyframes } from '@mui/material/styles';
 import {
   Box,
   Paper,
@@ -46,6 +45,7 @@ import {
   Avatar,
   Snackbar,
   AlertTitle,
+  Stack,
   ButtonGroup,
   Skeleton,
   CardHeader,
@@ -54,7 +54,10 @@ import {
   Grow,
   Zoom,
   Collapse,
-  useTheme
+  useTheme,
+  alpha,
+  styled,
+  keyframes
 } from '@mui/material';
 import {
   TrendingUp,
@@ -110,6 +113,7 @@ import {
   SignalWifi1Bar,
   Tune,
   AutoMode,
+  ManualMode,
   SmartToy,
   Psychology,
   Insights,
@@ -272,6 +276,7 @@ import {
   SouthWest,
   CallMade,
   CallReceived,
+  TrendingNeutral,
   Moving,
   OpenWith,
   PanTool,
@@ -286,9 +291,12 @@ import {
   SwipeUpAlt,
   SwipeLeftAlt,
   SwipeRightAlt,
+  PinchZoomIn,
+  PinchZoomOut,
   Compress,
   Expand,
   Height,
+  Width,
   AspectRatio,
   CropFree,
   Crop,
@@ -310,7 +318,11 @@ import {
   FlipToFront,
   Transform,
   Animation,
+  Motion,
+  MotionPhotos,
+  MotionPhotosOn,
   MotionPhotosOff,
+  MotionPhotosPause,
   MotionPhotosAuto,
   LiveHelp,
   LiveHelpOutlined,
@@ -390,6 +402,7 @@ import {
   DataObject,
   DataArray,
   DataThresholding,
+  DataExploration,
   DataSaverOff,
   DataSaverOn,
   DataUsageRounded,
@@ -423,7 +436,7 @@ import {
   DynamicFeed,
   DynamicForm,
   Feed,
-  RssFeed as Rss, // Use RssFeed instead of Rss
+  Rss,
   RssFeed,
   FilterList,
   FilterListOff,
@@ -486,7 +499,7 @@ import {
   FindInPageRounded,
   FindInPageSharp,
   YoutubeSearchedFor,
-  Save as Saved, // Use Save instead of Saved
+  Saved,
   SavedSearch,
   Explore,
   ExploreOff,
@@ -502,6 +515,7 @@ import {
   LayersTwoTone,
   LayersOutlined,
   LayersClear,
+  Stack as StackIcon,
   QueueMusic,
   Queue,
   QueuePlayNext,
@@ -553,6 +567,7 @@ import {
   Group,
   GroupAdd,
   GroupRemove,
+  GroupOff,
   GroupWork,
   Groups,
   SupervisorAccount,
@@ -712,6 +727,7 @@ import {
   DragIndicator,
   Reorder,
   OpenWith as OpenWithIcon,
+  Pan,
   PanTool as PanToolIcon,
   PanToolAlt,
   TouchApp as TouchAppIcon,
@@ -726,9 +742,12 @@ import {
   SwipeUpAlt as SwipeUpAltIcon,
   SwipeLeftAlt as SwipeLeftAltIcon,
   SwipeRightAlt as SwipeRightAltIcon,
+  PinchZoomIn as PinchZoomInIcon,
+  PinchZoomOut as PinchZoomOutIcon,
   Compress as CompressIcon,
   Expand as ExpandIcon,
   Height as HeightIcon,
+  Width as WidthIcon,
   AspectRatio as AspectRatioIcon,
   CropFree as CropFreeIcon,
   Crop as CropIcon,
@@ -750,24 +769,20 @@ import {
   FlipToFront as FlipToFrontIcon,
   Transform as TransformIcon
 } from '@mui/icons-material';
-import { 
-  LineChart, 
-  Line, 
-  BarChart as RechartsBarChart, 
-  Bar, 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  Legend as RechartsLegend, 
+import {
   ResponsiveContainer,
+  LineChart,
   AreaChart,
+  Line,
   Area,
-  ScatterChart,
-  Scatter
+  Bar,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend
 } from 'recharts';
 
 // Styled components for enhanced visuals
