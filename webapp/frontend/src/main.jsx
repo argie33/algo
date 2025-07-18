@@ -10,6 +10,11 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+
+// MUI Theme to prevent createPalette errors
+import muiTheme from './theme/muiTheme'
 
 // Enhanced components
 import './index.css'
@@ -62,13 +67,16 @@ const queryClient = new QueryClient({
 // Enhanced app wrapper with comprehensive error handling and loading states
 const AppWithProviders = () => {
   return (
-    <LoadingProvider>
-      <AuthProvider>
-        <ApiKeyProvider>
-          <App />
-        </ApiKeyProvider>
-      </AuthProvider>
-    </LoadingProvider>
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <LoadingProvider>
+        <AuthProvider>
+          <ApiKeyProvider>
+            <App />
+          </ApiKeyProvider>
+        </AuthProvider>
+      </LoadingProvider>
+    </ThemeProvider>
   );
 };
 

@@ -158,7 +158,7 @@ const MetricsDashboard = () => {
   };
 
   const getMetricChip = (metric, label) => (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+    <Chip
       label={`${label}: ${metric.toFixed(3)}`}
       size="small"
       style={{
@@ -171,17 +171,17 @@ const MetricsDashboard = () => {
   );
 
   const MetricProgressBar = ({ metric, label, icon }) => (
-    <div  sx={{ mb: 2 }}>
-      <div  sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+    <Box sx={{ mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
         {icon}
-        <div  variant="body2" sx={{ ml: 1, flex: 1 }}>
+        <Typography variant="body2" sx={{ ml: 1, flex: 1 }}>
           {label}
-        </div>
-        <div  variant="body2" sx={{ fontWeight: 'bold' }}>
+        </Typography>
+        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
           {metric.toFixed(3)}
-        </div>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2"
+        </Typography>
+      </Box>
+      <LinearProgress
         variant="determinate"
         value={metric * 100}
         sx={{
@@ -193,49 +193,49 @@ const MetricsDashboard = () => {
           },
         }}
       />
-    </div>
+    </Box>
   );
 
   const MainMetricsTable = () => (
-    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ mt: 3 }}>
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Symbol</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Company</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Sector</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center"><strong>Composite Metric</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center"><strong>Quality</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center"><strong>Value</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center"><strong>Growth</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Price</strong></td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Market Cap</strong></td>
-          </tr>
-        </thead>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+    <TableContainer component={Paper} sx={{ mt: 3 }}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell><strong>Symbol</strong></TableCell>
+            <TableCell><strong>Company</strong></TableCell>
+            <TableCell><strong>Sector</strong></TableCell>
+            <TableCell align="center"><strong>Composite Metric</strong></TableCell>
+            <TableCell align="center"><strong>Quality</strong></TableCell>
+            <TableCell align="center"><strong>Value</strong></TableCell>
+            <TableCell align="center"><strong>Growth</strong></TableCell>
+            <TableCell><strong>Price</strong></TableCell>
+            <TableCell><strong>Market Cap</strong></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {stocks.map((stock, index) => (
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={stock.symbol} hover>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+            <TableRow key={stock.symbol} hover>
+              <TableCell>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
                   {stock.symbol}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="body2">
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
                   {stock.companyName?.substring(0, 30)}
                   {stock.companyName?.length > 30 ? '...' : ''}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Chip 
                   label={stock.sector} 
                   size="small" 
                   variant="outlined"
                 />
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div  
+              </TableCell>
+              <TableCell align="center">
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Typography 
                     variant="h6" 
                     sx={{ 
                       color: getMetricColor(stock.metrics.composite),
@@ -243,54 +243,54 @@ const MetricsDashboard = () => {
                     }}
                   >
                     {stock.metrics.composite.toFixed(3)}
-                  </div>
-                  <div  title={`Confidence: ${stock.metadata.confidence.toFixed(2)}`}>
-                    <button className="p-2 rounded-full hover:bg-gray-100" size="small">
+                  </Typography>
+                  <Tooltip title={`Confidence: ${stock.metadata.confidence.toFixed(2)}`}>
+                    <IconButton size="small">
                       <Info fontSize="small" />
-                    </button>
-                  </div>
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                <div  sx={{ color: getMetricColor(stock.metrics.quality) }}>
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </TableCell>
+              <TableCell align="center">
+                <Typography sx={{ color: getMetricColor(stock.metrics.quality) }}>
                   {stock.metrics.quality.toFixed(3)}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                <div  sx={{ color: getMetricColor(stock.metrics.value) }}>
+                </Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography sx={{ color: getMetricColor(stock.metrics.value) }}>
                   {stock.metrics.value.toFixed(3)}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                <div  sx={{ color: getMetricColor(stock.metrics.growth || 0) }}>
+                </Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography sx={{ color: getMetricColor(stock.metrics.growth || 0) }}>
                   {(stock.metrics.growth || 0).toFixed(3)}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                </Typography>
+              </TableCell>
+              <TableCell>
                 ${stock.currentPrice?.toFixed(2) || 'N/A'}
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+              </TableCell>
+              <TableCell>
                 {stock.marketCap ? `$${(stock.marketCap / 1e9).toFixed(1)}B` : 'N/A'}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 
   const SectorAnalysis = () => (
-    <div className="grid" container spacing={3} sx={{ mt: 2 }}>
+    <Grid container spacing={3} sx={{ mt: 2 }}>
       {sectors.map((sector) => (
-        <div className="grid" item xs={12} md={6} lg={4} key={sector.sector}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={6} lg={4} key={sector.sector}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 {sector.sector}
-              </div>
-              <div  variant="body2" color="textSecondary" gutterBottom>
+              </Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
                 {sector.stockCount} stocks
-              </div>
+              </Typography>
               
               <MetricProgressBar 
                 metric={parseFloat(sector.averageMetrics.composite)} 
@@ -313,33 +313,33 @@ const MetricsDashboard = () => {
                 icon={<TrendingUp />}
               />
               
-              <div  sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
-                <div  variant="caption">
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption">
                   Range: {sector.metricRange.min} - {sector.metricRange.max}
-                </div>
-                <div  variant="caption">
+                </Typography>
+                <Typography variant="caption">
                   Vol: {sector.metricRange.volatility}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
       ))}
-    </div>
+    </Grid>
   );
 
   const TopStocks = () => (
-    <div className="grid" container spacing={3} sx={{ mt: 2 }}>
+    <Grid container spacing={3} sx={{ mt: 2 }}>
       {Object.entries(topStocks).map(([category, stocks]) => (
-        <div className="grid" item xs={12} md={6} key={category}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom sx={{ textTransform: 'capitalize' }}>
+        <Grid item xs={12} md={6} key={category}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ textTransform: 'capitalize' }}>
                 Top {category === 'composite' ? 'Overall' : category} Stocks
-              </div>
-              <div  sx={{ maxHeight: 400, overflow: 'auto' }}>
+              </Typography>
+              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
                 {stocks.slice(0, 10).map((stock, index) => (
-                  <div  
+                  <Box 
                     key={stock.symbol} 
                     sx={{ 
                       display: 'flex', 
@@ -349,17 +349,17 @@ const MetricsDashboard = () => {
                       borderBottom: index < 9 ? '1px solid #eee' : 'none'
                     }}
                   >
-                    <div>
-                      <div  variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
                         {index + 1}. {stock.symbol}
-                      </div>
-                      <div  variant="caption" color="textSecondary">
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
                         {stock.companyName?.substring(0, 25)}
                         {stock.companyName?.length > 25 ? '...' : ''}
-                      </div>
-                    </div>
-                    <div  sx={{ textAlign: 'right' }}>
-                      <div  
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography 
                         variant="body2" 
                         sx={{ 
                           color: getMetricColor(stock.categoryMetric),
@@ -367,90 +367,90 @@ const MetricsDashboard = () => {
                         }}
                       >
                         {stock.categoryMetric.toFixed(3)}
-                      </div>
-                      <div  variant="caption" color="textSecondary">
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
                         {stock.sector}
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                  </Box>
                 ))}
-              </div>
-            </div>
-          </div>
-        </div>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
       ))}
-    </div>
+    </Grid>
   );
 
   if (error) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ mt: 4 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Alert severity="error">
           Error loading metrics: {error}
-        </div>
-      </div>
+        </Alert>
+      </Container>
     );
   }
 
   return (
-    <div className="container mx-auto" maxWidth="lg" sx={{ mt: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h3" component="h1" gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom>
           Institutional-Grade Stock Metrics
-        </div>
-        <div  variant="subtitle1" color="textSecondary">
+        </Typography>
+        <Typography variant="subtitle1" color="textSecondary">
           Advanced multi-factor analysis based on academic research and institutional methodology
-        </div>
-      </div>
+        </Typography>
+      </Box>
 
       {/* Navigation Tabs */}
-      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <div className="border-b border-gray-200" value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Stock Metrics" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sector Analysis" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Top Performers" />
-        </div>
-      </div>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="Stock Metrics" />
+          <Tab label="Sector Analysis" />
+          <Tab label="Top Performers" />
+        </Tabs>
+      </Box>
 
       {/* Filters for Stock Metrics Tab */}
       {activeTab === 0 && (
-        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} sm={3}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={3}>
+              <TextField
                 fullWidth
                 label="Search Symbol/Company"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 size="small"
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sector</InputLabel>
+                <Select
                   value={selectedSector}
                   label="Sector"
                   onChange={(e) => setSelectedSector(e.target.value)}
                 >
-                  <option  value="">All Sectors</option>
-                  <option  value="Technology">Technology</option>
-                  <option  value="Healthcare">Healthcare</option>
-                  <option  value="Financial Services">Financial Services</option>
-                  <option  value="Consumer Cyclical">Consumer Cyclical</option>
-                  <option  value="Industrials">Industrials</option>
-                  <option  value="Communication Services">Communication Services</option>
-                  <option  value="Consumer Defensive">Consumer Defensive</option>
-                  <option  value="Energy">Energy</option>
-                  <option  value="Utilities">Utilities</option>
-                  <option  value="Real Estate">Real Estate</option>
-                  <option  value="Basic Materials">Basic Materials</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="">All Sectors</MenuItem>
+                  <MenuItem value="Technology">Technology</MenuItem>
+                  <MenuItem value="Healthcare">Healthcare</MenuItem>
+                  <MenuItem value="Financial Services">Financial Services</MenuItem>
+                  <MenuItem value="Consumer Cyclical">Consumer Cyclical</MenuItem>
+                  <MenuItem value="Industrials">Industrials</MenuItem>
+                  <MenuItem value="Communication Services">Communication Services</MenuItem>
+                  <MenuItem value="Consumer Defensive">Consumer Defensive</MenuItem>
+                  <MenuItem value="Energy">Energy</MenuItem>
+                  <MenuItem value="Utilities">Utilities</MenuItem>
+                  <MenuItem value="Real Estate">Real Estate</MenuItem>
+                  <MenuItem value="Basic Materials">Basic Materials</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <TextField
                 fullWidth
                 label="Min Metric"
                 type="number"
@@ -459,9 +459,9 @@ const MetricsDashboard = () => {
                 size="small"
                 inputProps={{ min: 0, max: 1, step: 0.01 }}
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <TextField
                 fullWidth
                 label="Max Metric"
                 type="number"
@@ -470,32 +470,32 @@ const MetricsDashboard = () => {
                 size="small"
                 inputProps={{ min: 0, max: 1, step: 0.01 }}
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sort By</InputLabel>
+                <Select
                   value={sortBy}
                   label="Sort By"
                   onChange={(e) => setSortBy(e.target.value)}
                 >
-                  <option  value="composite_metric">Composite Metric</option>
-                  <option  value="quality_metric">Quality Metric</option>
-                  <option  value="value_metric">Value Metric</option>
-                  <option  value="market_cap">Market Cap</option>
-                  <option  value="symbol">Symbol</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
+                  <MenuItem value="composite_metric">Composite Metric</MenuItem>
+                  <MenuItem value="quality_metric">Quality Metric</MenuItem>
+                  <MenuItem value="value_metric">Value Metric</MenuItem>
+                  <MenuItem value="market_cap">Market Cap</MenuItem>
+                  <MenuItem value="symbol">Symbol</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </Paper>
       )}
 
       {/* Content based on active tab */}
       {loading ? (
-        <div  sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-        </div>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
       ) : (
         <>
           {activeTab === 0 && <MainMetricsTable />}
@@ -506,54 +506,54 @@ const MetricsDashboard = () => {
 
       {/* Pagination for Stock Metrics */}
       {activeTab === 0 && totalPages > 1 && (
-        <div  sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-          <div  variant="body2" sx={{ mt: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+          <Typography variant="body2" sx={{ mt: 1 }}>
             Page {page} of {totalPages}
-          </div>
+          </Typography>
           {/* Add pagination controls here if needed */}
-        </div>
+        </Box>
       )}
 
       {/* Legend */}
-      <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, mt: 4, backgroundColor: '#f5f5f5' }}>
-        <div  variant="h6" gutterBottom>
+      <Paper sx={{ p: 2, mt: 4, backgroundColor: '#f5f5f5' }}>
+        <Typography variant="h6" gutterBottom>
           Metrics Methodology
-        </div>
-        <div className="grid" container spacing={2}>
-          <div className="grid" item xs={12} sm={6} md={6}>
-            <div  variant="subtitle2">Quality Metric</div>
-            <div  variant="caption">
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={6}>
+            <Typography variant="subtitle2">Quality Metric</Typography>
+            <Typography variant="caption">
               Financial statement quality, balance sheet strength, profitability, management effectiveness using Piotroski F-Score, Altman Z-Score analysis
-            </div>
-          </div>
-          <div className="grid" item xs={12} sm={6} md={6}>
-            <div  variant="subtitle2">Value Metric</div>
-            <div  variant="caption">
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6} md={6}>
+            <Typography variant="subtitle2">Value Metric</Typography>
+            <Typography variant="caption">
               Traditional multiples (P/E, P/B, EV/EBITDA), DCF intrinsic value, dividend discount model, and peer comparison analysis
-            </div>
-          </div>
-          <div className="grid" item xs={12} sm={6} md={6}>
-            <div  variant="subtitle2">Growth Metric</div>
-            <div  variant="caption">
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6} md={6}>
+            <Typography variant="subtitle2">Growth Metric</Typography>
+            <Typography variant="caption">
               Revenue growth analysis, earnings growth quality, fundamental growth drivers, and market expansion potential based on academic research
-            </div>
-          </div>
-        </div>
+            </Typography>
+          </Grid>
+        </Grid>
         
-        <div  sx={{ mt: 2 }}>
-          <div  variant="subtitle2" gutterBottom>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
             Metric Ranges (0-1 Scale):
-          </div>
-          <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {getMetricChip(0.9, 'Excellent (0.8-1.0)')}
             {getMetricChip(0.75, 'Good (0.7-0.79)')}
             {getMetricChip(0.65, 'Fair (0.6-0.69)')}
             {getMetricChip(0.55, 'Below Average (0.5-0.59)')}
             {getMetricChip(0.4, 'Poor (0.0-0.49)')}
-          </div>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </Box>
+      </Paper>
+    </Container>
   );
 };
 
