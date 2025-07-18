@@ -17,7 +17,6 @@ import {
   Stack,
   Paper,
   Divider,
-  useTheme,
   alpha,
   List,
   ListItem,
@@ -71,7 +70,6 @@ function TabPanel({ children, value, index }) {
 }
 
 const NewsSentiment = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [newsData, setNewsData] = useState([]);
   const [sentimentStats, setSentimentStats] = useState(null);
@@ -240,27 +238,27 @@ const NewsSentiment = () => {
   };
 
   const getSentimentColor = (sentiment) => {
-    if (sentiment >= 0.6) return theme.palette.success.main;
-    if (sentiment >= 0.2) return theme.palette.success.light;
-    if (sentiment >= -0.2) return theme.palette.grey[500];
-    if (sentiment >= -0.6) return theme.palette.error.light;
-    return theme.palette.error.main;
+    if (sentiment >= 0.6) return '#4caf50';
+    if (sentiment >= 0.2) return '#81c784';
+    if (sentiment >= -0.2) return '#9e9e9e';
+    if (sentiment >= -0.6) return '#e57373';
+    return '#f44336';
   };
 
   const getSentimentIcon = (sentiment) => {
-    if (sentiment >= 0.6) return <LocalFireDepartment sx={{ color: theme.palette.success.main }} />;
-    if (sentiment >= 0.2) return <TrendingUp sx={{ color: theme.palette.success.light }} />;
-    if (sentiment >= -0.2) return <Remove sx={{ color: theme.palette.grey[500] }} />;
-    if (sentiment >= -0.6) return <TrendingDown sx={{ color: theme.palette.error.light }} />;
-    return <AcUnit sx={{ color: theme.palette.error.main }} />;
+    if (sentiment >= 0.6) return <LocalFireDepartment sx={{ color: '#4caf50' }} />;
+    if (sentiment >= 0.2) return <TrendingUp sx={{ color: '#81c784' }} />;
+    if (sentiment >= -0.2) return <Remove sx={{ color: '#9e9e9e' }} />;
+    if (sentiment >= -0.6) return <TrendingDown sx={{ color: '#e57373' }} />;
+    return <AcUnit sx={{ color: '#f44336' }} />;
   };
 
   const getImpactColor = (impact) => {
     switch (impact) {
-      case 'high': return theme.palette.error.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.success.main;
-      default: return theme.palette.grey[500];
+      case 'high': return '#f44336';
+      case 'medium': return '#ff9800';
+      case 'low': return '#4caf50';
+      default: return '#9e9e9e';
     }
   };
 
@@ -316,9 +314,9 @@ const NewsSentiment = () => {
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {sentimentStats?.overall.change24h > 0 ? (
-                    <TrendingUp sx={{ fontSize: 16, color: theme.palette.success.main }} />
+                    <TrendingUp sx={{ fontSize: 16, color: '#4caf50' }} />
                   ) : (
-                    <TrendingDown sx={{ fontSize: 16, color: theme.palette.error.main }} />
+                    <TrendingDown sx={{ fontSize: 16, color: '#f44336' }} />
                   )}
                   <Typography variant="body2" color={sentimentStats?.overall.change24h > 0 ? 'success.main' : 'error.main'}>
                     {Math.abs(sentimentStats?.overall.change24h || 0).toFixed(2)} vs 24h ago
@@ -348,7 +346,7 @@ const NewsSentiment = () => {
         </Grid>
 
         <Grid item xs={12} md={3}>
-          <Card sx={{ background: alpha(theme.palette.success.main, 0.05) }}>
+          <Card sx={{ background: '#4caf500D' }}>
             <CardContent>
               <Stack spacing={1}>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -366,7 +364,7 @@ const NewsSentiment = () => {
         </Grid>
 
         <Grid item xs={12} md={3}>
-          <Card sx={{ background: alpha(theme.palette.error.main, 0.05) }}>
+          <Card sx={{ background: '#f443360D' }}>
             <CardContent>
               <Stack spacing={1}>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -585,9 +583,9 @@ const NewsSentiment = () => {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       {data.change > 0 ? (
-                        <TrendingUp sx={{ fontSize: 16, color: theme.palette.success.main }} />
+                        <TrendingUp sx={{ fontSize: 16, color: '#4caf50' }} />
                       ) : (
-                        <TrendingDown sx={{ fontSize: 16, color: theme.palette.error.main }} />
+                        <TrendingDown sx={{ fontSize: 16, color: '#f44336' }} />
                       )}
                       <Typography variant="body2" color={data.change > 0 ? 'success.main' : 'error.main'}>
                         {Math.abs(data.change * 100).toFixed(0)}%
@@ -600,7 +598,7 @@ const NewsSentiment = () => {
                     sx={{
                       height: 8,
                       borderRadius: 4,
-                      bgcolor: alpha(theme.palette.grey[500], 0.1),
+                      bgcolor: '#9e9e9e1A',
                       '& .MuiLinearProgress-bar': {
                         bgcolor: getSentimentColor(data.score)
                       }
@@ -631,7 +629,7 @@ const NewsSentiment = () => {
                       sx={{
                         height: 6,
                         borderRadius: 3,
-                        bgcolor: alpha(theme.palette.grey[500], 0.1),
+                        bgcolor: '#9e9e9e1A',
                         '& .MuiLinearProgress-bar': {
                           bgcolor: getSentimentColor(value)
                         }
@@ -652,8 +650,8 @@ const NewsSentiment = () => {
                 {sentimentStats?.topBullish.map(ticker => (
                   <ListItem key={ticker} sx={{ py: 1 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: alpha(theme.palette.success.main, 0.1) }}>
-                        <TrendingUp sx={{ color: theme.palette.success.main }} />
+                      <Avatar sx={{ bgcolor: '#4caf501A' }}>
+                        <TrendingUp sx={{ color: '#4caf50' }} />
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
@@ -676,8 +674,8 @@ const NewsSentiment = () => {
                 {sentimentStats?.topBearish.map(ticker => (
                   <ListItem key={ticker} sx={{ py: 1 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: alpha(theme.palette.error.main, 0.1) }}>
-                        <TrendingDown sx={{ color: theme.palette.error.main }} />
+                      <Avatar sx={{ bgcolor: '#f443361A' }}>
+                        <TrendingDown sx={{ color: '#f44336' }} />
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText

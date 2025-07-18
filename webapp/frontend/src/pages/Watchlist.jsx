@@ -32,7 +32,6 @@ import {
   MenuItem,
   Tooltip,
   Stack,
-  useTheme,
   alpha,
   Divider,
   FormControl,
@@ -94,7 +93,6 @@ function TabPanel({ children, value, index }) {
 }
 
 const Watchlist = () => {
-  const theme = useTheme();
   const { isAuthenticated } = useAuth();
   const [watchlists, setWatchlists] = useState([]);
   const [activeWatchlist, setActiveWatchlist] = useState(0);
@@ -391,9 +389,9 @@ const Watchlist = () => {
   };
 
   const getPriceColor = (changePercent) => {
-    if (changePercent > 0) return theme.palette.success.main;
-    if (changePercent < 0) return theme.palette.error.main;
-    return theme.palette.text.secondary;
+    if (changePercent > 0) return '#4caf50';
+    if (changePercent < 0) return '#f44336';
+    return 'rgba(0, 0, 0, 0.6)';
   };
 
   const getVolumeDisplay = (volume, avgVolume) => {
@@ -466,7 +464,7 @@ const Watchlist = () => {
             <TableContainer component={Paper} sx={{ mt: 2 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.08) }}>
+                  <TableRow sx={{ backgroundColor: '#1976d214' }}>
                     <TableCell width="30px"></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -526,7 +524,7 @@ const Watchlist = () => {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             sx={{ 
-                              '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) },
+                              '&:hover': { backgroundColor: '#1976d20A' },
                               borderLeft: `3px solid ${getPriceColor(item.day_change_percent)}`,
                             }}
                           >
@@ -550,7 +548,7 @@ const Watchlist = () => {
                                       fontSize: '0.65rem', 
                                       height: 18,
                                       mt: 0.5,
-                                      backgroundColor: alpha(theme.palette.info.main, 0.1)
+                                      backgroundColor: '#2196f31A'
                                     }}
                                   />
                                 )}
@@ -632,7 +630,7 @@ const Watchlist = () => {
                                       sx={{ 
                                         width: 40, 
                                         height: 4, 
-                                        backgroundColor: alpha(theme.palette.grey[400], 0.3),
+                                        backgroundColor: '#bdbdbd4D',
                                         borderRadius: 2,
                                         position: 'relative'
                                       }}
@@ -641,7 +639,7 @@ const Watchlist = () => {
                                         sx={{ 
                                           width: 2, 
                                           height: 8, 
-                                          backgroundColor: theme.palette.primary.main,
+                                          backgroundColor: '#1976d2',
                                           position: 'absolute',
                                           left: `${priceRange}%`,
                                           top: -2,

@@ -3423,13 +3423,60 @@ export const getDashboardFinancialHighlights = async () => {
 export const getDashboardSymbols = async () => {
   console.log('🔤 [API] Fetching dashboard symbols...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ', 'DIA', 'AMZN', 'META'];
-    console.log('🔤 [API] Returning mock symbols:', mockSymbols);
-    return { data: mockSymbols };
+    // Get popular symbols from database stock_symbols table
+    const endpoints = ['/api/stocks/popular', '/api/stocks?popular=true', '/stocks/popular', '/stocks?limit=20&popular=true'];
+    
+    let response = null;
+    let lastError = null;
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔤 [API] Trying dashboard symbols endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`🔤 [API] SUCCESS with dashboard symbols endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`🔤 [API] FAILED dashboard symbols endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+    
+    if (!response) {
+      console.error('🔤 [API] All dashboard symbols endpoints failed, trying generic stocks endpoint');
+      // Fallback to generic stocks endpoint
+      try {
+        response = await api.get('/api/stocks?limit=20');
+      } catch (fallbackError) {
+        console.error('🔤 [API] Fallback stocks endpoint failed:', fallbackError);
+        throw new Error(`Failed to fetch dashboard symbols: ${lastError?.message || fallbackError.message}`);
+      }
+    }
+    
+    // Extract symbols from response
+    let symbols = [];
+    if (response.data && Array.isArray(response.data.stocks)) {
+      symbols = response.data.stocks.map(stock => stock.symbol).filter(Boolean);
+    } else if (response.data && Array.isArray(response.data)) {
+      symbols = response.data.map(stock => stock.symbol || stock).filter(Boolean);
+    } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+      symbols = response.data.data.map(stock => stock.symbol).filter(Boolean);
+    }
+    
+    // Ensure we have at least some symbols
+    if (symbols.length === 0) {
+      console.warn('🔤 [API] No symbols returned, using fallback list');
+      symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
+    }
+    
+    console.log('🔤 [API] Returning dashboard symbols:', symbols);
+    return { data: symbols };
   } catch (error) {
     console.error('❌ [API] Dashboard symbols error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch dashboard symbols'));
+    // Return fallback symbols on complete failure
+    const fallbackSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
+    console.log('🔤 [API] Using fallback symbols due to error:', fallbackSymbols);
+    return { data: fallbackSymbols };
   }
 };
 

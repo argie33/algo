@@ -770,7 +770,18 @@ const Dashboard = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
   
-  const SYMBOL_OPTIONS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
+  // Dynamic symbol options from database using centralized symbol service
+  const { data: symbolOptionsData, isLoading: symbolsLoading } = useQuery({
+    queryKey: ['dashboard-symbols'],
+    queryFn: async () => {
+      const { symbolService } = await import('../services/symbolService');
+      return await symbolService.getDashboardSymbols();
+    },
+    staleTime: 30 * 60 * 1000, // 30 minutes cache
+    cacheTime: 60 * 60 * 1000, // 1 hour cache
+  });
+
+  const SYMBOL_OPTIONS = symbolOptionsData || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'SPY', 'QQQ'];
   
   // Enhanced data fetching
   const { data: portfolioData } = usePortfolioData();
@@ -890,8 +901,32 @@ const Dashboard = () => {
             options={SYMBOL_OPTIONS}
             value={selectedSymbol}
             onChange={(_, newValue) => newValue && setSelectedSymbol(newValue)}
+            loading={symbolsLoading}
             sx={{ width: 300 }}
-            renderInput={(params) => <TextField {...params} label="Select Symbol" size="small" />}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label="Select Symbol" 
+                size="small"
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {symbolsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                      {params.InputProps.endAdornment}
+                    </>
+                  ),
+                }}
+                helperText={symbolsLoading ? "Loading symbols from database..." : `${SYMBOL_OPTIONS.length} symbols available`}
+              />
+            )}
+            renderOption={(props, option) => (
+              <Box component="li" {...props}>
+                <Typography variant="body2" fontWeight="bold">
+                  {option}
+                </Typography>
+              </Box>
+            )}
           />
         </Box>
 

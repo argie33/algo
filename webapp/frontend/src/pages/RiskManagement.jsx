@@ -174,8 +174,7 @@ const calculateBeta = (assetReturns, marketReturns) => {
 };
 
 // Generate comprehensive risk data
-const generateAdvancedRiskData = () => {
-  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM'];
+const generateAdvancedRiskData = (symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM']) => {
   const positions = [];
   
   // Generate realistic portfolio positions with advanced metrics
@@ -395,6 +394,7 @@ const RiskManagement = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [riskData, setRiskData] = useState(null);
+  const [symbols, setSymbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM']);
   const [realTimeEnabled, setRealTimeEnabled] = useState(true);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -416,6 +416,23 @@ const RiskManagement = () => {
     enabled: true
   });
 
+  // Load symbols from symbol service
+  useEffect(() => {
+    const loadSymbols = async () => {
+      try {
+        const { symbolService } = await import('../services/symbolService');
+        const dynamicSymbols = await symbolService.getSymbols('popular', { limit: 20 });
+        if (dynamicSymbols.length > 0) {
+          setSymbols(dynamicSymbols);
+        }
+      } catch (error) {
+        console.error('Failed to load symbols for risk management:', error);
+        // Keep default symbols on error
+      }
+    };
+    loadSymbols();
+  }, []);
+
   useEffect(() => {
     loadRiskData();
     
@@ -423,21 +440,21 @@ const RiskManagement = () => {
       const interval = setInterval(loadRiskData, 30000); // Update every 30 seconds
       return () => clearInterval(interval);
     }
-  }, [realTimeEnabled, selectedTimeHorizon, confidenceLevel]);
+  }, [realTimeEnabled, selectedTimeHorizon, confidenceLevel, symbols]);
 
   const loadRiskData = useCallback(async () => {
     setLoading(true);
     try {
       // Simulate API call - replace with real risk service
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const data = generateAdvancedRiskData();
+      const data = generateAdvancedRiskData(symbols);
       setRiskData(data);
     } catch (error) {
       console.error('Error loading risk data:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [symbols]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);

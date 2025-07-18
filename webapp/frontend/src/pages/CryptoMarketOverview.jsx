@@ -15,7 +15,6 @@ import {
   TableHead,
   TableRow,
   LinearProgress,
-  useTheme,
   Alert,
   CircularProgress,
   IconButton,
@@ -65,7 +64,7 @@ import {
 } from 'recharts'
 
 const CryptoMarketOverview = () => {
-  const theme = useTheme()
+  // REMOVED: const theme = useTheme() - causes createPalette error
   const [marketData, setMarketData] = useState(null)
   const [fearGreedIndex, setFearGreedIndex] = useState(null)
   const [topMovers, setTopMovers] = useState({ gainers: [], losers: [] })
@@ -588,7 +587,7 @@ const CryptoMarketOverview = () => {
                       transition: 'all 0.2s ease',
                       '&:hover': {
                         transform: 'translateY(-2px)',
-                        boxShadow: theme.shadows[4]
+                        boxShadow: '0px 2px 4px -1px rgba(0,0,0,0.2),0px 4px 5px 0px rgba(0,0,0,0.14),0px 1px 10px 0px rgba(0,0,0,0.12)'
                       }
                     }}
                   >

@@ -43,7 +43,6 @@ import {
   ListItemAvatar,
   Skeleton,
   alpha,
-  useTheme,
   Fade,
   Zoom,
   Collapse,
@@ -133,12 +132,11 @@ const pulse = keyframes`
 
 // Trading signal strength indicator
 const SignalStrength = ({ strength, type = 'buy' }) => {
-  const theme = useTheme();
   const getStrengthColor = (value) => {
-    if (value >= 0.8) return theme.palette.success.main;
-    if (value >= 0.6) return theme.palette.warning.main;
-    if (value >= 0.4) return theme.palette.info.main;
-    return theme.palette.error.main;
+    if (value >= 0.8) return '#4caf50';
+    if (value >= 0.6) return '#ff9800';
+    if (value >= 0.4) return '#2196f3';
+    return '#f44336';
   };
 
   const getStrengthLabel = (value) => {
@@ -160,7 +158,7 @@ const SignalStrength = ({ strength, type = 'buy' }) => {
             sx={{
               width: 4,
               height: 16 - (index * 2),
-              backgroundColor: index < activeBars ? getStrengthColor(strength) : alpha(theme.palette.action.disabled, 0.3),
+              backgroundColor: index < activeBars ? getStrengthColor(strength) : 'rgba(0, 0, 0, 0.26)',
               borderRadius: 1
             }}
           />
@@ -175,7 +173,6 @@ const SignalStrength = ({ strength, type = 'buy' }) => {
 
 // Signal type chip
 const SignalTypeChip = ({ signal, strength, signalType }) => {
-  const theme = useTheme();
   const isPositive = signalType === 'buy' || (signal && parseFloat(signal) > 0);
   
   return (
@@ -198,14 +195,12 @@ const SignalTypeChip = ({ signal, strength, signalType }) => {
 
 // Performance indicator
 const PerformanceIndicator = ({ performance, status }) => {
-  const theme = useTheme();
-  
   const getStatusColor = (status) => {
     switch (status) {
-      case 'WINNING': return theme.palette.success.main;
-      case 'STOPPED': return theme.palette.error.main;
-      case 'ACTIVE': return theme.palette.info.main;
-      default: return theme.palette.text.secondary;
+      case 'WINNING': return '#4caf50';
+      case 'STOPPED': return '#f44336';
+      case 'ACTIVE': return '#2196f3';
+      default: return 'rgba(0, 0, 0, 0.6)';
     }
   };
 
@@ -240,9 +235,9 @@ const PerformanceIndicator = ({ performance, status }) => {
         sx={{
           fontSize: '0.65rem',
           height: 20,
-          backgroundColor: alpha(getStatusColor(status), 0.1),
+          backgroundColor: getStatusColor(status) + '1A',
           color: getStatusColor(status),
-          border: `1px solid ${alpha(getStatusColor(status), 0.3)}`
+          border: `1px solid ${getStatusColor(status)}4D`
         }}
       />
     </Box>
@@ -251,8 +246,6 @@ const PerformanceIndicator = ({ performance, status }) => {
 
 // Current period badge
 const CurrentPeriodBadge = ({ isCurrentPeriod, daysSince }) => {
-  const theme = useTheme();
-  
   if (!isCurrentPeriod) return null;
   
   return (
@@ -263,9 +256,9 @@ const CurrentPeriodBadge = ({ isCurrentPeriod, daysSince }) => {
       sx={{
         fontSize: '0.65rem',
         height: 20,
-        backgroundColor: alpha(theme.palette.primary.main, 0.1),
-        color: theme.palette.primary.main,
-        border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+        backgroundColor: '#1976d21A',
+        color: '#1976d2',
+        border: '1px solid #1976d24D',
         animation: `${pulse} 2s infinite`
       }}
     />
@@ -345,7 +338,6 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const TradingSignals = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [timeframe, setTimeframe] = useState('daily');
   const [aggregateSignals, setAggregateSignals] = useState([]);
@@ -632,12 +624,12 @@ const TradingSignals = () => {
     <Grid container spacing={3} sx={{ mb: 3 }}>
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ 
-          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.2)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+          background: 'linear-gradient(135deg, #1976d21A 0%, #1976d233 100%)',
+          border: '1px solid #1976d233'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+              <Avatar sx={{ bgcolor: '#1976d2' }}>
                 <SignalWifi4Bar />
               </Avatar>
               <Box>
@@ -660,12 +652,12 @@ const TradingSignals = () => {
 
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ 
-          background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.2)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+          background: 'linear-gradient(135deg, #4caf501A 0%, #4caf5033 100%)',
+          border: '1px solid #4caf5033'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: theme.palette.success.main }}>
+              <Avatar sx={{ bgcolor: '#4caf50' }}>
                 <TrendingUp />
               </Avatar>
               <Box>
@@ -688,12 +680,12 @@ const TradingSignals = () => {
 
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ 
-          background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.2)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
+          background: 'linear-gradient(135deg, #f443361A 0%, #f4433633 100%)',
+          border: '1px solid #f4433633'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: theme.palette.error.main }}>
+              <Avatar sx={{ bgcolor: '#f44336' }}>
                 <TrendingDown />
               </Avatar>
               <Box>
@@ -716,12 +708,12 @@ const TradingSignals = () => {
 
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ 
-          background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)} 0%, ${alpha(theme.palette.info.main, 0.2)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+          background: 'linear-gradient(135deg, #2196f31A 0%, #2196f333 100%)',
+          border: '1px solid #2196f333'
         }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: theme.palette.info.main }}>
+              <Avatar sx={{ bgcolor: '#2196f3' }}>
                 <CheckCircle />
               </Avatar>
               <Box>
@@ -917,14 +909,14 @@ const TradingSignals = () => {
                     hover
                     sx={{
                       backgroundColor: signal.is_aggregate 
-                        ? alpha(theme.palette.secondary.main, 0.08)
+                        ? '#9c27b014'
                         : signal.is_current_period 
-                          ? alpha(theme.palette.primary.main, 0.05) 
+                          ? '#1976d20D' 
                           : 'inherit',
                       borderLeft: signal.is_aggregate 
-                        ? `4px solid ${theme.palette.secondary.main}`
+                        ? '4px solid #9c27b0'
                         : signal.is_current_period 
-                          ? `4px solid ${theme.palette.primary.main}` 
+                          ? '4px solid #1976d2' 
                           : 'none'
                     }}
                   >
@@ -1090,13 +1082,13 @@ const TradingSignals = () => {
               transition: 'all 0.3s ease',
               '&:hover': { 
                 transform: 'translateY(-4px)',
-                boxShadow: theme.shadows[8]
+                boxShadow: '0px 12px 17px 2px rgba(0,0,0,0.14), 0px 5px 22px 4px rgba(0,0,0,0.12), 0px 7px 8px -4px rgba(0,0,0,0.2)'
               }
             }}>
               <CardHeader
                 avatar={
                   <Avatar sx={{ 
-                    bgcolor: signal.signal_type === 'buy' ? theme.palette.success.main : theme.palette.error.main,
+                    bgcolor: signal.signal_type === 'buy' ? '#4caf50' : '#f44336',
                     color: 'white'
                   }}>
                     {signal.signal_type === 'buy' ? <TrendingUp /> : <TrendingDown />}

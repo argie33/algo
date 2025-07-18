@@ -31,7 +31,6 @@ import {
   Fade,
   Zoom,
   Collapse,
-  useTheme,
   alpha,
   Skeleton,
   ToggleButton,
@@ -122,20 +121,19 @@ const CHART_COLORS = {
 
 // Enhanced custom components
 const AnimatedCard = ({ children, delay = 0, ...props }) => {
-  const theme = useTheme()
   return (
     <Zoom in={true} timeout={300 + delay * 100}>
       <Card
         {...props}
         sx={{
-          background: theme.palette.background.paper,
+          background: '#ffffff',
           backdropFilter: 'blur(10px)',
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+          border: '1px solid #1976d21A',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             transform: 'translateY(-4px)',
-            boxShadow: theme.shadows[8],
-            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            boxShadow: '0px 12px 17px 2px rgba(0,0,0,0.14), 0px 5px 22px 4px rgba(0,0,0,0.12), 0px 7px 8px -4px rgba(0,0,0,0.2)',
+            border: '1px solid #1976d233',
           },
           ...props.sx
         }}
@@ -147,12 +145,11 @@ const AnimatedCard = ({ children, delay = 0, ...props }) => {
 }
 
 const GradientCard = ({ children, gradient, ...props }) => {
-  const theme = useTheme()
   return (
     <Card
       {...props}
       sx={{
-        background: gradient || `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        background: gradient || 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
         color: 'white',
         position: 'relative',
         overflow: 'hidden',
@@ -179,7 +176,6 @@ const GradientCard = ({ children, gradient, ...props }) => {
 }
 
 const MetricCard = ({ title, value, subtitle, icon, trend, color = 'primary', gradient }) => {
-  const theme = useTheme()
   const isPositive = trend > 0
   
   return (
@@ -230,16 +226,15 @@ const MetricCard = ({ title, value, subtitle, icon, trend, color = 'primary', gr
 }
 
 const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
-  const theme = useTheme()
   const percentage = (value / max) * 100
   const rotation = (percentage * 180) / 100 - 90
   
   const getColor = () => {
-    if (percentage <= 20) return theme.palette.error.main
-    if (percentage <= 40) return theme.palette.warning.main
-    if (percentage <= 60) return theme.palette.info.main
-    if (percentage <= 80) return theme.palette.success.light
-    return theme.palette.success.main
+    if (percentage <= 20) return '#f44336'
+    if (percentage <= 40) return '#ff9800'
+    if (percentage <= 60) return '#2196f3'
+    if (percentage <= 80) return '#81c784'
+    return '#4caf50'
   }
   
   return (
@@ -249,7 +244,7 @@ const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
           cx={size / 2}
           cy={size / 2}
           r={(size - 20) / 2}
-          stroke={alpha(theme.palette.divider, 0.3)}
+          stroke="rgba(0, 0, 0, 0.12)"
           strokeWidth="10"
           fill="none"
         />
@@ -428,7 +423,6 @@ function MarketOverview() {
   const [viewMode, setViewMode] = useState('cards')
   const [selectedSector, setSelectedSector] = useState('all')
   const [fullscreen, setFullscreen] = useState(false)
-  const theme = useTheme()
   
   const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
     queryKey: ['market-overview'],
@@ -625,7 +619,7 @@ function MarketOverview() {
           <Grid item xs={12} md={6}>
             <Typography variant="h3" component="h1" gutterBottom sx={{ 
               fontWeight: 800, 
-              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               mb: 1
@@ -678,10 +672,10 @@ function MarketOverview() {
               sx={{ 
                 borderRadius: 1,
                 height: 6,
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                bgcolor: '#1976d21A',
                 '& .MuiLinearProgress-bar': {
                   borderRadius: 1,
-                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+                  background: 'linear-gradient(90deg, #1976d2 0%, #9c27b0 100%)'
                 }
               }} 
             />
@@ -973,13 +967,13 @@ function MarketOverview() {
                 fontSize: '0.875rem',
                 textTransform: 'none',
                 '&.Mui-selected': {
-                  color: theme.palette.primary.main,
+                  color: '#1976d2',
                 },
               },
               '& .MuiTabs-indicator': {
                 height: 3,
                 borderRadius: '3px 3px 0 0',
-                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`
+                background: 'linear-gradient(90deg, #1976d2 0%, #9c27b0 100%)'
               }
             }}
           >

@@ -179,8 +179,7 @@ const patternTypes = {
 };
 
 // Generate realistic pattern data with ML confidence scores
-const generatePatternData = (filters = {}) => {
-  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM', 'AMD', 'NFLX', 'CRM', 'INTC', 'ORCL'];
+const generatePatternData = (filters = {}, symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM', 'AMD', 'NFLX', 'CRM', 'INTC', 'ORCL']) => {
   const timeframes = ['1H', '4H', '1D', '1W'];
   const patterns = [];
   
@@ -329,6 +328,7 @@ const PatternRecognition = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [availableSymbols, setAvailableSymbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ', 'IWM', 'AMD', 'NFLX', 'CRM', 'INTC', 'ORCL']);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -357,6 +357,23 @@ const PatternRecognition = () => {
   const [watchlist, setWatchlist] = useState([]);
   const [alerts, setAlerts] = useState([]);
 
+  // Load symbols from symbol service
+  useEffect(() => {
+    const loadSymbols = async () => {
+      try {
+        const { symbolService } = await import('../services/symbolService');
+        const dynamicSymbols = await symbolService.getSymbols('tech', { limit: 15 });
+        if (dynamicSymbols.length > 0) {
+          setAvailableSymbols(dynamicSymbols);
+        }
+      } catch (error) {
+        console.error('Failed to load symbols for pattern recognition:', error);
+        // Keep default symbols on error
+      }
+    };
+    loadSymbols();
+  }, []);
+
   useEffect(() => {
     loadPatterns();
     
@@ -364,7 +381,7 @@ const PatternRecognition = () => {
       const interval = setInterval(loadPatterns, 60000); // Update every minute
       return () => clearInterval(interval);
     }
-  }, [filters, realTimeEnabled]);
+  }, [filters, realTimeEnabled, availableSymbols]);
 
   const loadPatterns = useCallback(async () => {
     setLoading(true);
@@ -374,7 +391,7 @@ const PatternRecognition = () => {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const data = generatePatternData(filters);
+      const data = generatePatternData(filters, availableSymbols);
       setPatterns(data);
       
       // Check for new high-confidence patterns for alerts

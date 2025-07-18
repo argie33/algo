@@ -1,11 +1,12 @@
 const express = require('express');
 const { healthCheck, query, validateDatabaseSchema, REQUIRED_SCHEMA } = require('../utils/database');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const timeoutHelper = require('../utils/timeoutHelper');
 const schemaValidator = require('../utils/schemaValidator');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { CognitoIdentityProviderClient, DescribeUserPoolCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const jwtSecretManager = require('../utils/jwtSecretManager');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -305,6 +306,8 @@ router.get('/api-services', async (req, res) => {
   try {
     const services = {
       apiKeyService: await checkApiKeyServiceHealth(),
+      jwtSecretService: await checkJwtSecretServiceHealth(),
+      encryptionService: await checkEncryptionServiceHealth(),
       database: await checkDatabaseTablesForApiKeys(),
       secrets: await checkSecretsManagerHealth()
     };
@@ -322,7 +325,8 @@ router.get('/api-services', async (req, res) => {
         healthy_services: Object.values(services).filter(s => s.status === 'healthy').length,
         degraded_services: Object.values(services).filter(s => s.status === 'degraded').length,
         failed_services: Object.values(services).filter(s => s.status === 'failed').length
-      }
+      },
+      recommendations: generateApiServiceRecommendations(services)
     });
     
   } catch (error) {
@@ -1271,14 +1275,19 @@ async function checkApiKeyServiceHealth() {
     // Check if API key service is initialized and enabled
     await apiKeyService.ensureInitialized();
     
+    // Test encryption/decryption functionality
+    const testResult = await testEncryptionFunctionality();
+    
     return {
-      status: 'healthy',
+      status: apiKeyService.isEnabled && testResult.success ? 'healthy' : 'degraded',
       enabled: apiKeyService.isEnabled,
       message: 'API key service is initialized and enabled',
       features: {
         encryption: apiKeyService.isEnabled,
-        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN
-      }
+        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
+        encryptionTest: testResult.success
+      },
+      encryptionTest: testResult
     };
   } catch (error) {
     return {
@@ -1288,7 +1297,84 @@ async function checkApiKeyServiceHealth() {
       message: 'API key service is not available',
       features: {
         encryption: false,
-        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN
+        secretsManager: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
+        encryptionTest: false
+      }
+    };
+  }
+}
+
+async function checkJwtSecretServiceHealth() {
+  try {
+    console.log('🔍 Checking JWT secret service health...');
+    
+    // Initialize JWT secret manager
+    await jwtSecretManager.initialize();
+    
+    // Get secret info
+    const secretInfo = await jwtSecretManager.getSecretInfo();
+    
+    // Test JWT token generation and validation
+    const jwtTestResult = await testJwtFunctionality();
+    
+    return {
+      status: secretInfo.available && jwtTestResult.success ? 'healthy' : 'degraded',
+      available: secretInfo.available,
+      source: secretInfo.source,
+      validation: secretInfo.validation,
+      message: secretInfo.available ? 'JWT secret service is available' : 'JWT secret service is not available',
+      jwtTest: jwtTestResult,
+      features: {
+        tokenGeneration: jwtTestResult.tokenGenerated,
+        tokenValidation: jwtTestResult.tokenValid,
+        secretStrength: secretInfo.validation?.strength || 'unknown'
+      }
+    };
+  } catch (error) {
+    console.error('❌ JWT secret service health check failed:', error);
+    return {
+      status: 'failed',
+      available: false,
+      error: error.message,
+      message: 'JWT secret service health check failed',
+      features: {
+        tokenGeneration: false,
+        tokenValidation: false,
+        secretStrength: 'unknown'
+      }
+    };
+  }
+}
+
+async function checkEncryptionServiceHealth() {
+  try {
+    console.log('🔍 Checking encryption service health...');
+    
+    // Get overall service health
+    const serviceHealth = await apiKeyService.getServiceHealth();
+    
+    return {
+      status: serviceHealth.overall === 'healthy' ? 'healthy' : 'degraded',
+      encryption: serviceHealth.encryptionService,
+      jwt: serviceHealth.jwtService,
+      overall: serviceHealth.overall,
+      message: `Encryption service is ${serviceHealth.overall}`,
+      features: {
+        hasEncryptionSecret: serviceHealth.encryptionService.hasSecret,
+        jwtAvailable: serviceHealth.jwtService.available,
+        secretLength: serviceHealth.encryptionService.secretLength
+      }
+    };
+  } catch (error) {
+    console.error('❌ Encryption service health check failed:', error);
+    return {
+      status: 'failed',
+      error: error.message,
+      message: 'Encryption service health check failed',
+      features: {
+        hasEncryptionSecret: false,
+        jwtAvailable: false,
+        secretLength: 0
       }
     };
   }
@@ -1635,6 +1721,152 @@ function getCategoryImpact(category) {
   };
   
   return impacts[category] || 'Some application features may be limited';
+}
+
+/**
+ * Test encryption functionality with sample data
+ */
+async function testEncryptionFunctionality() {
+  try {
+    const testApiKey = 'TEST_KEY_' + Math.random().toString(36).substr(2, 10);
+    const testSalt = 'test_salt_' + Math.random().toString(36).substr(2, 8);
+    const testUserId = 'test_user';
+    const testProvider = 'test';
+    
+    // Test encryption
+    const encrypted = await apiKeyService.encryptApiKey(testApiKey, testSalt, testUserId, testProvider);
+    
+    // Test decryption
+    const decrypted = await apiKeyService.decryptApiKey(encrypted, testSalt, testUserId, testProvider);
+    
+    const success = testApiKey === decrypted;
+    
+    return {
+      success,
+      message: success ? 'Encryption test passed' : 'Encryption test failed',
+      details: {
+        originalLength: testApiKey.length,
+        encryptedLength: encrypted.encrypted.length,
+        decryptedLength: decrypted.length,
+        roundTripSuccess: success
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Encryption test failed',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Test JWT functionality with sample data
+ */
+async function testJwtFunctionality() {
+  try {
+    const testUserId = 'test_user_' + Math.random().toString(36).substr(2, 6);
+    const testProvider = 'test_provider';
+    const testPermissions = ['read', 'write'];
+    
+    // Test token generation
+    const token = await apiKeyService.generateApiKeyToken(testUserId, testProvider, testPermissions, '1h');
+    
+    // Test token validation
+    const validation = await apiKeyService.validateApiKeyToken(token);
+    
+    const success = validation.valid && validation.userId === testUserId && validation.provider === testProvider;
+    
+    return {
+      success,
+      tokenGenerated: !!token,
+      tokenValid: validation.valid,
+      message: success ? 'JWT test passed' : 'JWT test failed',
+      details: {
+        tokenLength: token ? token.length : 0,
+        userIdMatch: validation.userId === testUserId,
+        providerMatch: validation.provider === testProvider,
+        permissionsMatch: JSON.stringify(validation.permissions) === JSON.stringify(testPermissions)
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      tokenGenerated: false,
+      tokenValid: false,
+      message: 'JWT test failed',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Generate recommendations for API service issues
+ */
+function generateApiServiceRecommendations(services) {
+  const recommendations = [];
+  
+  if (services.encryptionService.status === 'failed') {
+    recommendations.push({
+      priority: 'critical',
+      service: 'encryption',
+      issue: 'Encryption service is not available',
+      action: 'Configure API_KEY_ENCRYPTION_SECRET or API_KEY_ENCRYPTION_SECRET_ARN',
+      impact: 'Cannot encrypt/decrypt user API keys'
+    });
+  }
+  
+  if (services.jwtSecretService.status === 'failed') {
+    recommendations.push({
+      priority: 'critical',
+      service: 'jwt',
+      issue: 'JWT secret service is not available',
+      action: 'Configure JWT_SECRET or JWT_SECRET_ARN',
+      impact: 'Cannot generate authentication tokens'
+    });
+  }
+  
+  if (services.jwtSecretService.validation?.strength === 'low_entropy') {
+    recommendations.push({
+      priority: 'medium',
+      service: 'jwt',
+      issue: 'JWT secret has low entropy',
+      action: 'Rotate JWT secret with crypto.randomBytes()',
+      impact: 'Reduced security for token signing'
+    });
+  }
+  
+  if (services.database.status === 'degraded') {
+    recommendations.push({
+      priority: 'high',
+      service: 'database',
+      issue: 'Some API-related database tables are missing',
+      action: 'Run database initialization scripts',
+      impact: 'API key storage and portfolio features may not work'
+    });
+  }
+  
+  if (services.secrets.status === 'degraded') {
+    recommendations.push({
+      priority: 'medium',
+      service: 'secrets',
+      issue: 'Secrets Manager not fully configured',
+      action: 'Set up API_KEY_ENCRYPTION_SECRET_ARN and JWT_SECRET_ARN',
+      impact: 'Fallback to environment variables for secrets'
+    });
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push({
+      priority: 'info',
+      service: 'all',
+      issue: 'All API services are healthy',
+      action: 'No action required',
+      impact: 'API key service fully operational'
+    });
+  }
+  
+  return recommendations;
 }
 
 module.exports = router;

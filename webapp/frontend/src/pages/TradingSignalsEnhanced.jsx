@@ -24,7 +24,6 @@ import {
   Paper,
   ToggleButton,
   ToggleButtonGroup,
-  useTheme,
   alpha
 } from '@mui/material';
 import {
@@ -66,7 +65,6 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const TradingSignalsEnhanced = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [signals, setSignals] = useState([]);

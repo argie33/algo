@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const { query } = require('./database');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const logger = require('./logger');
+const jwtSecretManager = require('./jwtSecretManager');
+const jwt = require('jsonwebtoken');
 
 const ALGORITHM = 'aes-256-gcm';
 
@@ -87,24 +89,15 @@ class ApiKeyService {
       }
 
       if (!this.secretKey) {
-        // Fallback: Generate a temporary key for development (NOT for production)
-        if (process.env.NODE_ENV !== 'production') {
-          logger.warn('⚠️ No encryption secret configured - generating temporary development key', {
-            environment: process.env.NODE_ENV,
-            securityWarning: 'This is NOT secure for production use!'
-          });
-          this.secretKey = crypto.randomBytes(32).toString('hex');
-          logger.info('🔐 Temporary encryption key generated for development');
-        } else {
-          logger.error('❌ CRITICAL: No encryption secret available in production', {
-            environment: process.env.NODE_ENV,
-            hasEnvSecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
-            hasSecretsManagerArn: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
-            initializationTime: Date.now() - initStartTime
-          });
-          this.isEnabled = false;
-          return;
-        }
+        logger.error('❌ CRITICAL: No encryption secret available', {
+          environment: process.env.NODE_ENV,
+          hasEnvSecret: !!process.env.API_KEY_ENCRYPTION_SECRET,
+          hasSecretsManagerArn: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
+          initializationTime: Date.now() - initStartTime,
+          securityNote: 'API key encryption requires a proper encryption secret'
+        });
+        this.isEnabled = false;
+        return;
       }
 
       this.isEnabled = true;
@@ -117,10 +110,23 @@ class ApiKeyService {
         });
       }
       
+      // Initialize JWT secret manager for token generation
+      try {
+        await jwtSecretManager.initialize();
+        const jwtInfo = await jwtSecretManager.getSecretInfo();
+        logger.info('🔐 JWT secret manager initialized', jwtInfo);
+      } catch (jwtError) {
+        logger.warn('⚠️ JWT secret manager initialization failed', {
+          error: jwtError.message,
+          impact: 'API key tokens will not be available'
+        });
+      }
+      
       logger.info('✅ API key encryption service initialized and enabled', {
         initializationTime: Date.now() - initStartTime,
         keyLength: this.secretKey.length,
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        jwtAvailable: !!(await jwtSecretManager.getSecretInfo()).available
       });
       
     } catch (error) {
@@ -797,6 +803,133 @@ class ApiKeyService {
       suggestions: []
     };
   }
-}
 
-module.exports = new ApiKeyService();
+  /**
+   * Generate JWT token for API key access
+   */
+  async generateApiKeyToken(userId, provider, permissions = [], expiresIn = '24h') {
+    try {
+      await this.ensureInitialized();
+      
+      const jwtSecret = await jwtSecretManager.getJwtSecret();
+      
+      const payload = {
+        sub: userId,
+        provider: provider,
+        permissions: permissions,
+        iat: Math.floor(Date.now() / 1000),
+        aud: 'api-key-service',
+        iss: 'stocks-app'
+      };
+
+      const token = jwt.sign(payload, jwtSecret, {
+        expiresIn: expiresIn,
+        algorithm: 'HS256'
+      });
+
+      logger.info('🎫 API key JWT token generated', {
+        userId: userId.substring(0, 8) + '...',
+        provider: provider,
+        permissions: permissions,
+        expiresIn: expiresIn
+      });
+
+      return token;
+
+    } catch (error) {
+      logger.error('❌ JWT token generation failed', {
+        userId: userId ? userId.substring(0, 8) + '...' : 'unknown',
+        provider: provider,
+        error: error.message
+      });
+      throw new Error(`Failed to generate API key token: ${error.message}`);
+    }
+  }
+
+  /**
+   * Validate JWT token for API key access
+   */
+  async validateApiKeyToken(token) {
+    try {
+      await this.ensureInitialized();
+      
+      const jwtSecret = await jwtSecretManager.getJwtSecret();
+      
+      const decoded = jwt.verify(token, jwtSecret, {
+        algorithms: ['HS256'],
+        audience: 'api-key-service',
+        issuer: 'stocks-app'
+      });
+
+      logger.info('✅ API key JWT token validated', {
+        userId: decoded.sub ? decoded.sub.substring(0, 8) + '...' : 'unknown',
+        provider: decoded.provider,
+        permissions: decoded.permissions,
+        issuedAt: new Date(decoded.iat * 1000).toISOString(),
+        expiresAt: new Date(decoded.exp * 1000).toISOString()
+      });
+
+      return {
+        valid: true,
+        payload: decoded,
+        userId: decoded.sub,
+        provider: decoded.provider,
+        permissions: decoded.permissions || []
+      };
+
+    } catch (error) {
+      logger.warn('⚠️ JWT token validation failed', {
+        error: error.message,
+        errorType: error.name
+      });
+      
+      return {
+        valid: false,
+        error: error.message,
+        errorType: error.name
+      };
+    }
+  }
+
+  /**
+   * Get service health status including JWT availability
+   */
+  async getServiceHealth() {
+    try {
+      await this.ensureInitialized();
+      
+      const jwtInfo = await jwtSecretManager.getSecretInfo();
+      
+      return {
+        encryptionService: {
+          enabled: this.isEnabled,
+          hasSecret: !!this.secretKey,
+          secretLength: this.secretKey ? this.secretKey.length : 0
+        },
+        jwtService: {
+          available: jwtInfo.available,
+          source: jwtInfo.source,
+          validation: jwtInfo.validation
+        },
+        overall: this.isEnabled && jwtInfo.available ? 'healthy' : 'degraded'
+      };
+      
+    } catch (error) {
+      return {
+        encryptionService: {
+          enabled: false,
+          error: error.message
+        },
+        jwtService: {
+          available: false,
+          error: error.message
+        },
+        overall: 'unhealthy'
+      };
+    }
+  }
+
+// Export singleton instance
+const apiKeyService = new ApiKeyService();
+
+module.exports = apiKeyService;
