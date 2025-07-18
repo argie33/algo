@@ -210,7 +210,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                               sx={{ 
                                 height: 6, 
                                 borderRadius: 3,
-                                backgroundColor: alpha('#1976d2', 0.1)
+                                backgroundColor: '#1976d21A'
                               }}
                             />
                           </Box>
@@ -221,9 +221,9 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                             label={status.status}
                             size="small"
                             sx={{
-                              backgroundColor: alpha(status.color, 0.1),
+                              backgroundColor: status.color + '1A',
                               color: status.color,
-                              border: `1px solid ${alpha(status.color, 0.3)}`,
+                              border: `1px solid ${status.color + '4D'}`,
                               '& .MuiChip-icon': {
                                 color: status.color
                               }
@@ -268,7 +268,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
           )}
 
           {/* Portfolio Summary */}
-          <Box sx={{ mt: 3, p: 2, backgroundColor: alpha('#1976d2', 0.05), borderRadius: 1 }}>
+          <Box sx={{ mt: 3, p: 2, backgroundColor: '#1976d20D', borderRadius: 1 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} sm={3}>
                 <Typography variant="caption" color="text.secondary">Total Value</Typography>
@@ -389,7 +389,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
             )}
 
             {selectedPosition && (
-              <Box sx={{ p: 2, backgroundColor: alpha('#9e9e9e', 0.1), borderRadius: 1 }}>
+              <Box sx={{ p: 2, backgroundColor: '#9e9e9e1A', borderRadius: 1 }}>
                 <Typography variant="body2" gutterBottom>
                   Exit Summary:
                 </Typography>

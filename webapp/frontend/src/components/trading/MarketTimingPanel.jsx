@@ -100,10 +100,10 @@ const MarketTimingPanel = ({ marketData = {} }) => {
             icon={getMarketStatusIcon(market_status)}
             label={market_status}
             sx={{
-              backgroundColor: alpha(getMarketStatusColor(market_status), 0.2),
+              backgroundColor: getMarketStatusColor(market_status) + '33',
               color: getMarketStatusColor(market_status),
               fontWeight: 600,
-              border: `1px solid ${alpha(getMarketStatusColor(market_status), 0.3)}`
+              border: `1px solid ${getMarketStatusColor(market_status) + '4D'}`
             }}
           />
         }
@@ -143,7 +143,7 @@ const MarketTimingPanel = ({ marketData = {} }) => {
                   label={breadthStrength.label}
                   size="small"
                   sx={{ 
-                    backgroundColor: alpha(breadthStrength.color, 0.2),
+                    backgroundColor: breadthStrength.color + '33',
                     color: breadthStrength.color,
                     mb: 2
                   }}
@@ -324,7 +324,7 @@ const MarketTimingPanel = ({ marketData = {} }) => {
               alignItems: 'center', 
               gap: 2,
               p: 2,
-              backgroundColor: alpha('#2196f3', 0.05),
+              backgroundColor: '#2196f30D',
               borderRadius: 1
             }}>
               <Schedule sx={{ color: '#2196f3' }} />

@@ -48,11 +48,11 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
   // Signal quality color
   const getQualityColor = (quality) => {
     const colors = {
-      'A+': theme.palette.success.dark,
-      'A': theme.palette.success.main,
-      'B+': theme.palette.info.main,
-      'B': theme.palette.warning.main,
-      'C': theme.palette.error.main
+      'A+': '#1b5e20',
+      'A': '#4caf50',
+      'B+': '#2196f3',
+      'B': '#ff9800',
+      'C': '#f44336'
     };
     return colors[quality] || theme.palette.grey[500];
   };
@@ -60,10 +60,10 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
   // Volume surge indicator
   const volumeSurge = signal.volume_surge_pct || 0;
   const getVolumeSurgeColor = () => {
-    if (volumeSurge >= 100) return theme.palette.success.dark;
-    if (volumeSurge >= 50) return theme.palette.success.main;
-    if (volumeSurge >= 40) return theme.palette.warning.main;
-    return theme.palette.error.main;
+    if (volumeSurge >= 100) return '#1b5e20';
+    if (volumeSurge >= 50) return '#4caf50';
+    if (volumeSurge >= 40) return '#ff9800';
+    return '#f44336';
   };
 
   // Base pattern icon
@@ -86,11 +86,11 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
         display: 'flex',
         flexDirection: 'column',
         transition: 'all 0.3s ease',
-        border: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
+        border: `2px solid ${'#e0e0e01A'}`,
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: theme.shadows[8],
-          borderColor: signal.signal === 'Buy' ? theme.palette.success.main : theme.palette.error.main
+          borderColor: signal.signal === 'Buy' ? '#4caf50' : '#f44336'
         }
       }}
     >
@@ -118,7 +118,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
             <Chip
               label={signal.breakout_quality || 'B'}
               sx={{
-                backgroundColor: alpha(getQualityColor(signal.breakout_quality), 0.2),
+                backgroundColor: getQualityColor(signal.breakout_quality) + '33',
                 color: getQualityColor(signal.breakout_quality),
                 fontWeight: 700,
                 fontSize: '0.9rem'
@@ -143,8 +143,8 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
               elevation={0} 
               sx={{ 
                 p: 2, 
-                backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+                backgroundColor: '#1976d20D',
+                border: `1px solid ${'#1976d21A'}`
               }}
             >
               <Typography variant="subtitle2" gutterBottom>
@@ -198,9 +198,9 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
                   sx={{ 
                     height: 10, 
                     borderRadius: 5,
-                    backgroundColor: alpha(theme.palette.grey[400], 0.2),
+                    backgroundColor: '#bdbdbd33',
                     '& .MuiLinearProgress-bar': {
-                      backgroundColor: isInBuyZone ? theme.palette.success.main : theme.palette.error.main
+                      backgroundColor: isInBuyZone ? '#4caf50' : '#f44336'
                     }
                   }}
                 />
@@ -258,7 +258,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
           <Grid item xs={12}>
             <Box sx={{ 
               p: 1.5, 
-              backgroundColor: alpha(theme.palette.grey[500], 0.05),
+              backgroundColor: '#9e9e9e0D',
               borderRadius: 1
             }}>
               <Typography variant="caption" color="text.secondary" gutterBottom>
@@ -322,12 +322,12 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
             sx={{ 
               height: 6, 
               borderRadius: 3,
-              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              backgroundColor: '#1976d21A',
               '& .MuiLinearProgress-bar': {
                 backgroundColor: 
-                  signal.signal_strength >= 0.8 ? theme.palette.success.main :
-                  signal.signal_strength >= 0.6 ? theme.palette.warning.main :
-                  theme.palette.error.main
+                  signal.signal_strength >= 0.8 ? '#4caf50' :
+                  signal.signal_strength >= 0.6 ? '#ff9800' :
+                  '#f44336'
               }
             }}
           />
@@ -338,14 +338,14 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
             {signal.market_in_uptrend ? (
               <>
-                <CheckCircle sx={{ color: theme.palette.success.main, fontSize: 20 }} />
+                <CheckCircle sx={{ color: '#4caf50', fontSize: 20 }} />
                 <Typography variant="caption" color="success.main">
                   Market in confirmed uptrend
                 </Typography>
               </>
             ) : (
               <>
-                <Warning sx={{ color: theme.palette.warning.main, fontSize: 20 }} />
+                <Warning sx={{ color: '#ff9800', fontSize: 20 }} />
                 <Typography variant="caption" color="warning.main">
                   Market under pressure
                 </Typography>

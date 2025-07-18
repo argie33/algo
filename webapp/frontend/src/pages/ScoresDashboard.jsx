@@ -158,7 +158,7 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
   
   const data = [
     { name: 'Score', value: score, fill: getColor(score) },
-    { name: 'Remaining', value: 100 - score, fill: alpha('#9e9e9e', 0.1) }
+    { name: 'Remaining', value: 100 - score, fill: '#9e9e9e1A' }
   ];
   
   return (
@@ -649,8 +649,8 @@ const ScoresDashboard = () => {
           {/* Composite Score Hero Card */}
           <Grid item xs={12}>
             <Card sx={{ 
-              background: `linear-gradient(135deg, ${alpha('#1976d2', 0.1)} 0%, ${alpha('#dc004e', 0.1)} 100%)`,
-              border: `1px solid ${alpha('#1976d2', 0.2)}`
+              background: `linear-gradient(135deg, ${'#1976d21A'} 0%, ${'#dc004e1A'} 100%)`,
+              border: `1px solid ${'#1976d233'}`
             }}>
               <CardContent>
                 <Grid container spacing={3} alignItems="center">
@@ -684,7 +684,7 @@ const ScoresDashboard = () => {
                     </Box>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 2, backgroundColor: alpha('#ffffff', 0.8) }}>
+                    <Paper sx={{ p: 2, backgroundColor: '#ffffffCC' }}>
                       <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                         Investment Recommendation
                       </Typography>
@@ -725,7 +725,7 @@ const ScoresDashboard = () => {
                 }}>
                   <CardHeader
                     avatar={
-                      <Avatar sx={{ bgcolor: alpha(category.color, 0.1), color: category.color }}>
+                      <Avatar sx={{ bgcolor: category.color + '1A', color: category.color }}>
                         {category.icon}
                       </Avatar>
                     }
@@ -790,7 +790,7 @@ const ScoresDashboard = () => {
                                 sx={{
                                   height: 8,
                                   borderRadius: 4,
-                                  backgroundColor: alpha(category.color, 0.1),
+                                  backgroundColor: category.color + '1A',
                                   '& .MuiLinearProgress-bar': {
                                     backgroundColor: category.color,
                                     borderRadius: 4,
@@ -824,7 +824,7 @@ const ScoresDashboard = () => {
                 <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historicalScores}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha('#e0e0e0', 0.5)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={'#e0e0e080'} />
                       <XAxis dataKey="date" />
                       <YAxis domain={[0, 100]} />
                       <RechartsTooltip />
@@ -962,7 +962,7 @@ const ScoresDashboard = () => {
           <Accordion defaultExpanded={false}>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: alpha(category.color, 0.1), color: category.color }}>
+                <Avatar sx={{ bgcolor: category.color + '1A', color: category.color }}>
                   {category.icon}
                 </Avatar>
                 <Box>
@@ -981,7 +981,7 @@ const ScoresDashboard = () => {
               <Grid container spacing={2}>
                 {category.subScores.map((subScore) => (
                   <Grid item xs={12} md={6} key={subScore.key}>
-                    <Paper sx={{ p: 2, backgroundColor: alpha(category.color, 0.05) }}>
+                    <Paper sx={{ p: 2, backgroundColor: category.color + '0D' }}>
                       <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                         {subScore.name} ({subScore.weight})
                       </Typography>

@@ -425,7 +425,7 @@ const TradingSignal = ({ signal }) => {
             sx={{
               height: 4,
               borderRadius: 2,
-              backgroundColor: alpha(strength.color, 0.2),
+              backgroundColor: strength.color + '33',
               '& .MuiLinearProgress-bar': {
                 backgroundColor: strength.color,
                 borderRadius: 2

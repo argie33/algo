@@ -109,8 +109,8 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       elevation={2} 
       sx={{ 
         p: 3, 
-        background: alpha('#ffffff', 0.9),
-        border: `1px solid ${alpha('#e0e0e0', 0.1)}`
+        background: '#ffffffE6',
+        border: `1px solid ${'#e0e0e01A'}`
       }}
     >
       <Box sx={{ mb: 2 }}>
@@ -121,7 +121,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           <Chip 
             label={`Current Zone: ${currentZone.zone}`}
             sx={{ 
-              backgroundColor: alpha(currentZone.color, 0.2),
+              backgroundColor: currentZone.color + '33',
               color: currentZone.color,
               fontWeight: 600
             }}
@@ -243,7 +243,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           sx={{ 
             height: 8, 
             borderRadius: 4,
-            backgroundColor: alpha('#1976d2', 0.1),
+            backgroundColor: '#1976d21A',
             '& .MuiLinearProgress-bar': {
               borderRadius: 4
             }
@@ -260,7 +260,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               sx={{ 
                 p: 2,
                 backgroundColor: currentPrice >= zone.target 
-                  ? alpha(zone.color, 0.1) 
+                  ? zone.color + '1A' 
                   : 'transparent',
                 borderColor: currentPrice >= zone.target 
                   ? zone.color 

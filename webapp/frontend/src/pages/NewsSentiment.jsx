@@ -496,7 +496,7 @@ const NewsSentiment = () => {
                 <React.Fragment key={article.id}>
                   <ListItem alignItems="flex-start" sx={{ px: 3, py: 2 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: alpha(getSentimentColor(article.sentiment), 0.1) }}>
+                      <Avatar sx={{ bgcolor: getSentimentColor(article.sentiment) + '1A' }}>
                         {getSentimentIcon(article.sentiment)}
                       </Avatar>
                     </ListItemAvatar>
@@ -511,7 +511,7 @@ const NewsSentiment = () => {
                               label={article.sentimentLabel}
                               size="small"
                               sx={{
-                                bgcolor: alpha(getSentimentColor(article.sentiment), 0.1),
+                                bgcolor: getSentimentColor(article.sentiment) + '1A',
                                 color: getSentimentColor(article.sentiment),
                                 fontWeight: 600
                               }}

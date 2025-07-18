@@ -547,7 +547,7 @@ const EducationalContent = () => {
                       component="div"
                       sx={{
                         height: 140,
-                        bgcolor: alpha('#1976d2', 0.1),
+                        bgcolor: '#1976d21A',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
@@ -565,7 +565,7 @@ const EducationalContent = () => {
                             label={item.difficulty}
                             size="small"
                             sx={{
-                              bgcolor: alpha(getDifficultyColor(item.difficulty), 0.1),
+                              bgcolor: getDifficultyColor(item.difficulty) + '1A',
                               color: getDifficultyColor(item.difficulty),
                               textTransform: 'capitalize'
                             }}
@@ -705,7 +705,7 @@ const EducationalContent = () => {
                         label={quiz.difficulty}
                         size="small"
                         sx={{
-                          bgcolor: alpha(getDifficultyColor(quiz.difficulty), 0.1),
+                          bgcolor: getDifficultyColor(quiz.difficulty) + '1A',
                           color: getDifficultyColor(quiz.difficulty),
                           textTransform: 'capitalize',
                           mb: 2
