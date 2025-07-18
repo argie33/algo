@@ -235,7 +235,6 @@ Resources:
           ENVIRONMENT: !Ref EnvironmentName
           NODE_ENV: !Ref EnvironmentName
           WEBAPP_AWS_REGION: !Ref AWS::Region
-          AWS_REGION: !Ref AWS::Region
           # Cognito configuration
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
@@ -598,24 +597,31 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-StackName'
 
-  # Cognito outputs for frontend configuration
+  # Cognito Configuration Outputs (CRITICAL FOR AUTHENTICATION)
   UserPoolId:
-    Description: Cognito User Pool ID
+    Description: Cognito User Pool ID for authentication
     Value: !Ref UserPool
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
-    Description: Cognito User Pool Client ID
+    Description: Cognito User Pool Client ID for authentication
     Value: !Ref UserPoolClient
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   UserPoolDomain:
-    Description: Cognito User Pool Domain
+    Description: Cognito User Pool Domain for hosted UI
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolDomain'
+
+  CognitoRegion:
+    Description: AWS Region for Cognito configuration
+    Value: !Ref AWS::Region
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoRegion'
+
 
   DatabaseInitTaskDefArn:
     Description: ARN of the database initialization ECS task definition
