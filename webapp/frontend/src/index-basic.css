@@ -210,8 +210,120 @@ button {
   border-radius: 0.5rem;
 }
 
+.bg-green-500 {
+  background-color: #22c55e;
+}
+
+.hover\:bg-green-600:hover {
+  background-color: #16a34a;
+}
+
+.text-green-600 {
+  color: #16a34a;
+}
+
+.text-blue-600 {
+  color: #2563eb;
+}
+
+.space-x-4 > * + * {
+  margin-left: 1rem;
+}
+
+.bg-blue-700 {
+  background-color: #1d4ed8;
+}
+
+.hover\:bg-blue-700:hover {
+  background-color: #1d4ed8;
+}
+
+/* Additional responsive utilities */
+.space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+.mt-3 {
+  margin-top: 0.75rem;
+}
+
+.mt-6 {
+  margin-top: 1.5rem;
+}
+
+.ml-2 {
+  margin-left: 0.5rem;
+}
+
+.mr-3 {
+  margin-right: 0.75rem;
+}
+
+.w-3 {
+  width: 0.75rem;
+}
+
+.h-3 {
+  height: 0.75rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.bg-green-500 {
+  background-color: #22c55e;
+}
+
+.bg-red-500 {
+  background-color: #ef4444;
+}
+
+.border-gray-100 {
+  border-color: #f3f4f6;
+}
+
+.hover\:bg-gray-50:hover {
+  background-color: #f9fafb;
+}
+
+.text-red-600 {
+  color: #dc2626;
+}
+
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.text-center {
+  text-align: center;
+}
+
 @media (min-width: 768px) {
   .md\:grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

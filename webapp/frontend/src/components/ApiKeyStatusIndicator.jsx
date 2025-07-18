@@ -193,46 +193,47 @@ const ApiKeyStatusIndicator = ({
       </div>
 
       {/* Setup Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={setupDialogOpen} onClose={() => setSetupDialogOpen(false)}>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
-          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Dialog open={setupDialogOpen} onClose={() => setSetupDialogOpen(false)}>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Info color="primary" />
             Setup Broker API Keys
-          </div>
-        </h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div  paragraph>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography paragraph>
             To access live portfolio data, trading history, and real-time market feeds, 
             you'll need to configure your broker API keys.
-          </div>
-          <div  paragraph>
+          </Typography>
+          <Typography paragraph>
             <strong>Supported Brokers:</strong>
-          </div>
-          <div  sx={{ ml: 2, mb: 2 }}>
-            <div  variant="body2">• Alpaca (Paper & Live Trading)</div>
-            <div  variant="body2">• TD Ameritrade (Coming Soon)</div>
-            <div  variant="body2">• Interactive Brokers (Coming Soon)</div>
-          </div>
-          <div  paragraph>
+          </Typography>
+          <Box sx={{ ml: 2, mb: 2 }}>
+            <Typography variant="body2">• Alpaca (Paper & Live Trading)</Typography>
+            <Typography variant="body2">• TD Ameritrade (Coming Soon)</Typography>
+            <Typography variant="body2">• Interactive Brokers (Coming Soon)</Typography>
+          </Box>
+          <Typography paragraph>
             <strong>Security:</strong> Your API keys are encrypted with AES-256-GCM 
             and stored securely. We never store your credentials in plaintext.
-          </div>
-          <div  variant="body2" color="textSecondary">
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
             Don't have API keys? You can still use the demo data to explore the platform.
-          </div>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSetupDialogOpen(false)}>
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSetupDialogOpen(false)}>
             Use Demo Data
-          </button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          </Button>
+          <Button 
             variant="contained" 
             onClick={handleNavigateToSettings}
             startIcon={<Settings />}
           >
             Configure API Keys
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
+      </Dialog>
       </div>
     </div>
   );
