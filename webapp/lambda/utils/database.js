@@ -1,17 +1,21 @@
 // Load environment variables first
 require('dotenv').config();
 
+// CIRCUIT BREAKER FIX: Use new database connection manager with integrated circuit breaker
+const databaseManager = require('./databaseConnectionManager');
+
+// Legacy imports for compatibility (will be removed in future versions)
 const { Pool } = require('pg');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { getTimeout, withDatabaseTimeout } = require('./timeoutManager');
 const ConnectionRetry = require('./connectionRetry');
 
-// Global state
+// Legacy global state (for backward compatibility)
 let pool = null;
 let dbInitialized = false;
 let dbConfig = null;
 
-// Initialize connection retry utility
+// Initialize connection retry utility (legacy)
 const connectionRetry = new ConnectionRetry({
     maxRetries: 3,
     initialDelay: 1000,
@@ -609,43 +613,37 @@ function getPoolStatus() {
 }
 
 /**
- * Execute a database query with timeout and detailed logging
+ * CIRCUIT BREAKER FIX: Execute a database query with circuit breaker protection
+ * This function now uses the new database connection manager with integrated circuit breaker
  */
 async function query(text, params = [], timeoutMs = null) {
-    // Use standardized timeout if not provided
-    const actualTimeout = timeoutMs || getTimeout('database', 'query');
     const queryId = Math.random().toString(36).substr(2, 9);
     const startTime = Date.now();
     
-    console.log(`🔍 [${queryId}] QUERY START: ${text.substring(0, 100)}...`);
+    console.log(`🔍 [${queryId}] QUERY START (Circuit Breaker): ${text.substring(0, 100)}...`);
     console.log(`🔍 [${queryId}] Params:`, params);
-    console.log(`🔍 [${queryId}] Timeout: ${actualTimeout}ms`);
     
     try {
-        // Check if we need to initialize database
-        if (!dbInitialized || !pool) {
-            console.log(`🔄 [${queryId}] Database not initialized, initializing...`);
-            const initStart = Date.now();
-            await initializeDatabase();
-            console.log(`✅ [${queryId}] Database initialized in ${Date.now() - initStart}ms`);
+        // Use new database manager with circuit breaker protection
+        const result = await databaseManager.query(text, params);
+        
+        const duration = Date.now() - startTime;
+        console.log(`✅ [${queryId}] Query completed in ${duration}ms`);
+        console.log(`✅ [${queryId}] Rows returned: ${result.rows?.length || 0}`);
+        
+        // Track performance metrics (legacy compatibility)
+        try {
+            const { performanceMonitor } = require('./performanceMonitor');
+            const operation = text.trim().split(' ')[0].toUpperCase();
+            const table = extractTableName(text);
+            
+            performanceMonitor.recordDatabaseOperation(operation, table, duration, true);
+        } catch (perfError) {
+            // Performance monitoring is optional - don't fail the query
+            console.warn(`⚠️ [${queryId}] Performance monitoring failed:`, perfError.message);
         }
         
-        console.log(`📡 [${queryId}] Executing query...`);
-        const queryStart = Date.now();
-        
-        // Execute query with optimized timeout implementation
-        let timeoutHandle;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutHandle = setTimeout(() => reject(new Error(`Query timeout after ${actualTimeout}ms`)), actualTimeout);
-        });
-        
-        const result = await Promise.race([
-            pool.query(text, params),
-            timeoutPromise
-        ]);
-        
-        // Clear timeout to prevent memory leaks
-        clearTimeout(timeoutHandle);
+        return result;
         
         const queryDuration = Date.now() - queryStart;
         const totalDuration = Date.now() - startTime;
@@ -725,35 +723,35 @@ async function transaction(callback) {
 }
 
 /**
- * Simple robust health check - tests database connectivity and basic query
+ * CIRCUIT BREAKER FIX: Health check using new database manager with circuit breaker
  */
 async function healthCheck() {
     try {
-        if (!dbInitialized || !pool) {
-            await initializeDatabase();
-        }
-        
-        const client = await Promise.race([
-            pool.connect(),
-            new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Health check timeout')), 5000)
-            )
-        ]);
-        
-        const result = await client.query('SELECT NOW() as timestamp, current_database() as db, version() as version');
-        client.release();
+        // Use new database manager with circuit breaker protection
+        const result = await databaseManager.query('SELECT NOW() as timestamp, current_database() as db, version() as version');
         
         return {
             status: 'healthy',
             database: result.rows[0].db,
             timestamp: result.rows[0].timestamp,
             version: result.rows[0].version.split(' ')[0],
-            note: 'Database connection verified - does not test application tables'
+            note: 'Database connection verified with circuit breaker protection'
         };
     } catch (error) {
+        // Check if this is a circuit breaker error and provide helpful info
+        if (error.message.includes('Circuit breaker is OPEN')) {
+            return {
+                status: 'circuit_breaker_open',
+                error: error.message,
+                note: 'Database access blocked by circuit breaker. Use emergency reset endpoint if needed.',
+                recovery: 'POST /api/health/emergency/reset-circuit-breaker'
+            };
+        }
+        
         return {
             status: 'unhealthy',
-            error: error.message
+            error: error.message,
+            note: 'Database connection failed - check configuration and network connectivity'
         };
     }
 }

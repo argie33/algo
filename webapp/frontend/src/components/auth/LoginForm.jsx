@@ -72,13 +72,13 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   };
 
   const handleBiometricAuth = async (authResult) => {
-    console.log('Biometric authentication successful:', authResult);
+    console.log('Biometric authentication successful: [REDACTED]');
     // In production, you would validate this with your backend
     setLocalError('');
   };
 
   const handleBiometricSetup = (credentialData) => {
-    console.log('Biometric setup completed:', credentialData);
+    console.log('Biometric setup completed: [REDACTED]');
   };
 
   const handleBiometricError = (error) => {

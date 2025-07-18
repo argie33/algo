@@ -717,11 +717,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const fullUrl = `${response.config.baseURL || api.defaults.baseURL}${response.config.url}`
-    console.log('[API SUCCESS]', response.config.method?.toUpperCase(), fullUrl, response)
+    console.log('[API SUCCESS]', response.config.method?.toUpperCase(), fullUrl, { status: response.status, statusText: response.statusText })
     return response
   },
   async (error) => {
-    console.error('[API ERROR]', error)
+    console.error('[API ERROR]', { message: error.message, status: error.response?.status, url: error.config?.url })
     return Promise.reject(error)
   }
 )

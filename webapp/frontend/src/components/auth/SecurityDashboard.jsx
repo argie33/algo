@@ -473,10 +473,10 @@ function SecurityDashboard() {
             userId={user?.userId}
             username={user?.username}
             onAuthSuccess={(result) => {
-              console.log('Biometric auth success:', result);
+              console.log('Biometric auth success: [REDACTED]');
             }}
             onSetupComplete={(credentials) => {
-              console.log('Biometric setup complete:', credentials);
+              console.log('Biometric setup complete: [REDACTED]');
               setSecurityData(prev => ({
                 ...prev,
                 securitySettings: {

@@ -197,7 +197,7 @@ Resources:
               Value: !ImportValue StocksApp-SecretArn
             - Name: ENVIRONMENT
               Value: !Ref EnvironmentName
-            - Name: AWS_REGION
+            - Name: WEBAPP_AWS_REGION
               Value: !Ref AWS::Region
           LogConfiguration:
             LogDriver: awslogs

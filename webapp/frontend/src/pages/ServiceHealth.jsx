@@ -156,7 +156,7 @@ function ServiceHealth() {
           return errorResult;
         }
         
-        console.log('✅ Database health data received:', response.data);
+        console.log('✅ Database health data received: [REDACTED]');
         console.log('📊 Database status:', response.data.database?.status);
         console.log('📋 Tables found:', Object.keys(response.data.database?.tables || {}).length);
         setDbHealth(response.data);

@@ -34,13 +34,13 @@ class SecretsManagerDiagnostic {
             const secretString = response.SecretString;
             console.log(`🔍 [${diagnosisId}] SecretString type:`, typeof secretString);
             console.log(`🔍 [${diagnosisId}] SecretString length:`, secretString?.length || 0);
-            console.log(`🔍 [${diagnosisId}] SecretString first 200 chars:`, secretString?.substring(0, 200));
+            console.log(`🔍 [${diagnosisId}] SecretString first 200 chars: [REDACTED]`);
             
             // Step 3: Check if it's actually an object that needs stringifying
             if (typeof secretString === 'object') {
                 console.log(`⚠️ [${diagnosisId}] SecretString is an object, not a string!`);
                 console.log(`🔍 [${diagnosisId}] Object keys:`, Object.keys(secretString));
-                console.log(`🔍 [${diagnosisId}] Object values:`, secretString);
+                console.log(`🔍 [${diagnosisId}] Object values: [REDACTED]`);
                 
                 // Try to use the object directly
                 return {
@@ -75,7 +75,7 @@ class SecretsManagerDiagnostic {
                     // Remove potential BOM and invisible characters
                     const cleanString = secretString.replace(/^\uFEFF/, '').trim();
                     console.log(`🔍 [${diagnosisId}] Cleaned string length:`, cleanString.length);
-                    console.log(`🔍 [${diagnosisId}] Cleaned string first 200 chars:`, cleanString.substring(0, 200));
+                    console.log(`🔍 [${diagnosisId}] Cleaned string first 200 chars: [REDACTED]`);
                     
                     try {
                         const parsed = JSON.parse(cleanString);
@@ -90,12 +90,8 @@ class SecretsManagerDiagnostic {
                         console.error(`❌ [${diagnosisId}] JSON parsing still failed after cleaning:`, cleanParseError.message);
                         
                         // Step 6: Character-by-character analysis
-                        console.log(`🔍 [${diagnosisId}] Character analysis:`);
-                        for (let i = 0; i < Math.min(10, cleanString.length); i++) {
-                            const char = cleanString[i];
-                            const charCode = char.charCodeAt(0);
-                            console.log(`  [${i}]: "${char}" (${charCode})`);
-                        }
+                        console.log(`🔍 [${diagnosisId}] Character analysis: [REDACTED - Logging characters would expose sensitive data]`);
+                        // Character-by-character analysis removed for security
                         
                         throw new Error(`Unable to parse secret after all attempts: ${cleanParseError.message}`);
                     }
