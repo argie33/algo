@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider, createTheme } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -38,14 +40,30 @@ const queryClient = new QueryClient({
   },
 })
 
-// Use TailwindCSS instead of MUI to avoid createPalette issues
+// Create MUI theme to fix createPalette error
+const muiTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+  },
+});
+
+// Wrap app with proper MUI ThemeProvider to prevent createPalette errors
 const AppWithTheme = () => {
   return (
-    <AuthProvider>
-      <ApiKeyProvider>
-        <App />
-      </ApiKeyProvider>
-    </AuthProvider>
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <AuthProvider>
+        <ApiKeyProvider>
+          <App />
+        </ApiKeyProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 
