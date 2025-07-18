@@ -1122,7 +1122,549 @@ class RequestDeduplicator {
 }
 ```
 
-## 8. SECURITY ARCHITECTURE
+## 8. AUTOMATED TESTING FRAMEWORK ARCHITECTURE
+
+### 8.1 Comprehensive Test Automation Design
+**Architecture Pattern**: Multi-Layer Test Pyramid with Integrated Quality Gates
+
+```javascript
+// Test Pyramid Implementation
+const testPyramid = {
+  unitTests: {
+    coverage: '95%',
+    frameworks: ['Jest', 'Vitest', 'React Testing Library'],
+    scope: 'Individual functions, components, services',
+    executionTime: '<30 seconds',
+    parallel: true
+  },
+  integrationTests: {
+    coverage: '100% API endpoints',
+    frameworks: ['Supertest', 'TestContainers'],
+    scope: 'Service interactions, database operations',
+    executionTime: '<5 minutes',
+    isolation: 'Test database per test suite'
+  },
+  endToEndTests: {
+    coverage: '100% user workflows',
+    frameworks: ['Playwright', 'Cypress'],
+    scope: 'Complete user journeys',
+    executionTime: '<20 minutes',
+    browsers: ['Chrome', 'Firefox', 'Safari', 'Edge']
+  },
+  performanceTests: {
+    coverage: 'All critical endpoints',
+    frameworks: ['Artillery', 'k6'],
+    scope: '1000+ concurrent users',
+    executionTime: '<10 minutes',
+    metrics: ['Response time', 'Throughput', 'Error rate']
+  },
+  securityTests: {
+    coverage: 'All attack vectors',
+    frameworks: ['OWASP ZAP', 'Snyk', 'SonarQube'],
+    scope: 'Vulnerability scanning',
+    executionTime: '<15 minutes',
+    validation: ['SQL injection', 'XSS', 'CSRF', 'Authentication']
+  }
+};
+```
+
+### 8.2 Test Infrastructure Architecture
+```javascript
+class TestInfrastructure {
+  constructor() {
+    this.testEnvironments = {
+      unit: new UnitTestEnvironment(),
+      integration: new IntegrationTestEnvironment(),
+      e2e: new E2ETestEnvironment(),
+      performance: new PerformanceTestEnvironment(),
+      security: new SecurityTestEnvironment()
+    };
+    this.testDataManager = new TestDataManager();
+    this.mockServiceManager = new MockServiceManager();
+    this.testReportingService = new TestReportingService();
+    this.qualityGateManager = new QualityGateManager();
+  }
+
+  async setupTestEnvironment(testType) {
+    const environment = this.testEnvironments[testType];
+    await environment.initialize();
+    await this.testDataManager.loadFixtures(testType);
+    await this.mockServiceManager.startMocks(testType);
+    return environment;
+  }
+
+  async executeTestSuite(testType, options = {}) {
+    const environment = await this.setupTestEnvironment(testType);
+    const results = await environment.runTests(options);
+    await this.testReportingService.generateReport(testType, results);
+    await this.qualityGateManager.evaluateResults(results);
+    return results;
+  }
+}
+```
+
+### 8.3 Financial Services Test Validation Architecture
+```javascript
+class FinancialTestValidation {
+  constructor() {
+    this.portfolioCalculator = new PortfolioCalculatorValidator();
+    this.marketDataValidator = new MarketDataValidator();
+    this.riskCalculationValidator = new RiskCalculationValidator();
+    this.tradingSimulator = new TradingSimulator();
+    this.complianceValidator = new ComplianceValidator();
+  }
+
+  async validatePortfolioCalculations(testData) {
+    const results = [];
+    
+    // Test VaR calculations
+    const varResults = await this.portfolioCalculator.validateVaR(testData.positions);
+    results.push({
+      test: 'Value at Risk Calculation',
+      expected: testData.expectedVaR,
+      actual: varResults.var,
+      tolerance: 0.01,
+      passed: Math.abs(varResults.var - testData.expectedVaR) < 0.01
+    });
+    
+    // Test Sharpe ratio
+    const sharpeResults = await this.portfolioCalculator.validateSharpeRatio(testData.returns);
+    results.push({
+      test: 'Sharpe Ratio Calculation',
+      expected: testData.expectedSharpe,
+      actual: sharpeResults.sharpe,
+      tolerance: 0.01,
+      passed: Math.abs(sharpeResults.sharpe - testData.expectedSharpe) < 0.01
+    });
+    
+    // Test correlation matrix
+    const correlationResults = await this.portfolioCalculator.validateCorrelationMatrix(testData.prices);
+    results.push({
+      test: 'Correlation Matrix Calculation',
+      expected: testData.expectedCorrelation,
+      actual: correlationResults.correlation,
+      tolerance: 0.01,
+      passed: this.validateMatrixEquality(correlationResults.correlation, testData.expectedCorrelation, 0.01)
+    });
+    
+    return results;
+  }
+
+  async validateRealTimeDataAccuracy(testData) {
+    const results = [];
+    
+    // Test WebSocket data integrity
+    const wsResults = await this.marketDataValidator.validateWebSocketData(testData.wsMessages);
+    results.push(...wsResults);
+    
+    // Test data normalization
+    const normalizationResults = await this.marketDataValidator.validateDataNormalization(testData.multiProviderData);
+    results.push(...normalizationResults);
+    
+    // Test circuit breaker behavior
+    const circuitBreakerResults = await this.marketDataValidator.validateCircuitBreaker(testData.failureScenarios);
+    results.push(...circuitBreakerResults);
+    
+    return results;
+  }
+
+  async validateTradingSimulation(testData) {
+    const simulation = await this.tradingSimulator.runBacktest({
+      startDate: testData.startDate,
+      endDate: testData.endDate,
+      strategy: testData.strategy,
+      initialCapital: testData.initialCapital
+    });
+    
+    return {
+      totalReturn: simulation.totalReturn,
+      sharpeRatio: simulation.sharpeRatio,
+      maxDrawdown: simulation.maxDrawdown,
+      winRate: simulation.winRate,
+      expectedReturn: testData.expectedReturn,
+      returnTolerance: testData.returnTolerance,
+      passed: Math.abs(simulation.totalReturn - testData.expectedReturn) < testData.returnTolerance
+    };
+  }
+}
+```
+
+### 8.4 Test Data Management Architecture
+```javascript
+class TestDataManager {
+  constructor() {
+    this.fixtures = new Map();
+    this.generators = new Map();
+    this.cleanupTasks = new Set();
+  }
+
+  async loadFixtures(testType) {
+    const fixtureFiles = {
+      unit: ['user-fixtures.json', 'portfolio-fixtures.json', 'market-data-fixtures.json'],
+      integration: ['api-fixtures.json', 'database-fixtures.json', 'websocket-fixtures.json'],
+      e2e: ['workflow-fixtures.json', 'user-journey-fixtures.json'],
+      performance: ['load-test-fixtures.json', 'concurrent-user-fixtures.json'],
+      security: ['security-test-fixtures.json', 'vulnerability-fixtures.json']
+    };
+    
+    for (const fixtureFile of fixtureFiles[testType]) {
+      const fixture = await this.loadFixture(fixtureFile);
+      this.fixtures.set(fixtureFile, fixture);
+    }
+  }
+
+  async generateTestData(type, count = 1, options = {}) {
+    const generators = {
+      user: () => ({
+        id: faker.string.uuid(),
+        email: faker.internet.email(),
+        name: faker.person.fullName(),
+        createdAt: faker.date.recent().toISOString(),
+        apiKeys: this.generateApiKeys()
+      }),
+      portfolio: () => ({
+        id: faker.string.uuid(),
+        totalValue: faker.number.float({ min: 10000, max: 1000000 }),
+        positions: this.generatePositions(faker.number.int({ min: 5, max: 20 })),
+        cash: faker.number.float({ min: 1000, max: 50000 }),
+        created: faker.date.recent().toISOString()
+      }),
+      marketData: () => ({
+        symbol: faker.helpers.arrayElement(['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']),
+        price: faker.number.float({ min: 50, max: 500 }),
+        volume: faker.number.int({ min: 1000000, max: 50000000 }),
+        timestamp: new Date().toISOString()
+      }),
+      apiKeys: () => ({
+        alpaca: {
+          keyId: faker.string.alphanumeric(20).toUpperCase(),
+          secretKey: faker.string.alphanumeric(40)
+        },
+        polygon: {
+          keyId: faker.string.alphanumeric(32),
+          secretKey: faker.string.alphanumeric(32)
+        },
+        finnhub: {
+          keyId: faker.string.alphanumeric(20).toLowerCase(),
+          secretKey: faker.string.alphanumeric(20).toLowerCase()
+        }
+      })
+    };
+    
+    const generator = generators[type];
+    if (!generator) {
+      throw new Error(`No generator found for type: ${type}`);
+    }
+    
+    return Array.from({ length: count }, () => generator());
+  }
+
+  async cleanupTestData() {
+    for (const cleanupTask of this.cleanupTasks) {
+      await cleanupTask();
+    }
+    this.cleanupTasks.clear();
+  }
+}
+```
+
+### 8.5 Mock Service Architecture
+```javascript
+class MockServiceManager {
+  constructor() {
+    this.mocks = new Map();
+    this.servers = new Map();
+  }
+
+  async startMocks(testType) {
+    const mockConfigs = {
+      unit: {
+        apiService: new MockApiService(),
+        databaseService: new MockDatabaseService(),
+        webSocketService: new MockWebSocketService()
+      },
+      integration: {
+        alpacaApi: new MockAlpacaApi(),
+        polygonApi: new MockPolygonApi(),
+        finnhubApi: new MockFinnhubApi(),
+        cognitoService: new MockCognitoService()
+      },
+      e2e: {
+        fullApiMock: new MockFullApiServer(),
+        webSocketMock: new MockWebSocketServer()
+      }
+    };
+    
+    const configs = mockConfigs[testType];
+    for (const [name, mock] of Object.entries(configs)) {
+      await mock.start();
+      this.mocks.set(name, mock);
+    }
+  }
+
+  async stopMocks() {
+    for (const [name, mock] of this.mocks) {
+      await mock.stop();
+    }
+    this.mocks.clear();
+  }
+}
+
+class MockApiService {
+  constructor() {
+    this.responses = new Map();
+    this.delays = new Map();
+    this.errorRates = new Map();
+  }
+
+  mockResponse(endpoint, response, options = {}) {
+    const { delay = 0, errorRate = 0 } = options;
+    this.responses.set(endpoint, response);
+    this.delays.set(endpoint, delay);
+    this.errorRates.set(endpoint, errorRate);
+  }
+
+  async handleRequest(endpoint, params) {
+    const errorRate = this.errorRates.get(endpoint) || 0;
+    if (Math.random() < errorRate) {
+      throw new Error(`Simulated error for ${endpoint}`);
+    }
+    
+    const delay = this.delays.get(endpoint) || 0;
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    const response = this.responses.get(endpoint);
+    if (typeof response === 'function') {
+      return response(params);
+    }
+    return response;
+  }
+}
+```
+
+### 8.6 Quality Gate Architecture
+```javascript
+class QualityGateManager {
+  constructor() {
+    this.gates = {
+      coverage: new CoverageGate({ threshold: 95 }),
+      performance: new PerformanceGate({ maxResponseTime: 1000 }),
+      security: new SecurityGate({ vulnerabilityThreshold: 0 }),
+      reliability: new ReliabilityGate({ errorRate: 0.1 }),
+      maintainability: new MaintainabilityGate({ codeComplexity: 10 })
+    };
+  }
+
+  async evaluateResults(testResults) {
+    const gateResults = [];
+    
+    for (const [gateName, gate] of Object.entries(this.gates)) {
+      const result = await gate.evaluate(testResults);
+      gateResults.push({
+        gate: gateName,
+        passed: result.passed,
+        score: result.score,
+        threshold: result.threshold,
+        message: result.message
+      });
+    }
+    
+    const allPassed = gateResults.every(result => result.passed);
+    
+    if (!allPassed) {
+      const failedGates = gateResults.filter(result => !result.passed);
+      throw new QualityGateError(`Quality gates failed: ${failedGates.map(g => g.gate).join(', ')}`);
+    }
+    
+    return gateResults;
+  }
+}
+```
+
+### 8.7 Test Reporting Architecture
+```javascript
+class TestReportingService {
+  constructor() {
+    this.reporters = {
+      junit: new JUnitReporter(),
+      html: new HTMLReporter(),
+      json: new JSONReporter(),
+      coverage: new CoverageReporter(),
+      performance: new PerformanceReporter()
+    };
+  }
+
+  async generateReport(testType, results) {
+    const report = {
+      testType,
+      timestamp: new Date().toISOString(),
+      summary: {
+        total: results.total,
+        passed: results.passed,
+        failed: results.failed,
+        skipped: results.skipped,
+        duration: results.duration
+      },
+      coverage: results.coverage,
+      performance: results.performance,
+      details: results.details
+    };
+    
+    // Generate reports in multiple formats
+    const reportPromises = Object.entries(this.reporters).map(([format, reporter]) => {
+      return reporter.generate(report, `test-report-${testType}-${Date.now()}.${format}`);
+    });
+    
+    await Promise.all(reportPromises);
+    
+    // Send to monitoring system
+    await this.sendToMonitoring(report);
+    
+    return report;
+  }
+
+  async sendToMonitoring(report) {
+    // Send test metrics to monitoring system
+    const metrics = {
+      testType: report.testType,
+      passRate: report.summary.passed / report.summary.total,
+      duration: report.summary.duration,
+      coverage: report.coverage.percentage,
+      timestamp: report.timestamp
+    };
+    
+    await this.monitoringService.sendMetrics('test.results', metrics);
+  }
+}
+```
+
+### 8.8 Continuous Integration Test Pipeline
+```yaml
+# .github/workflows/test-pipeline.yml
+name: Automated Test Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright
+        run: npx playwright install
+      - name: Run E2E tests
+        run: npm run test:e2e
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run performance tests
+        run: npm run test:performance
+      - name: Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report/
+
+  security-tests:
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run security scan
+        uses: securecodewarrior/github-action-add-sarif@v1
+        with:
+          sarif-file: security-scan-results.sarif
+      - name: Run dependency audit
+        run: npm audit --audit-level high
+      - name: Run OWASP ZAP scan
+        run: npm run test:security
+
+  quality-gates:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, e2e-tests, performance-tests, security-tests]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Evaluate quality gates
+        run: npm run test:quality-gates
+      - name: Generate test report
+        run: npm run test:report
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report
+          path: test-report/
+```
+
+## 9. SECURITY ARCHITECTURE
 
 ### 8.1 Input Validation & Sanitization Design
 ```javascript

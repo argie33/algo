@@ -23,6 +23,8 @@ import {
   BugReport,
   Home
 } from '@mui/icons-material';
+import { debugReactError } from '../utils/reactDebugger.js';
+import { diagnoseReactError } from '../utils/testRunner.js';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -49,6 +51,17 @@ class ErrorBoundary extends React.Component {
     console.error('🚨 Error Boundary caught an error:', error);
     this.setState({ error, errorInfo });
     this.reportError(error, errorInfo);
+    
+    // Enhanced error debugging
+    debugReactError(error, errorInfo.componentStack);
+    
+    // Run diagnostic tests for this specific error
+    diagnoseReactError(error).then(diagnosticResults => {
+      console.log('🔍 Diagnostic results for error:', diagnosticResults);
+      this.setState({ diagnosticResults });
+    }).catch(diagError => {
+      console.warn('Failed to run diagnostic tests:', diagError);
+    });
   }
 
   reportError = (error, errorInfo) => {

@@ -27,7 +27,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
     "recharts": "^2.15.4",
-    "use-sync-external-store": "1.2.0"
+    "use-sync-external-store": "1.2.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
@@ -59,11 +60,20 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
+    "test:unit": "vitest run --reporter=verbose",
+    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:e2e": "playwright test",
+    "test:performance": "vitest run --config vitest.performance.config.js",
+    "test:security": "npm audit && vitest run --config vitest.security.config.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:debug": "vitest run --config vitest.debug.config.js",
+    "test:watch": "vitest",
     "setup-dev": "node scripts/setup-dev.js",
     "setup-prod": "node scripts/setup-prod.js",
     "config": "node setup-api-config.js",
     "start": "npm run config && npm run setup-dev && npm run dev",
-    "build-prod": "npm run config && npm run setup-prod && npm run build"
+    "build-prod": "npm run config && npm run setup-prod && npm run build",
+    "debug:react": "node -e \"console.log('Running React diagnostics...'); import('./src/utils/reactHooksDebugger.js').then(m => m.runReactHooksDiagnostics())\""
   },
   "browserslist": {
     "production": [

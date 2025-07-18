@@ -3,6 +3,7 @@ import './utils/browserCompatibility.js'
 import asyncErrorHandler from './utils/asyncErrorHandler.js'
 import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
 import performanceMonitor from './utils/performanceMonitor.js'
+import debugInit from './utils/debugInit.js'
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
