@@ -181,7 +181,6 @@ Resources:
           DB_POOL_IDLE_TIMEOUT: '30000'
           # Environment configuration
           NODE_ENV: !Ref EnvironmentName
-          AWS_REGION: !Ref AWS::Region
           WEBAPP_AWS_REGION: !Ref AWS::Region
           # Authentication configuration
           COGNITO_SECRET_ARN: !Ref CognitoConfigSecret
