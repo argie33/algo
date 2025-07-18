@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': resolve(__dirname, 'src'),
         'use-sync-external-store/shim/index.js': resolve(__dirname, 'node_modules/use-sync-external-store/shim/index.js'),
+        '@mui/styled-engine': resolve(__dirname, 'node_modules/@mui/styled-engine-sc'),
       }
     },
     build: {
