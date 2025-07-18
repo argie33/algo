@@ -234,57 +234,103 @@ Frontend configuration now working with real Cognito values:
 3. **Test End-to-End Flows** - Full user authentication and data retrieval with real backend
 4. **Performance Monitoring** - Create live system dashboard for production readiness validation
 
-## 3 Core Documentation System - CRITICAL
-The project is driven by 3 core documents that must be continuously updated and reviewed:
+## 3 Core Documentation System - CRITICAL WORKFLOW
+The project is driven by exactly 3 documents with distinct purposes. These documents work together but serve different roles:
 
-### 1. **requirements.md** - Feature Requirements & Acceptance Criteria
-- **Purpose**: Complete feature requirements with detailed acceptance criteria for all system components
-- **Content**: Requirements specifications, acceptance criteria, completion status, validation methods
-- **Usage**: Primary reference for what needs to be built and how success is measured
-- **Update When**: New features identified, requirements evolve, or acceptance criteria change
-- **CRITICAL**: All development must be driven by requirements with clear acceptance criteria
+### 1. **requirements.md** - WHAT to Build
+**Purpose**: Feature requirements and acceptance criteria
+**Content**: 
+- Business requirements with acceptance criteria
+- Feature specifications and functional requirements  
+- User stories and acceptance definitions
+- Quality standards and validation criteria
+**Format**: Requirements with ✅/🔄/❌/⏳ status notation
+**When to Update**: When new features are needed or requirements change
+**DO NOT PUT**: Implementation details, technical architecture, or current task status
 
-### 2. **design.md** - Technical Design & Implementation Specifications  
-- **Purpose**: Detailed technical architecture and implementation specifications for each requirement
-- **Content**: System architecture, component design, data flow, security implementation, performance patterns
-- **Usage**: Technical blueprint for implementing each requirement with specific code patterns and designs
-- **Update When**: Architecture changes, new implementation patterns discovered, or design improvements identified
-- **CRITICAL**: All implementation must follow the detailed designs specified in this document
+### 2. **DESIGN.md** - HOW to Build It  
+**Purpose**: Technical architecture and system design
+**Content**:
+- System architecture and component design
+- Data flow patterns and technical specifications
+- Security patterns and performance strategies
+- Infrastructure patterns and deployment architecture  
+**Format**: Technical specifications with architectural diagrams and code examples
+**When to Update**: When architectural decisions are made or technical approaches change
+**DO NOT PUT**: Current status, task lists, or feature requirements
 
-### 3. **tasks.md** - Implementation Tasks & Delivery Plan
-- **Purpose**: Detailed task breakdown showing how each design will be delivered and implemented
-- **Content**: Task specifications, implementation steps, priority matrix, sprint planning, delivery timelines
-- **Usage**: Step-by-step implementation guide with clear deliverables and timelines
-- **Update When**: Task progress changes, new implementation steps discovered, or priorities shift
-- **CRITICAL**: All work must be tracked through specific tasks with clear delivery steps
+### 3. **tasks.md** - WHEN & STATUS of Work
+**Purpose**: Current task status and implementation progress
+**Content**:
+- Task list with current status (✅/🔄/⏳/❌/🚨)
+- Implementation steps and progress tracking
+- Priority levels and sprint planning
+- Detailed task breakdowns with completion status
+**Format**: Task lists organized by category with detailed status tracking
+**When to Update**: Continuously as work progresses and tasks change
+**DO NOT PUT**: Requirements definitions or architectural designs
 
-### Documentation Workflow - CRITICAL PROCESS
-1. **Analyze requirements.md** - Review all requirements and their completion status
-2. **Check design.md** - Ensure technical designs exist for each requirement
-3. **Update tasks.md** - Break down designs into specific implementation tasks
-4. **Work from TodoWrite/TodoRead** - All task management via todo tools
-5. **Update status continuously** - Mark tasks in_progress when starting, completed when finished
-6. **ONLY work on pending tasks** - Never work on tasks already in_progress or completed
+## CRITICAL WORKFLOW - How to Work with These 3 Documents
 
-### Documentation Management Commands
-- **Read All 3 Docs**: Start each session by reviewing requirements.md, design.md, tasks.md
-- **Analyze → Prioritize → Execute**: Review requirements/designs → update tasks → work from TodoRead/TodoWrite
-- **Sync Status**: Ensure task status reflects actual completion state
-- **Reference Todo Tools**: Always check TodoRead before starting new work, update TodoWrite continuously
+### Document Interaction Pattern:
+```
+requirements.md (WHAT) → DESIGN.md (HOW) → tasks.md (WHEN/STATUS)
+     ↓                        ↓                    ↓
+Define features → Design architecture → Track implementation
+```
 
-### STRICT TASK MANAGEMENT RULES
-- **NEVER work on tasks marked 'in_progress' or 'completed'**
-- **ALWAYS mark tasks 'in_progress' when starting work**
-- **ALWAYS mark tasks 'completed' immediately when finished**
-- **ONLY work on tasks with status 'pending'**
-- **UPDATE TodoWrite after any status changes**
+### STRICT WORKFLOW RULES:
+1. **NEVER MIX CONTENT**: Each document has its specific purpose - don't put status in requirements or requirements in tasks
+2. **ALWAYS START WITH TodoRead**: Check current task status before beginning work
+3. **UPDATE IN SEQUENCE**: requirements.md changes → DESIGN.md updates → tasks.md reflects new work
+4. **USE TodoWrite FOR TASK MANAGEMENT**: All task tracking goes through TodoWrite, never manually edit task status
 
-## ⚠️ CRITICAL DOCUMENTATION RULE ⚠️
-**ONLY USE THESE 3 DOCUMENTS**: requirements.md, design.md, tasks.md
-- **NEVER create**: Any other .md files including STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, etc.
-- **NEVER reference**: Documents that don't exist or conflict with the 3 core documents
-- **ALL project information**: Must be in requirements.md, design.md, or tasks.md ONLY
-- **Task management**: Use TodoRead/TodoWrite tools, not separate markdown files
+### When Starting Work:
+1. **TodoRead** - Check current task priorities and status
+2. **Read requirements.md** - Understand WHAT needs to be built
+3. **Read DESIGN.md** - Understand HOW it should be architected
+4. **Work on highest priority task** from TodoRead output
+5. **TodoWrite** - Update task status as work progresses
+
+### When Requirements Change:
+1. **Update requirements.md** - Add/modify requirements and acceptance criteria
+2. **Update DESIGN.md** - Adjust architecture if needed
+3. **TodoWrite** - Add new tasks to implement the changes
+
+### When Architecture Changes:
+1. **Update DESIGN.md** - Document new architectural patterns
+2. **Check requirements.md** - Ensure design meets requirements
+3. **TodoWrite** - Add tasks to implement architectural changes
+
+### CRITICAL ENFORCEMENT:
+- **NEVER create new .md files** for project management
+- **NEVER put task status in requirements.md or DESIGN.md**
+- **NEVER put requirements or architecture in tasks.md**
+- **ALWAYS use TodoRead/TodoWrite for task management**
+- **ALWAYS maintain clear separation of concerns between documents**
+
+## Document Content Guidelines
+
+### requirements.md SHOULD CONTAIN:
+- "REQ-XXX: Feature Name" with acceptance criteria
+- Business requirements and user stories
+- Quality standards and validation criteria
+- Status notation: ✅ Complete, 🔄 Partial, ❌ Missing, ⏳ Planned
+
+### DESIGN.md SHOULD CONTAIN:
+- Technical architecture patterns
+- Component design and data flow
+- Security and performance strategies  
+- Code examples and technical specifications
+
+### tasks.md SHOULD CONTAIN:
+- "TASK-XXX: Task Name" with status tracking
+- Detailed implementation steps
+- Priority levels and sprint organization
+- Status tracking: ✅ Complete, 🔄 In Progress, ⏳ Planned, ❌ Blocked, 🚨 Critical
+
+## Violation Prevention:
+If you find status mixed into requirements.md, or requirements mixed into tasks.md, or architecture mixed into the wrong document - STOP and fix the content separation immediately. These documents must maintain their distinct purposes for effective project management.
 
 ## Task Management - CRITICAL WORKFLOW
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system

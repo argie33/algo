@@ -227,7 +227,7 @@ if __name__ == "__main__":
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"],
-            sslmode='require'
+            sslmode='disable'
         )
         logging.info("✅ Database connection established")
         conn.autocommit = False

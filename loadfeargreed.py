@@ -264,7 +264,7 @@ async def main():
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     ,
-            sslmode='require'
+            sslmode='disable'
     )
     logging.info("✅ Database connection established")
     conn.autocommit = False

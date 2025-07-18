@@ -401,7 +401,7 @@ def handler(event, context):
             dbname=db,
             user=user,
             password=pwd,
-            sslmode="require"
+            sslmode='disable'
         )
         cur = conn.cursor()
 

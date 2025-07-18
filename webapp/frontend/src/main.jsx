@@ -1,23 +1,10 @@
-// CRITICAL: Import MUI patch FIRST to prevent createPalette errors
-import './mui-patch.js'
-
+// COMPLETE TAILWINDCSS VERSION - NO MUI DEPENDENCIES
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 
-// CRITICAL: Add MUI theme setup to prevent createPalette errors
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-
-// Create MUI theme immediately
-const muiTheme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: { main: '#1976d2' },
-    secondary: { main: '#dc004e' },
-  },
-});
+// TailwindCSS styles only - NO MUI
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'

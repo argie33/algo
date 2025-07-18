@@ -138,7 +138,7 @@ class PatternRecognitionLoader:
         try:
             import psycopg2
             conn = psycopg2.connect(**self.db_config,
-            sslmode='require'
+            sslmode='disable'
     )
             cursor = conn.cursor()
             
@@ -334,7 +334,7 @@ class PatternRecognitionLoader:
         try:
             import psycopg2
             conn = psycopg2.connect(**self.db_config,
-            sslmode='require'
+            sslmode='disable'
     )
             cursor = conn.cursor()
             

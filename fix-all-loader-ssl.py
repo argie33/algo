@@ -12,22 +12,29 @@ def fix_ssl_in_file(filepath):
         with open(filepath, 'r') as f:
             content = f.read()
         
-        # Pattern to match psycopg2.connect calls without sslmode
+        original_content = content
+        
+        # First, fix existing sslmode='require' to sslmode='disable'
+        content = re.sub(r"sslmode\s*=\s*['\"]require['\"]", "sslmode='disable'", content)
+        content = re.sub(r"sslmode\s*=\s*['\"]prefer['\"]", "sslmode='disable'", content)
+        content = re.sub(r"sslmode\s*=\s*['\"]allow['\"]", "sslmode='disable'", content)
+        
+        # Then, add sslmode='disable' to psycopg2.connect calls that don't have sslmode
         pattern = r'(psycopg2\.connect\(\s*[^)]*?)\)'
         
         def replacement(match):
             connect_call = match.group(1)
             if 'sslmode' in connect_call:
-                return match.group(0)  # Already has sslmode, don't change
+                return match.group(0)  # Already has sslmode, don't add another
             
             # Add sslmode='disable' before the closing parenthesis
             return connect_call + ",\n            sslmode='disable'\n        )"
         
-        new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+        content = re.sub(pattern, replacement, content, flags=re.DOTALL)
         
-        if new_content != content:
+        if content != original_content:
             with open(filepath, 'w') as f:
-                f.write(new_content)
+                f.write(content)
             print(f"✅ Fixed: {filepath}")
             return True
         else:

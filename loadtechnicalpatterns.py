@@ -731,7 +731,7 @@ def main():
         # Database connection
         db_config = get_db_config()
         conn = psycopg2.connect(**db_config,
-            sslmode='require'
+            sslmode='disable'
     )
         cursor = conn.cursor()
         

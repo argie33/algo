@@ -92,7 +92,7 @@ def get_db_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         database=DB_NAME,
-        sslmode="require"
+        sslmode='disable'
     )
 
 def create_tables():
