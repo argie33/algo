@@ -1,23 +1,60 @@
 /**
  * Enhanced Authentication and Authorization Middleware
  * Advanced security features for financial trading platform
+ * Integrates with EnhancedAuthService for comprehensive security
  */
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { EnhancedAuthService } = require('../services/EnhancedAuthService');
+const logger = require('../utils/logger');
 
 class EnhancedAuthMiddleware {
     constructor() {
+        this.authService = new EnhancedAuthService();
         this.jwtSecret = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
         this.sessionStore = new Map(); // In production, use Redis
         this.failedAttempts = new Map();
         this.deviceFingerprints = new Map();
+        this.rateLimitStore = new Map();
+        this.suspiciousActivityStore = new Map();
         
         // Security settings
         this.maxFailedAttempts = 5;
         this.lockoutDuration = 30 * 60 * 1000; // 30 minutes
         this.sessionTimeout = 24 * 60 * 60 * 1000; // 24 hours
         this.deviceTrustDuration = 7 * 24 * 60 * 60 * 1000; // 7 days
+        
+        // Rate limiting configuration
+        this.config = {
+            rateLimit: {
+                windowMs: 15 * 60 * 1000, // 15 minutes
+                maxRequests: 100,
+                blockDuration: 60 * 60 * 1000, // 1 hour
+                strictPaths: ['/api/auth/login', '/api/auth/register'],
+                strictLimit: 5
+            },
+            session: {
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+                renewThreshold: 30 * 60 * 1000, // 30 minutes before expiry
+                maxConcurrent: 3
+            },
+            security: {
+                maxLoginAttempts: 5,
+                lockoutDuration: 30 * 60 * 1000, // 30 minutes
+                suspiciousThreshold: 10,
+                ipWhitelist: process.env.IP_WHITELIST?.split(',') || [],
+                trustedProxies: process.env.TRUSTED_PROXIES?.split(',') || []
+            },
+            cors: {
+                allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['https://d1zb7knau41vl9.cloudfront.net'],
+                allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key', 'X-Session-ID'],
+                exposedHeaders: ['X-Rate-Limit-Remaining', 'X-Rate-Limit-Reset'],
+                credentials: true,
+                maxAge: 86400 // 24 hours
+            }
+        };
         
         // Cleanup interval
         setInterval(() => this.cleanup(), 10 * 60 * 1000); // Every 10 minutes
@@ -203,7 +240,116 @@ class EnhancedAuthMiddleware {
     }
 
     /**
-     * Main authentication middleware
+     * Enhanced main authentication middleware with comprehensive security
+     */
+    authenticate(options = {}) {
+        return async (req, res, next) => {
+            const correlationId = this.generateCorrelationId();
+            req.correlationId = correlationId;
+            
+            try {
+                // Apply security headers
+                this.applySecurityHeaders(req, res);
+                
+                // Handle CORS
+                if (this.handleCORS(req, res)) {
+                    return;
+                }
+                
+                // Get client IP
+                const clientIP = this.getClientIP(req);
+                req.clientIP = clientIP;
+                
+                // Rate limiting
+                if (this.isRateLimited(req, clientIP)) {
+                    return this.sendRateLimitError(res, correlationId);
+                }
+                
+                // Check for suspicious activity
+                if (this.detectSuspiciousActivity(req, clientIP)) {
+                    return this.sendSuspiciousActivityError(res, correlationId);
+                }
+                
+                // Extract and validate JWT token
+                const token = this.extractToken(req);
+                if (!token) {
+                    if (options.required !== false) {
+                        return this.sendAuthError(res, 'Authentication required', correlationId);
+                    }
+                    return next();
+                }
+                
+                // Verify JWT token
+                const decoded = await this.verifyToken(token, correlationId);
+                if (!decoded) {
+                    return this.sendAuthError(res, 'Invalid or expired token', correlationId);
+                }
+                
+                // Get user details
+                const user = await this.authService.getUserById(decoded.sub);
+                if (!user || !user.isActive) {
+                    return this.sendAuthError(res, 'User not found or inactive', correlationId);
+                }
+                
+                // Validate session
+                const sessionValid = await this.validateEnhancedSession(decoded, req, clientIP);
+                if (!sessionValid) {
+                    return this.sendAuthError(res, 'Invalid session', correlationId);
+                }
+                
+                // Check MFA if required
+                if (options.requireMFA && !decoded.mfaVerified) {
+                    return this.sendMFARequired(res, correlationId);
+                }
+                
+                // Role-based access control
+                if (options.roles && !this.hasRequiredRole(user, options.roles)) {
+                    return this.sendAuthError(res, 'Insufficient permissions', correlationId, 403);
+                }
+                
+                // Permission-based access control
+                if (options.permissions && !this.hasRequiredPermissions(user, options.permissions)) {
+                    return this.sendAuthError(res, 'Insufficient permissions', correlationId, 403);
+                }
+                
+                // Attach user to request
+                req.user = user;
+                req.token = decoded;
+                req.sessionId = decoded.sessionId;
+                
+                // Update session activity
+                this.updateSessionActivity(decoded.sessionId, req);
+                
+                // Log successful authentication
+                logger.info('Authentication successful', {
+                    correlationId,
+                    userId: user.id,
+                    email: user.email,
+                    ip: clientIP,
+                    userAgent: req.get('User-Agent'),
+                    path: req.path,
+                    method: req.method
+                });
+                
+                next();
+                
+            } catch (error) {
+                logger.error('Authentication middleware error', {
+                    correlationId,
+                    error: error.message,
+                    stack: error.stack,
+                    ip: req.clientIP,
+                    path: req.path,
+                    method: req.method
+                });
+                
+                return this.sendAuthError(res, 'Authentication failed', correlationId, 500);
+            }
+        };
+    }
+
+    /**
+     * Main authentication middleware (legacy compatibility)
      */
     requireAuth(options = {}) {
         return async (req, res, next) => {
@@ -387,13 +533,419 @@ class EnhancedAuthMiddleware {
     }
 
     /**
-     * Cleanup expired sessions and failed attempts
+     * Enhanced JWT token verification with blacklist checking
+     */
+    async verifyToken(token, correlationId) {
+        try {
+            const decoded = jwt.verify(token, this.jwtSecret);
+            
+            // Check if token is blacklisted
+            const isBlacklisted = await this.authService.isTokenBlacklisted(token);
+            if (isBlacklisted) {
+                logger.warn('Blacklisted token used', {
+                    correlationId,
+                    tokenId: decoded.jti,
+                    userId: decoded.sub
+                });
+                return null;
+            }
+            
+            return decoded;
+        } catch (error) {
+            logger.warn('Token verification failed', {
+                correlationId,
+                error: error.message,
+                tokenPreview: token.substring(0, 20) + '...'
+            });
+            return null;
+        }
+    }
+
+    /**
+     * Enhanced session validation with EnhancedAuthService
+     */
+    async validateEnhancedSession(decoded, req, clientIP) {
+        const sessionId = decoded.sessionId;
+        if (!sessionId) {
+            return false;
+        }
+        
+        try {
+            const session = await this.authService.getSession(sessionId);
+            if (!session || !session.isActive) {
+                return false;
+            }
+            
+            // Check session expiry
+            if (session.expiresAt < new Date()) {
+                await this.authService.invalidateSession(sessionId);
+                return false;
+            }
+            
+            // Validate IP consistency (if configured)
+            if (session.ipAddress && session.ipAddress !== clientIP) {
+                logger.warn('IP address mismatch for session', {
+                    sessionId,
+                    originalIP: session.ipAddress,
+                    currentIP: clientIP,
+                    userId: decoded.sub
+                });
+                
+                // Allow IP changes for mobile users, but flag as suspicious
+                this.flagSuspiciousActivity(clientIP, 'ip_change');
+            }
+            
+            // Check concurrent sessions
+            const userSessions = await this.authService.getUserActiveSessions(decoded.sub);
+            if (userSessions.length > this.config.session.maxConcurrent) {
+                // Invalidate oldest sessions
+                const oldestSessions = userSessions
+                    .sort((a, b) => a.lastActivity - b.lastActivity)
+                    .slice(0, userSessions.length - this.config.session.maxConcurrent);
+                
+                for (const oldSession of oldestSessions) {
+                    await this.authService.invalidateSession(oldSession.id);
+                }
+            }
+            
+            return true;
+        } catch (error) {
+            logger.error('Session validation error', {
+                sessionId,
+                error: error.message,
+                userId: decoded.sub
+            });
+            return false;
+        }
+    }
+
+    /**
+     * Rate limiting implementation
+     */
+    isRateLimited(req, clientIP) {
+        const key = `${clientIP}:${req.path}`;
+        const now = Date.now();
+        const windowMs = this.config.rateLimit.windowMs;
+        
+        if (!this.rateLimitStore.has(key)) {
+            this.rateLimitStore.set(key, {
+                requests: 1,
+                resetTime: now + windowMs,
+                blocked: false
+            });
+            return false;
+        }
+        
+        const rateData = this.rateLimitStore.get(key);
+        
+        // Check if in blocked state
+        if (rateData.blocked && now < rateData.blockedUntil) {
+            return true;
+        }
+        
+        // Reset window if expired
+        if (now > rateData.resetTime) {
+            rateData.requests = 1;
+            rateData.resetTime = now + windowMs;
+            rateData.blocked = false;
+            return false;
+        }
+        
+        // Increment requests
+        rateData.requests++;
+        
+        // Check limits
+        const isStrictPath = this.config.rateLimit.strictPaths.includes(req.path);
+        const limit = isStrictPath ? this.config.rateLimit.strictLimit : this.config.rateLimit.maxRequests;
+        
+        if (rateData.requests > limit) {
+            rateData.blocked = true;
+            rateData.blockedUntil = now + this.config.rateLimit.blockDuration;
+            
+            logger.warn('Rate limit exceeded', {
+                ip: clientIP,
+                path: req.path,
+                requests: rateData.requests,
+                limit,
+                userAgent: req.get('User-Agent')
+            });
+            
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Suspicious activity detection
+     */
+    detectSuspiciousActivity(req, clientIP) {
+        const key = `suspicious:${clientIP}`;
+        const now = Date.now();
+        const windowMs = 60 * 60 * 1000; // 1 hour
+        
+        if (!this.suspiciousActivityStore.has(key)) {
+            this.suspiciousActivityStore.set(key, {
+                score: 0,
+                events: [],
+                resetTime: now + windowMs
+            });
+        }
+        
+        const suspicious = this.suspiciousActivityStore.get(key);
+        
+        // Reset if window expired
+        if (now > suspicious.resetTime) {
+            suspicious.score = 0;
+            suspicious.events = [];
+            suspicious.resetTime = now + windowMs;
+        }
+        
+        // Check for suspicious patterns
+        let scoreIncrease = 0;
+        
+        // Multiple failed auth attempts
+        if (req.path.includes('/auth/') && req.method === 'POST') {
+            scoreIncrease += 2;
+        }
+        
+        // Unusual user agent
+        const userAgent = req.get('User-Agent');
+        if (!userAgent || userAgent.length < 10 || /bot|crawler|spider/i.test(userAgent)) {
+            scoreIncrease += 3;
+        }
+        
+        // Rapid requests
+        const recentEvents = suspicious.events.filter(event => now - event.timestamp < 60000);
+        if (recentEvents.length > 20) {
+            scoreIncrease += 5;
+        }
+        
+        // Update score
+        suspicious.score += scoreIncrease;
+        suspicious.events.push({
+            timestamp: now,
+            path: req.path,
+            method: req.method,
+            userAgent
+        });
+        
+        // Check threshold
+        if (suspicious.score > this.config.security.suspiciousThreshold) {
+            logger.warn('Suspicious activity detected', {
+                ip: clientIP,
+                score: suspicious.score,
+                events: suspicious.events.length,
+                userAgent
+            });
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Role-based access control
+     */
+    hasRequiredRole(user, requiredRoles) {
+        if (!user.roles || !Array.isArray(user.roles)) {
+            return false;
+        }
+        
+        const userRoles = user.roles.map(role => role.name || role);
+        return requiredRoles.some(role => userRoles.includes(role));
+    }
+
+    /**
+     * Permission-based access control
+     */
+    hasRequiredPermissions(user, requiredPermissions) {
+        if (!user.permissions || !Array.isArray(user.permissions)) {
+            return false;
+        }
+        
+        const userPermissions = user.permissions.map(perm => perm.name || perm);
+        return requiredPermissions.every(permission => userPermissions.includes(permission));
+    }
+
+    /**
+     * CORS handling
+     */
+    handleCORS(req, res) {
+        const origin = req.get('Origin');
+        const { allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, credentials, maxAge } = this.config.cors;
+        
+        // Check if origin is allowed
+        if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
+            res.header('Access-Control-Allow-Origin', origin);
+        }
+        
+        res.header('Access-Control-Allow-Methods', allowedMethods.join(', '));
+        res.header('Access-Control-Allow-Headers', allowedHeaders.join(', '));
+        res.header('Access-Control-Expose-Headers', exposedHeaders.join(', '));
+        res.header('Access-Control-Allow-Credentials', credentials);
+        res.header('Access-Control-Max-Age', maxAge);
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            res.status(200).end();
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Apply comprehensive security headers
+     */
+    applySecurityHeaders(req, res) {
+        // Basic security headers
+        res.header('X-Content-Type-Options', 'nosniff');
+        res.header('X-Frame-Options', 'DENY');
+        res.header('X-XSS-Protection', '1; mode=block');
+        res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+        res.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        
+        // Content Security Policy
+        const csp = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: https:",
+            "font-src 'self'",
+            "connect-src 'self' https://api.alpaca.markets https://paper-api.alpaca.markets",
+            "frame-src 'none'",
+            "object-src 'none'",
+            "base-uri 'self'"
+        ].join('; ');
+        
+        res.header('Content-Security-Policy', csp);
+        
+        // HSTS (only for HTTPS)
+        if (req.secure || req.get('X-Forwarded-Proto') === 'https') {
+            res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+        }
+    }
+
+    /**
+     * Utility methods
+     */
+    extractToken(req) {
+        const authHeader = req.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            return authHeader.substring(7);
+        }
+        
+        // Check for token in cookies
+        const cookieToken = req.cookies?.token;
+        if (cookieToken) {
+            return cookieToken;
+        }
+        
+        return null;
+    }
+
+    getClientIP(req) {
+        // Check trusted proxy headers
+        const forwarded = req.get('X-Forwarded-For');
+        if (forwarded) {
+            const ips = forwarded.split(',').map(ip => ip.trim());
+            return ips[0];
+        }
+        
+        return req.get('X-Real-IP') || 
+               req.get('X-Client-IP') || 
+               req.connection?.remoteAddress || 
+               req.socket?.remoteAddress ||
+               req.ip ||
+               'unknown';
+    }
+
+    generateCorrelationId() {
+        return crypto.randomUUID();
+    }
+
+    updateSessionActivity(sessionId, req) {
+        if (!sessionId) return;
+        
+        this.authService.updateSessionActivity(sessionId, {
+            lastActivity: new Date(),
+            ipAddress: req.clientIP,
+            userAgent: req.get('User-Agent'),
+            path: req.path,
+            method: req.method
+        }).catch(error => {
+            logger.error('Failed to update session activity', {
+                sessionId,
+                error: error.message
+            });
+        });
+    }
+
+    flagSuspiciousActivity(ip, type) {
+        const key = `suspicious:${ip}`;
+        const suspicious = this.suspiciousActivityStore.get(key);
+        if (suspicious) {
+            suspicious.score += 3;
+            suspicious.events.push({
+                timestamp: Date.now(),
+                type,
+                flagged: true
+            });
+        }
+    }
+
+    /**
+     * Error response methods
+     */
+    sendAuthError(res, message, correlationId, statusCode = 401) {
+        res.status(statusCode).json({
+            success: false,
+            error: message,
+            correlationId,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    sendRateLimitError(res, correlationId) {
+        res.status(429).json({
+            success: false,
+            error: 'Rate limit exceeded',
+            correlationId,
+            timestamp: new Date().toISOString(),
+            retryAfter: Math.ceil(this.config.rateLimit.blockDuration / 1000)
+        });
+    }
+
+    sendSuspiciousActivityError(res, correlationId) {
+        res.status(403).json({
+            success: false,
+            error: 'Suspicious activity detected',
+            correlationId,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    sendMFARequired(res, correlationId) {
+        res.status(403).json({
+            success: false,
+            error: 'MFA verification required',
+            correlationId,
+            timestamp: new Date().toISOString(),
+            mfaRequired: true
+        });
+    }
+
+    /**
+     * Enhanced cleanup expired sessions and failed attempts
      */
     cleanup() {
         const currentTime = Date.now();
         let cleanedSessions = 0;
         let cleanedAttempts = 0;
         let cleanedDevices = 0;
+        let cleanedRateLimit = 0;
+        let cleanedSuspicious = 0;
 
         // Clean expired sessions
         for (const [sessionId, session] of this.sessionStore.entries()) {
@@ -419,8 +971,24 @@ class EnhancedAuthMiddleware {
             }
         }
 
-        if (cleanedSessions + cleanedAttempts + cleanedDevices > 0) {
-            console.log(`🧹 Auth cleanup: ${cleanedSessions} sessions, ${cleanedAttempts} attempts, ${cleanedDevices} devices`);
+        // Clean up rate limit store
+        for (const [key, data] of this.rateLimitStore.entries()) {
+            if (currentTime > data.resetTime && !data.blocked) {
+                this.rateLimitStore.delete(key);
+                cleanedRateLimit++;
+            }
+        }
+
+        // Clean up suspicious activity store
+        for (const [key, data] of this.suspiciousActivityStore.entries()) {
+            if (currentTime > data.resetTime) {
+                this.suspiciousActivityStore.delete(key);
+                cleanedSuspicious++;
+            }
+        }
+
+        if (cleanedSessions + cleanedAttempts + cleanedDevices + cleanedRateLimit + cleanedSuspicious > 0) {
+            console.log(`🧹 Auth cleanup: ${cleanedSessions} sessions, ${cleanedAttempts} attempts, ${cleanedDevices} devices, ${cleanedRateLimit} rate limits, ${cleanedSuspicious} suspicious`);
         }
     }
 
@@ -453,4 +1021,51 @@ class EnhancedAuthMiddleware {
     }
 }
 
-module.exports = EnhancedAuthMiddleware;
+// Factory functions for common middleware configurations
+const createAuthMiddleware = (options = {}) => {
+    const middleware = new EnhancedAuthMiddleware();
+    return middleware.authenticate(options);
+};
+
+const requireAuth = createAuthMiddleware({ required: true });
+const requireMFA = createAuthMiddleware({ required: true, requireMFA: true });
+const requireRole = (roles) => createAuthMiddleware({ required: true, roles });
+const requirePermissions = (permissions) => createAuthMiddleware({ required: true, permissions });
+
+// Admin middleware
+const requireAdmin = createAuthMiddleware({ 
+    required: true, 
+    roles: ['admin', 'super_admin'] 
+});
+
+// API middleware
+const requireApiAccess = createAuthMiddleware({
+    required: true,
+    permissions: ['api_access']
+});
+
+// Trading middleware
+const requireTradingAccess = createAuthMiddleware({
+    required: true,
+    requireMFA: true,
+    permissions: ['trading_access']
+});
+
+// Legacy compatibility middleware
+const createLegacyAuthMiddleware = (options = {}) => {
+    const middleware = new EnhancedAuthMiddleware();
+    return middleware.requireAuth(options);
+};
+
+module.exports = {
+    EnhancedAuthMiddleware,
+    createAuthMiddleware,
+    createLegacyAuthMiddleware,
+    requireAuth,
+    requireMFA,
+    requireRole,
+    requirePermissions,
+    requireAdmin,
+    requireApiAccess,
+    requireTradingAccess
+};
