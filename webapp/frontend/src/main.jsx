@@ -1,23 +1,38 @@
 // COMPLETE TAILWINDCSS VERSION - NO MUI DEPENDENCIES
-// Prevent MUI createPalette errors FIRST
+// Initialize essential utilities FIRST
 import './utils/muiPrevention.js'
+import './utils/browserCompatibility.js'
+import asyncErrorHandler from './utils/asyncErrorHandler.js'
+import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
+import performanceMonitor from './utils/performanceMonitor.js'
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 
-// TailwindCSS styles only - NO MUI
+// Enhanced components
 import './index.css'
 import App from './App'
-import ErrorBoundary from './components/ErrorBoundary'
+import ErrorBoundary from './components/ErrorBoundaryTailwind'
+import { LoadingProvider } from './components/LoadingStateManager'
 import { AuthProvider } from './contexts/AuthContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
 
-console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
-console.log('Window location:', window.location.href);
-console.log('Document ready state:', document.readyState);
-console.log('Root element exists:', !!document.getElementById('root'));
+// Enhanced initialization logging
+console.log('🚀 Financial Platform initializing...');
+console.log('📍 Location:', window.location.href);
+console.log('📄 Document state:', document.readyState);
+console.log('🎯 Root element:', !!document.getElementById('root'));
+
+// Log system capabilities
+import { getCompatibilityReport } from './utils/browserCompatibility.js';
+import { getSystemHealth } from './utils/asyncErrorHandler.js';
+
+console.group('🔍 System Status');
+console.log('Browser compatibility:', getCompatibilityReport());
+console.log('Error handling health:', getSystemHealth());
+console.groupEnd();
 
 // Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'
@@ -44,14 +59,16 @@ const queryClient = new QueryClient({
   },
 })
 
-// Pure TailwindCSS app wrapper - NO MUI
+// Enhanced app wrapper with comprehensive error handling and loading states
 const AppWithProviders = () => {
   return (
-    <AuthProvider>
-      <ApiKeyProvider>
-        <App />
-      </ApiKeyProvider>
-    </AuthProvider>
+    <LoadingProvider>
+      <AuthProvider>
+        <ApiKeyProvider>
+          <App />
+        </ApiKeyProvider>
+      </AuthProvider>
+    </LoadingProvider>
   );
 };
 

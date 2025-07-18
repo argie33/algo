@@ -3,8 +3,9 @@
 window.__CONFIG__ = {
   "API_URL": "https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev",
   "WS_URL": "https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev/api/websocket",
-  "BUILD_TIME": "2025-07-16T01:54:24.664Z",
-  "VERSION": "1.0.0",
+  "ALPACA_WEBSOCKET_ENDPOINT": "wss://your-alpaca-websocket-api-id.execute-api.us-east-1.amazonaws.com/dev",
+  "BUILD_TIME": "2025-07-18T00:00:00.000Z",
+  "VERSION": "1.0.0", 
   "ENVIRONMENT": "production",
   "COGNITO": {
     "USER_POOL_ID": "us-east-1_PLACEHOLDER",
