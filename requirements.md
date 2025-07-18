@@ -22,17 +22,27 @@
 - ✅ Data normalization across multiple providers
 - ✅ Historical data access and storage
 - ✅ Data quality assurance and validation
+- ✅ WebSocket-based real-time streaming (replacing HTTP polling)
+- ✅ Multi-provider failover with circuit breaker patterns
+- ✅ Connection cleanup and health monitoring
+- ✅ Symbol subscription management with authentication
+- ✅ 1-second real-time data intervals for live market updates
 - 🔄 Live streaming dashboard with real-time charts
 
 ### REQ-003: User Authentication & Authorization
-**Description**: Secure user management with AWS Cognito
+**Description**: Secure user management with AWS Cognito and development fallbacks
 **Acceptance Criteria**:
-- ✅ AWS Cognito User Pool integration
+- ✅ AWS Cognito User Pool integration with JWT verification
 - ✅ JWT token management with automatic refresh
-- ✅ Role-based access control
+- ✅ Role-based access control with middleware protection
 - ✅ Session management with configurable timeout
 - ✅ Multi-factor authentication support
 - ✅ Password reset and account recovery
+- ✅ Development authentication bypass for non-Cognito environments
+- ✅ Enhanced authentication middleware with fallback mechanisms
+- ✅ Authentication status endpoints for token management
+- ✅ Comprehensive error handling for authentication failures
+- ✅ JWT secret management with AWS Secrets Manager integration
 
 ### REQ-004: API Key Management System
 **Description**: Secure storage and management of user API credentials
@@ -111,23 +121,33 @@
 ## 4. INFRASTRUCTURE REQUIREMENTS
 
 ### REQ-011: AWS Serverless Architecture
-**Description**: Scalable serverless infrastructure on AWS
+**Description**: Scalable serverless infrastructure on AWS with VPC networking
 **Acceptance Criteria**:
-- ✅ AWS Lambda functions with Express.js
-- ✅ API Gateway for RESTful APIs
-- ✅ RDS PostgreSQL for data persistence
+- ✅ AWS Lambda functions with Express.js framework
+- ✅ API Gateway for RESTful APIs with CORS support
+- ✅ RDS PostgreSQL for data persistence with connection pooling
 - ✅ CloudFront CDN for global distribution
-- ✅ CloudFormation for Infrastructure as Code
-- ✅ GitHub Actions CI/CD pipeline
+- ✅ CloudFormation for Infrastructure as Code deployment
+- ✅ GitHub Actions CI/CD pipeline with automated testing
+- ✅ Lambda deployment in public subnet with direct database access
+- ✅ Security group configuration for database connectivity
+- ✅ Environment variable support for database credentials
+- ✅ Fallback to AWS Secrets Manager when direct env vars unavailable
+- ✅ VPC networking optimized for cost-effective public subnet deployment
 
 ### REQ-012: Database Design & Performance
-**Description**: High-performance database with connection management
+**Description**: High-performance database with connection management and VPC optimization
 **Acceptance Criteria**:
-- ✅ PostgreSQL with ACID compliance
-- ✅ Connection pooling with circuit breakers
-- ✅ Query optimization and indexing
-- ✅ Database migration system
-- ✅ Performance monitoring and alerting
+- ✅ PostgreSQL with ACID compliance and SSL configuration
+- ✅ Connection pooling with circuit breakers and timeout management
+- ✅ Query optimization and indexing for real-time data access
+- ✅ Database migration system with versioning
+- ✅ Performance monitoring and alerting with health checks
+- ✅ Direct environment variable configuration for Lambda public subnet
+- ✅ Enhanced connection pooling with connection limits and idle timeout
+- ✅ Fallback connection management for AWS Secrets Manager
+- ✅ Database connection resilience with retry mechanisms
+- ✅ Connection health monitoring with circuit breaker integration
 - 🔄 Automated backup and disaster recovery
 
 ### REQ-013: Progressive Enhancement Deployment

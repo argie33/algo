@@ -30,7 +30,6 @@ import {
   LinearProgress,
   Stack,
   Divider,
-  useTheme,
   alpha
 } from '@mui/material';
 import {
@@ -52,7 +51,6 @@ import { formatCurrency } from '../../utils/formatters';
 import ExitZoneVisualizer from './ExitZoneVisualizer';
 
 const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) => {
-  const theme = useTheme();
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [exitDialog, setExitDialog] = useState(false);
   const [exitZone, setExitZone] = useState('');
@@ -79,13 +77,13 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
     const metrics = calculatePositionMetrics(position);
     
     if (metrics.unrealizedGainPct >= 20) {
-      return { status: 'WINNING', color: theme.palette.success.main, icon: <TrendingUp /> };
+      return { status: 'WINNING', color: '#4caf50', icon: <TrendingUp /> };
     } else if (metrics.unrealizedGainPct <= -7) {
-      return { status: 'STOP LOSS', color: theme.palette.error.main, icon: <Warning /> };
+      return { status: 'STOP LOSS', color: '#f44336', icon: <Warning /> };
     } else if (metrics.unrealizedGainPct > 0) {
-      return { status: 'PROFITABLE', color: theme.palette.info.main, icon: <TrendingUp /> };
+      return { status: 'PROFITABLE', color: '#2196f3', icon: <TrendingUp /> };
     } else {
-      return { status: 'UNDERWATER', color: theme.palette.warning.main, icon: <TrendingDown /> };
+      return { status: 'UNDERWATER', color: '#ff9800', icon: <TrendingDown /> };
     }
   };
 
@@ -212,7 +210,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                               sx={{ 
                                 height: 6, 
                                 borderRadius: 3,
-                                backgroundColor: alpha(theme.palette.primary.main, 0.1)
+                                backgroundColor: alpha('#1976d2', 0.1)
                               }}
                             />
                           </Box>
@@ -270,7 +268,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
           )}
 
           {/* Portfolio Summary */}
-          <Box sx={{ mt: 3, p: 2, backgroundColor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1 }}>
+          <Box sx={{ mt: 3, p: 2, backgroundColor: alpha('#1976d2', 0.05), borderRadius: 1 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} sm={3}>
                 <Typography variant="caption" color="text.secondary">Total Value</Typography>
@@ -391,7 +389,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
             )}
 
             {selectedPosition && (
-              <Box sx={{ p: 2, backgroundColor: alpha(theme.palette.grey[500], 0.1), borderRadius: 1 }}>
+              <Box sx={{ p: 2, backgroundColor: alpha('#9e9e9e', 0.1), borderRadius: 1 }}>
                 <Typography variant="body2" gutterBottom>
                   Exit Summary:
                 </Typography>

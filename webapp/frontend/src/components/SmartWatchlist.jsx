@@ -59,7 +59,6 @@ import {
   Visibility,
   VisibilityOff
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
 import simpleAlpacaWebSocket from '../services/simpleAlpacaWebSocket';
 
 const SmartWatchlist = () => {

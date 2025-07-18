@@ -24,8 +24,6 @@ import {
   InputLabel,
   Alert,
   LinearProgress,
-  useTheme,
-  alpha,
   Tooltip,
   ButtonGroup,
   Button,
@@ -274,7 +272,6 @@ function TabPanel({ children, value, index, ...other }) {
 
 // Enhanced commodity card component
 const CommodityCard = ({ category, data, onClick, isSelected }) => {
-  const theme = useTheme();
   const Icon = category.icon;
   const avgChange = data.reduce((sum, c) => sum + (c.change_percent || 0), 0) / data.length;
   const gainers = data.filter(c => (c.change_percent || 0) > 0).length;
@@ -290,12 +287,12 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
         sx={{ 
           height: 280,
           cursor: 'pointer',
-          background: `linear-gradient(135deg, ${alpha(category.color, 0.1)} 0%, ${alpha(category.color, 0.05)} 100%)`,
-          border: `2px solid ${isSelected ? category.color : alpha(category.color, 0.2)}`,
+          background: `linear-gradient(135deg, ${category.color + '1A'} 0%, ${category.color + '0D'} 100%)`,
+          border: `2px solid ${isSelected ? category.color : category.color + '33'}`,
           transition: 'all 0.3s ease',
           '&:hover': {
             transform: 'translateY(-4px)',
-            boxShadow: `0 12px 24px ${alpha(category.color, 0.2)}`,
+            boxShadow: `0 12px 24px ${category.color + '33'}`,
             border: `2px solid ${category.color}`
           }
         }}
@@ -362,7 +359,7 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
               sx={{
                 height: 8,
                 borderRadius: 4,
-                backgroundColor: alpha(category.color, 0.2),
+                backgroundColor: category.color + '33',
                 '& .MuiLinearProgress-bar': {
                   backgroundColor: category.color,
                   borderRadius: 4
@@ -378,7 +375,6 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
 
 // Trading signal component
 const TradingSignal = ({ signal }) => {
-  const theme = useTheme();
   const strength = SIGNAL_STRENGTH[signal.strength] || SIGNAL_STRENGTH.Neutral;
   const SignalIcon = strength.icon;
   
@@ -388,7 +384,7 @@ const TradingSignal = ({ signal }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card sx={{ mb: 2, border: `1px solid ${alpha(strength.color, 0.3)}` }}>
+      <Card sx={{ mb: 2, border: `1px solid ${strength.color + '4D'}` }}>
         <CardContent>
           <Box display="flex" alignItems="center" gap={2} mb={1}>
             <SignalIcon sx={{ color: strength.color }} />
@@ -444,7 +440,6 @@ const TradingSignal = ({ signal }) => {
 
 // Professional price table component
 const PriceTable = ({ data, loading, onRowClick }) => {
-  const theme = useTheme();
   
   if (loading) {
     return (
@@ -613,7 +608,6 @@ const formatPercent = (value) => {
 };
 
 const CommoditiesEnhanced = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedCommodity, setSelectedCommodity] = useState('CL=F');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -935,7 +929,7 @@ const CommoditiesEnhanced = () => {
                   />
                   <Bar 
                     dataKey="open_interest" 
-                    fill={alpha(COLORS.info, 0.3)} 
+                    fill={'#2196f34D'} 
                     name="Open Interest"
                   />
                 </ComposedChart>

@@ -53,7 +53,6 @@ import {
   DateRange
 } from '@mui/icons-material';
 import { formatNumber, formatDate, formatCurrency } from '../utils/formatters';
-import { useTheme } from '@mui/material/styles';
 
 // Main component
 function PriceHistory() {

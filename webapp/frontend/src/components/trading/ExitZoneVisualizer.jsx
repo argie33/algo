@@ -10,7 +10,6 @@ import {
   IconButton,
   Stack,
   Alert,
-  useTheme,
   alpha
 } from '@mui/material';
 import {
@@ -25,7 +24,6 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 
 const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
-  const theme = useTheme();
   
   // Calculate exit zones based on O'Neill methodology
   const exitZones = [
@@ -35,7 +33,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       target: entryPrice * 1.20, // 20% profit
       percentage: 20,
       sellPercent: 25,
-      color: theme.palette.success.light,
+      color: '#81c784',
       description: '20% Profit Target - Sell 25% of position'
     },
     {
@@ -44,7 +42,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       target: entryPrice * 1.25, // 25% profit
       percentage: 25,
       sellPercent: 25,
-      color: theme.palette.success.main,
+      color: '#4caf50',
       description: '25% Profit Target - Sell 25% of position'
     },
     {
@@ -53,7 +51,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       target: signal?.ema_21 || entryPrice * 1.15,
       percentage: null,
       sellPercent: 25,
-      color: theme.palette.warning.main,
+      color: '#ff9800',
       description: '21-day EMA Breach - Sell 25% of position',
       isDynamic: true,
       trigger: '21 EMA'
@@ -64,7 +62,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       target: signal?.sma_50 || entryPrice * 1.10,
       percentage: null,
       sellPercent: 25,
-      color: theme.palette.error.main,
+      color: '#f44336',
       description: '50-day SMA Breach - Sell remaining position',
       isDynamic: true,
       trigger: '50 SMA'
@@ -76,13 +74,13 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
   
   // Determine current position relative to zones
   const getCurrentZone = () => {
-    if (currentPrice < stopLoss) return { zone: 'Stop Loss', color: theme.palette.error.dark };
+    if (currentPrice < stopLoss) return { zone: 'Stop Loss', color: '#d32f2f' };
     for (let i = exitZones.length - 1; i >= 0; i--) {
       if (currentPrice >= exitZones[i].target) {
         return { zone: exitZones[i].name, color: exitZones[i].color };
       }
     }
-    return { zone: 'Entry', color: theme.palette.info.main };
+    return { zone: 'Entry', color: '#2196f3' };
   };
 
   const currentZone = getCurrentZone();
@@ -111,8 +109,8 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
       elevation={2} 
       sx={{ 
         p: 3, 
-        background: alpha(theme.palette.background.paper, 0.9),
-        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+        background: alpha('#ffffff', 0.9),
+        border: `1px solid ${alpha('#e0e0e0', 0.1)}`
       }}
     >
       <Box sx={{ mb: 2 }}>
@@ -141,13 +139,13 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           height: 60, 
           borderRadius: 1,
           overflow: 'hidden',
-          border: `1px solid ${theme.palette.divider}`
+          border: `1px solid #e0e0e0`
         }}>
           {/* Stop Loss Zone */}
           <Tooltip title="Stop Loss: 7% below entry">
             <Box sx={{ 
               width: '10%', 
-              backgroundColor: theme.palette.error.dark,
+              backgroundColor: '#d32f2f',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -162,7 +160,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           <Tooltip title="Entry Zone">
             <Box sx={{ 
               width: '15%', 
-              backgroundColor: theme.palette.grey[300],
+              backgroundColor: '#e0e0e0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -182,7 +180,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
-                borderLeft: `1px solid ${theme.palette.divider}`,
+                borderLeft: `1px solid #e0e0e0`,
                 cursor: 'pointer',
                 transition: 'all 0.3s ease'
               }}>
@@ -206,7 +204,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
             height: 0,
             borderLeft: '8px solid transparent',
             borderRight: '8px solid transparent',
-            borderTop: `12px solid ${theme.palette.primary.main}`
+            borderTop: `12px solid #1976d2`
           }} />
           <Typography 
             variant="caption" 
@@ -216,7 +214,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               left: '50%',
               transform: 'translateX(-50%)',
               whiteSpace: 'nowrap',
-              backgroundColor: theme.palette.primary.main,
+              backgroundColor: '#1976d2',
               color: 'white',
               px: 1,
               py: 0.5,
@@ -245,7 +243,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           sx={{ 
             height: 8, 
             borderRadius: 4,
-            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+            backgroundColor: alpha('#1976d2', 0.1),
             '& .MuiLinearProgress-bar': {
               borderRadius: 4
             }
@@ -266,14 +264,14 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
                   : 'transparent',
                 borderColor: currentPrice >= zone.target 
                   ? zone.color 
-                  : theme.palette.divider
+                  : '#e0e0e0'
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 {currentPrice >= zone.target ? (
                   <CheckCircle sx={{ color: zone.color, fontSize: 20 }} />
                 ) : (
-                  <Timeline sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                  <Timeline sx={{ color: '#666666', fontSize: 20 }} />
                 )}
                 <Typography variant="subtitle2" fontWeight={600}>
                   {zone.name}

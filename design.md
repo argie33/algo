@@ -107,26 +107,69 @@ class CircuitBreaker {
 
 ## 2. DATABASE CONNECTION ARCHITECTURE
 
-### 2.1 Connection Pool Design with Circuit Breaker
+### 2.1 Enhanced Connection Pool with Environment Variable Support
 ```javascript
 class DatabaseService {
   constructor() {
     this.pool = null;
     this.circuitBreaker = new CircuitBreaker({
       failureThreshold: 5,
-      recoveryTimeout: 60000
+      recoveryTimeout: 60000,
+      monitoringPeriod: 300000
     });
     this.connectionConfig = {
-      ssl: false, // For RDS in public subnets
+      ssl: false, // Optimized for Lambda in public subnet
       max: 10,    // Maximum connections
       idle_timeout: 30000,
-      connect_timeout: 15000
+      connect_timeout: 15000,
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 30000,
+      max_lifetime: 3600000 // 1 hour
     };
+  }
+
+  async initialize() {
+    try {
+      let config;
+      
+      // Priority 1: Direct environment variables (for Lambda public subnet)
+      if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
+        config = {
+          host: process.env.DB_HOST,
+          user: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME || 'trading_platform',
+          port: process.env.DB_PORT || 5432
+        };
+        console.log('Using direct environment variables for database connection');
+      } else {
+        // Priority 2: AWS Secrets Manager fallback
+        config = await this.loadFromSecretsManager();
+        console.log('Using AWS Secrets Manager for database connection');
+      }
+
+      this.pool = new Pool({
+        ...config,
+        ...this.connectionConfig
+      });
+
+      // Test connection
+      await this.testConnection();
+      console.log('Database connection pool initialized successfully');
+      
+    } catch (error) {
+      console.error('Database initialization failed:', error);
+      throw error;
+    }
   }
 
   async query(sql, params, options = {}) {
     return this.circuitBreaker.execute(async () => {
-      const client = await this.getConnection();
+      if (!this.pool) {
+        await this.initialize();
+      }
+      
+      const client = await this.pool.connect();
       try {
         const result = await Promise.race([
           client.query(sql, params),
@@ -139,6 +182,35 @@ class DatabaseService {
         client.release();
       }
     });
+  }
+
+  async testConnection() {
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query('SELECT NOW() as current_time');
+      console.log('Database connection test successful:', result.rows[0].current_time);
+    } finally {
+      client.release();
+    }
+  }
+
+  async healthCheck() {
+    try {
+      await this.testConnection();
+      return {
+        status: 'healthy',
+        poolSize: this.pool.totalCount,
+        idleConnections: this.pool.idleCount,
+        waitingCount: this.pool.waitingCount,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 }
 ```
@@ -181,34 +253,73 @@ class LazyDatabaseInitializer {
 }
 ```
 
-## 3. API KEY MANAGEMENT ARCHITECTURE
+## 3. ENHANCED API KEY MANAGEMENT ARCHITECTURE
 
-### 3.1 Secure API Key Service Design
+### 3.1 Production-Ready API Key Service with JWT Integration
 ```javascript
-class ApiKeyService {
+class ApiKeyServiceResilient {
   constructor() {
     this.encryptionService = new EncryptionService();
-    this.circuitBreaker = new CircuitBreaker();
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: 3,
+      recoveryTimeout: 30000,
+      monitoringPeriod: 60000
+    });
+    this.jwtSecret = null;
+    this.tempEncryptionKey = null;
+  }
+
+  async initialize() {
+    try {
+      // Load JWT secret from AWS Secrets Manager
+      const secrets = await this.loadSecretsFromAWS();
+      this.jwtSecret = secrets.jwtSecret;
+      
+      if (!this.jwtSecret) {
+        console.warn('JWT secret not found, generating temporary key');
+        this.jwtSecret = this.generateTempJWTSecret();
+      }
+      
+      console.log('API Key Service initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize API Key Service:', error);
+      // Fallback to temporary encryption for development
+      this.jwtSecret = this.generateTempJWTSecret();
+    }
   }
 
   async saveApiKey(userId, provider, keyId, secretKey) {
     return this.circuitBreaker.execute(async () => {
+      // Validate API key format
+      if (!this.validateApiKeyFormat(provider, keyId, secretKey)) {
+        throw new Error(`Invalid API key format for provider: ${provider}`);
+      }
+
       // Generate user-specific salt
       const salt = crypto.randomBytes(32);
       
-      // Encrypt with AES-256-GCM
-      const encrypted = await this.encryptionService.encrypt({
+      // Prepare data for encryption
+      const keyData = {
         keyId,
         secretKey,
         provider,
-        timestamp: Date.now()
-      }, salt);
+        timestamp: Date.now(),
+        userId
+      };
+
+      // Encrypt with AES-256-GCM
+      const encrypted = await this.encryptionService.encrypt(keyData, salt);
 
       // Store in database with user ID
       await this.database.query(
-        'INSERT INTO user_api_keys (user_id, provider, encrypted_data, salt) VALUES ($1, $2, $3, $4)',
+        `INSERT INTO user_api_keys (user_id, provider, encrypted_data, salt, created_at, updated_at) 
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT (user_id, provider) 
+         DO UPDATE SET encrypted_data = $3, salt = $4, updated_at = NOW()`,
         [userId, provider, encrypted, salt]
       );
+
+      console.log(`API key saved for user ${userId}, provider ${provider}`);
     });
   }
 
@@ -224,31 +335,167 @@ class ApiKeyService {
       }
 
       const { encrypted_data, salt } = result.rows[0];
-      return this.encryptionService.decrypt(encrypted_data, salt);
+      const decrypted = await this.encryptionService.decrypt(encrypted_data, salt);
+      
+      // Validate decrypted data
+      if (!decrypted.keyId || !decrypted.secretKey) {
+        throw new Error('Invalid decrypted API key data');
+      }
+
+      return {
+        keyId: decrypted.keyId,
+        secretKey: decrypted.secretKey,
+        provider: decrypted.provider
+      };
     });
+  }
+
+  validateApiKeyFormat(provider, keyId, secretKey) {
+    const validations = {
+      alpaca: {
+        keyId: /^[A-Z0-9]{20}$/,
+        secretKey: /^[A-Za-z0-9+/]{40}$/
+      },
+      polygon: {
+        keyId: /^[A-Za-z0-9_]{32}$/,
+        secretKey: /^[A-Za-z0-9_]{32}$/
+      },
+      finnhub: {
+        keyId: /^[a-z0-9]{20}$/,
+        secretKey: /^[a-z0-9]{20}$/
+      }
+    };
+
+    const validation = validations[provider];
+    if (!validation) {
+      return false;
+    }
+
+    return validation.keyId.test(keyId) && validation.secretKey.test(secretKey);
+  }
+
+  generateTempJWTSecret() {
+    return crypto.randomBytes(64).toString('hex');
+  }
+
+  async healthCheck() {
+    try {
+      const hasJWTSecret = !!this.jwtSecret;
+      const circuitBreakerState = this.circuitBreaker.state;
+      
+      return {
+        status: hasJWTSecret ? 'operational' : 'degraded',
+        jwtSecretAvailable: hasJWTSecret,
+        circuitBreakerState,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 }
 ```
 
-### 3.2 Frontend API Key Provider Design
+### 3.2 Enhanced Frontend API Key Provider with Migration Support
 ```javascript
-// Context Provider Pattern
+// Context Provider Pattern with Enhanced Features
 const ApiKeyContext = createContext();
 
 export function ApiKeyProvider({ children }) {
   const [apiKeys, setApiKeys] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [migrationStatus, setMigrationStatus] = useState('pending');
+  const [errors, setErrors] = useState({});
 
   // Automatic localStorage migration on mount
   useEffect(() => {
-    migrateFromLocalStorage();
+    performMigrationAndLoad();
   }, []);
+
+  const performMigrationAndLoad = async () => {
+    try {
+      setIsLoading(true);
+      setMigrationStatus('migrating');
+      
+      // Check for localStorage API keys
+      const localStorageKeys = detectLocalStorageKeys();
+      
+      if (localStorageKeys.length > 0) {
+        console.log(`Found ${localStorageKeys.length} API keys in localStorage, migrating...`);
+        await migrateFromLocalStorage(localStorageKeys);
+        setMigrationStatus('migrated');
+      } else {
+        setMigrationStatus('no_migration_needed');
+      }
+      
+      // Load existing API keys from backend
+      await loadApiKeysFromBackend();
+      
+    } catch (error) {
+      console.error('Migration or loading failed:', error);
+      setMigrationStatus('failed');
+      setErrors(prev => ({ ...prev, migration: error.message }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const detectLocalStorageKeys = () => {
+    const keys = [];
+    const providers = ['alpaca', 'polygon', 'finnhub'];
+    
+    providers.forEach(provider => {
+      const keyId = localStorage.getItem(`${provider}_key_id`);
+      const secretKey = localStorage.getItem(`${provider}_secret_key`);
+      
+      if (keyId && secretKey) {
+        keys.push({ provider, keyId, secretKey });
+      }
+    });
+    
+    return keys;
+  };
+
+  const migrateFromLocalStorage = async (localKeys) => {
+    const migrationResults = [];
+    
+    for (const { provider, keyId, secretKey } of localKeys) {
+      try {
+        // Validate format before migration
+        if (!validateApiKeyFormat(provider, keyId, secretKey)) {
+          throw new Error(`Invalid format for ${provider}`);
+        }
+        
+        // Save to backend
+        await apiService.saveApiKey(provider, keyId, secretKey);
+        
+        // Remove from localStorage
+        localStorage.removeItem(`${provider}_key_id`);
+        localStorage.removeItem(`${provider}_secret_key`);
+        
+        migrationResults.push({ provider, status: 'success' });
+        console.log(`Successfully migrated ${provider} API key`);
+        
+      } catch (error) {
+        migrationResults.push({ provider, status: 'failed', error: error.message });
+        console.error(`Failed to migrate ${provider} API key:`, error);
+      }
+    }
+    
+    return migrationResults;
+  };
 
   const saveApiKey = async (provider, keyId, secretKey) => {
     try {
+      setErrors(prev => ({ ...prev, [provider]: null }));
+      
       // Validate format before sending to backend
       if (!validateApiKeyFormat(provider, keyId, secretKey)) {
-        throw new Error('Invalid API key format');
+        throw new Error('Invalid API key format for this provider');
       }
 
       // Save to backend with encryption
@@ -257,11 +504,62 @@ export function ApiKeyProvider({ children }) {
       // Update local state
       setApiKeys(prev => ({
         ...prev,
-        [provider]: { keyId, hasSecretKey: true }
+        [provider]: { 
+          keyId: maskApiKey(keyId), 
+          hasSecretKey: true,
+          isValid: true,
+          lastUpdated: new Date().toISOString()
+        }
       }));
+      
+      console.log(`API key saved successfully for ${provider}`);
+      
     } catch (error) {
+      setErrors(prev => ({ ...prev, [provider]: error.message }));
       throw new Error(`Failed to save API key: ${error.message}`);
     }
+  };
+
+  const removeApiKey = async (provider) => {
+    try {
+      await apiService.removeApiKey(provider);
+      setApiKeys(prev => {
+        const updated = { ...prev };
+        delete updated[provider];
+        return updated;
+      });
+      setErrors(prev => ({ ...prev, [provider]: null }));
+    } catch (error) {
+      setErrors(prev => ({ ...prev, [provider]: error.message }));
+      throw error;
+    }
+  };
+
+  const maskApiKey = (keyId) => {
+    if (!keyId || keyId.length < 8) return keyId;
+    return keyId.slice(0, 4) + '***' + keyId.slice(-4);
+  };
+
+  const validateApiKeyFormat = (provider, keyId, secretKey) => {
+    const validations = {
+      alpaca: {
+        keyId: /^[A-Z0-9]{20}$/,
+        secretKey: /^[A-Za-z0-9+/]{40}$/
+      },
+      polygon: {
+        keyId: /^[A-Za-z0-9_]{32}$/,
+        secretKey: /^[A-Za-z0-9_]{32}$/
+      },
+      finnhub: {
+        keyId: /^[a-z0-9]{20}$/,
+        secretKey: /^[a-z0-9]{20}$/
+      }
+    };
+
+    const validation = validations[provider];
+    if (!validation) return false;
+
+    return validation.keyId.test(keyId) && validation.secretKey.test(secretKey);
   };
 
   return (
@@ -269,8 +567,12 @@ export function ApiKeyProvider({ children }) {
       apiKeys,
       saveApiKey,
       removeApiKey,
-      hasValidProvider: (provider) => apiKeys[provider]?.hasSecretKey,
-      isLoading
+      hasValidProvider: (provider) => apiKeys[provider]?.hasSecretKey && apiKeys[provider]?.isValid,
+      isLoading,
+      migrationStatus,
+      errors,
+      clearError: (provider) => setErrors(prev => ({ ...prev, [provider]: null })),
+      retryMigration: performMigrationAndLoad
     }}>
       {children}
     </ApiKeyContext.Provider>
@@ -280,40 +582,82 @@ export function ApiKeyProvider({ children }) {
 
 ## 4. REAL-TIME DATA ARCHITECTURE
 
-### 4.1 Multi-Provider Integration Design
+### 4.1 Enhanced WebSocket Streaming Architecture
 ```javascript
-class MarketDataService {
-  constructor() {
-    this.providers = {
-      alpaca: new AlpacaProvider(),
-      polygon: new PolygonProvider(),
-      finnhub: new FinnhubProvider()
+class RealTimeMarketDataService extends EventEmitter {
+  constructor(options = {}) {
+    super();
+    this.options = {
+      enabledProviders: ['alpaca', 'polygon', 'finnhub'],
+      primaryProvider: 'alpaca',
+      fallbackProviders: ['polygon', 'finnhub'],
+      dataBufferSize: 1000,
+      dataFlushInterval: 5000,
+      ...options
     };
-    this.circuitBreakers = new Map();
-    this.fallbackChain = ['alpaca', 'polygon', 'finnhub'];
+    
+    this.wsManager = new WebSocketManager();
+    this.normalizer = new DataNormalizationService();
+    this.dataBuffer = [];
+    this.activeSubscriptions = new Map();
+    this.lastDataBySymbol = new Map();
+    this.dataCache = new Map();
+    this.connectedProviders = new Set();
+    this.apiKeys = new Map();
   }
 
-  async getMarketData(symbol, dataType) {
-    for (const providerName of this.fallbackChain) {
-      try {
-        const provider = this.providers[providerName];
-        const circuitBreaker = this.getCircuitBreaker(providerName);
-        
-        return await circuitBreaker.execute(async () => {
-          return provider.getMarketData(symbol, dataType);
-        });
-      } catch (error) {
-        console.warn(`Provider ${providerName} failed:`, error.message);
-        continue; // Try next provider
-      }
+  async connectProvider(provider, apiKey) {
+    if (!this.options.enabledProviders.includes(provider)) {
+      throw new Error(`Provider ${provider} not enabled`);
     }
     
-    throw new Error('All market data providers unavailable');
+    this.apiKeys.set(provider, apiKey);
+    await this.wsManager.connect(provider, apiKey);
+    console.log(`🔌 Connected to ${provider} for real-time data`);
+    return true;
+  }
+
+  subscribe(symbols, providers = null) {
+    const targetProviders = providers || Array.from(this.connectedProviders);
+    
+    if (targetProviders.length === 0) {
+      throw new Error('No providers available for subscription');
+    }
+    
+    const results = {};
+    symbols.forEach(symbol => {
+      const subscribedProviders = [];
+      targetProviders.forEach(provider => {
+        if (this.connectedProviders.has(provider)) {
+          this.wsManager.subscribe(provider, [symbol]);
+          subscribedProviders.push(provider);
+        }
+      });
+      
+      if (subscribedProviders.length > 0) {
+        this.activeSubscriptions.set(symbol, subscribedProviders);
+        results[symbol] = { success: true, providers: subscribedProviders };
+      }
+    });
+    
+    return results;
+  }
+
+  handleProviderFailover(failedProvider) {
+    const availableFallbacks = this.options.fallbackProviders.filter(p => 
+      this.connectedProviders.has(p) && p !== failedProvider
+    );
+    
+    if (availableFallbacks.length > 0) {
+      const fallbackProvider = availableFallbacks[0];
+      // Resubscribe affected symbols to fallback provider
+      this.emit('failover', { from: failedProvider, to: fallbackProvider });
+    }
   }
 }
 ```
 
-### 4.2 WebSocket Connection Management
+### 4.2 Enhanced WebSocket Connection Management for Lambda
 ```javascript
 class WebSocketManager {
   constructor() {
@@ -321,36 +665,100 @@ class WebSocketManager {
     this.reconnectAttempts = new Map();
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000;
+    this.connectionTimeout = 30000;
+    this.streamingData = new Map();
   }
 
-  async connect(provider, symbols) {
-    const ws = new WebSocket(this.getWebSocketUrl(provider));
+  // Lambda WebSocket route handler
+  handleWebSocketConnection(ws, req) {
+    const connectionId = require('crypto').randomUUID();
+    const connectionStart = Date.now();
     
-    ws.onopen = () => {
-      this.reconnectAttempts.set(provider, 0);
-      this.subscribeToSymbols(ws, symbols);
-    };
+    console.log(`🔌 [${connectionId}] WebSocket connection established`);
+    
+    // Store connection with metadata
+    this.connections.set(connectionId, {
+      ws,
+      userId: null,
+      symbols: new Set(),
+      connectionStart,
+      lastActivity: Date.now()
+    });
 
-    ws.onclose = () => {
-      this.handleReconnection(provider, symbols);
-    };
+    // Handle authentication
+    ws.on('message', async (data) => {
+      try {
+        const message = JSON.parse(data);
+        await this.handleWebSocketMessage(connectionId, message);
+      } catch (error) {
+        console.error(`[${connectionId}] Error processing message:`, error);
+        this.sendError(connectionId, 'Invalid message format');
+      }
+    });
 
-    ws.onmessage = (event) => {
-      this.handleMarketData(JSON.parse(event.data));
-    };
+    // Handle connection close
+    ws.on('close', () => {
+      console.log(`[${connectionId}] WebSocket connection closed`);
+      this.cleanupConnection(connectionId);
+    });
 
-    this.connections.set(provider, ws);
+    // Send welcome message
+    this.sendMessage(connectionId, {
+      type: 'connection_established',
+      connectionId,
+      timestamp: new Date().toISOString()
+    });
   }
 
-  handleReconnection(provider, symbols) {
-    const attempts = this.reconnectAttempts.get(provider) || 0;
-    
-    if (attempts < this.maxReconnectAttempts) {
-      setTimeout(() => {
-        this.reconnectAttempts.set(provider, attempts + 1);
-        this.connect(provider, symbols);
-      }, this.reconnectDelay * Math.pow(2, attempts));
+  async handleWebSocketMessage(connectionId, message) {
+    const connection = this.connections.get(connectionId);
+    if (!connection) return;
+
+    switch (message.type) {
+      case 'authenticate':
+        await this.handleAuthentication(connectionId, message.token);
+        break;
+      case 'subscribe':
+        await this.handleSubscription(connectionId, message.symbols);
+        break;
+      case 'unsubscribe':
+        await this.handleUnsubscription(connectionId, message.symbols);
+        break;
+      case 'ping':
+        this.sendMessage(connectionId, { type: 'pong', timestamp: new Date().toISOString() });
+        break;
+      default:
+        this.sendError(connectionId, 'Unknown message type');
     }
+  }
+
+  startRealTimeStreaming() {
+    // Real-time data streaming with 1-second intervals
+    setInterval(() => {
+      this.broadcastMarketData();
+    }, 1000);
+  }
+
+  async broadcastMarketData() {
+    for (const [connectionId, connection] of this.connections) {
+      if (connection.userId && connection.symbols.size > 0) {
+        try {
+          const marketData = await this.fetchRealTimeData(Array.from(connection.symbols));
+          this.sendMessage(connectionId, {
+            type: 'market_data',
+            data: marketData,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error(`Error broadcasting to ${connectionId}:`, error);
+        }
+      }
+    }
+  }
+
+  cleanupConnection(connectionId) {
+    this.connections.delete(connectionId);
+    // Clean up any subscriptions or resources
   }
 }
 ```

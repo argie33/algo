@@ -15,7 +15,6 @@ import {
   TableHead,
   TableRow,
   LinearProgress,
-  useTheme,
   Alert,
   CircularProgress,
   IconButton,
@@ -81,7 +80,6 @@ import {
 } from 'recharts'
 
 const CryptoAdvancedDashboard = () => {
-  const theme = useTheme()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState(0)
@@ -143,30 +141,30 @@ const CryptoAdvancedDashboard = () => {
 
   const getGradeColor = (grade) => {
     switch (grade) {
-      case 'A': return theme.palette.success.main
-      case 'B': return theme.palette.info.main
-      case 'C': return theme.palette.warning.main
-      case 'D': return theme.palette.orange?.main || theme.palette.warning.main
-      case 'F': return theme.palette.error.main
-      default: return theme.palette.text.secondary
+      case 'A': return '#4caf50'
+      case 'B': return '#2196f3'
+      case 'C': return '#ff9800'
+      case 'D': return '#ff9800'
+      case 'F': return '#f44336'
+      default: return '#666666'
     }
   }
 
   const getRiskLevelColor = (level) => {
     switch (level?.toLowerCase()) {
-      case 'low': return theme.palette.success.main
-      case 'medium': return theme.palette.warning.main
-      case 'high': return theme.palette.error.main
-      default: return theme.palette.text.secondary
+      case 'low': return '#4caf50'
+      case 'medium': return '#ff9800'
+      case 'high': return '#f44336'
+      default: return '#666666'
     }
   }
 
   const getSignalColor = (direction) => {
     switch (direction?.toLowerCase()) {
-      case 'bullish': return theme.palette.success.main
-      case 'bearish': return theme.palette.error.main
-      case 'neutral': return theme.palette.text.secondary
-      default: return theme.palette.text.secondary
+      case 'bullish': return '#4caf50'
+      case 'bearish': return '#f44336'
+      case 'neutral': return '#666666'
+      default: return '#666666'
     }
   }
 
@@ -404,7 +402,7 @@ const CryptoAdvancedDashboard = () => {
                       data={Object.entries(portfolioAnalytics.analytics.sectorBreakdown).map(([sector, data]) => ({
                         name: sector,
                         value: data.percentage,
-                        color: theme.palette.primary.main
+                        color: '#1976d2'
                       }))}
                       cx="50%"
                       cy="50%"

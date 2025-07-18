@@ -56,7 +56,6 @@ import {
   Avatar,
   Skeleton,
   alpha,
-  useTheme,
   Fade,
   Zoom,
   Collapse,
@@ -134,13 +133,12 @@ import { formatPercentage, formatNumber } from '../utils/formatters';
 
 // Custom styled components
 const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => {
-  const theme = useTheme();
   
   const getColor = (value) => {
-    if (value >= 80) return theme.palette.success.main;
-    if (value >= 60) return theme.palette.warning.main;
-    if (value >= 40) return theme.palette.info.main;
-    return theme.palette.error.main;
+    if (value >= 80) return '#4caf50';
+    if (value >= 60) return '#ff9800';
+    if (value >= 40) return '#2196f3';
+    return '#f44336';
   };
   
   const getGrade = (value) => {
@@ -160,7 +158,7 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
   
   const data = [
     { name: 'Score', value: score, fill: getColor(score) },
-    { name: 'Remaining', value: 100 - score, fill: alpha(theme.palette.action.disabled, 0.1) }
+    { name: 'Remaining', value: 100 - score, fill: alpha('#9e9e9e', 0.1) }
   ];
   
   return (
@@ -225,7 +223,6 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const ScoresDashboard = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedStock, setSelectedStock] = useState(null);
   const [stockOptions, setStockOptions] = useState([]);
@@ -303,7 +300,7 @@ const ScoresDashboard = () => {
       title: 'Quality Score',
       icon: <Stars />,
       description: 'Earnings quality, balance sheet strength, profitability, and management effectiveness',
-      color: theme.palette.primary.main,
+      color: '#1976d2',
       academicBasis: 'Based on Piotroski F-Score (2000) and Altman Z-Score (1968)',
       weight: 0.20,
       subScores: [
@@ -318,7 +315,7 @@ const ScoresDashboard = () => {
       title: 'Growth Score',
       icon: <TrendingUp />,
       description: 'Revenue growth, earnings growth, fundamental drivers, and market expansion potential',
-      color: theme.palette.success.main,
+      color: '#4caf50',
       academicBasis: 'Sustainable Growth Rate model (Higgins, 1977)',
       weight: 0.20,
       subScores: [
@@ -333,7 +330,7 @@ const ScoresDashboard = () => {
       title: 'Value Score',
       icon: <AccountBalance />,
       description: 'Traditional multiples, intrinsic value analysis, and relative value assessment',
-      color: theme.palette.info.main,
+      color: '#2196f3',
       academicBasis: 'Fama-French Value Factor (1992)',
       weight: 0.20,
       subScores: [
@@ -347,7 +344,7 @@ const ScoresDashboard = () => {
       title: 'Momentum Score',
       icon: <Speed />,
       description: 'Price momentum, fundamental momentum, technical indicators, and volume analysis',
-      color: theme.palette.warning.main,
+      color: '#ff9800',
       academicBasis: 'Jegadeesh-Titman Momentum (1993)',
       weight: 0.15,
       subScores: [
@@ -362,7 +359,7 @@ const ScoresDashboard = () => {
       title: 'Sentiment Score',
       icon: <Psychology />,
       description: 'Analyst sentiment, social sentiment, market-based sentiment, and news sentiment',
-      color: theme.palette.secondary.main,
+      color: '#dc004e',
       academicBasis: 'Baker & Wurgler Sentiment Index (2006)',
       weight: 0.15,
       subScores: [
@@ -377,7 +374,7 @@ const ScoresDashboard = () => {
       title: 'Positioning Score',
       icon: <Groups />,
       description: 'Institutional holdings, insider activity, short interest dynamics, and options flow',
-      color: theme.palette.error.main,
+      color: '#f44336',
       academicBasis: 'Smart Money Tracking (13F Analysis)',
       weight: 0.10,
       subScores: [
@@ -563,23 +560,23 @@ const ScoresDashboard = () => {
   };
 
   const getScoreInterpretation = (score) => {
-    if (score >= 90) return { label: 'Exceptional', color: theme.palette.success.dark };
-    if (score >= 80) return { label: 'Strong', color: theme.palette.success.main };
-    if (score >= 70) return { label: 'Good', color: theme.palette.success.light };
-    if (score >= 60) return { label: 'Fair', color: theme.palette.warning.main };
-    if (score >= 50) return { label: 'Weak', color: theme.palette.warning.light };
-    if (score >= 40) return { label: 'Poor', color: theme.palette.error.light };
-    return { label: 'Critical', color: theme.palette.error.main };
+    if (score >= 90) return { label: 'Exceptional', color: '#2e7d32' };
+    if (score >= 80) return { label: 'Strong', color: '#4caf50' };
+    if (score >= 70) return { label: 'Good', color: '#81c784' };
+    if (score >= 60) return { label: 'Fair', color: '#ff9800' };
+    if (score >= 50) return { label: 'Weak', color: '#ffb74d' };
+    if (score >= 40) return { label: 'Poor', color: '#ef5350' };
+    return { label: 'Critical', color: '#f44336' };
   };
 
   const getTrendIcon = (trend) => {
     switch (trend) {
       case 'improving':
-        return <TrendingUp sx={{ color: theme.palette.success.main }} />;
+        return <TrendingUp sx={{ color: '#4caf50' }} />;
       case 'declining':
-        return <TrendingDown sx={{ color: theme.palette.error.main }} />;
+        return <TrendingDown sx={{ color: '#f44336' }} />;
       case 'stable':
-        return <Remove sx={{ color: theme.palette.info.main }} />;
+        return <Remove sx={{ color: '#2196f3' }} />;
       default:
         return <Remove />;
     }
@@ -652,8 +649,8 @@ const ScoresDashboard = () => {
           {/* Composite Score Hero Card */}
           <Grid item xs={12}>
             <Card sx={{ 
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+              background: `linear-gradient(135deg, ${alpha('#1976d2', 0.1)} 0%, ${alpha('#dc004e', 0.1)} 100%)`,
+              border: `1px solid ${alpha('#1976d2', 0.2)}`
             }}>
               <CardContent>
                 <Grid container spacing={3} alignItems="center">
@@ -687,7 +684,7 @@ const ScoresDashboard = () => {
                     </Box>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 2, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>
+                    <Paper sx={{ p: 2, backgroundColor: alpha('#ffffff', 0.8) }}>
                       <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                         Investment Recommendation
                       </Typography>
@@ -723,7 +720,7 @@ const ScoresDashboard = () => {
                   transition: 'all 0.3s ease',
                   '&:hover': { 
                     transform: 'translateY(-4px)',
-                    boxShadow: theme.shadows[8]
+                    boxShadow: 8
                   }
                 }}>
                   <CardHeader
@@ -827,12 +824,12 @@ const ScoresDashboard = () => {
                 <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historicalScores}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={alpha('#e0e0e0', 0.5)} />
                       <XAxis dataKey="date" />
                       <YAxis domain={[0, 100]} />
                       <RechartsTooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="composite" stroke={theme.palette.primary.main} strokeWidth={3} name="Composite" />
+                      <Line type="monotone" dataKey="composite" stroke="#1976d2" strokeWidth={3} name="Composite" />
                       <Line type="monotone" dataKey="quality" stroke={scoreCategories[0].color} strokeWidth={2} name="Quality" />
                       <Line type="monotone" dataKey="growth" stroke={scoreCategories[1].color} strokeWidth={2} name="Growth" />
                       <Line type="monotone" dataKey="value" stroke={scoreCategories[2].color} strokeWidth={2} name="Value" />
@@ -864,7 +861,7 @@ const ScoresDashboard = () => {
                       <PolarGrid gridType="polygon" />
                       <PolarAngleAxis dataKey="category" />
                       <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                      <Radar name="Current" dataKey="score" stroke={theme.palette.primary.main} fill={theme.palette.primary.main} fillOpacity={0.6} />
+                      <Radar name="Current" dataKey="score" stroke="#1976d2" fill="#1976d2" fillOpacity={0.6} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </Box>

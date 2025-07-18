@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// REMOVED: import { keyframes } from '@mui/system'; - causes theme issues
 import {
   Box,
   Container,

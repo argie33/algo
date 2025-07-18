@@ -64,7 +64,6 @@ import {
 } from 'recharts'
 
 const CryptoMarketOverview = () => {
-  // REMOVED: const theme = useTheme() - causes createPalette error
   const [marketData, setMarketData] = useState(null)
   const [fearGreedIndex, setFearGreedIndex] = useState(null)
   const [topMovers, setTopMovers] = useState({ gainers: [], losers: [] })

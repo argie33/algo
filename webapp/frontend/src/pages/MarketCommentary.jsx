@@ -14,7 +14,6 @@ import {
   Stack,
   Paper,
   Divider,
-  useTheme,
   alpha,
   List,
   ListItem,
@@ -75,7 +74,6 @@ function TabPanel({ children, value, index }) {
 }
 
 const MarketCommentary = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [commentary, setCommentary] = useState([]);
   const [marketInsights, setMarketInsights] = useState(null);
@@ -275,29 +273,29 @@ const MarketCommentary = () => {
 
   const getSentimentColor = (sentiment) => {
     switch (sentiment) {
-      case 'bullish': return theme.palette.success.main;
-      case 'bearish': return theme.palette.error.main;
-      case 'mixed': return theme.palette.warning.main;
-      case 'cautious': return theme.palette.info.main;
-      default: return theme.palette.grey[500];
+      case 'bullish': return '#4caf50';
+      case 'bearish': return '#f44336';
+      case 'mixed': return '#ff9800';
+      case 'cautious': return '#2196f3';
+      default: return '#9e9e9e';
     }
   };
 
   const getImpactColor = (impact) => {
     switch (impact) {
-      case 'high': return theme.palette.error.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.success.main;
-      default: return theme.palette.grey[500];
+      case 'high': return '#f44336';
+      case 'medium': return '#ff9800';
+      case 'low': return '#4caf50';
+      default: return '#9e9e9e';
     }
   };
 
   const getDirectionIcon = (direction) => {
     switch (direction) {
-      case 'bullish': return <TrendingUp sx={{ color: theme.palette.success.main }} />;
-      case 'bearish': return <TrendingDown sx={{ color: theme.palette.error.main }} />;
-      case 'neutral': return <TrendingFlat sx={{ color: theme.palette.grey[500] }} />;
-      default: return <TrendingFlat sx={{ color: theme.palette.grey[500] }} />;
+      case 'bullish': return <TrendingUp sx={{ color: '#4caf50' }} />;
+      case 'bearish': return <TrendingDown sx={{ color: '#f44336' }} />;
+      case 'neutral': return <TrendingFlat sx={{ color: '#9e9e9e' }} />;
+      default: return <TrendingFlat sx={{ color: '#9e9e9e' }} />;
     }
   };
 
@@ -596,8 +594,8 @@ const MarketCommentary = () => {
               {marketInsights?.riskFactors.map((risk, index) => (
                 <ListItem key={index}>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}>
-                      <Warning sx={{ color: theme.palette.warning.main }} />
+                    <Avatar sx={{ bgcolor: alpha('#ff9800', 0.1) }}>
+                      <Warning sx={{ color: '#ff9800' }} />
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText primary={risk} />

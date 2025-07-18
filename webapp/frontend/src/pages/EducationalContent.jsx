@@ -15,7 +15,6 @@ import {
   Stack,
   Paper,
   Divider,
-  useTheme,
   alpha,
   List,
   ListItem,
@@ -86,7 +85,6 @@ function TabPanel({ children, value, index }) {
 }
 
 const EducationalContent = () => {
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [content, setContent] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -366,10 +364,10 @@ const EducationalContent = () => {
 
   const getDifficultyColor = (difficulty) => {
     switch (difficulty) {
-      case 'beginner': return theme.palette.success.main;
-      case 'intermediate': return theme.palette.warning.main;
-      case 'advanced': return theme.palette.error.main;
-      default: return theme.palette.grey[500];
+      case 'beginner': return '#4caf50';
+      case 'intermediate': return '#ff9800';
+      case 'advanced': return '#f44336';
+      default: return '#9e9e9e';
     }
   };
 
@@ -549,7 +547,7 @@ const EducationalContent = () => {
                       component="div"
                       sx={{
                         height: 140,
-                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                        bgcolor: alpha('#1976d2', 0.1),
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'

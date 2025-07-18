@@ -16,7 +16,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  useTheme,
   alpha
 } from '@mui/material';
 import {
@@ -33,7 +32,6 @@ import {
 } from '@mui/icons-material';
 
 const MarketTimingPanel = ({ marketData = {} }) => {
-  const theme = useTheme();
 
   // Default market data if not provided
   const {
@@ -55,12 +53,12 @@ const MarketTimingPanel = ({ marketData = {} }) => {
 
   const getMarketStatusColor = (status) => {
     const colors = {
-      'Confirmed Uptrend': theme.palette.success.main,
-      'Uptrend Under Pressure': theme.palette.warning.main,
-      'Market Correction': theme.palette.error.main,
-      'Rally Attempt': theme.palette.info.main
+      'Confirmed Uptrend': '#4caf50',
+      'Uptrend Under Pressure': '#ff9800',
+      'Market Correction': '#f44336',
+      'Rally Attempt': '#2196f3'
     };
-    return colors[status] || theme.palette.grey[500];
+    return colors[status] || '#9e9e9e';
   };
 
   const getMarketStatusIcon = (status) => {
@@ -75,9 +73,9 @@ const MarketTimingPanel = ({ marketData = {} }) => {
 
   const getBreadthStrength = () => {
     const score = (sp500_above_50ma + sp500_above_200ma + nasdaq_above_50ma + nasdaq_above_200ma) / 4;
-    if (score >= 70) return { label: 'Strong', color: theme.palette.success.main };
-    if (score >= 50) return { label: 'Moderate', color: theme.palette.warning.main };
-    return { label: 'Weak', color: theme.palette.error.main };
+    if (score >= 70) return { label: 'Strong', color: '#4caf50' };
+    if (score >= 50) return { label: 'Moderate', color: '#ff9800' };
+    return { label: 'Weak', color: '#f44336' };
   };
 
   const breadthStrength = getBreadthStrength();
@@ -326,10 +324,10 @@ const MarketTimingPanel = ({ marketData = {} }) => {
               alignItems: 'center', 
               gap: 2,
               p: 2,
-              backgroundColor: alpha(theme.palette.info.main, 0.05),
+              backgroundColor: alpha('#2196f3', 0.05),
               borderRadius: 1
             }}>
-              <Schedule sx={{ color: theme.palette.info.main }} />
+              <Schedule sx={{ color: '#2196f3' }} />
               <Box>
                 <Typography variant="body2" fontWeight={600}>
                   Last Follow-Through Day: {new Date(follow_through_day).toLocaleDateString()}
