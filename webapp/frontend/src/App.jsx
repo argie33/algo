@@ -53,6 +53,7 @@ import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import CryptoAdvancedDashboard from './pages/CryptoAdvancedDashboard'
 import LiveData from './pages/LiveData'
+import LiveDataTailwind from './pages/LiveDataTailwind'
 import UnifiedDataManagement from './pages/UnifiedDataManagement'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 
@@ -168,7 +169,8 @@ function App() {
           
           {/* Data Management Routes */}
           <Route path="/data-management" element={<UnifiedDataManagement />} />
-          <Route path="/live-data" element={<LiveData />} />
+          <Route path="/live-data" element={<LiveDataTailwind />} />
+          <Route path="/live-data-mui" element={<LiveData />} />
           
           {/* Cryptocurrency Routes */}
           <Route path="/crypto" element={<CryptoMarketOverview />} />
