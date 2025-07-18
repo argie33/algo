@@ -295,14 +295,7 @@ async function encryptApiKey(apiKey, userSalt, userId, provider) {
   }
 }
 
-async function decryptApiKey(encryptedData, userSalt, userId, provider) {
-  try {
-    return await apiKeyService.decryptApiKey(encryptedData, userSalt, userId, provider);
-  } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt API key');
-  }
-}
+// decryptApiKey function removed - now using Parameter Store directly
 
 // Debug endpoint to check API keys table
 router.get('/api-keys/debug', async (req, res) => {
@@ -733,27 +726,27 @@ router.post('/test-connection/:provider', async (req, res) => {
   try {
     console.log(`🚀 [${requestId}] API key connection test initiated`, {
       userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
-      keyId,
+      provider,
       userAgent: req.headers['user-agent'],
       ip: req.ip,
       timestamp: new Date().toISOString()
     });
 
-    if (!keyId || !keyId.match(/^[a-f0-9-]{36}$/)) {
-      console.error(`❌ [${requestId}] Invalid keyId format:`, {
-        keyId,
-        expectedFormat: 'UUID',
+    if (!provider || !['alpaca', 'polygon', 'finnhub', 'iex'].includes(provider.toLowerCase())) {
+      console.error(`❌ [${requestId}] Invalid provider:`, {
+        provider,
+        allowedProviders: ['alpaca', 'polygon', 'finnhub', 'iex'],
         impact: 'Connection test cannot proceed'
       });
       return res.status(400).json({
         success: false,
-        error: 'Invalid API key ID format',
+        error: 'Invalid provider. Must be alpaca, polygon, finnhub, or iex',
         requestId,
         timestamp: new Date().toISOString()
       });
     }
 
-    // Get encrypted API key with comprehensive database logging
+    // Get API key from Parameter Store
     console.log(`🔍 [${requestId}] Retrieving API key from database`);
     const dbQueryStart = Date.now();
     const result = await query(`
@@ -1073,27 +1066,10 @@ router.get('/api-keys/:provider/credentials', async (req, res) => {
   const { provider } = req.params;
 
   try {
-    // Get encrypted API key for the provider
-    const result = await query(`
-      SELECT 
-        id,
-        provider,
-        encrypted_api_key,
-        key_iv,
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox,
-        description
-      FROM user_api_keys 
-      WHERE user_id = $1 AND provider = $2 AND is_active = true
-      ORDER BY created_at DESC
-      LIMIT 1
-    `, [userId, provider.toLowerCase()]);
-
-    if (result.rows.length === 0) {
+    // Get API key from Parameter Store
+    const credentials = await apiKeyService.getApiKey(userId, provider);
+    
+    if (!credentials) {
       return res.status(404).json({
         success: false,
         error: `No active ${provider} API key found`,
@@ -1101,38 +1077,16 @@ router.get('/api-keys/:provider/credentials', async (req, res) => {
       });
     }
 
-    const keyData = result.rows[0];
-    
-    // Decrypt API credentials using the API key service
-    const apiKey = await apiKeyService.decryptApiKey({
-      encrypted: keyData.encrypted_api_key,
-      iv: keyData.key_iv,
-      authTag: keyData.key_auth_tag
-    }, keyData.user_salt, userId, provider);
-
-    const apiSecret = keyData.encrypted_api_secret ? await apiKeyService.decryptApiKey({
-      encrypted: keyData.encrypted_api_secret,
-      iv: keyData.secret_iv,
-      authTag: keyData.secret_auth_tag
-    }, keyData.user_salt, userId, provider) : null;
-
-    // Update last_used timestamp
-    await query(`
-      UPDATE user_api_keys 
-      SET last_used = NOW() 
-      WHERE id = $1
-    `, [keyData.id]);
-
-    console.log(`🔓 Credentials decrypted successfully for ${provider}`);
+    console.log(`🔓 Credentials retrieved successfully for ${provider}`);
     
     res.json({
       success: true,
       credentials: {
-        provider: keyData.provider,
-        apiKey: apiKey,
-        apiSecret: apiSecret,
-        isSandbox: keyData.is_sandbox,
-        description: keyData.description
+        provider: credentials.provider,
+        apiKey: credentials.keyId,
+        apiSecret: credentials.secretKey,
+        isSandbox: false, // Parameter Store doesn't store sandbox flag, defaulting to false
+        description: `${provider} API key`
       }
     });
   } catch (error) {

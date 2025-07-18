@@ -398,7 +398,6 @@ const routes = [
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },
-  { path: './routes/adminLiveData', name: 'Admin Live Data', mount: '/api/admin/live-data' },
   { path: './routes/realTimeData', name: 'Real-Time Data', mount: '/api/realtime' },
   
   // Core Financial Data Routes  

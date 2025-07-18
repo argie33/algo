@@ -25,7 +25,22 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tab,
+  Tabs,
+  Badge,
+  Checkbox,
+  FormGroup
 } from '@mui/material';
 import {
   TrendingUp,
@@ -44,7 +59,18 @@ import {
   Add,
   Remove,
   Timeline,
-  MonetizationOn
+  MonetizationOn,
+  AdminPanelSettings,
+  Dashboard,
+  Delete,
+  Edit,
+  Search,
+  People,
+  Speed,
+  AttachMoney,
+  CloudQueue,
+  DataUsage,
+  NetworkCheck
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiConfig } from '../services/api';
@@ -75,6 +101,24 @@ const LiveData = () => {
   });
   const [marketData, setMarketData] = useState(new Map());
   
+  // Admin mode states
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [adminMetrics, setAdminMetrics] = useState(null);
+  const [activeFeeds, setActiveFeeds] = useState([]);
+  const [adminSubscribers, setAdminSubscribers] = useState([]);
+  const [showNewFeedDialog, setShowNewFeedDialog] = useState(false);
+  const [newFeedConfig, setNewFeedConfig] = useState({
+    assetType: 'stocks',
+    dataTypes: ['quotes'],
+    symbols: []
+  });
+  const [newFeedSymbol, setNewFeedSymbol] = useState('');
+  const [adminTabValue, setAdminTabValue] = useState(0);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
+  const [costAnalytics, setCostAnalytics] = useState(null);
+  
   // Get WebSocket URL from config or CloudFormation outputs
   const getWebSocketUrl = () => {
     // Try to get from runtime config first
@@ -92,6 +136,11 @@ const LiveData = () => {
   };
   
   const wsUrl = getWebSocketUrl();
+  
+  // Check if user is admin
+  const isUserAdmin = () => {
+    return user?.role === 'admin' || user?.userId === 'admin' || user?.sub === process.env.REACT_APP_ADMIN_USER_ID;
+  };
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -101,6 +150,13 @@ const LiveData = () => {
       }
     };
   }, []);
+  
+  // Load admin data when admin mode is enabled
+  useEffect(() => {
+    if (isAdminMode && isUserAdmin()) {
+      loadAdminData();
+    }
+  }, [isAdminMode]);
   
   // Connect to WebSocket
   const connectWebSocket = async () => {
@@ -641,6 +697,86 @@ const LiveData = () => {
           </Alert>
         </Paper>
       )}
+      
+      {/* New Feed Dialog */}
+      <Dialog open={showNewFeedDialog} onClose={() => setShowNewFeedDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Create New Feed</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Asset Type</InputLabel>
+              <Select
+                value={newFeedConfig.assetType}
+                label="Asset Type"
+                onChange={(e) => setNewFeedConfig(prev => ({ ...prev, assetType: e.target.value }))}
+              >
+                <MenuItem value="stocks">Stocks</MenuItem>
+                <MenuItem value="crypto">Crypto</MenuItem>
+                <MenuItem value="options">Options</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>Data Types</Typography>
+              <FormGroup row>
+                {['trades', 'quotes', 'bars', 'dailyBars', 'status'].map(dataType => (
+                  <FormControlLabel
+                    key={dataType}
+                    control={
+                      <Checkbox
+                        checked={newFeedConfig.dataTypes.includes(dataType)}
+                        onChange={() => handleDataTypeChange(dataType)}
+                      />
+                    }
+                    label={dataType}
+                  />
+                ))}
+              </FormGroup>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>Symbols</Typography>
+              <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                <TextField
+                  label="Add Symbol"
+                  value={newFeedSymbol}
+                  onChange={(e) => setNewFeedSymbol(e.target.value.toUpperCase())}
+                  onKeyPress={(e) => e.key === 'Enter' && handleNewFeedSymbolAdd()}
+                  size="small"
+                />
+                <Button
+                  variant="outlined"
+                  onClick={handleNewFeedSymbolAdd}
+                  disabled={!newFeedSymbol.trim()}
+                >
+                  Add
+                </Button>
+              </Stack>
+              
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {newFeedConfig.symbols.map(symbol => (
+                  <Chip
+                    key={symbol}
+                    label={symbol}
+                    onDelete={() => handleNewFeedSymbolRemove(symbol)}
+                    size="small"
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowNewFeedDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={startNewFeed} 
+            variant="contained"
+            disabled={newFeedConfig.symbols.length === 0 || newFeedConfig.dataTypes.length === 0}
+          >
+            Create Feed
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -3359,7 +3359,7 @@ router.post('/sync', createValidationMiddleware({
 
     // Import sync service
     const { PortfolioSyncService } = require('../utils/portfolioSyncService');
-    const apiKeyService = require('../utils/apiKeyServiceResilient');
+    // API key service already imported at top of file
     
     // Initialize sync service
     const syncService = new PortfolioSyncService({
