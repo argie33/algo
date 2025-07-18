@@ -1,6 +1,4 @@
-// COMPLETE TAILWINDCSS VERSION - NO MUI DEPENDENCIES
 // Initialize essential utilities FIRST
-import './utils/muiPrevention.js'
 import './utils/browserCompatibility.js'
 import asyncErrorHandler from './utils/asyncErrorHandler.js'
 import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
