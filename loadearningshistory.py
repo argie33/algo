@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Updated for deployment verification test
-# Updated: 2025-07-16 - Database diagnostic deployed - Earnings history v5 - Debug deployment
+# Updated: 2025-07-18 - Testing database authentication fix - Earnings history v6 - pg_hba.conf resolution
 import sys
 import time
 import logging

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.8 - Circuit breaker compatibility
+# Trigger deploy-app-stocks workflow - loadaaiidata update v5.9 - Database pg_hba.conf fix test
 import sys
 import time
 import logging
