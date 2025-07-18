@@ -548,15 +548,21 @@ router.post('/voice', async (req, res) => {
 
   try {
     // This would integrate with speech-to-text and text-to-speech services
-    // For now, return a placeholder response
+    // Check if voice chat is enabled
+    if (!AI_CONFIG.features.voiceChat) {
+      return res.status(503).json({
+        success: false,
+        error: 'Voice chat feature is not currently enabled',
+        availableFeatures: ['text chat', 'portfolio analysis', 'market insights']
+      });
+    }
+    
+    // Voice chat processing would integrate with speech-to-text and text-to-speech services
     res.json({
-      success: true,
-      message: 'Voice chat functionality coming soon',
-      features: {
-        speechToText: AI_CONFIG.features.voiceChat,
-        textToSpeech: AI_CONFIG.features.voiceChat,
-        digitalHuman: AI_CONFIG.features.digitalHuman
-      }
+      success: false,
+      error: 'Voice chat integration requires additional setup',
+      message: 'Please use text chat for now. Voice features require AWS Transcribe and Polly configuration.',
+      recommendedAction: 'Continue with text-based conversation'
     });
   } catch (error) {
     console.error('Error processing voice chat:', error);
@@ -574,15 +580,22 @@ router.post('/digital-human', async (req, res) => {
 
   try {
     // This would integrate with NVIDIA Digital Human API
-    // For now, return a placeholder response
+    // Check if digital human is enabled
+    if (!AI_CONFIG.features.digitalHuman) {
+      return res.status(503).json({
+        success: false,
+        error: 'Digital human feature is not currently enabled',
+        message: 'This feature requires NVIDIA Omniverse integration',
+        availableFeatures: ['text chat', 'portfolio analysis', 'market insights']
+      });
+    }
+    
+    // Digital human integration would require NVIDIA Omniverse or similar platform
     res.json({
-      success: true,
-      message: 'Digital human integration coming soon',
-      features: {
-        available: AI_CONFIG.features.digitalHuman,
-        avatars: ['default', 'professional', 'casual'],
-        capabilities: ['text-to-speech', 'facial-animation', 'gesture-control']
-      }
+      success: false,
+      error: 'Digital human integration requires additional infrastructure',
+      message: 'This feature requires NVIDIA Digital Human setup and GPU infrastructure.',
+      recommendedAction: 'Continue with standard text-based AI assistant'
     });
   } catch (error) {
     console.error('Error processing digital human request:', error);

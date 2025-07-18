@@ -1061,13 +1061,20 @@ router.post('/trigger/:loaderName', async (req, res) => {
     console.log(`🚀 [DATA] Would trigger ECS task for ${loaderName} with ID: ${taskId}`);
     
     res.json({
-      success: true,
-      message: `Data loader ${loaderName} trigger initiated`,
-      taskId,
-      loader: loaderName,
-      status: 'triggered',
-      timestamp: new Date().toISOString(),
-      note: 'This is a placeholder. In production, this would trigger the actual ECS task.'
+      success: false,
+      error: 'ECS task triggering requires additional infrastructure setup',
+      message: `Data loader '${loaderName}' cannot be triggered without ECS integration`,
+      data: {
+        requestedLoader: loaderName,
+        taskId,
+        requirements: {
+          infrastructure: 'ECS cluster with task definitions for each loader',
+          permissions: 'Lambda needs ECS:RunTask and PassRole permissions',
+          implementation: 'AWS SDK ECS client integration needed'
+        },
+        alternativeSolution: 'Use direct database loading scripts for data population'
+      },
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
