@@ -2,13 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
-import ThemeErrorBoundary from './components/ThemeErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
 
 console.log('🚀 main.jsx loaded - RESTORED ORIGINAL');
@@ -41,19 +38,17 @@ const queryClient = new QueryClient({
   },
 })
 
-// Create a component that uses the theme from context
+// NO THEME PROVIDER AT ALL - Use MUI defaults to avoid createPalette
 const AppWithTheme = () => {
-  const { theme } = useTheme();
-  
   return (
-    <MuiThemeProvider theme={theme}>
+    <>
       <CssBaseline />
       <AuthProvider>
         <ApiKeyProvider>
           <App />
         </ApiKeyProvider>
       </AuthProvider>
-    </MuiThemeProvider>
+    </>
   );
 };
 
@@ -66,11 +61,7 @@ try {
     <ErrorBoundary>
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <ThemeErrorBoundary>
-            <ThemeProvider>
-              <AppWithTheme />
-            </ThemeProvider>
-          </ThemeErrorBoundary>
+          <AppWithTheme />
         </QueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
