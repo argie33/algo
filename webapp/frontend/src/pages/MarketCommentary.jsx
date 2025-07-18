@@ -477,7 +477,7 @@ const MarketCommentary = () => {
                           label={article.sentiment}
                           size="small"
                           sx={{
-                            bgcolor: alpha(getSentimentColor(article.sentiment), 0.1),
+                            bgcolor: getSentimentColor(article.sentiment) + '1A',
                             color: getSentimentColor(article.sentiment),
                             textTransform: 'capitalize'
                           }}
@@ -564,7 +564,7 @@ const MarketCommentary = () => {
                             label={theme.impact}
                             size="small"
                             sx={{
-                              bgcolor: alpha(getImpactColor(theme.impact.toLowerCase()), 0.1),
+                              bgcolor: getImpactColor(theme.impact.toLowerCase()) + '1A',
                               color: getImpactColor(theme.impact.toLowerCase())
                             }}
                           />
@@ -594,7 +594,7 @@ const MarketCommentary = () => {
               {marketInsights?.riskFactors.map((risk, index) => (
                 <ListItem key={index}>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: alpha('#ff9800', 0.1) }}>
+                    <Avatar sx={{ bgcolor: '#ff98001A' }}>
                       <Warning sx={{ color: '#ff9800' }} />
                     </Avatar>
                   </ListItemAvatar>

@@ -609,9 +609,9 @@ const Watchlist = () => {
                                   sx={{ 
                                     fontSize: '0.65rem', 
                                     height: 16,
-                                    backgroundColor: alpha(peRating.color, 0.1),
+                                    backgroundColor: peRating.color + '1A',
                                     color: peRating.color,
-                                    border: `1px solid ${alpha(peRating.color, 0.3)}`
+                                    border: `1px solid ${peRating.color + '4D'}`
                                   }}
                                 />
                               </Box>
