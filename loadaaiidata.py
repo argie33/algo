@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.6 - ARM64 architecture test
+# Trigger deploy-app-stocks workflow - loadaaiidata update v5.7 - SSL connection fix
 import sys
 import time
 import logging
@@ -227,7 +227,7 @@ if __name__ == "__main__":
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"],
-            sslmode='disable'
+            sslmode='require'
         )
         logging.info("✅ Database connection established")
         conn.autocommit = False

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Load calendar data - trigger v2.7 - DB timeout fix - production ready calendar loader
 # Updated 2025-07-15: Enhanced calendar data processing with improved error handling
-# TRIGGER DEPLOY: loadcalendar v3.5 - SSL required (database enforces encryption)
+# TRIGGER DEPLOY: loadcalendar v3.6 - SSL connection test (production ready)
 import sys
 import time
 import logging

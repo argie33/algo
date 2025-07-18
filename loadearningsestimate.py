@@ -1,5 +1,5 @@
 #!/usr/bin/env python3 
-# Updated for deployment verification test - trigger v1.5 - ARM64 architecture test
+# Updated for deployment verification test - trigger v1.6 - SSL connection fix
 import sys
 import time
 import logging
@@ -166,9 +166,8 @@ def lambda_handler(event, context):
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    ,
-            sslmode='disable'
+        dbname=cfg["dbname"],
+        sslmode='require'
         )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
