@@ -53,13 +53,13 @@ import {
 } from '@mui/icons-material';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
-import useRealTimeWebSocket from '../hooks/useRealTimeWebSocket';
+import useRealTimeLiveData from '../hooks/useRealTimeLiveData';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
 const LiveDataEnhanced = () => {
   const { user, isAuthenticated } = useAuth();
   
-  // WebSocket hook integration
+  // Real-time live data hook integration
   const {
     connectionStatus,
     isStreaming,
@@ -68,13 +68,17 @@ const LiveDataEnhanced = () => {
     subscribedSymbols,
     connectionStats,
     errors,
-    connect,
-    disconnect,
+    startStreaming,
+    stopStreaming,
     subscribe,
     unsubscribe,
+    refresh,
     clearErrors,
-    wsUrl
-  } = useRealTimeWebSocket();
+    pollingInterval,
+    updatePollingInterval,
+    formatPrice,
+    formatChangePercent
+  } = useRealTimeLiveData();
 
   // Local state
   const [symbolInput, setSymbolInput] = useState('');
@@ -89,29 +93,22 @@ const LiveDataEnhanced = () => {
   // Connection status color mapping
   const getStatusColor = (status) => {
     switch (status) {
-      case 'connected': return 'success';
-      case 'connecting': return 'warning';
-      case 'disconnected': return 'default';
+      case 'streaming': return 'success';
+      case 'stopped': return 'default';
       case 'error': return 'error';
       default: return 'default';
     }
   };
 
-  // Auto-connect on component mount
-  useEffect(() => {
-    if (autoConnect && isAuthenticated && !isConnected) {
-      console.log('🚀 Auto-connecting to WebSocket...');
-      connect();
-    }
-  }, [autoConnect, isAuthenticated, isConnected, connect]);
+  // Auto-connect is handled by the hook itself
 
-  // Subscribe to default symbols when connected
+  // Subscribe to default symbols when needed
   useEffect(() => {
-    if (isConnected && selectedSymbols.length > 0) {
+    if (selectedSymbols.length > 0 && subscribedSymbols.length === 0) {
       console.log('📈 Auto-subscribing to symbols:', selectedSymbols);
       subscribe(selectedSymbols);
     }
-  }, [isConnected, selectedSymbols, subscribe]);
+  }, [selectedSymbols, subscribedSymbols.length, subscribe]);
 
   // Process live data for charts
   useEffect(() => {
@@ -165,18 +162,7 @@ const LiveDataEnhanced = () => {
     }
   };
 
-  // Format price with appropriate decimals
-  const formatPrice = (price) => {
-    if (!price) return 'N/A';
-    return typeof price === 'number' ? price.toFixed(2) : parseFloat(price).toFixed(2);
-  };
-
-  // Format change percentage
-  const formatChangePercent = (changePercent) => {
-    if (!changePercent) return 'N/A';
-    const value = typeof changePercent === 'number' ? changePercent : parseFloat(changePercent);
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
+  // Format functions provided by the hook
 
   if (!isAuthenticated) {
     return (
@@ -211,11 +197,19 @@ const LiveDataEnhanced = () => {
               />
               <Button
                 variant={isStreaming ? "outlined" : "contained"}
-                onClick={isStreaming ? disconnect : connect}
+                onClick={isStreaming ? stopStreaming : startStreaming}
                 startIcon={isStreaming ? <Stop /> : <PlayArrow />}
                 color={isStreaming ? "error" : "primary"}
               >
-                {isStreaming ? 'Disconnect' : 'Connect'}
+                {isStreaming ? 'Stop Stream' : 'Start Stream'}
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={refresh}
+                startIcon={<Refresh />}
+                disabled={!isAuthenticated}
+              >
+                Refresh
               </Button>
             </Stack>
           </Grid>
@@ -230,33 +224,40 @@ const LiveDataEnhanced = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 <NetworkCheck sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Connection Stats
+                Live Data Stats
               </Typography>
               <Stack spacing={1}>
                 <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">WebSocket URL:</Typography>
+                  <Typography variant="body2">API Endpoint:</Typography>
                   <Typography variant="body2" color="primary" fontFamily="monospace">
-                    {wsUrl.replace('wss://', '').split('.')[0]}...
+                    /api/live-data/stream
                   </Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Connected Since:</Typography>
+                  <Typography variant="body2">Started:</Typography>
                   <Typography variant="body2">
-                    {connectionStats.connectedAt ? 
-                      new Date(connectionStats.connectedAt).toLocaleTimeString() : 'N/A'}
+                    {connectionStats.startedAt ? 
+                      new Date(connectionStats.startedAt).toLocaleTimeString() : 'N/A'}
                   </Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Messages Received:</Typography>
-                  <Typography variant="body2">{connectionStats.messagesReceived}</Typography>
+                  <Typography variant="body2">Requests:</Typography>
+                  <Typography variant="body2">{connectionStats.requestCount}</Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Success Rate:</Typography>
+                  <Typography variant="body2">
+                    {connectionStats.requestCount > 0 ? 
+                      Math.round((connectionStats.successCount / connectionStats.requestCount) * 100) : 0}%
+                  </Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between">
                   <Typography variant="body2">Latency:</Typography>
                   <Typography variant="body2">{connectionStats.latency}ms</Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Reconnections:</Typography>
-                  <Typography variant="body2">{connectionStats.reconnectCount}</Typography>
+                  <Typography variant="body2">Polling Interval:</Typography>
+                  <Typography variant="body2">{pollingInterval / 1000}s</Typography>
                 </Box>
               </Stack>
             </CardContent>
@@ -480,7 +481,7 @@ const LiveDataEnhanced = () => {
       </Grid>
 
       {/* Loading indicator */}
-      {connectionStatus === 'connecting' && (
+      {isStreaming && (
         <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1300 }}>
           <LinearProgress />
         </Box>

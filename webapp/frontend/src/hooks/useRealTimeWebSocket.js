@@ -26,21 +26,15 @@ const useRealTimeWebSocket = () => {
   });
   const [errors, setErrors] = useState([]);
 
-  // Get WebSocket URL from configuration
+  // Get WebSocket URL from configuration - USE REAL DEPLOYED API
   const getWebSocketUrl = useCallback(() => {
-    // Check runtime config first (from CloudFormation outputs)
-    if (window.__CONFIG__?.ALPACA_WEBSOCKET_ENDPOINT) {
-      return window.__CONFIG__.ALPACA_WEBSOCKET_ENDPOINT;
+    // Check runtime config first
+    if (window.__CONFIG__?.WS_URL) {
+      return window.__CONFIG__.WS_URL.replace('https://', 'wss://').replace('/api/websocket', '');
     }
     
-    // Check environment variables
-    if (import.meta.env.VITE_ALPACA_WS_URL) {
-      return import.meta.env.VITE_ALPACA_WS_URL;
-    }
-    
-    // Fallback to expected CloudFormation format
-    // This should match the output from template-alpaca-websocket.yml
-    return 'wss://your-websocket-api-id.execute-api.us-east-1.amazonaws.com/dev';
+    // Use the real deployed API Gateway endpoint
+    return 'wss://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
   }, []);
 
   // Add error to list with timestamp
