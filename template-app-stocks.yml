@@ -28,11 +28,26 @@ Resources:
       SubnetIds:
         - !ImportValue StocksCore-PublicSubnet1Id
         - !ImportValue StocksCore-PublicSubnet2Id
-  ### 2) RDS Security Group ###
-  StocksDBSecurityGroup:
+  ### 2) ECS Tasks Security Group (moved up for dependency) ###
+  EcsTasksSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow Postgres access from Lambda and private networks
+      GroupDescription: Security group for ECS tasks
+      VpcId: !ImportValue StocksCore-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+      Tags:
+        - Key: Name
+          Value: stocks-ecs-tasks-security-group
+
+  ### 3) RDS Security Group ###
+  StocksDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: EcsTasksSecurityGroup
+    Properties:
+      GroupDescription: Allow Postgres access from Lambda and ECS tasks
       VpcId: !ImportValue StocksCore-VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -50,11 +65,16 @@ Resources:
           ToPort: 5432
           CidrIp: "0.0.0.0/0"
           Description: "Allow public access for Lambda outside VPC"
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EcsTasksSecurityGroup
+          Description: "Allow Postgres traffic from ECS tasks security group"
       Tags:
         - Key: Name
           Value: stocks-db-security-group
 
-  ### 3) RDS Instance ###
+  ### 4) RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
@@ -75,7 +95,7 @@ Resources:
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
-  ### 4) Secrets Manager: DB creds ###
+  ### 5) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
@@ -136,24 +156,13 @@ Resources:
         - Key: 'Environment'
           Value: !Ref 'AWS::StackName'
 
-  ### 5) ECS Cluster ###
+  ### 6) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
 
-  ### 5.1) ECS Tasks Security Group ###
-  EcsTasksSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for ECS tasks
-      VpcId: !ImportValue StocksCore-VpcId
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: "Allow all outbound traffic"
-
-  ### 6) ECS Task Execution Role ###
+  ### 7) ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
