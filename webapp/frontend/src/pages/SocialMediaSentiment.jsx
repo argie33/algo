@@ -130,107 +130,30 @@ const SocialMediaSentiment = () => {
 
   const { apiUrl: API_BASE } = getApiConfig();
 
-  // Mock data for development
-  const mockRedditData = {
-    mentions: [
-      { date: '2025-07-01', mentions: 156, sentiment: 0.65 },
-      { date: '2025-07-02', mentions: 234, sentiment: 0.72 },
-      { date: '2025-07-03', mentions: 189, sentiment: 0.58 },
-      { date: '2025-07-04', mentions: 298, sentiment: 0.81 },
-      { date: '2025-07-05', mentions: 267, sentiment: 0.76 }
-    ],
-    sentiment: [
-      { platform: 'r/investing', positive: 45, neutral: 32, negative: 23 },
-      { platform: 'r/stocks', positive: 52, neutral: 28, negative: 20 },
-      { platform: 'r/SecurityAnalysis', positive: 38, neutral: 41, negative: 21 },
-      { platform: 'r/ValueInvesting', positive: 41, neutral: 35, negative: 24 }
-    ],
-    topPosts: [
-      {
-        id: 1,
-        title: 'AAPL Q4 earnings analysis - bullish indicators',
-        subreddit: 'r/investing',
-        score: 1245,
-        comments: 189,
-        sentiment: 0.82,
-        author: 'u/InvestorAnalyst',
-        timestamp: '2 hours ago'
-      },
-      {
-        id: 2,
-        title: 'Technical analysis: AAPL breaking resistance',
-        subreddit: 'r/stocks',
-        score: 892,
-        comments: 156,
-        sentiment: 0.75,
-        author: 'u/TechTrader',
-        timestamp: '4 hours ago'
-      },
-      {
-        id: 3,
-        title: 'Why I\'m long AAPL for the next 5 years',
-        subreddit: 'r/SecurityAnalysis',
-        score: 634,
-        comments: 98,
-        sentiment: 0.88,
-        author: 'u/LongTermValue',
-        timestamp: '6 hours ago'
-      }
-    ],
-    subredditBreakdown: [
-      { name: 'r/investing', value: 35, sentiment: 0.72 },
-      { name: 'r/stocks', value: 28, sentiment: 0.68 },
-      { name: 'r/SecurityAnalysis', value: 18, sentiment: 0.75 },
-      { name: 'r/ValueInvesting', value: 12, sentiment: 0.71 },
-      { name: 'r/wallstreetbets', value: 7, sentiment: 0.85 }
-    ]
+  // Empty data structures for proper error states
+  const emptyRedditData = {
+    mentions: [],
+    sentiment: [],
+    topPosts: [],
+    subredditBreakdown: []
   };
 
-  const mockTrendsData = {
-    searchVolume: [
-      { date: '2025-07-01', volume: 82, relativeInterest: 0.82 },
-      { date: '2025-07-02', volume: 95, relativeInterest: 0.95 },
-      { date: '2025-07-03', volume: 78, relativeInterest: 0.78 },
-      { date: '2025-07-04', volume: 100, relativeInterest: 1.0 },
-      { date: '2025-07-05', volume: 91, relativeInterest: 0.91 }
-    ],
-    relatedQueries: [
-      { query: 'AAPL stock price', volume: 100, trend: 'rising' },
-      { query: 'Apple earnings 2025', volume: 85, trend: 'rising' },
-      { query: 'AAPL dividend', volume: 72, trend: 'stable' },
-      { query: 'Apple iPhone sales', volume: 68, trend: 'falling' },
-      { query: 'AAPL technical analysis', volume: 55, trend: 'rising' }
-    ],
-    geographicDistribution: [
-      { region: 'United States', interest: 100, sentiment: 0.74 },
-      { region: 'Canada', interest: 45, sentiment: 0.71 },
-      { region: 'United Kingdom', interest: 38, sentiment: 0.69 },
-      { region: 'Germany', interest: 35, sentiment: 0.67 },
-      { region: 'Australia', interest: 32, sentiment: 0.73 }
-    ]
+  const emptyTrendsData = {
+    searchVolume: [],
+    relatedQueries: [],
+    geographicDistribution: []
   };
 
-  const mockSocialMetrics = {
+  const emptySocialMetrics = {
     overall: {
-      totalMentions: 1234,
-      sentimentScore: 0.73,
-      engagementRate: 0.15,
-      viralityIndex: 0.28,
-      influencerMentions: 45
+      totalMentions: 0,
+      sentimentScore: 0,
+      engagementRate: 0,
+      viralityIndex: 0,
+      influencerMentions: 0
     },
-    platforms: [
-      { name: 'Reddit', mentions: 567, sentiment: 0.71, engagement: 0.18 },
-      { name: 'Twitter', mentions: 423, sentiment: 0.68, engagement: 0.12 },
-      { name: 'StockTwits', mentions: 189, sentiment: 0.82, engagement: 0.22 },
-      { name: 'Discord', mentions: 55, sentiment: 0.75, engagement: 0.31 }
-    ],
-    trendingStocks: [
-      { symbol: 'AAPL', mentions: 1234, sentiment: 0.73, change: 0.15 },
-      { symbol: 'TSLA', mentions: 1089, sentiment: 0.68, change: -0.08 },
-      { symbol: 'NVDA', mentions: 892, sentiment: 0.81, change: 0.22 },
-      { symbol: 'MSFT', mentions: 756, sentiment: 0.69, change: 0.05 },
-      { symbol: 'GOOGL', mentions: 634, sentiment: 0.72, change: 0.12 }
-    ]
+    platforms: [],
+    trendingStocks: []
   };
 
   const COLORS = ['#1976d2', '#388e3c', '#f57c00', '#d32f2f', '#7b1fa2'];
@@ -264,15 +187,13 @@ const SocialMediaSentiment = () => {
       }
 
     } catch (error) {
-      console.error('Error loading sentiment data:', error);
-      
       console.error('Failed to load social media sentiment data:', error);
       setError(`Failed to load social media sentiment data: ${error.message}`);
       
-      // Set empty data structure on error instead of mock data
-      setRedditData({ mentions: [], keywords: [], engagement: {} });
-      setTrendsData({ queries: [], regions: [] });
-      setSocialMetrics({ overall: { totalMentions: 0, sentimentScore: 0, engagementRate: 0, viralityIndex: 0 } });
+      // Set empty data structures on error instead of mock data
+      setRedditData(emptyRedditData);
+      setTrendsData(emptyTrendsData);
+      setSocialMetrics(emptySocialMetrics);
       setSentimentHistory([]);
     } finally {
       setLoading(false);

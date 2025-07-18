@@ -1,8 +1,7 @@
 // Responsive utilities for mobile optimization
 // Handles viewport detection, touch events, and mobile-specific UI adaptations
+// UPDATED: No MUI imports to avoid createPalette errors
 
-import { useTheme } from '@mui/material/styles';
-import { useMediaQuery } from '@mui/material';
 import { useState, useEffect } from 'react';
 
 // Breakpoint utilities
@@ -14,22 +13,40 @@ export const breakpoints = {
   xl: 1536
 };
 
-// Custom hook for responsive design
+// Custom hook for responsive design - NO MUI DEPENDENCIES
 export const useResponsive = () => {
-  const theme = useTheme();
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const width = windowSize.width;
   
-  const isXs = useMediaQuery(theme.breakpoints.only('xs'));
-  const isSm = useMediaQuery(theme.breakpoints.only('sm'));
-  const isMd = useMediaQuery(theme.breakpoints.only('md'));
-  const isLg = useMediaQuery(theme.breakpoints.only('lg'));
-  const isXl = useMediaQuery(theme.breakpoints.only('xl'));
+  // Manual breakpoint detection
+  const isXs = width >= breakpoints.xs && width < breakpoints.sm;
+  const isSm = width >= breakpoints.sm && width < breakpoints.md;
+  const isMd = width >= breakpoints.md && width < breakpoints.lg;
+  const isLg = width >= breakpoints.lg && width < breakpoints.xl;
+  const isXl = width >= breakpoints.xl;
   
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
+  const isMobile = width < breakpoints.md;
+  const isTablet = width >= breakpoints.md && width < breakpoints.lg;
+  const isDesktop = width >= breakpoints.lg;
   
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-  const isLargeScreen = useMediaQuery(theme.breakpoints.up('xl'));
+  const isSmallScreen = width < breakpoints.sm;
+  const isLargeScreen = width >= breakpoints.xl;
   
   return {
     isXs,
@@ -42,8 +59,8 @@ export const useResponsive = () => {
     isDesktop,
     isSmallScreen,
     isLargeScreen,
-    width: window.innerWidth,
-    height: window.innerHeight
+    width: windowSize.width,
+    height: windowSize.height
   };
 };
 

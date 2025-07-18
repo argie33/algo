@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createTheme } from '@mui/material/styles';
+// REMOVED: import { createTheme } from '@mui/material/styles'; - causes createPalette error
 
 const ThemeContext = createContext();
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
-import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+// REMOVED MUI imports - causes createPalette error
+// import { createTheme, ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 
 const ThemeContext = createContext();
 
@@ -16,12 +17,22 @@ export const MinimalThemeProvider = ({ children }) => {
   
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Create absolutely minimal theme
-  const theme = createTheme({
+  // Create minimal theme object without MUI createTheme
+  const theme = {
     palette: {
       mode: isDarkMode ? 'dark' : 'light',
-    },
-  });
+      primary: { main: '#1976d2' },
+      secondary: { main: '#dc004e' },
+      background: {
+        default: isDarkMode ? '#121212' : '#ffffff',
+        paper: isDarkMode ? '#1e1e1e' : '#ffffff'
+      },
+      text: {
+        primary: isDarkMode ? '#ffffff' : '#000000',
+        secondary: isDarkMode ? '#b3b3b3' : '#666666'
+      }
+    }
+  };
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -37,9 +48,7 @@ export const MinimalThemeProvider = ({ children }) => {
 
   return (
     <ThemeContext.Provider value={value}>
-      <MuiThemeProvider theme={theme}>
-        {children}
-      </MuiThemeProvider>
+      {children}
     </ThemeContext.Provider>
   );
 };
