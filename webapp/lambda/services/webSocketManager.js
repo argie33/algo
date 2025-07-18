@@ -2,6 +2,7 @@
 // Handles multi-provider WebSocket connections with reconnection logic and failover
 
 const EventEmitter = require('events');
+const WebSocket = require('ws');
 
 class WebSocketManager extends EventEmitter {
   constructor(options = {}) {

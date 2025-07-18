@@ -333,8 +333,8 @@ def prepare_db():
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd, dbname=db
     ,
-            sslmode='disable'
-        )
+            sslmode='require'
+    )
     conn.autocommit = True
     cursor = conn.cursor()
     logging.info("Connected to PostgreSQL database.")

@@ -44,6 +44,7 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 let logger = null;
 let databaseManager = null;
 let responseFormatter = null;
+let securityService = null;
 
 // Lazy load logger with fallback
 const getLogger = () => {
@@ -109,6 +110,32 @@ const getResponseFormatter = () => {
   return responseFormatter;
 };
 
+// Lazy load security service with fallback
+const getSecurityService = () => {
+  if (!securityService) {
+    try {
+      const SecurityService = require('./services/securityService');
+      securityService = new SecurityService();
+      console.log('✅ Security service initialized');
+    } catch (error) {
+      console.error('⚠️ Security service initialization failed:', error.message);
+      // Fallback security service
+      securityService = {
+        checkRateLimit: () => ({ allowed: true }),
+        validateInput: (input) => ({ valid: true, sanitized: input }),
+        getSecurityHeaders: () => ({}),
+        logSecurityEvent: () => {},
+        createSecurityMiddleware: () => ({
+          rateLimit: () => (req, res, next) => next(),
+          securityHeaders: (req, res, next) => next(),
+          validateInput: () => (req, res, next) => next()
+        })
+      };
+    }
+  }
+  return securityService;
+};
+
 // Apply response formatter middleware
 app.use((req, res, next) => {
   const formatter = getResponseFormatter();
@@ -121,6 +148,23 @@ app.use((req, res, next) => {
   req.logger = logger;
   req.correlationId = logger.getCorrelationId();
   next();
+});
+
+// Apply security middleware
+app.use((req, res, next) => {
+  const security = getSecurityService();
+  const middleware = security.createSecurityMiddleware();
+  
+  // Apply security headers
+  middleware.securityHeaders(req, res, () => {
+    // Apply rate limiting for API routes
+    if (req.path.startsWith('/api/')) {
+      const category = req.path.includes('/auth') ? 'auth' : 'api';
+      middleware.rateLimit(category)(req, res, next);
+    } else {
+      next();
+    }
+  });
 });
 
 // Safe route loader with proper error handling
@@ -158,10 +202,12 @@ const routes = [
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },
+  { path: './routes/realTimeData', name: 'Real-Time Data', mount: '/api/realtime' },
   
   // Core Financial Data Routes  
   { path: './routes/stocks', name: 'Stocks', mount: '/api/stocks' },
   { path: './routes/portfolio', name: 'Portfolio', mount: '/api/portfolio' },
+  { path: './routes/portfolioOptimization', name: 'Portfolio Optimization', mount: '/api/portfolio-optimization' },
   { path: './routes/market', name: 'Market', mount: '/api/market' },
   { path: './routes/market-data', name: 'Market Data', mount: '/api/market-data' },
   { path: './routes/data', name: 'Data Management', mount: '/api/data' },
@@ -169,9 +215,11 @@ const routes = [
   // User & Settings Routes
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
+  { path: './routes/security', name: 'Security', mount: '/api/security' },
   
   // Analysis & Trading Routes
   { path: './routes/technical', name: 'Technical Analysis', mount: '/api/technical' },
+  { path: './routes/algorithmicTrading', name: 'Algorithmic Trading', mount: '/api/algo' },
   { path: './routes/dashboard', name: 'Dashboard', mount: '/api/dashboard' },
   { path: './routes/screener', name: 'Stock Screener', mount: '/api/screener' },
   { path: './routes/watchlist', name: 'Watchlist', mount: '/api/watchlist' },

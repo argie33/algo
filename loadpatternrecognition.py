@@ -138,8 +138,8 @@ class PatternRecognitionLoader:
         try:
             import psycopg2
             conn = psycopg2.connect(**self.db_config,
-            sslmode='disable'
-        )
+            sslmode='require'
+    )
             cursor = conn.cursor()
             
             logger.info("Creating pattern recognition tables...")
@@ -334,8 +334,8 @@ class PatternRecognitionLoader:
         try:
             import psycopg2
             conn = psycopg2.connect(**self.db_config,
-            sslmode='disable'
-        )
+            sslmode='require'
+    )
             cursor = conn.cursor()
             
             # Check if pattern types already exist

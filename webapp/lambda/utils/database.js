@@ -4,11 +4,20 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { getTimeout, withDatabaseTimeout } = require('./timeoutManager');
+const ConnectionRetry = require('./connectionRetry');
 
 // Global state
 let pool = null;
 let dbInitialized = false;
 let dbConfig = null;
+
+// Initialize connection retry utility
+const connectionRetry = new ConnectionRetry({
+    maxRetries: 3,
+    initialDelay: 1000,
+    maxDelay: 10000,
+    backoffMultiplier: 2
+});
 
 // Configure AWS SDK for Secrets Manager
 const secretsManager = new SecretsManagerClient({
@@ -192,6 +201,14 @@ async function initializeDatabase() {
             allowExitOnIdle: false, // Don't exit when idle
             acquireTimeoutMillis: 8000, // Reasonable timeout for acquiring connections
             propagateCreateError: false, // Don't propagate connection creation errors immediately
+            // Lazy initialization and connection optimization
+            lazy: true, // Enable lazy connection creation
+            evictionRunIntervalMillis: 30000, // Run eviction every 30 seconds
+            numTestsPerEvictionRun: 3, // Test 3 connections per eviction run
+            softIdleTimeoutMillis: 60000, // Soft idle timeout (1 minute)
+            testOnBorrow: true, // Test connections when borrowing
+            testOnReturn: false, // Don't test on return for performance
+            testWhileIdle: true // Test idle connections
         };
         
         console.log(`🏊 Creating pool with config:`, {
@@ -234,25 +251,35 @@ async function initializeDatabase() {
             updatePoolMetrics('release');
         });
 
-        // Test connection with shorter timeout and simpler query
-        console.log('🧪 Testing database connection...');
-        const testStart = Date.now();
+        // Test connection with retry logic
+        console.log('🧪 Testing database connection with retry logic...');
         
-        const client = await Promise.race([
-            pool.connect(),
-            new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Connection test timeout after 15 seconds')), 15000)
-            )
-        ]);
+        const connectionTest = await connectionRetry.execute(async (attempt) => {
+            const testStart = Date.now();
+            
+            const client = await Promise.race([
+                pool.connect(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Connection test timeout after 15 seconds')), 15000)
+                )
+            ]);
+            
+            console.log(`✅ Client connected in ${Date.now() - testStart}ms (attempt ${attempt + 1})`);
+            
+            // Use the simplest possible query
+            const queryStart = Date.now();
+            await client.query('SELECT 1 as test');
+            console.log(`✅ Test query completed in ${Date.now() - queryStart}ms`);
+            
+            client.release();
+            return { connected: true, duration: Date.now() - testStart };
+        }, 'database connection test');
         
-        console.log(`✅ Client connected in ${Date.now() - testStart}ms`);
+        if (!connectionTest.success) {
+            throw new Error(`Database connection test failed: ${connectionTest.error}`);
+        }
         
-        // Use the simplest possible query
-        const queryStart = Date.now();
-        await client.query('SELECT 1 as test');
-        console.log(`✅ Test query completed in ${Date.now() - queryStart}ms`);
-        
-        client.release();
+        console.log(`🎯 Database connection test completed successfully in ${connectionTest.attempts} attempts`);
         
         const totalDuration = Date.now() - initStart;
         console.log(`✅ Database fully initialized in ${totalDuration}ms`);

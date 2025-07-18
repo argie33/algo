@@ -7,6 +7,7 @@ const express = require('express');
 const { success, error } = require('../utils/responseFormatter');
 const circuitBreakerReset = require('../utils/circuitBreakerReset');
 const SecretsManagerDiagnostic = require('../utils/secretsManagerDiagnostic');
+const NetworkDiagnostic = require('../utils/networkDiagnostic');
 
 const router = express.Router();
 
@@ -275,6 +276,141 @@ router.get('/system', (req, res) => {
   };
 
   res.json(success(systemInfo));
+});
+
+/**
+ * POST /api/diagnostics/network-test
+ * Comprehensive network connectivity testing
+ */
+router.post('/network-test', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`🌐 [${diagnosticId}] Network connectivity test requested...`);
+    
+    try {
+        const networkDiag = new NetworkDiagnostic();
+        await networkDiag.initialize();
+        
+        const result = await networkDiag.runComprehensiveTest();
+        
+        console.log(`🌐 [${diagnosticId}] Network test completed: ${result.summary?.overallStatus || 'unknown'}`);
+        
+        if (result.summary?.overallStatus === 'healthy') {
+            res.json(success({
+                ...result,
+                message: 'Network connectivity test passed'
+            }));
+        } else {
+            res.json(error('Network connectivity issues detected', result));
+        }
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Network test failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'network-test' }));
+    }
+});
+
+/**
+ * GET /api/diagnostics/connection-comparison
+ * Compare working vs failing ECS task configurations
+ */
+router.get('/connection-comparison', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`⚖️ [${diagnosticId}] Connection comparison analysis requested...`);
+    
+    try {
+        // Get current environment information
+        const environment = {
+            isLambda: !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+            region: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || 'unknown',
+            functionName: process.env.AWS_LAMBDA_FUNCTION_NAME || 'local',
+            platform: process.platform,
+            nodeVersion: process.version
+        };
+        
+        // Get database configuration for comparison
+        const secretArn = process.env.DB_SECRET_ARN;
+        let dbConfig = null;
+        
+        if (secretArn) {
+            try {
+                const diagnostic = new SecretsManagerDiagnostic();
+                const result = await diagnostic.diagnoseSecret(secretArn);
+                if (result.success) {
+                    dbConfig = {
+                        host: result.config.host,
+                        port: result.config.port,
+                        database: result.config.dbname,
+                        hasPassword: !!result.config.password,
+                        hasUsername: !!result.config.username
+                    };
+                }
+            } catch (err) {
+                dbConfig = { error: err.message };
+            }
+        }
+        
+        // Working configuration template (from successful ECS tasks)
+        const workingConfig = {
+            connectionString: {
+                sslmode: 'require',
+                ssl: false, // Note: This might seem contradictory but matches working config
+                connectionTimeout: '15000ms',
+                queryTimeout: '30000ms'
+            },
+            poolSettings: {
+                max: 3,
+                min: 1,
+                idleTimeoutMillis: 30000,
+                acquireTimeoutMillis: 8000
+            },
+            networkRequirements: {
+                securityGroups: 'Allow PostgreSQL 5432 outbound',
+                subnets: 'Private subnets with NAT gateway access',
+                dns: 'VPC DNS resolution enabled'
+            },
+            environment: {
+                DB_SECRET_ARN: 'Required - points to RDS credentials',
+                AWS_REGION: 'Required - for Secrets Manager access',
+                NODE_ENV: 'production'
+            }
+        };
+        
+        const comparison = {
+            diagnosticId,
+            timestamp: new Date().toISOString(),
+            currentEnvironment: environment,
+            currentDbConfig: dbConfig,
+            workingConfigTemplate: workingConfig,
+            recommendations: []
+        };
+        
+        // Generate recommendations based on comparison
+        if (environment.isLambda) {
+            comparison.recommendations.push('Lambda environment detected - ensure VPC configuration allows RDS access');
+        }
+        
+        if (!secretArn) {
+            comparison.recommendations.push('DB_SECRET_ARN not configured - database connections will fail');
+        }
+        
+        if (dbConfig?.error) {
+            comparison.recommendations.push(`Database configuration error: ${dbConfig.error}`);
+        }
+        
+        if (comparison.recommendations.length === 0) {
+            comparison.recommendations.push('Configuration appears to match working template');
+        }
+        
+        console.log(`⚖️ [${diagnosticId}] Connection comparison completed`);
+        
+        res.json(success(comparison));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Connection comparison failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'connection-comparison' }));
+    }
 });
 
 // Route diagnostics endpoint

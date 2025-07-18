@@ -27,16 +27,64 @@ export const ApiKeyProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [hasPerformedMigration, setHasPerformedMigration] = useState(false);
 
-  // API key validation rules - Only Alpaca and TD Ameritrade supported
+  // Enhanced API key validation rules for all supported providers
   const validationRules = {
     alpaca: {
       keyId: /^[A-Z0-9]{20}$/,
       secretKey: /^[A-Za-z0-9\/\+]{40}$/,
-      name: 'Alpaca Trading API'
+      name: 'Alpaca Trading API',
+      description: 'Paper and live trading API access',
+      keyIdFormat: '20 uppercase letters and numbers',
+      secretKeyFormat: '40-character base64 encoded secret',
+      setupUrl: 'https://app.alpaca.markets/paper/dashboard/overview',
+      testEndpoint: '/account'
+    },
+    polygon: {
+      keyId: /^[A-Za-z0-9_]{32}$/,
+      name: 'Polygon.io Market Data',
+      description: 'Real-time and historical market data',
+      keyIdFormat: '32-character alphanumeric API key',
+      setupUrl: 'https://polygon.io/dashboard/api-keys',
+      testEndpoint: '/v1/meta/symbols',
+      requiresSubscription: true
+    },
+    finnhub: {
+      keyId: /^[a-z0-9]{20}$/,
+      name: 'Finnhub Financial Data',
+      description: 'Financial news, earnings, and alternative data',
+      keyIdFormat: '20-character lowercase alphanumeric',
+      setupUrl: 'https://finnhub.io/dashboard',
+      testEndpoint: '/api/v1/stock/profile2',
+      freeTier: true
+    },
+    iex: {
+      keyId: /^pk_[a-z0-9]{32}$/,
+      secretKey: /^sk_[a-z0-9]{32}$/,
+      name: 'IEX Cloud',
+      description: 'Reliable financial data API',
+      keyIdFormat: 'pk_ prefix + 32 lowercase alphanumeric',
+      secretKeyFormat: 'sk_ prefix + 32 lowercase alphanumeric',
+      setupUrl: 'https://iexcloud.io/console/tokens',
+      testEndpoint: '/stable/stock/aapl/quote'
+    },
+    alpha_vantage: {
+      keyId: /^[A-Z0-9]{16}$/,
+      name: 'Alpha Vantage',
+      description: 'Financial data and technical indicators',
+      keyIdFormat: '16-character uppercase alphanumeric',
+      setupUrl: 'https://www.alphavantage.co/support/#api-key',
+      testEndpoint: '/query',
+      freeTier: true,
+      rateLimited: true
     },
     td_ameritrade: {
       keyId: /^[A-Z0-9@]{20,50}$/,
-      name: 'TD Ameritrade API'
+      name: 'TD Ameritrade API',
+      description: 'Trading and account management (Legacy)',
+      keyIdFormat: '20-50 character client ID with possible @ symbol',
+      setupUrl: 'https://developer.tdameritrade.com/',
+      deprecated: true,
+      migrationNote: 'TD Ameritrade APIs will be discontinued. Consider migrating to Schwab.'
     }
   };
 
