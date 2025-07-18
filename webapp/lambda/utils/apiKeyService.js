@@ -506,118 +506,295 @@ class ApiKeyService {
   }
 
   /**
-   * Validate API key format for different providers
+   * Enhanced API key format validation with detailed error messages
    * @param {string} provider - API provider name
    * @param {string} apiKey - API key to validate
    * @param {string} apiSecret - API secret to validate (optional)
-   * @returns {Object} Validation result with valid flag and error message
+   * @returns {Object} Validation result with valid flag, error message, and suggestions
    */
   validateApiKeyFormat(provider, apiKey, apiSecret = null) {
     if (!provider || !apiKey) {
       return {
         valid: false,
         error: 'Provider and API key are required',
-        details: { provider, apiKey: apiKey ? '[PROVIDED]' : '[MISSING]' }
+        errorCode: 'MISSING_REQUIRED_FIELDS',
+        details: { provider, apiKey: apiKey ? '[PROVIDED]' : '[MISSING]' },
+        suggestions: ['Ensure both provider name and API key are provided']
       };
     }
 
     const providerLower = provider.toLowerCase().trim();
     
+    // Security check: Reject obvious placeholder values
+    const placeholders = ['password', '123456', 'test', 'apikey', 'key', 'secret', 'placeholder', 'example'];
+    if (placeholders.includes(apiKey.toLowerCase())) {
+      return {
+        valid: false,
+        error: 'API key appears to be a placeholder value',
+        errorCode: 'PLACEHOLDER_VALUE',
+        details: { provider, placeholder: apiKey.toLowerCase() },
+        suggestions: ['Use your actual API key from the broker\'s developer portal']
+      };
+    }
+    
     switch (providerLower) {
       case 'alpaca':
-        // Alpaca API key validation
-        if (apiKey.length < 20 || apiKey.length > 50) {
-          return {
-            valid: false,
-            error: 'Alpaca API key must be 20-50 characters',
-            details: { provider, length: apiKey.length }
-          };
-        }
-        
-        if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
-          return {
-            valid: false,
-            error: 'Alpaca API key must contain only alphanumeric characters',
-            details: { provider, pattern: 'alphanumeric' }
-          };
-        }
-        
-        // Alpaca API secret validation (if provided)
-        if (apiSecret) {
-          if (apiSecret.length < 20 || apiSecret.length > 80) {
-            return {
-              valid: false,
-              error: 'Alpaca API secret must be 20-80 characters',
-              details: { provider, secretLength: apiSecret.length }
-            };
-          }
-          
-          if (!/^[A-Za-z0-9/+=]+$/.test(apiSecret)) {
-            return {
-              valid: false,
-              error: 'Alpaca API secret contains invalid characters',
-              details: { provider, allowedChars: 'A-Z, a-z, 0-9, /, +, =' }
-            };
-          }
-        }
-        break;
+        return this._validateAlpacaKeys(apiKey, apiSecret, provider);
         
       case 'tdameritrade':
-        // TD Ameritrade API key validation (more flexible length)
-        if (apiKey.length < 20 || apiKey.length > 40) {
-          return {
-            valid: false,
-            error: 'TD Ameritrade API key must be 20-40 characters',
-            details: { provider, length: apiKey.length, expected: '20-40' }
-          };
-        }
+      case 'td_ameritrade':
+        return this._validateTdAmeritradeKeys(apiKey, provider);
         
-        if (!/^[A-Za-z0-9]+$/.test(apiKey)) {
-          return {
-            valid: false,
-            error: 'TD Ameritrade API key must contain only alphanumeric characters',
-            details: { provider, pattern: 'alphanumeric' }
-          };
-        }
-        break;
+      case 'polygon':
+        return this._validatePolygonKeys(apiKey, provider);
+        
+      case 'finnhub':
+        return this._validateFinnhubKeys(apiKey, provider);
         
       case 'interactivebrokers':
-        // Interactive Brokers API key validation (more lenient)
-        if (apiKey.length < 8 || apiKey.length > 100) {
-          return {
-            valid: false,
-            error: 'Interactive Brokers API key must be 8-100 characters',
-            details: { provider, length: apiKey.length }
-          };
-        }
-        break;
+        return this._validateInteractiveBrokersKeys(apiKey, provider);
         
       default:
-        // Generic validation for unknown providers
-        if (apiKey.length < 8 || apiKey.length > 200) {
-          return {
-            valid: false,
-            error: 'API key must be 8-200 characters',
-            details: { provider, length: apiKey.length }
-          };
-        }
-        
-        // Reject obvious placeholder values
-        const placeholders = ['password', '123456', 'test', 'apikey', 'key'];
-        if (placeholders.includes(apiKey.toLowerCase())) {
-          return {
-            valid: false,
-            error: 'API key appears to be a placeholder value',
-            details: { provider, placeholder: apiKey.toLowerCase() }
-          };
-        }
-        break;
+        return this._validateGenericKeys(apiKey, provider);
     }
+  }
 
+  /**
+   * Validate Alpaca API keys with specific format requirements
+   */
+  _validateAlpacaKeys(apiKey, apiSecret, provider) {
+    // Alpaca Key ID validation (updated based on real format)
+    if (apiKey.length !== 20) {
+      return {
+        valid: false,
+        error: 'Alpaca API Key ID must be exactly 20 characters',
+        errorCode: 'INVALID_ALPACA_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: 20 },
+        suggestions: [
+          'Check your Alpaca API Key ID from the paper trading dashboard',
+          'Ensure you copied the full key without extra spaces'
+        ]
+      };
+    }
+    
+    if (!/^PK[A-Z0-9]{18}$/.test(apiKey)) {
+      return {
+        valid: false,
+        error: 'Alpaca API Key ID must start with "PK" followed by 18 uppercase alphanumeric characters',
+        errorCode: 'INVALID_ALPACA_KEY_FORMAT',
+        details: { provider, pattern: 'PK + 18 chars' },
+        suggestions: [
+          'Alpaca keys start with "PK" (e.g., PKXXXXXXXXXXXXXXXXXX)',
+          'Check the paper trading dashboard for the correct format'
+        ]
+      };
+    }
+    
+    // Alpaca Secret Key validation (if provided)
+    if (apiSecret) {
+      if (apiSecret.length !== 40) {
+        return {
+          valid: false,
+          error: 'Alpaca Secret Key must be exactly 40 characters',
+          errorCode: 'INVALID_ALPACA_SECRET_LENGTH',
+          details: { provider, secretLength: apiSecret.length, expected: 40 },
+          suggestions: [
+            'Check your Alpaca Secret Key from the paper trading dashboard',
+            'Ensure you copied the full secret without extra spaces'
+          ]
+        };
+      }
+      
+      if (!/^[A-Za-z0-9/+=]+$/.test(apiSecret)) {
+        return {
+          valid: false,
+          error: 'Alpaca Secret Key contains invalid characters',
+          errorCode: 'INVALID_ALPACA_SECRET_FORMAT',
+          details: { provider, allowedChars: 'A-Z, a-z, 0-9, /, +, =' },
+          suggestions: [
+            'Secret keys contain only letters, numbers, and base64 characters (/+=)',
+            'Copy the secret key exactly as shown in the Alpaca dashboard'
+          ]
+        };
+      }
+    }
+    
     return {
       valid: true,
       error: null,
-      details: { provider, keyLength: apiKey.length }
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length, hasSecret: !!apiSecret },
+      suggestions: []
+    };
+  }
+
+  /**
+   * Validate TD Ameritrade API keys
+   */
+  _validateTdAmeritradeKeys(apiKey, provider) {
+    if (apiKey.length < 20 || apiKey.length > 50) {
+      return {
+        valid: false,
+        error: 'TD Ameritrade Consumer Key must be 20-50 characters',
+        errorCode: 'INVALID_TD_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: '20-50' },
+        suggestions: [
+          'Check your TD Ameritrade app Consumer Key',
+          'Include the @AMER.OAUTHAP suffix if present'
+        ]
+      };
+    }
+    
+    // TD Ameritrade keys often end with @AMER.OAUTHAP
+    if (!/^[A-Za-z0-9@.]+$/.test(apiKey)) {
+      return {
+        valid: false,
+        error: 'TD Ameritrade Consumer Key contains invalid characters',
+        errorCode: 'INVALID_TD_KEY_FORMAT',
+        details: { provider, allowedChars: 'A-Z, a-z, 0-9, @, .' },
+        suggestions: [
+          'Consumer keys typically end with @AMER.OAUTHAP',
+          'Copy the key exactly from your TD Ameritrade app settings'
+        ]
+      };
+    }
+    
+    return {
+      valid: true,
+      error: null,
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length },
+      suggestions: []
+    };
+  }
+
+  /**
+   * Validate Polygon API keys
+   */
+  _validatePolygonKeys(apiKey, provider) {
+    if (apiKey.length !== 32) {
+      return {
+        valid: false,
+        error: 'Polygon API key must be exactly 32 characters',
+        errorCode: 'INVALID_POLYGON_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: 32 },
+        suggestions: [
+          'Get your API key from https://polygon.io/dashboard',
+          'Ensure you copied the full key without spaces'
+        ]
+      };
+    }
+    
+    if (!/^[A-Za-z0-9_]+$/.test(apiKey)) {
+      return {
+        valid: false,
+        error: 'Polygon API key must contain only alphanumeric characters and underscores',
+        errorCode: 'INVALID_POLYGON_KEY_FORMAT',
+        details: { provider, allowedChars: 'A-Z, a-z, 0-9, _' },
+        suggestions: [
+          'Polygon keys contain letters, numbers, and underscores',
+          'Check your dashboard at https://polygon.io/dashboard'
+        ]
+      };
+    }
+    
+    return {
+      valid: true,
+      error: null,
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length },
+      suggestions: []
+    };
+  }
+
+  /**
+   * Validate Finnhub API keys
+   */
+  _validateFinnhubKeys(apiKey, provider) {
+    if (apiKey.length !== 20) {
+      return {
+        valid: false,
+        error: 'Finnhub API key must be exactly 20 characters',
+        errorCode: 'INVALID_FINNHUB_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: 20 },
+        suggestions: [
+          'Get your API key from https://finnhub.io/dashboard',
+          'Ensure you copied the full key without spaces'
+        ]
+      };
+    }
+    
+    if (!/^[a-z0-9]+$/.test(apiKey)) {
+      return {
+        valid: false,
+        error: 'Finnhub API key must contain only lowercase letters and numbers',
+        errorCode: 'INVALID_FINNHUB_KEY_FORMAT',
+        details: { provider, allowedChars: 'a-z, 0-9' },
+        suggestions: [
+          'Finnhub keys are lowercase alphanumeric',
+          'Check your dashboard at https://finnhub.io/dashboard'
+        ]
+      };
+    }
+    
+    return {
+      valid: true,
+      error: null,
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length },
+      suggestions: []
+    };
+  }
+
+  /**
+   * Validate Interactive Brokers API keys
+   */
+  _validateInteractiveBrokersKeys(apiKey, provider) {
+    if (apiKey.length < 8 || apiKey.length > 100) {
+      return {
+        valid: false,
+        error: 'Interactive Brokers API key must be 8-100 characters',
+        errorCode: 'INVALID_IB_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: '8-100' },
+        suggestions: [
+          'Check your Interactive Brokers portal for the correct key format',
+          'IB keys vary in length depending on configuration'
+        ]
+      };
+    }
+    
+    return {
+      valid: true,
+      error: null,
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length },
+      suggestions: []
+    };
+  }
+
+  /**
+   * Generic validation for unknown providers
+   */
+  _validateGenericKeys(apiKey, provider) {
+    if (apiKey.length < 8 || apiKey.length > 200) {
+      return {
+        valid: false,
+        error: 'API key must be 8-200 characters',
+        errorCode: 'INVALID_GENERIC_KEY_LENGTH',
+        details: { provider, length: apiKey.length, expected: '8-200' },
+        suggestions: [
+          'Check your provider\'s documentation for key format requirements',
+          'Ensure the key is copied correctly from the provider\'s dashboard'
+        ]
+      };
+    }
+    
+    return {
+      valid: true,
+      error: null,
+      errorCode: null,
+      details: { provider, keyLength: apiKey.length },
+      suggestions: []
     };
   }
 }

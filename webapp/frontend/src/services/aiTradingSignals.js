@@ -76,8 +76,8 @@ class AITradingSignals {
               signals.push(...symbolSignals.filter(signal => signal.confidence >= minConfidence));
             } catch (error) {
               console.error(`Failed to generate signals for ${symbol}:`, error);
-              // Add mock signal for demonstration
-              signals.push(this.getMockSignal(symbol));
+              // Skip failed symbol instead of using mock data
+              // Real production apps should surface errors properly
             }
           })
         );
@@ -194,7 +194,8 @@ class AITradingSignals {
         sentiment_score: overallSentiment.score
       };
     } catch (error) {
-      return this.getMockSentimentSignal(symbol);
+      console.error(`Failed to generate sentiment signal for ${symbol}:`, error);
+      throw new Error(`Sentiment analysis unavailable for ${symbol}: ${error.message}`);
     }
   }
 
@@ -779,33 +780,31 @@ class AITradingSignals {
     return rsi;
   }
 
-  // Mock signal for fallback
-  getMockSignal(symbol) {
-    const signals = ['BUY', 'SELL', 'HOLD', 'STRONG_BUY'];
-    const signal = signals[Math.floor(Math.random() * signals.length)];
+  // Validate signal data integrity
+  validateSignal(signal) {
+    if (!signal || typeof signal !== 'object') {
+      throw new Error('Invalid signal: signal must be an object');
+    }
     
-    return {
-      signal,
-      confidence: 0.6 + Math.random() * 0.3,
-      reasoning: `AI model recommends ${signal} based on technical and sentiment analysis`,
-      model: 'mock',
-      target_price: 150 + Math.random() * 50,
-      stop_loss: 140 + Math.random() * 20
-    };
+    if (!signal.signal || !this.signalTypes[signal.signal]) {
+      throw new Error(`Invalid signal type: ${signal.signal}`);
+    }
+    
+    if (typeof signal.confidence !== 'number' || signal.confidence < 0 || signal.confidence > 1) {
+      throw new Error('Invalid confidence: must be a number between 0 and 1');
+    }
+    
+    return true;
   }
 
-  // Mock sentiment signal
-  getMockSentimentSignal(symbol) {
+  // Error handling helper for component consumption
+  formatError(error, context = 'AI Trading Signals') {
     return {
-      signal: 'BUY',
-      confidence: 0.75,
-      reasoning: 'Positive sentiment from news and social media analysis',
-      sentiment_score: 0.6,
-      sentiment_breakdown: {
-        news: { score: 0.7, confidence: 0.8 },
-        social: { score: 0.5, confidence: 0.6 },
-        analyst: { score: 0.8, confidence: 0.9 }
-      }
+      error: true,
+      message: error.message || 'Unknown error occurred',
+      context,
+      timestamp: new Date().toISOString(),
+      suggestion: 'Please try again later or contact support if the issue persists'
     };
   }
 }

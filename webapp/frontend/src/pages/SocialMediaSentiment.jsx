@@ -259,11 +259,8 @@ const SocialMediaSentiment = () => {
         setSocialMetrics(result.data.socialMetrics || { overall: { totalMentions: 0, sentimentScore: 0, engagementRate: 0, viralityIndex: 0 } });
         setSentimentHistory(result.data.reddit?.mentions || []);
       } else {
-        // Fallback to mock data if API doesn't return expected structure
-        setRedditData(mockRedditData);
-        setTrendsData(mockTrendsData);
-        setSocialMetrics(mockSocialMetrics);
-        setSentimentHistory(mockRedditData.mentions);
+        // API returned success but with unexpected structure - show error
+        throw new Error('API returned unexpected data structure');
       }
 
     } catch (error) {
