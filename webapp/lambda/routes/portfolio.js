@@ -2,8 +2,7 @@ const express = require('express');
 const { query, healthCheck, initializeDatabase, tablesExist, safeQuery, transaction } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
-const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 const logger = require('../utils/logger');
@@ -694,7 +693,10 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
     const allowedAccountTypes = ['paper', 'live'];
     const accountType = allowedAccountTypes.includes(rawAccountType) ? rawAccountType : 'paper';
     
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     
     console.log(`🚀 [${requestId}] Portfolio holdings request initiated`, {
       userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
@@ -1306,7 +1308,10 @@ router.get('/account', async (req, res) => {
     const { accountType = 'paper' } = req.query;
     console.log(`Portfolio account info endpoint called for account type: ${accountType}`);
     
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     console.log(`👤 User ID: ${userId}`);
 
     // If authenticated, try to get real data
@@ -1894,7 +1899,10 @@ router.get('/performance', createValidationMiddleware(portfolioValidationSchemas
     console.log(`📈 [${requestId}] Timeframe requested: ${timeframe}`);
     
     // Validate user authentication
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     console.log(`👤 [${requestId}] User ID: ${userId}`);
 
     // Test database with minimal query first
@@ -3335,7 +3343,10 @@ router.post('/sync', createValidationMiddleware({
   const requestStart = Date.now();
   
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { force = false } = req.body;
     
     console.log(`🔄 [${requestId}] Portfolio sync request initiated`, {
@@ -3418,7 +3429,10 @@ router.get('/sync/status', async (req, res) => {
   const requestId = crypto.randomUUID().split('-')[0];
   
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     
     // Import sync service
     const { PortfolioSyncService } = require('../utils/portfolioSyncService');
@@ -3460,7 +3474,10 @@ router.get('/analytics', createValidationMiddleware(portfolioValidationSchemas.a
   
   try {
     const { period = '1Y', includeBenchmark = false } = req.query;
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     
     // Get portfolio holdings
     const holdingsQuery = `

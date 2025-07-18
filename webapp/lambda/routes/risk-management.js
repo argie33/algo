@@ -3,7 +3,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const RiskManager = require('../utils/riskManager');
 const AlpacaService = require('../utils/alpacaService');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../utils/simpleApiKeyService');
 const logger = require('../utils/logger');
 const { responseFormatter } = require('../utils/responseFormatter');
 

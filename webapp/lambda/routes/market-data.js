@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
+const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const { 
   createValidationMiddleware, 
@@ -146,7 +146,10 @@ router.get('/health', authenticateToken, async (req, res) => {
   const requestStart = Date.now();
   
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     console.log(`🚀 [${requestId}] Market data health check initiated`, {
       userId: userId ? `${userId.substring(0, 8)}...` : 'undefined',
       userAgent: req.headers['user-agent'],
@@ -405,7 +408,10 @@ router.use(authenticateToken);
 // Get real-time quotes for multiple symbols
 router.get('/quotes', createValidationMiddleware(marketDataValidationSchemas.quotes), async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { symbols } = req.validated;
     
     console.log(`📊 [MARKET-DATA] Quotes request for user ${userId}, symbols: ${symbols}`);
@@ -441,7 +447,10 @@ router.get('/quotes', createValidationMiddleware(marketDataValidationSchemas.quo
 // Get historical bars for a symbol
 router.get('/bars/:symbol', createValidationMiddleware(marketDataValidationSchemas.bars), async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { symbol, timeframe, start, end, limit } = req.validated;
     
     // Get user's API key
@@ -484,7 +493,10 @@ router.get('/bars/:symbol', createValidationMiddleware(marketDataValidationSchem
 // Get latest trade for a symbol
 router.get('/trades/:symbol', async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { symbol } = req.params;
     const { limit = 10 } = req.query;
     
@@ -519,7 +531,10 @@ router.get('/trades/:symbol', async (req, res) => {
 // Get market calendar
 router.get('/calendar', async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { start, end } = req.query;
     
     // Get user's API key
@@ -598,7 +613,10 @@ router.get('/status', async (req, res) => {
 // Get asset information
 router.get('/assets/:symbol', async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { symbol } = req.params;
     
     // Get user's API key
@@ -637,7 +655,10 @@ router.get('/assets/:symbol', async (req, res) => {
 // Get all tradeable assets
 router.get('/assets', async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     const { status = 'active', asset_class = 'us_equity' } = req.query;
     
     // Get user's API key
@@ -679,7 +700,10 @@ router.get('/assets', async (req, res) => {
 // Get websocket configuration for real-time data
 router.get('/websocket-config', async (req, res) => {
   try {
-    const userId = validateUserAuthentication(req);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
     
     // Get user's API key
     const credentials = await getUserApiKey(userId, 'alpaca');
