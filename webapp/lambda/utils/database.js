@@ -16,7 +16,7 @@ const secretsManager = new SecretsManagerClient({
 });
 
 /**
- * Get database configuration from AWS Secrets Manager
+ * Get database configuration from AWS Secrets Manager with enhanced error handling
  */
 async function getDbConfig() {
     if (dbConfig) {
@@ -33,17 +33,28 @@ async function getDbConfig() {
 
         console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);
         const secretStart = Date.now();
-        const command = new GetSecretValueCommand({ SecretId: secretArn });
-        const response = await secretsManager.send(command);
-        console.log(`✅ Secrets Manager responded in ${Date.now() - secretStart}ms`);
         
-        let secret;
-        try {
-            secret = JSON.parse(response.SecretString);
-        } catch (parseError) {
-            console.error('❌ Failed to parse secret JSON:', parseError.message);
-            console.error('❌ Raw secret string:', response.SecretString);
-            throw new Error(`Database configuration failed: ${parseError.message}`);
+        // Use diagnostic tool to properly handle secret retrieval
+        const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
+        const diagnostic = new SecretsManagerDiagnostic();
+        
+        const diagnosis = await diagnostic.diagnoseSecret(secretArn);
+        console.log(`✅ Secrets Manager responded in ${Date.now() - secretStart}ms using method: ${diagnosis.method}`);
+        
+        if (!diagnosis.success) {
+            throw new Error(`Secrets Manager diagnosis failed: ${diagnosis.error}`);
+        }
+        
+        const secret = diagnosis.config;
+        
+        // Validate required fields
+        const requiredFields = ['host', 'username', 'password', 'dbname'];
+        const missingFields = requiredFields.filter(field => !secret[field]);
+        
+        if (missingFields.length > 0) {
+            console.error('❌ Missing required database fields:', missingFields);
+            console.error('❌ Available fields:', Object.keys(secret));
+            throw new Error(`Missing required database configuration fields: ${missingFields.join(', ')}`);
         }
 
         dbConfig = {
@@ -61,10 +72,17 @@ async function getDbConfig() {
         console.log('✅ Database config loaded from Secrets Manager successfully');
         console.log(`   🔒 SSL: disabled (matching working ECS task configuration)`);
         console.log(`   🏊 Pool Max: ${dbConfig.max}`);
+        console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
+        console.log(`   📚 Database: ${dbConfig.database}`);
+        console.log(`   👤 User: ${dbConfig.user}`);
 
         return dbConfig;
     } catch (error) {
         console.error('❌ Failed to get database config:', error.message);
+        console.error('❌ Error details:', {
+            code: error.code,
+            stack: error.stack?.split('\n').slice(0, 3).join('\n')
+        });
         throw error;
     }
 }
