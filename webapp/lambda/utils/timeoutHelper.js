@@ -237,6 +237,11 @@ class TimeoutHelper {
       breaker.failures = 0;
       breaker.lastFailureTime = 0;
       breaker.state = 'closed';
+      breaker.totalSuccesses = (breaker.totalSuccesses || 0) + 1;
+      breaker.lastSuccess = Date.now();
+      
+      // Record success in history
+      this.recordEvent(serviceKey, 'success');
     }
   }
 
@@ -249,17 +254,46 @@ class TimeoutHelper {
         state: 'closed',
         threshold: 5,
         timeout: 60000, // 1 minute
-        halfOpenMaxCalls: 3
+        halfOpenMaxCalls: 3,
+        totalSuccesses: 0,
+        totalFailures: 0,
+        history: []
       };
       this.circuitBreakers.set(serviceKey, breaker);
     }
 
     breaker.failures++;
     breaker.lastFailureTime = Date.now();
+    breaker.totalFailures = (breaker.totalFailures || 0) + 1;
+
+    // Record failure in history
+    this.recordEvent(serviceKey, 'failure');
 
     if (breaker.failures >= breaker.threshold) {
       breaker.state = 'open';
       console.warn(`🚨 Circuit breaker opened for ${serviceKey} (${breaker.failures} failures)`);
+    }
+  }
+  
+  /**
+   * Record an event in the circuit breaker history
+   */
+  recordEvent(serviceKey, type) {
+    const breaker = this.circuitBreakers.get(serviceKey);
+    if (breaker) {
+      if (!breaker.history) {
+        breaker.history = [];
+      }
+      
+      breaker.history.push({
+        timestamp: Date.now(),
+        type: type // 'success' or 'failure'
+      });
+      
+      // Keep only last 100 events to prevent memory issues
+      if (breaker.history.length > 100) {
+        breaker.history = breaker.history.slice(-100);
+      }
     }
   }
 
@@ -302,10 +336,142 @@ class TimeoutHelper {
         state: breaker.state,
         failures: breaker.failures,
         lastFailureTime: breaker.lastFailureTime,
-        timeSinceLastFailure: Date.now() - breaker.lastFailureTime
+        timeSinceLastFailure: Date.now() - breaker.lastFailureTime,
+        threshold: breaker.threshold,
+        timeout: breaker.timeout,
+        halfOpenMaxCalls: breaker.halfOpenMaxCalls,
+        halfOpenCalls: breaker.halfOpenCalls || 0,
+        totalSuccesses: breaker.totalSuccesses || 0,
+        totalFailures: breaker.totalFailures || 0,
+        uptime: breaker.uptime || 0,
+        lastSuccess: breaker.lastSuccess || 0
       };
     }
     return status;
+  }
+  
+  /**
+   * Get detailed circuit breaker metrics with history
+   */
+  getCircuitBreakerMetrics() {
+    const metrics = {};
+    const now = Date.now();
+    
+    for (const [serviceKey, breaker] of this.circuitBreakers.entries()) {
+      const totalRequests = (breaker.totalSuccesses || 0) + (breaker.totalFailures || 0);
+      const successRate = totalRequests > 0 ? (breaker.totalSuccesses || 0) / totalRequests : 0;
+      const failureRate = totalRequests > 0 ? (breaker.totalFailures || 0) / totalRequests : 0;
+      
+      metrics[serviceKey] = {
+        // Current state
+        state: breaker.state,
+        failures: breaker.failures,
+        lastFailureTime: breaker.lastFailureTime,
+        timeSinceLastFailure: now - breaker.lastFailureTime,
+        
+        // Configuration
+        threshold: breaker.threshold,
+        timeout: breaker.timeout,
+        halfOpenMaxCalls: breaker.halfOpenMaxCalls,
+        
+        // Performance metrics
+        totalRequests,
+        totalSuccesses: breaker.totalSuccesses || 0,
+        totalFailures: breaker.totalFailures || 0,
+        successRate: Math.round(successRate * 100),
+        failureRate: Math.round(failureRate * 100),
+        
+        // Availability metrics
+        uptime: breaker.uptime || 0,
+        lastSuccess: breaker.lastSuccess || 0,
+        timeSinceLastSuccess: breaker.lastSuccess ? now - breaker.lastSuccess : 0,
+        
+        // Recent activity (last 5 minutes)
+        recentActivity: this.getRecentActivity(serviceKey),
+        
+        // Health indicators
+        isHealthy: breaker.state === 'closed' && breaker.failures === 0,
+        isRecovering: breaker.state === 'half-open',
+        isFailed: breaker.state === 'open',
+        
+        // Predictions
+        predictedRecovery: this.getPredictedRecovery(breaker),
+        riskLevel: this.getRiskLevel(breaker)
+      };
+    }
+    
+    return metrics;
+  }
+  
+  /**
+   * Get recent activity for a service
+   */
+  getRecentActivity(serviceKey) {
+    const breaker = this.circuitBreakers.get(serviceKey);
+    if (!breaker || !breaker.history) {
+      return {
+        requests: 0,
+        failures: 0,
+        successes: 0,
+        period: '5min'
+      };
+    }
+    
+    const fiveMinutesAgo = Date.now() - 300000; // 5 minutes
+    const recentEvents = breaker.history.filter(event => event.timestamp > fiveMinutesAgo);
+    
+    return {
+      requests: recentEvents.length,
+      failures: recentEvents.filter(e => e.type === 'failure').length,
+      successes: recentEvents.filter(e => e.type === 'success').length,
+      period: '5min'
+    };
+  }
+  
+  /**
+   * Get predicted recovery time
+   */
+  getPredictedRecovery(breaker) {
+    if (breaker.state === 'closed') {
+      return 'N/A - Service is healthy';
+    }
+    
+    if (breaker.state === 'half-open') {
+      return 'In progress - Testing recovery';
+    }
+    
+    if (breaker.state === 'open') {
+      const timeUntilHalfOpen = breaker.timeout - (Date.now() - breaker.lastFailureTime);
+      if (timeUntilHalfOpen <= 0) {
+        return 'Ready for recovery attempt';
+      }
+      return `${Math.ceil(timeUntilHalfOpen / 1000)} seconds`;
+    }
+    
+    return 'Unknown';
+  }
+  
+  /**
+   * Get risk level for a service
+   */
+  getRiskLevel(breaker) {
+    if (breaker.state === 'open') {
+      return 'HIGH';
+    }
+    
+    if (breaker.state === 'half-open') {
+      return 'MEDIUM';
+    }
+    
+    if (breaker.failures >= breaker.threshold * 0.8) {
+      return 'MEDIUM';
+    }
+    
+    if (breaker.failures >= breaker.threshold * 0.5) {
+      return 'LOW';
+    }
+    
+    return 'MINIMAL';
   }
 
   /**

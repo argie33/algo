@@ -412,6 +412,62 @@ router.get('/timeout-status', async (req, res) => {
   }
 });
 
+// Enhanced circuit breaker analytics endpoint
+router.get('/circuit-breaker-analytics', async (req, res) => {
+  try {
+    const circuitBreakers = timeoutHelper.getCircuitBreakerStatus();
+    const analytics = {};
+    
+    // Analyze each circuit breaker
+    for (const [serviceKey, breaker] of Object.entries(circuitBreakers)) {
+      const timeSinceLastFailure = Date.now() - breaker.lastFailureTime;
+      const isRecentFailure = timeSinceLastFailure < 300000; // 5 minutes
+      
+      analytics[serviceKey] = {
+        ...breaker,
+        analysis: {
+          healthScore: calculateHealthScore(breaker),
+          riskLevel: calculateRiskLevel(breaker),
+          timeSinceLastFailure: timeSinceLastFailure,
+          isRecentFailure,
+          nextStateTransition: getNextStateTransition(breaker),
+          recommendedAction: getRecommendedAction(breaker),
+          alertLevel: getAlertLevel(breaker)
+        }
+      };
+    }
+    
+    // Generate system-wide analytics
+    const systemAnalytics = {
+      overallHealthScore: calculateOverallHealthScore(analytics),
+      criticalServices: Object.entries(analytics).filter(([_, breaker]) => 
+        breaker.analysis.alertLevel === 'critical').map(([key, _]) => key),
+      warningServices: Object.entries(analytics).filter(([_, breaker]) => 
+        breaker.analysis.alertLevel === 'warning').map(([key, _]) => key),
+      recentFailures: Object.entries(analytics).filter(([_, breaker]) => 
+        breaker.analysis.isRecentFailure).length,
+      totalFailures: Object.values(analytics).reduce((sum, breaker) => sum + breaker.failures, 0),
+      recommendations: generateSystemRecommendations(analytics)
+    };
+
+    res.success({
+      timestamp: new Date().toISOString(),
+      analytics,
+      systemAnalytics,
+      summary: {
+        totalServices: Object.keys(analytics).length,
+        healthyServices: Object.values(analytics).filter(a => a.analysis.alertLevel === 'healthy').length,
+        warningServices: systemAnalytics.warningServices.length,
+        criticalServices: systemAnalytics.criticalServices.length,
+        overallHealthScore: systemAnalytics.overallHealthScore
+      }
+    });
+  } catch (error) {
+    console.error('❌ Circuit breaker analytics failed:', error);
+    res.serverError('Failed to generate circuit breaker analytics', error.message);
+  }
+});
+
 // Schema validation endpoint - comprehensive database schema analysis
 router.get('/schema-validation', async (req, res) => {
   try {
@@ -1863,6 +1919,220 @@ function generateApiServiceRecommendations(services) {
       issue: 'All API services are healthy',
       action: 'No action required',
       impact: 'API key service fully operational'
+    });
+  }
+  
+  return recommendations;
+}
+
+// Circuit Breaker Analytics Helper Functions
+
+/**
+ * Calculate health score for a circuit breaker (0-100)
+ */
+function calculateHealthScore(breaker) {
+  if (breaker.state === 'closed' && breaker.failures === 0) {
+    return 100;
+  }
+  
+  if (breaker.state === 'open') {
+    return 0;
+  }
+  
+  if (breaker.state === 'half-open') {
+    return 50;
+  }
+  
+  // For closed state with failures
+  const threshold = 5; // Default threshold
+  const healthScore = Math.max(0, 100 - (breaker.failures / threshold) * 100);
+  return Math.round(healthScore);
+}
+
+/**
+ * Calculate risk level for a circuit breaker
+ */
+function calculateRiskLevel(breaker) {
+  if (breaker.state === 'open') {
+    return 'critical';
+  }
+  
+  if (breaker.state === 'half-open') {
+    return 'warning';
+  }
+  
+  if (breaker.failures >= 3) {
+    return 'warning';
+  }
+  
+  if (breaker.failures >= 1) {
+    return 'minor';
+  }
+  
+  return 'low';
+}
+
+/**
+ * Get next state transition information
+ */
+function getNextStateTransition(breaker) {
+  const now = Date.now();
+  const timeSinceLastFailure = now - breaker.lastFailureTime;
+  
+  if (breaker.state === 'open') {
+    const timeoutMs = 60000; // 1 minute default timeout
+    const timeUntilHalfOpen = timeoutMs - timeSinceLastFailure;
+    
+    if (timeUntilHalfOpen <= 0) {
+      return {
+        nextState: 'half-open',
+        transitionTime: 'now',
+        description: 'Circuit breaker is ready to transition to half-open state'
+      };
+    }
+    
+    return {
+      nextState: 'half-open',
+      transitionTime: `${Math.ceil(timeUntilHalfOpen / 1000)} seconds`,
+      description: `Circuit breaker will transition to half-open in ${Math.ceil(timeUntilHalfOpen / 1000)} seconds`
+    };
+  }
+  
+  if (breaker.state === 'half-open') {
+    return {
+      nextState: 'closed or open',
+      transitionTime: 'on next request',
+      description: 'Circuit breaker will transition based on next request result'
+    };
+  }
+  
+  return {
+    nextState: 'stable',
+    transitionTime: 'on failure',
+    description: 'Circuit breaker will remain closed until failure threshold is reached'
+  };
+}
+
+/**
+ * Get recommended action for circuit breaker
+ */
+function getRecommendedAction(breaker) {
+  if (breaker.state === 'open') {
+    return 'Investigate service issues, check connectivity and logs';
+  }
+  
+  if (breaker.state === 'half-open') {
+    return 'Monitor closely, service is recovering';
+  }
+  
+  if (breaker.failures >= 3) {
+    return 'Monitor for patterns, consider increasing timeout or improving service reliability';
+  }
+  
+  if (breaker.failures >= 1) {
+    return 'Monitor for additional failures';
+  }
+  
+  return 'No action required';
+}
+
+/**
+ * Get alert level for circuit breaker
+ */
+function getAlertLevel(breaker) {
+  if (breaker.state === 'open') {
+    return 'critical';
+  }
+  
+  if (breaker.state === 'half-open') {
+    return 'warning';
+  }
+  
+  if (breaker.failures >= 3) {
+    return 'warning';
+  }
+  
+  if (breaker.failures >= 1) {
+    return 'minor';
+  }
+  
+  return 'healthy';
+}
+
+/**
+ * Calculate overall health score from all circuit breakers
+ */
+function calculateOverallHealthScore(analytics) {
+  const services = Object.values(analytics);
+  
+  if (services.length === 0) {
+    return 100;
+  }
+  
+  const totalScore = services.reduce((sum, service) => sum + service.analysis.healthScore, 0);
+  return Math.round(totalScore / services.length);
+}
+
+/**
+ * Generate system-wide recommendations
+ */
+function generateSystemRecommendations(analytics) {
+  const recommendations = [];
+  const services = Object.entries(analytics);
+  
+  // Check for critical services
+  const criticalServices = services.filter(([_, service]) => service.analysis.alertLevel === 'critical');
+  if (criticalServices.length > 0) {
+    recommendations.push({
+      priority: 'critical',
+      title: 'Critical Service Failures',
+      description: `${criticalServices.length} service(s) have circuit breakers in open state`,
+      services: criticalServices.map(([key, _]) => key),
+      action: 'Immediate investigation required'
+    });
+  }
+  
+  // Check for warning services
+  const warningServices = services.filter(([_, service]) => service.analysis.alertLevel === 'warning');
+  if (warningServices.length > 0) {
+    recommendations.push({
+      priority: 'warning',
+      title: 'Services Under Stress',
+      description: `${warningServices.length} service(s) showing signs of instability`,
+      services: warningServices.map(([key, _]) => key),
+      action: 'Monitor closely and investigate patterns'
+    });
+  }
+  
+  // Check for recent failures
+  const recentFailures = services.filter(([_, service]) => service.analysis.isRecentFailure);
+  if (recentFailures.length > 0) {
+    recommendations.push({
+      priority: 'info',
+      title: 'Recent Failures Detected',
+      description: `${recentFailures.length} service(s) had failures in the last 5 minutes`,
+      services: recentFailures.map(([key, _]) => key),
+      action: 'Review recent activity and error logs'
+    });
+  }
+  
+  // Check overall health
+  const overallHealth = calculateOverallHealthScore(analytics);
+  if (overallHealth < 70) {
+    recommendations.push({
+      priority: 'warning',
+      title: 'Overall System Health Below Threshold',
+      description: `System health score is ${overallHealth}%`,
+      action: 'Review system architecture and service dependencies'
+    });
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push({
+      priority: 'info',
+      title: 'All Services Healthy',
+      description: 'All circuit breakers are in healthy state',
+      action: 'Continue monitoring'
     });
   }
   
