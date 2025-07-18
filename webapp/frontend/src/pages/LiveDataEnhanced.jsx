@@ -166,115 +166,115 @@ const LiveDataEnhanced = () => {
 
   if (!isAuthenticated) {
     return (
-      <div  sx={{ p: 3 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning">
+      <Box sx={{ p: 3 }}>
+        <Alert severity="warning">
           Please log in to access real-time market data.
-        </div>
-      </div>
+        </Alert>
+      </Box>
     );
   }
 
   return (
-    <div  sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
       {/* Header */}
-      <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
-        <div className="grid" container alignItems="center" spacing={2}>
-          <div className="grid" item xs={12} md={6}>
-            <div  variant="h4" gutterBottom>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Grid container alignItems="center" spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h4" gutterBottom>
               📈 Real-Time Market Data
-            </div>
-            <div  variant="body1" color="text.secondary">
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
               Live streaming data via WebSocket connection
-            </div>
-          </div>
-          <div className="grid" item xs={12} md={6}>
-            <div className="flex flex-col space-y-2" direction="row" spacing={2} justifyContent="flex-end" alignItems="center">
+            </Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Stack direction="row" spacing={2} justifyContent="flex-end" alignItems="center">
               <ApiKeyStatusIndicator />
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+              <Chip 
                 label={connectionStatus.toUpperCase()}
                 color={getStatusColor(connectionStatus)}
                 icon={isConnected ? <CheckCircle /> : <Warning />}
               />
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Button
                 variant={isStreaming ? "outlined" : "contained"}
                 onClick={isStreaming ? stopStreaming : startStreaming}
                 startIcon={isStreaming ? <Stop /> : <PlayArrow />}
                 color={isStreaming ? "error" : "primary"}
               >
                 {isStreaming ? 'Stop Stream' : 'Start Stream'}
-              </button>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Button>
+              <Button
                 variant="outlined"
                 onClick={refresh}
                 startIcon={<Refresh />}
                 disabled={!isAuthenticated}
               >
                 Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Button>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* Connection Info & Controls */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Connection Statistics */}
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 <NetworkCheck sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Live Data Stats
-              </div>
-              <div className="flex flex-col space-y-2" spacing={1}>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">API Endpoint:</div>
-                  <div  variant="body2" color="primary" fontFamily="monospace">
+              </Typography>
+              <Stack spacing={1}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">API Endpoint:</Typography>
+                  <Typography variant="body2" color="primary" fontFamily="monospace">
                     /api/live-data/stream
-                  </div>
-                </div>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">Started:</div>
-                  <div  variant="body2">
+                  </Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Started:</Typography>
+                  <Typography variant="body2">
                     {connectionStats.startedAt ? 
                       new Date(connectionStats.startedAt).toLocaleTimeString() : 'N/A'}
-                  </div>
-                </div>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">Requests:</div>
-                  <div  variant="body2">{connectionStats.requestCount}</div>
-                </div>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">Success Rate:</div>
-                  <div  variant="body2">
+                  </Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Requests:</Typography>
+                  <Typography variant="body2">{connectionStats.requestCount}</Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Success Rate:</Typography>
+                  <Typography variant="body2">
                     {connectionStats.requestCount > 0 ? 
                       Math.round((connectionStats.successCount / connectionStats.requestCount) * 100) : 0}%
-                  </div>
-                </div>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">Latency:</div>
-                  <div  variant="body2">{connectionStats.latency}ms</div>
-                </div>
-                <div  display="flex" justifyContent="space-between">
-                  <div  variant="body2">Polling Interval:</div>
-                  <div  variant="body2">{pollingInterval / 1000}s</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                  </Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Latency:</Typography>
+                  <Typography variant="body2">{connectionStats.latency}ms</Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Polling Interval:</Typography>
+                  <Typography variant="body2">{pollingInterval / 1000}s</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Symbol Management */}
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Symbol Management
-              </div>
-              <div className="flex flex-col space-y-2" spacing={2}>
-                <div  display="flex" gap={1}>
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Typography>
+              <Stack spacing={2}>
+                <Box display="flex" gap={1}>
+                  <TextField
                     label="Add Symbol"
                     value={symbolInput}
                     onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
@@ -283,7 +283,7 @@ const LiveDataEnhanced = () => {
                     size="small"
                     sx={{ flexGrow: 1 }}
                   />
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     variant="contained"
                     onClick={addSymbol}
                     disabled={!symbolInput.trim()}
@@ -291,12 +291,12 @@ const LiveDataEnhanced = () => {
                     size="small"
                   >
                     Add
-                  </button>
-                </div>
+                  </Button>
+                </Box>
                 
-                <div className="mb-4"Label
+                <FormControlLabel
                   control={
-                    <input type="checkbox" className="toggle"
+                    <Switch
                       checked={autoConnect}
                       onChange={(e) => setAutoConnect(e.target.checked)}
                     />
@@ -304,136 +304,136 @@ const LiveDataEnhanced = () => {
                   label="Auto-connect on load"
                 />
                 
-                <div  variant="body2">
+                <Typography variant="body2">
                   Subscribed Symbols: {subscribedSymbols.length}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Error Display */}
       {showErrors && errors.length > 0 && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
+        <Alert 
           severity="error" 
           sx={{ mb: 3 }}
           action={
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small" onClick={clearErrors}>
+            <Button color="inherit" size="small" onClick={clearErrors}>
               Clear
-            </button>
+            </Button>
           }
         >
-          <div  variant="body2">
+          <Typography variant="body2">
             Latest Error: {errors[0]?.message} ({errors.length} total)
-          </div>
-        </div>
+          </Typography>
+        </Alert>
       )}
 
       {/* Live Data Table */}
-      <div className="bg-white shadow-md rounded-lg p-4" sx={{ mb: 3 }}>
-        <div  sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <div  variant="h6">
+      <Paper sx={{ mb: 3 }}>
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="h6">
             <DataUsage sx={{ mr: 1, verticalAlign: 'middle' }} />
             Live Market Data ({liveData.length} updates)
-          </div>
-        </div>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer sx={{ maxHeight: 400 }}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change %</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Time</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
-              </tr>
-            </thead>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+          </Typography>
+        </Box>
+        <TableContainer sx={{ maxHeight: 400 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Symbol</TableCell>
+                <TableCell align="right">Price</TableCell>
+                <TableCell align="right">Change</TableCell>
+                <TableCell align="right">Change %</TableCell>
+                <TableCell align="right">Volume</TableCell>
+                <TableCell align="right">Time</TableCell>
+                <TableCell align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {liveData.map((item) => (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={item.id} hover>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                    <div className="flex flex-col space-y-2" direction="row" alignItems="center" spacing={1}>
-                      <div  fontWeight="bold">{item.symbol}</div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                <TableRow key={item.id} hover>
+                  <TableCell>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Typography fontWeight="bold">{item.symbol}</Typography>
+                      <Chip 
                         label={item.dataType} 
                         size="small" 
                         color="primary" 
                         variant="outlined" 
                       />
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div  fontFamily="monospace">
+                    </Stack>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography fontFamily="monospace">
                       ${formatPrice(item.price)}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div  
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography 
                       color={item.change >= 0 ? 'success.main' : 'error.main'}
                       fontFamily="monospace"
                     >
                       {item.change >= 0 ? '+' : ''}{formatPrice(item.change)}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div className="flex flex-col space-y-2" direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.5}>
                       {item.changePercent >= 0 ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                      <div  
+                      <Typography 
                         color={item.changePercent >= 0 ? 'success.main' : 'error.main'}
                         fontFamily="monospace"
                       >
                         {formatChangePercent(item.changePercent)}
-                      </div>
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div  fontFamily="monospace">
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography fontFamily="monospace">
                       {item.volume?.toLocaleString() || 'N/A'}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div  variant="body2" color="text.secondary">
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" color="text.secondary">
                       {new Date(item.timestamp).toLocaleTimeString()}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                    <button className="p-2 rounded-full hover:bg-gray-100"
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton
                       size="small"
                       onClick={() => removeSymbol(item.symbol)}
                       color="error"
                     >
                       <Remove />
-                    </button>
-                  </td>
-                </tr>
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
               ))}
               {liveData.length === 0 && (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell colSpan={7} align="center">
-                    <div  color="text.secondary" sx={{ py: 3 }}>
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    <Typography color="text.secondary" sx={{ py: 3 }}>
                       {isConnected ? 'Waiting for market data...' : 'Connect to start receiving data'}
-                    </div>
-                  </td>
-                </tr>
+                    </Typography>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
       {/* Real-Time Charts */}
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {selectedSymbols.map(symbol => (
-          <div className="grid" item xs={12} md={6} lg={4} key={symbol}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12} md={6} lg={4} key={symbol}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   {symbol} Price Chart
-                </div>
-                <div  sx={{ height: 200, width: '100%' }}>
+                </Typography>
+                <Box sx={{ height: 200, width: '100%' }}>
                   {chartData[symbol] && chartData[symbol].length > 0 ? (
                     <ResponsiveContainer>
                       <LineChart data={chartData[symbol]}>
@@ -462,31 +462,31 @@ const LiveDataEnhanced = () => {
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div  
+                    <Box 
                       display="flex" 
                       alignItems="center" 
                       justifyContent="center" 
                       height="100%"
                     >
-                      <div  color="text.secondary">
+                      <Typography color="text.secondary">
                         {isConnected ? 'Waiting for data...' : 'Connect to view chart'}
-                      </div>
-                    </div>
+                      </Typography>
+                    </Box>
                   )}
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </div>
+      </Grid>
 
       {/* Loading indicator */}
       {isStreaming && (
-        <div  sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1300 }}>
-          <div className="w-full bg-gray-200 rounded-full h-2" />
-        </div>
+        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1300 }}>
+          <LinearProgress />
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 

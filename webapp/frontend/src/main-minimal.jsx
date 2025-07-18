@@ -1,116 +1,72 @@
+// MINIMAL VERSION - Test if MUI createPalette error is eliminated
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 
-// MINIMAL NO-DEPENDENCY APPROACH
+// Core TailwindCSS styling only
+import './index.css'
+
+// Simple minimal app
 const MinimalApp = () => {
   return (
-    <div style={{ 
-      padding: '20px', 
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      maxWidth: '1200px',
-      margin: '0 auto'
-    }}>
-      <header style={{ 
-        background: '#1976d2', 
-        color: 'white', 
-        padding: '20px', 
-        borderRadius: '8px',
-        marginBottom: '20px'
-      }}>
-        <h1 style={{ margin: 0 }}>🚀 Financial Trading Platform</h1>
-        <p style={{ margin: '10px 0 0 0', opacity: 0.9 }}>Production-Ready • No UI Library Dependencies</p>
-      </header>
-
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '20px' 
-      }}>
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>📊 Portfolio</h2>
-          <p>Real-time portfolio tracking and analytics</p>
-          <button style={{ 
-            background: '#4caf50', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            View Portfolio
-          </button>
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-blue-600 text-white shadow-md">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <h1 className="text-xl font-bold">Financial Trading Platform</h1>
+          </div>
         </div>
-
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>📈 Live Data</h2>
-          <p>Real-time market data and charts</p>
-          <button style={{ 
-            background: '#2196f3', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            View Markets
-          </button>
+      </nav>
+      <main className="container mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            ✅ MUI-Free Application
+          </h2>
+          <p className="text-gray-700 mb-4">
+            This version eliminates all MUI dependencies to prevent createPalette.js errors.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h3 className="font-semibold text-green-800">✅ No MUI Dependencies</h3>
+              <p className="text-green-700 text-sm">Zero Material-UI imports</p>
+            </div>
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="font-semibold text-blue-800">🎨 TailwindCSS Only</h3>
+              <p className="text-blue-700 text-sm">Pure utility-first styling</p>
+            </div>
+          </div>
+          <div className="mt-6">
+            <button className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+              Test Button
+            </button>
+          </div>
         </div>
-
-        <div style={{ 
-          background: '#f5f5f5', 
-          padding: '20px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd'
-        }}>
-          <h2 style={{ color: '#333', marginTop: 0 }}>⚙️ Settings</h2>
-          <p>API keys and configuration</p>
-          <button style={{ 
-            background: '#ff9800', 
-            color: 'white', 
-            border: 'none', 
-            padding: '10px 20px', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>
-            Configure
-          </button>
-        </div>
-      </div>
-
-      <div style={{ 
-        background: '#e8f5e8', 
-        padding: '20px', 
-        borderRadius: '8px',
-        marginTop: '20px',
-        border: '1px solid #4caf50'
-      }}>
-        <h3 style={{ color: '#2e7d32', marginTop: 0 }}>✅ System Status</h3>
-        <p style={{ color: '#333' }}>
-          <strong>Build:</strong> SUCCESS • 
-          <strong>Dependencies:</strong> MINIMAL • 
-          <strong>Errors:</strong> NONE
-        </p>
-        <p style={{ color: '#555' }}>
-          This minimal version proves the core system works without UI library conflicts.
-        </p>
-      </div>
+      </main>
     </div>
   )
 }
 
-console.log('🚀 Minimal app loading...')
+console.log('🚀 Minimal Financial Platform initializing...')
+console.log('📍 Location:', window.location.href)
+console.log('🎯 Root element:', !!document.getElementById('root'))
 
-const root = ReactDOM.createRoot(document.getElementById('root'))
-root.render(<MinimalApp />)
-
-console.log('✅ Minimal app rendered successfully!')
+try {
+  const root = ReactDOM.createRoot(document.getElementById('root'))
+  root.render(
+    <BrowserRouter>
+      <MinimalApp />
+    </BrowserRouter>
+  )
+  console.log('✅ Minimal application rendered successfully!')
+} catch (error) {
+  console.error('❌ Error rendering minimal application:', error)
+  
+  // Fallback to basic HTML
+  document.getElementById('root').innerHTML = `
+    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+      <h1 style="color: #d32f2f;">Minimal Application Failed</h1>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <p>Check browser console for details.</p>
+    </div>
+  `
+}
