@@ -78,9 +78,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <div  sx={{ p: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -182,145 +182,145 @@ const NewsAnalysis = () => {
   });
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
-        <Box>
-          <Typography variant="h3" component="h1" gutterBottom>
+      <div  display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <div>
+          <div  variant="h3" component="h1" gutterBottom>
             News & Events Analysis
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </div>
+          <div  variant="body1" color="text.secondary">
             AI-powered market news analysis and event tracking
-          </Typography>
-        </Box>
+          </div>
+        </div>
         
-        <Box display="flex" alignItems="center" gap={2}>
-          <Badge badgeContent={newsData.alerts.length} color="error">
-            <IconButton>
+        <div  display="flex" alignItems="center" gap={2}>
+          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" badgeContent={newsData.alerts.length} color="error">
+            <button className="p-2 rounded-full hover:bg-gray-100">
               <NotificationsActive />
-            </IconButton>
-          </Badge>
-          <Button variant="outlined" startIcon={<Refresh />}>
+            </button>
+          </span>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<Refresh />}>
             Refresh
-          </Button>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
       {/* Alert Summary */}
       {newsData.alerts.length > 0 && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="warning" 
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small">
               View All
-            </Button>
+            </button>
           }
         >
           <strong>{newsData.alerts.length} active alerts:</strong> {newsData.alerts[0].message}
           {newsData.alerts.length > 1 && ` and ${newsData.alerts.length - 1} more`}
-        </Alert>
+        </div>
       )}
 
       {/* Market Sentiment Overview */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+      <div className="grid" container spacing={3} mb={4}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     News Sentiment
-                  </Typography>
-                  <Typography variant="h4" color="primary">
+                  </div>
+                  <div  variant="h4" color="primary">
                     {newsData.sentiment.overall}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     {newsData.sentiment.distribution.bullish}% Bullish
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <TrendingUp color="primary" fontSize="large" />
-              </Box>
-              <LinearProgress 
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={newsData.sentiment.distribution.bullish} 
                 color="success"
                 sx={{ mt: 1 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Articles Today
-                  </Typography>
-                  <Typography variant="h4" color="secondary">
+                  </div>
+                  <div  variant="h4" color="secondary">
                     {newsData.stats.articlesToday}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     +{newsData.stats.articlesChange}% vs yesterday
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Newspaper color="secondary" fontSize="large" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Events This Week
-                  </Typography>
-                  <Typography variant="h4" color="info.main">
+                  </div>
+                  <div  variant="h4" color="info.main">
                     {newsData.stats.eventsThisWeek}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     {newsData.stats.highImpactEvents} high impact
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Event color="info" fontSize="large" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     AI Confidence
-                  </Typography>
-                  <Typography variant="h4" color="warning.main">
+                  </div>
+                  <div  variant="h4" color="warning.main">
                     {newsData.sentiment.aiConfidence}%
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Analysis accuracy
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Assessment color="warning" fontSize="large" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <TextField
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} md={4}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 size="small"
                 label="Search news..."
@@ -330,9 +330,9 @@ const NewsAnalysis = () => {
                   startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
+            </div>
+            <div className="grid" item xs={12} md={3}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 select
                 fullWidth
                 size="small"
@@ -340,16 +340,16 @@ const NewsAnalysis = () => {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
-                <MenuItem value="all">All Categories</MenuItem>
-                <MenuItem value="earnings">Earnings</MenuItem>
-                <MenuItem value="market">Market News</MenuItem>
-                <MenuItem value="economic">Economic Data</MenuItem>
-                <MenuItem value="corporate">Corporate News</MenuItem>
-                <MenuItem value="analyst">Analyst Reports</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
+                <option  value="all">All Categories</option>
+                <option  value="earnings">Earnings</option>
+                <option  value="market">Market News</option>
+                <option  value="economic">Economic Data</option>
+                <option  value="corporate">Corporate News</option>
+                <option  value="analyst">Analyst Reports</option>
+              </input>
+            </div>
+            <div className="grid" item xs={12} md={3}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 select
                 fullWidth
                 size="small"
@@ -357,139 +357,139 @@ const NewsAnalysis = () => {
                 value={selectedTimeframe}
                 onChange={(e) => setSelectedTimeframe(e.target.value)}
               >
-                <MenuItem value="today">Today</MenuItem>
-                <MenuItem value="week">This Week</MenuItem>
-                <MenuItem value="month">This Month</MenuItem>
-                <MenuItem value="all">All Time</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Button
+                <option  value="today">Today</option>
+                <option  value="week">This Week</option>
+                <option  value="month">This Month</option>
+                <option  value="all">All Time</option>
+              </input>
+            </div>
+            <div className="grid" item xs={12} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 variant="outlined"
                 startIcon={<FilterList />}
                 size="small"
               >
                 More Filters
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="news analysis tabs">
-          <Tab label="Breaking News" icon={<Newspaper />} />
-          <Tab label="Market Events" icon={<Event />} />
-          <Tab label="Earnings Calendar" icon={<Assessment />} />
-          <Tab label="Economic Data" icon={<Business />} />
-          <Tab label="AI Insights" icon={<Assessment />} />
-        </Tabs>
-      </Box>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={tabValue} onChange={handleTabChange} aria-label="news analysis tabs">
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Breaking News" icon={<Newspaper />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Events" icon={<Event />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Earnings Calendar" icon={<Assessment />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Economic Data" icon={<Business />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="AI Insights" icon={<Assessment />} />
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={0}>
         {/* Breaking News */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader 
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="Latest Market News" 
                 action={
-                  <Chip 
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`${filteredNews.length} articles`} 
                     color="primary" 
                     variant="outlined" 
                   />
                 }
               />
-              <CardContent>
+              <div className="bg-white shadow-md rounded-lg"Content>
                 {loading ? (
-                  <Box display="flex" justifyContent="center" p={4}>
-                    <CircularProgress />
-                  </Box>
+                  <div  display="flex" justifyContent="center" p={4}>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+                  </div>
                 ) : (
                   <List>
                     {filteredNews.map((article, index) => (
                       <React.Fragment key={article.id}>
                         <ListItem alignItems="flex-start">
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: getSentimentColor(article.sentiment) + '.main' }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getSentimentColor(article.sentiment) + '.main' }}>
                               {getSentimentIcon(article.sentiment)}
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary={
-                              <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                <Typography variant="h6" component="span">
+                              <div  display="flex" alignItems="center" gap={1} mb={1}>
+                                <div  variant="h6" component="span">
                                   {article.title}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={article.impact} 
                                   color={getImpactColor(article.impact)}
                                   size="small"
                                 />
-                              </Box>
+                              </div>
                             }
                             secondary={
-                              <Box>
-                                <Typography variant="body2" color="text.primary" paragraph>
+                              <div>
+                                <div  variant="body2" color="text.primary" paragraph>
                                   {article.summary}
-                                </Typography>
-                                <Box display="flex" alignItems="center" justifyContent="between">
-                                  <Box display="flex" alignItems="center" gap={2}>
-                                    <Typography variant="caption" color="text.secondary">
+                                </div>
+                                <div  display="flex" alignItems="center" justifyContent="between">
+                                  <div  display="flex" alignItems="center" gap={2}>
+                                    <div  variant="caption" color="text.secondary">
                                       {article.source} • {formatDistanceToNow(new Date(article.timestamp))} ago
-                                    </Typography>
-                                    <Chip 
+                                    </div>
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                       label={article.sentiment} 
                                       color={getSentimentColor(article.sentiment)}
                                       size="small"
                                       variant="outlined"
                                     />
                                     {article.tickers.map(ticker => (
-                                      <Chip key={ticker} label={ticker} size="small" variant="outlined" />
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={ticker} label={ticker} size="small" variant="outlined" />
                                     ))}
-                                  </Box>
-                                  <Box>
-                                    <IconButton 
+                                  </div>
+                                  <div>
+                                    <button className="p-2 rounded-full hover:bg-gray-100" 
                                       size="small" 
                                       onClick={() => toggleBookmark(article.id)}
                                       color={bookmarkedNews.has(article.id) ? 'primary' : 'default'}
                                     >
                                       {bookmarkedNews.has(article.id) ? <Bookmark /> : <BookmarkBorder />}
-                                    </IconButton>
-                                    <IconButton size="small">
+                                    </button>
+                                    <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                                       <Share />
-                                    </IconButton>
-                                    <IconButton size="small">
+                                    </button>
+                                    <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                                       <OpenInNew />
-                                    </IconButton>
-                                  </Box>
-                                </Box>
-                              </Box>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             }
                           />
                         </ListItem>
-                        {index < filteredNews.length - 1 && <Divider variant="inset" component="li" />}
+                        {index < filteredNews.length - 1 && <hr className="border-gray-200" variant="inset" component="li" />}
                       </React.Fragment>
                     ))}
                   </List>
                 )}
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* Trending Topics */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Trending Topics" />
-                  <CardContent>
-                    <Box display="flex" flexWrap="wrap" gap={1}>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Trending Topics" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  display="flex" flexWrap="wrap" gap={1}>
                       {newsData.trendingTopics.map((topic, index) => (
-                        <Chip
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           key={topic.topic}
                           label={`${topic.topic} (${topic.mentions})`}
                           color={index < 3 ? 'primary' : 'default'}
@@ -497,52 +497,52 @@ const NewsAnalysis = () => {
                           size="small"
                         />
                       ))}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Market Movers */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="News-Driven Movers" />
-                  <CardContent>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="News-Driven Movers" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <List dense>
                       {newsData.newsMovers.map((mover) => (
                         <ListItem key={mover.symbol} disablePadding>
                           <ListItemText
                             primary={
-                              <Box display="flex" alignItems="center" justifyContent="between">
-                                <Typography variant="body2" fontWeight="bold">
+                              <div  display="flex" alignItems="center" justifyContent="between">
+                                <div  variant="body2" fontWeight="bold">
                                   {mover.symbol}
-                                </Typography>
-                                <Chip
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                   label={`${mover.change >= 0 ? '+' : ''}${formatPercentage(mover.change)}`}
                                   color={mover.change >= 0 ? 'success' : 'error'}
                                   size="small"
                                 />
-                              </Box>
+                              </div>
                             }
                             secondary={mover.reason}
                           />
                         </ListItem>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={1}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={1}>
         {/* Market Events */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader title="Upcoming Market Events" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Upcoming Market Events" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <Timeline>
                   {newsData.upcomingEvents.map((event, index) => (
                     <TimelineItem key={event.id}>
@@ -556,107 +556,107 @@ const NewsAnalysis = () => {
                         {index < newsData.upcomingEvents.length - 1 && <TimelineConnector />}
                       </TimelineSeparator>
                       <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" component="span">
+                        <div  variant="h6" component="span">
                           {event.title}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        </div>
+                        <div  variant="body2" color="text.secondary">
                           {event.description}
-                        </Typography>
-                        <Box display="flex" gap={1} mt={1}>
-                          <Chip label={event.type} size="small" variant="outlined" />
-                          <Chip 
+                        </div>
+                        <div  display="flex" gap={1} mt={1}>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={event.type} size="small" variant="outlined" />
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                             label={`${event.impact} Impact`} 
                             color={getImpactColor(event.impact)}
                             size="small"
                           />
                           {event.tickers.map(ticker => (
-                            <Chip key={ticker} label={ticker} size="small" variant="outlined" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={ticker} label={ticker} size="small" variant="outlined" />
                           ))}
-                        </Box>
+                        </div>
                       </TimelineContent>
                     </TimelineItem>
                   ))}
                 </Timeline>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="Event Impact Analysis" />
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" paragraph>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Event Impact Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="body2" color="text.secondary" paragraph>
                   AI-powered analysis of upcoming events and their potential market impact.
-                </Typography>
-                <Alert severity="info" sx={{ mb: 2 }}>
+                </div>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
                   This week: 3 high-impact events expected to drive volatility
-                </Alert>
+                </div>
                 {/* Add more event analysis content here */}
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={2}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={2}>
         {/* Earnings Calendar */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardHeader title="Earnings Calendar" />
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Earnings Calendar" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Comprehensive earnings calendar with AI-powered estimates and analysis
-                </Typography>
-                <Alert severity="info">
+                </div>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                   This feature will show detailed earnings calendar, analyst estimates, and historical performance.
-                </Alert>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={3}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={3}>
         {/* Economic Data */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardHeader title="Economic Data Releases" />
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Economic Data Releases" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Real-time economic data releases and their market impact analysis
-                </Typography>
-                <Alert severity="info">
+                </div>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                   This feature will show economic data releases, forecasts vs actual, and market reactions.
-                </Alert>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={4}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={4}>
         {/* AI Insights */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader 
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="AI-Powered Market Insights" 
                 subheader="Advanced sentiment analysis and predictive modeling"
                 action={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Chip label="Live Analysis" color="success" size="small" />
-                    <Chip label={`${newsData.sentiment.aiConfidence}% Confidence`} color="info" size="small" />
-                  </Box>
+                  <div  display="flex" alignItems="center" gap={1}>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live Analysis" color="success" size="small" />
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`${newsData.sentiment.aiConfidence}% Confidence`} color="info" size="small" />
+                  </div>
                 }
               />
-              <CardContent>
+              <div className="bg-white shadow-md rounded-lg"Content>
                 {/* AI Sentiment Timeline */}
-                <Box mb={4}>
-                  <Typography variant="h6" gutterBottom>
+                <div  mb={4}>
+                  <div  variant="h6" gutterBottom>
                     Sentiment Evolution (24h)
-                  </Typography>
+                  </div>
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={newsData.aiInsights.sentimentTimeline}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -679,258 +679,258 @@ const NewsAnalysis = () => {
                       />
                     </LineChart>
                   </ResponsiveContainer>
-                </Box>
+                </div>
 
                 {/* Market Regime Detection */}
-                <Box mb={4}>
-                  <Typography variant="h6" gutterBottom>
+                <div  mb={4}>
+                  <div  variant="h6" gutterBottom>
                     Market Regime Analysis
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <Avatar sx={{ bgcolor: 'success.main' }}>
+                  </div>
+                  <div className="grid" container spacing={2}>
+                    <div className="grid" item xs={12} md={4}>
+                      <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'success.main' }}>
                               <TrendingUp />
-                            </Avatar>
-                            <Box>
-                              <Typography variant="h6">
+                            </div>
+                            <div>
+                              <div  variant="h6">
                                 {newsData.aiInsights.marketRegime.current}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
+                              </div>
+                              <div  variant="body2" color="text.secondary">
                                 Current Regime
-                              </Typography>
-                            </Box>
-                          </Box>
-                          <LinearProgress 
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={newsData.aiInsights.marketRegime.confidence}
                             sx={{ mt: 2 }}
                           />
-                          <Typography variant="caption" color="text.secondary">
+                          <div  variant="caption" color="text.secondary">
                             {newsData.aiInsights.marketRegime.confidence}% Confidence
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} md={8}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="subtitle1" gutterBottom>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid" item xs={12} md={8}>
+                      <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  variant="subtitle1" gutterBottom>
                             Key Regime Indicators
-                          </Typography>
+                          </div>
                           <List dense>
                             {newsData.aiInsights.marketRegime.indicators.map((indicator, index) => (
                               <ListItem key={index}>
                                 <ListItemText
                                   primary={indicator.name}
                                   secondary={
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                      <LinearProgress 
+                                    <div  display="flex" alignItems="center" gap={1}>
+                                      <div className="w-full bg-gray-200 rounded-full h-2" 
                                         variant="determinate" 
                                         value={Math.abs(indicator.value)}
                                         sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
                                         color={indicator.value >= 0 ? 'success' : 'error'}
                                       />
-                                      <Typography variant="caption">
+                                      <div  variant="caption">
                                         {indicator.value >= 0 ? '+' : ''}{indicator.value}%
-                                      </Typography>
-                                    </Box>
+                                      </div>
+                                    </div>
                                   }
                                 />
                               </ListItem>
                             ))}
                           </List>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                </Box>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* AI Predictions */}
-                <Box mb={4}>
-                  <Typography variant="h6" gutterBottom>
+                <div  mb={4}>
+                  <div  variant="h6" gutterBottom>
                     AI Market Predictions
-                  </Typography>
-                  <Grid container spacing={2}>
+                  </div>
+                  <div className="grid" container spacing={2}>
                     {newsData.aiInsights.predictions.map((prediction, index) => (
-                      <Grid item xs={12} md={6} key={index}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
-                              <Typography variant="subtitle1">
+                      <div className="grid" item xs={12} md={6} key={index}>
+                        <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                          <div className="bg-white shadow-md rounded-lg"Content>
+                            <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
+                              <div  variant="subtitle1">
                                 {prediction.target}
-                              </Typography>
-                              <Chip 
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={prediction.timeframe}
                                 color="primary"
                                 size="small"
                                 variant="outlined"
                               />
-                            </Box>
-                            <Box display="flex" alignItems="center" gap={2} mb={2}>
-                              <Box flex={1}>
-                                <Typography variant="h5" color={prediction.direction === 'up' ? 'success.main' : 'error.main'}>
+                            </div>
+                            <div  display="flex" alignItems="center" gap={2} mb={2}>
+                              <div  flex={1}>
+                                <div  variant="h5" color={prediction.direction === 'up' ? 'success.main' : 'error.main'}>
                                   {prediction.direction === 'up' ? '↗' : '↘'} {prediction.magnitude}%
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
+                                </div>
+                                <div  variant="body2" color="text.secondary">
                                   Predicted Move
-                                </Typography>
-                              </Box>
-                              <Box textAlign="right">
-                                <Typography variant="h6">
+                                </div>
+                              </div>
+                              <div  textAlign="right">
+                                <div  variant="h6">
                                   {prediction.confidence}%
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
+                                </div>
+                                <div  variant="body2" color="text.secondary">
                                   Confidence
-                                </Typography>
-                              </Box>
-                            </Box>
-                            <Typography variant="body2" color="text.secondary">
+                                </div>
+                              </div>
+                            </div>
+                            <div  variant="body2" color="text.secondary">
                               {prediction.reasoning}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </Grid>
-                </Box>
+                  </div>
+                </div>
 
                 {/* Anomaly Detection */}
-                <Box>
-                  <Typography variant="h6" gutterBottom>
+                <div>
+                  <div  variant="h6" gutterBottom>
                     Market Anomalies Detected
-                  </Typography>
+                  </div>
                   <List>
                     {newsData.aiInsights.anomalies.map((anomaly, index) => (
                       <ListItem key={index}>
                         <ListItemAvatar>
-                          <Avatar sx={{ bgcolor: anomaly.severity === 'high' ? 'error.main' : 'warning.main' }}>
+                          <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: anomaly.severity === 'high' ? 'error.main' : 'warning.main' }}>
                             <Warning />
-                          </Avatar>
+                          </div>
                         </ListItemAvatar>
                         <ListItemText
                           primary={anomaly.title}
                           secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.primary">
+                            <div>
+                              <div  variant="body2" color="text.primary">
                                 {anomaly.description}
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                <Chip 
+                              </div>
+                              <div  display="flex" alignItems="center" gap={1} mt={1}>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={anomaly.severity}
                                   color={anomaly.severity === 'high' ? 'error' : 'warning'}
                                   size="small"
                                 />
-                                <Typography variant="caption" color="text.secondary">
+                                <div  variant="caption" color="text.secondary">
                                   Detected {formatDistanceToNow(new Date(anomaly.timestamp))} ago
-                                </Typography>
-                              </Box>
-                            </Box>
+                                </div>
+                              </div>
+                            </div>
                           }
                         />
                       </ListItem>
                     ))}
                   </List>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* AI Model Performance */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="AI Model Performance" />
-                  <CardContent>
-                    <Box mb={3}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="AI Model Performance" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  mb={3}>
+                      <div  variant="body2" color="text.secondary" gutterBottom>
                         Sentiment Accuracy (7-day)
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={2}>
-                        <Box flex={1}>
-                          <LinearProgress 
+                      </div>
+                      <div  display="flex" alignItems="center" gap={2}>
+                        <div  flex={1}>
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={newsData.aiInsights.modelPerformance.sentimentAccuracy}
                             color="success"
                             sx={{ height: 8, borderRadius: 4 }}
                           />
-                        </Box>
-                        <Typography variant="h6" color="success.main">
+                        </div>
+                        <div  variant="h6" color="success.main">
                           {newsData.aiInsights.modelPerformance.sentimentAccuracy}%
-                        </Typography>
-                      </Box>
-                    </Box>
+                        </div>
+                      </div>
+                    </div>
                     
-                    <Box mb={3}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <div  mb={3}>
+                      <div  variant="body2" color="text.secondary" gutterBottom>
                         Prediction Accuracy (30-day)
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={2}>
-                        <Box flex={1}>
-                          <LinearProgress 
+                      </div>
+                      <div  display="flex" alignItems="center" gap={2}>
+                        <div  flex={1}>
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={newsData.aiInsights.modelPerformance.predictionAccuracy}
                             color="primary"
                             sx={{ height: 8, borderRadius: 4 }}
                           />
-                        </Box>
-                        <Typography variant="h6" color="primary.main">
+                        </div>
+                        <div  variant="h6" color="primary.main">
                           {newsData.aiInsights.modelPerformance.predictionAccuracy}%
-                        </Typography>
-                      </Box>
-                    </Box>
+                        </div>
+                      </div>
+                    </div>
                     
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <div>
+                      <div  variant="body2" color="text.secondary" gutterBottom>
                         Model Confidence
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={2}>
-                        <Box flex={1}>
-                          <LinearProgress 
+                      </div>
+                      <div  display="flex" alignItems="center" gap={2}>
+                        <div  flex={1}>
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={newsData.aiInsights.modelPerformance.confidence}
                             color="info"
                             sx={{ height: 8, borderRadius: 4 }}
                           />
-                        </Box>
-                        <Typography variant="h6" color="info.main">
+                        </div>
+                        <div  variant="h6" color="info.main">
                           {newsData.aiInsights.modelPerformance.confidence}%
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* News Impact Score */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="News Impact Scoring" />
-                  <CardContent>
-                    <Typography variant="body2" color="text.secondary" paragraph>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="News Impact Scoring" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="body2" color="text.secondary" paragraph>
                       AI-calculated impact scores for recent news events
-                    </Typography>
+                    </div>
                     <List dense>
                       {newsData.aiInsights.impactScores.map((score, index) => (
                         <ListItem key={index} disablePadding>
                           <ListItemText
                             primary={
-                              <Box display="flex" alignItems="center" justifyContent="between">
-                                <Typography variant="body2">
+                              <div  display="flex" alignItems="center" justifyContent="between">
+                                <div  variant="body2">
                                   {score.event}
-                                </Typography>
-                                <Chip
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                   label={score.score}
                                   color={score.score >= 80 ? 'error' : score.score >= 60 ? 'warning' : 'success'}
                                   size="small"
                                 />
-                              </Box>
+                              </div>
                             }
                             secondary={
-                              <LinearProgress 
+                              <div className="w-full bg-gray-200 rounded-full h-2" 
                                 variant="determinate" 
                                 value={score.score}
                                 color={score.score >= 80 ? 'error' : score.score >= 60 ? 'warning' : 'success'}
@@ -941,14 +941,14 @@ const NewsAnalysis = () => {
                         </ListItem>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
-    </Container>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

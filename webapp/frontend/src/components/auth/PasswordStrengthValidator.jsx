@@ -24,7 +24,6 @@ import {
   ExpandMore,
   ExpandLess
 } from '@mui/icons-material';
-import { green, red, orange, blue } from '@mui/material/colors';
 
 // Password strength calculation and validation
 class PasswordValidator {
@@ -242,8 +241,8 @@ function PasswordStrengthValidator({
   const additionalRequirements = requirements.filter(req => !req.critical);
 
   return (
-    <Box>
-      <TextField
+    <div>
+      <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         {...textFieldProps}
         fullWidth
         label={label}
@@ -254,27 +253,27 @@ function PasswordStrengthValidator({
         autoFocus={autoFocus}
         InputProps={{
           endAdornment: (
-            <IconButton
+            <button className="p-2 rounded-full hover:bg-gray-100"
               onClick={() => setShowPassword(!showPassword)}
               edge="end"
               aria-label="toggle password visibility"
             >
               {showPassword ? <VisibilityOff /> : <Visibility />}
-            </IconButton>
+            </button>
           ),
         }}
         sx={{ mb: 1 }}
       />
 
       {validation && (
-        <Box sx={{ mb: 2 }}>
+        <div  sx={{ mb: 2 }}>
           {/* Strength Indicator */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Security sx={{ color: validation.strength.color, fontSize: 20 }} />
-            <Typography variant="body2" sx={{ color: validation.strength.color, fontWeight: 600 }}>
+            <div  variant="body2" sx={{ color: validation.strength.color, fontWeight: 600 }}>
               {validation.strength.level}
-            </Typography>
-            <Chip 
+            </div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={`${validation.score}%`} 
               size="small" 
               sx={{ 
@@ -283,10 +282,10 @@ function PasswordStrengthValidator({
                 fontWeight: 600
               }} 
             />
-          </Box>
+          </div>
 
           {/* Progress Bar */}
-          <LinearProgress 
+          <div className="w-full bg-gray-200 rounded-full h-2" 
             variant="determinate" 
             value={validation.score} 
             sx={{ 
@@ -302,7 +301,7 @@ function PasswordStrengthValidator({
 
           {/* Quick Status */}
           {validation.score < 80 && (
-            <Alert 
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
               severity={validation.score < 40 ? "error" : "warning"} 
               sx={{ mt: 1, mb: 1 }}
               icon={validation.score < 40 ? <Warning /> : <Info />}
@@ -311,24 +310,24 @@ function PasswordStrengthValidator({
                 ? "This password is too weak for financial data security"
                 : "Consider strengthening your password for better security"
               }
-            </Alert>
+            </div>
           )}
 
           {validation.isValid && (
-            <Alert severity="success" sx={{ mt: 1, mb: 1 }}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mt: 1, mb: 1 }}>
               Great! This password meets our security requirements
-            </Alert>
+            </div>
           )}
-        </Box>
+        </div>
       )}
 
       {showRequirements && validation && (
-        <Box>
+        <div>
           {/* Critical Requirements */}
-          <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <div  variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Security fontSize="small" />
             Security Requirements
-          </Typography>
+          </div>
           
           <List dense sx={{ mb: 1 }}>
             {criticalRequirements.map((req, index) => (
@@ -351,8 +350,8 @@ function PasswordStrengthValidator({
 
           {/* Additional Requirements (Collapsible) */}
           {additionalRequirements.length > 0 && (
-            <Box>
-              <Box 
+            <div>
+              <div  
                 sx={{ 
                   display: 'flex', 
                   alignItems: 'center', 
@@ -363,11 +362,11 @@ function PasswordStrengthValidator({
                 }}
                 onClick={() => setShowDetails(!showDetails)}
               >
-                <Typography variant="caption" color="text.secondary">
+                <div  variant="caption" color="text.secondary">
                   Additional Security Features
-                </Typography>
+                </div>
                 {showDetails ? <ExpandLess /> : <ExpandMore />}
-              </Box>
+              </div>
               
               <Collapse in={showDetails}>
                 <List dense>
@@ -389,27 +388,27 @@ function PasswordStrengthValidator({
                   ))}
                 </List>
               </Collapse>
-            </Box>
+            </div>
           )}
 
           {/* Suggestions */}
           {validation.suggestions.length > 0 && (
-            <Alert severity="info" sx={{ mt: 1 }}>
-              <Typography variant="body2" gutterBottom>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 1 }}>
+              <div  variant="body2" gutterBottom>
                 Suggestions to improve your password:
-              </Typography>
+              </div>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 {validation.suggestions.slice(0, 3).map((suggestion, index) => (
                   <li key={index}>
-                    <Typography variant="caption">{suggestion}</Typography>
+                    <div  variant="caption">{suggestion}</div>
                   </li>
                 ))}
               </ul>
-            </Alert>
+            </div>
           )}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 

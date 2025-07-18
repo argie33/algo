@@ -220,76 +220,76 @@ const UnifiedDataManagement = () => {
   };
 
   const SystemOverview = () => (
-    <Grid container spacing={3}>
+    <div className="grid" container spacing={3}>
       {/* System Status Cards */}
-      <Grid item xs={12} md={3}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={3}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <HealthAndSafety sx={{ mr: 1, color: 'success.main' }} />
-              <Typography variant="h6">System Health</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Typography variant="h4" color="success.main">98.5%</Typography>
-              <Chip label="Healthy" color="success" size="small" />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              <div  variant="h6">System Health</div>
+            </div>
+            <div  display="flex" alignItems="center" justifyContent="space-between">
+              <div  variant="h4" color="success.main">98.5%</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Healthy" color="success" size="small" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={3}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={3}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <DataUsage sx={{ mr: 1, color: 'info.main' }} />
-              <Typography variant="h6">Data Throughput</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Typography variant="h4" color="info.main">2.5K/s</Typography>
-              <Chip label="Normal" color="info" size="small" />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              <div  variant="h6">Data Throughput</div>
+            </div>
+            <div  display="flex" alignItems="center" justifyContent="space-between">
+              <div  variant="h4" color="info.main">2.5K/s</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Normal" color="info" size="small" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={3}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={3}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <MonetizationOn sx={{ mr: 1, color: 'warning.main' }} />
-              <Typography variant="h6">Daily Cost</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Typography variant="h4" color="warning.main">$169.37</Typography>
-              <Chip label="Budget OK" color="success" size="small" />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              <div  variant="h6">Daily Cost</div>
+            </div>
+            <div  display="flex" alignItems="center" justifyContent="space-between">
+              <div  variant="h4" color="warning.main">$169.37</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Budget OK" color="success" size="small" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={3}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={3}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <Speed sx={{ mr: 1, color: 'success.main' }} />
-              <Typography variant="h6">Avg Latency</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Typography variant="h4" color="success.main">63ms</Typography>
-              <Chip label="Excellent" color="success" size="small" />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              <div  variant="h6">Avg Latency</div>
+            </div>
+            <div  display="flex" alignItems="center" justifyContent="space-between">
+              <div  variant="h4" color="success.main">63ms</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Excellent" color="success" size="small" />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Recent Alerts */}
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Recent Alerts</Typography>
-              <Button size="small" startIcon={<ClearAll />}>Clear All</Button>
-            </Box>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <div  variant="h6">Recent Alerts</div>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" startIcon={<ClearAll />}>Clear All</button>
+            </div>
             <List>
               {alerts.map((alert) => (
                 <ListItem key={alert.id}>
@@ -305,235 +305,235 @@ const UnifiedDataManagement = () => {
                 </ListItem>
               ))}
             </List>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const DataStreams = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Active Data Streams</Typography>
-              <Button startIcon={<Add />} variant="contained" size="small">
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <div  variant="h6">Active Data Streams</div>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" startIcon={<Add />} variant="contained" size="small">
                 Add Stream
-              </Button>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Stream Name</TableCell>
-                    <TableCell>Provider</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Symbols</TableCell>
-                    <TableCell>Latency</TableCell>
-                    <TableCell>Throughput</TableCell>
-                    <TableCell>Quality</TableCell>
-                    <TableCell>Cost</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+              </button>
+            </div>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Stream Name</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Provider</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbols</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Latency</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Throughput</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Quality</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Cost</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {dataStreams.map((stream) => (
-                    <TableRow key={stream.id}>
-                      <TableCell>{stream.name}</TableCell>
-                      <TableCell>{stream.provider}</TableCell>
-                      <TableCell>
-                        <Chip
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={stream.id}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.name}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.provider}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={stream.status}
                           color={getStatusColor(stream.status)}
                           size="small"
                           icon={getStatusIcon(stream.status)}
                         />
-                      </TableCell>
-                      <TableCell>{stream.symbols.toLocaleString()}</TableCell>
-                      <TableCell>{stream.latency}ms</TableCell>
-                      <TableCell>{stream.throughput}</TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <LinearProgress
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.symbols.toLocaleString()}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.latency}ms</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.throughput}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  display="flex" alignItems="center">
+                          <div className="w-full bg-gray-200 rounded-full h-2"
                             variant="determinate"
                             value={stream.quality}
                             sx={{ width: 60, mr: 1 }}
                           />
-                          <Typography variant="body2">{stream.quality}%</Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>{stream.cost}</TableCell>
-                      <TableCell>
-                        <IconButton
+                          <div  variant="body2">{stream.quality}%</div>
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{stream.cost}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           size="small"
                           onClick={() => handleStreamAction(stream.id, 'pause')}
                         >
                           <Stop />
-                        </IconButton>
-                        <IconButton
+                        </button>
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           size="small"
                           onClick={() => handleStreamAction(stream.id, 'restart')}
                         >
                           <Refresh />
-                        </IconButton>
-                        <IconButton
+                        </button>
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           size="small"
                           onClick={() => handleStreamAction(stream.id, 'configure')}
                         >
                           <Settings />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const ApiManagement = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">API Keys & Providers</Typography>
-              <Button startIcon={<Add />} variant="contained" size="small">
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <div  variant="h6">API Keys & Providers</div>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" startIcon={<Add />} variant="contained" size="small">
                 Add API Key
-              </Button>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Provider</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Last Used</TableCell>
-                    <TableCell>Usage</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+              </button>
+            </div>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Provider</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Used</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Usage</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {apiKeys.map((key) => (
-                    <TableRow key={key.id}>
-                      <TableCell>{key.provider}</TableCell>
-                      <TableCell>
-                        <Chip
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key.id}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{key.provider}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={key.status}
                           color={getStatusColor(key.status)}
                           size="small"
                           icon={getStatusIcon(key.status)}
                         />
-                      </TableCell>
-                      <TableCell>{key.lastUsed}</TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <LinearProgress
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{key.lastUsed}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  display="flex" alignItems="center">
+                          <div className="w-full bg-gray-200 rounded-full h-2"
                             variant="determinate"
                             value={parseInt(key.usage)}
                             sx={{ width: 60, mr: 1 }}
                             color={parseInt(key.usage) > 80 ? 'warning' : 'primary'}
                           />
-                          <Typography variant="body2">{key.usage}</Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton size="small">
+                          <div  variant="body2">{key.usage}</div>
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                           <Settings />
-                        </IconButton>
-                        <IconButton size="small">
+                        </button>
+                        <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                           <Refresh />
-                        </IconButton>
-                        <IconButton size="small" color="error">
+                        </button>
+                        <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="error">
                           <Delete />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const SystemControls = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               System Controls
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <FormControlLabel
-                control={<Switch defaultChecked />}
+            </div>
+            <div  display="flex" flexDirection="column" gap={2}>
+              <div className="mb-4"Label
+                control={<input type="checkbox" className="toggle" defaultChecked />}
                 label="Real-time Data Streaming"
               />
-              <FormControlLabel
-                control={<Switch defaultChecked />}
+              <div className="mb-4"Label
+                control={<input type="checkbox" className="toggle" defaultChecked />}
                 label="Data Quality Monitoring"
               />
-              <FormControlLabel
-                control={<Switch />}
+              <div className="mb-4"Label
+                control={<input type="checkbox" className="toggle" />}
                 label="Maintenance Mode"
               />
-              <FormControlLabel
-                control={<Switch defaultChecked />}
+              <div className="mb-4"Label
+                control={<input type="checkbox" className="toggle" defaultChecked />}
                 label="Alert Notifications"
               />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Quick Actions
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <Button
+            </div>
+            <div  display="flex" flexDirection="column" gap={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<Refresh />}
                 fullWidth
               >
                 Refresh All Data Streams
-              </Button>
-              <Button
+              </button>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<Build />}
                 fullWidth
               >
                 Run System Diagnostics
-              </Button>
-              <Button
+              </button>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<CloudSync />}
                 fullWidth
               >
                 Sync with External Sources
-              </Button>
-              <Button
+              </button>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<AutoFixHigh />}
                 color="warning"
                 fullWidth
               >
                 Auto-Repair Data Issues
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const tabContent = [
@@ -544,38 +544,38 @@ const UnifiedDataManagement = () => {
   ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
+    <div  sx={{ p: 3 }}>
+      <div  variant="h4" gutterBottom>
         <AdminPanelSettings sx={{ mr: 2, verticalAlign: 'middle' }} />
         Unified Data Management
-      </Typography>
-      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+      </div>
+      <div  variant="subtitle1" color="text.secondary" gutterBottom>
         Centralized control panel for all data operations, monitoring, and management
-      </Typography>
+      </div>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={activeTab} onChange={handleTabChange}>
           {tabContent.map((tab, index) => (
-            <Tab key={index} label={tab.label} />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" key={index} label={tab.label} />
           ))}
-        </Tabs>
-      </Box>
+        </div>
+      </div>
 
       {tabContent[activeTab].component}
 
-      <Snackbar
+      <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200"
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

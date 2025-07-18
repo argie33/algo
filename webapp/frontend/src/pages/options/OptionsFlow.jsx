@@ -216,63 +216,63 @@ const OptionsFlow = () => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
   
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom>
           Options Flow Analysis
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </div>
+        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Real-time options order flow, unusual activity detection, and market sentiment analysis
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Chip label="Live Flow" color="primary" size="small" variant="outlined" />
-          <Chip label="Unusual Activity" color="success" size="small" variant="outlined" />
-          <Chip label="Sentiment Analysis" color="info" size="small" variant="outlined" />
-          <Chip label="Volume Analysis" color="warning" size="small" variant="outlined" />
-        </Box>
-      </Box>
+        </div>
+        <div  display="flex" gap={1} flexWrap="wrap">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live Flow" color="primary" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Unusual Activity" color="success" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Sentiment Analysis" color="info" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Volume Analysis" color="warning" size="small" variant="outlined" />
+        </div>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </Alert>
+        </div>
       )}
 
       {/* Controls */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Time Frame</InputLabel>
-                <Select
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time Frame</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={timeFilter}
                   label="Time Frame"
                   onChange={(e) => setTimeFilter(e.target.value)}
                 >
                   {timeFilters.map(time => (
-                    <MenuItem key={time} value={time}>{time}</MenuItem>
+                    <option  key={time} value={time}>{time}</option>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Symbol</InputLabel>
-                <Select
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={symbolFilter}
                   label="Symbol"
                   onChange={(e) => setSymbolFilter(e.target.value)}
                 >
                   {symbols.map(symbol => (
-                    <MenuItem key={symbol} value={symbol}>{symbol}</MenuItem>
+                    <option  key={symbol} value={symbol}>{symbol}</option>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <TextField
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 label="Min Size ($M)"
                 type="number"
                 value={sizeFilter / 1000000}
@@ -280,55 +280,55 @@ const OptionsFlow = () => {
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <Button
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
-                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <↻  />}
                 onClick={loadFlowData}
                 disabled={loading}
                 fullWidth
               >
                 Refresh
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={4}>
+              </button>
+            </div>
+            <div className="grid" item xs={12} sm={4}>
               {flowMetrics && (
-                <Box display="flex" gap={2}>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">P/C Ratio</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                <div  display="flex" gap={2}>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">P/C Ratio</div>
+                    <div  variant="h6" fontWeight="bold">
                       {flowMetrics.putCallRatio}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">Total Volume</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">Total Volume</div>
+                    <div  variant="h6" fontWeight="bold">
                       {flowMetrics.totalVolume}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">Unusual</Typography>
-                    <Typography variant="h6" fontWeight="bold" color="warning.main">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">Unusual</div>
+                    <div  variant="h6" fontWeight="bold" color="warning.main">
                       {flowMetrics.unusualActivity}
-                    </Typography>
-                  </Box>
-                </Box>
+                    </div>
+                  </div>
+                </div>
               )}
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Main Flow Table */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12} lg={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Options Flow"
               subheader={`${flowData.length} transactions in last ${timeFilter}`}
               action={
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label="LIVE" 
                   color="success" 
                   size="small" 
@@ -336,130 +336,130 @@ const OptionsFlow = () => {
                 />
               }
             />
-            <CardContent>
-              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2 }}>
-                <Tab label="Flow Feed" />
-                <Tab label="Unusual Activity" />
-                <Tab label="Volume Leaders" />
-                <Tab label="Sector Flow" />
-              </Tabs>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Flow Feed" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Unusual Activity" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Volume Leaders" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sector Flow" />
+              </div>
               
               {activeTab === 0 && (
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Time</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Strike</TableCell>
-                        <TableCell align="right">Premium</TableCell>
-                        <TableCell align="right">Volume</TableCell>
-                        <TableCell align="right">Size ($M)</TableCell>
-                        <TableCell>Flow</TableCell>
-                        <TableCell>Sentiment</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Time</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strike</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Premium</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Size ($M)</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Flow</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sentiment</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {flowData.slice(0, 50).map((flow) => (
-                        <TableRow key={flow.id} hover sx={{ bgcolor: flow.isUnusual ? 'warning.light' : 'inherit' }}>
-                          <TableCell>
-                            <Typography variant="caption">{flow.time}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={flow.id} hover sx={{ bgcolor: flow.isUnusual ? 'warning.light' : 'inherit' }}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="caption">{flow.time}</div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2" fontWeight="bold">
                               {flow.symbol}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={flow.type} 
                               color={flow.type === 'CALL' ? 'success' : 'error'}
                               size="small"
                               variant="outlined"
                             />
-                          </TableCell>
-                          <TableCell>${flow.strike}</TableCell>
-                          <TableCell align="right">${flow.premium}</TableCell>
-                          <TableCell align="right">{flow.volume}</TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight="bold">
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>${flow.strike}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${flow.premium}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{flow.volume}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2" fontWeight="bold">
                               ${(flow.notionalSize / 1000000).toFixed(1)}M
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={flow.flow} 
                               color={flow.flow === 'BUY' ? 'success' : 'error'}
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell>
-                            <Typography sx={{ color: getSentimentColor(flow.sentiment) }}>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  sx={{ color: getSentimentColor(flow.sentiment) }}>
                               {flow.sentiment}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               )}
               
               {activeTab === 1 && (
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Details</TableCell>
-                        <TableCell align="right">Volume</TableCell>
-                        <TableCell align="right">Vol/OI</TableCell>
-                        <TableCell align="right">Size</TableCell>
-                        <TableCell>Significance</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Details</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Vol/OI</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Size</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Significance</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {flowData.filter(f => f.isUnusual).map((flow) => (
-                        <TableRow key={flow.id} hover>
-                          <TableCell>
-                            <Box display="flex" alignItems="center" gap={1}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={flow.id} hover>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  display="flex" alignItems="center" gap={1}>
                               <Whatshot color="warning" fontSize="small" />
-                              <Typography variant="body2" fontWeight="bold">
+                              <div  variant="body2" fontWeight="bold">
                                 {flow.symbol}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
+                              </div>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2">
                               {flow.type} ${flow.strike} {flow.expiry}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">{flow.volume}</TableCell>
-                          <TableCell align="right">
-                            <Typography 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{flow.volume}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  
                               variant="body2" 
                               fontWeight="bold"
                               color={parseFloat(flow.volumeOIRatio) > 2 ? 'error.main' : 'text.primary'}
                             >
                               {flow.volumeOIRatio}x
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                             ${(flow.notionalSize / 1000000).toFixed(1)}M
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label="HIGH" 
                               color="warning" 
                               size="small"
                             />
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               )}
               
               {activeTab === 2 && flowMetrics && (
@@ -475,8 +475,8 @@ const OptionsFlow = () => {
               )}
               
               {activeTab === 3 && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
@@ -495,128 +495,128 @@ const OptionsFlow = () => {
                         <RechartsTooltip formatter={(value) => [`$${value}M`, 'Flow']} />
                       </PieChart>
                     </ResponsiveContainer>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Sector</TableCell>
-                            <TableCell align="right">Flow ($M)</TableCell>
-                            <TableCell>Sentiment</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sector</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Flow ($M)</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sentiment</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                           {sectorFlow.map((sector, index) => (
-                            <TableRow key={sector.name}>
-                              <TableCell>{sector.name}</TableCell>
-                              <TableCell align="right">${sector.flow}M</TableCell>
-                              <TableCell>
-                                <Typography sx={{ color: getSentimentColor(sector.sentiment) }}>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={sector.name}>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{sector.name}</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${sector.flow}M</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                <div  sx={{ color: getSentimentColor(sector.sentiment) }}>
                                   {sector.sentiment}
-                                </Typography>
-                              </TableCell>
-                            </TableRow>
+                                </div>
+                              </td>
+                            </tr>
                           ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Grid>
-                </Grid>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Sidebar */}
-        <Grid item xs={12} lg={4}>
+        <div className="grid" item xs={12} lg={4}>
           {/* Market Sentiment */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Market Sentiment" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Overall</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="success.main">
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Market Sentiment" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={6}>
+                  <div  variant="caption" color="text.secondary">Overall</div>
+                  <div  variant="h6" fontWeight="bold" color="success.main">
                     BULLISH
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Strength</Typography>
-                  <LinearProgress 
+                  </div>
+                </div>
+                <div className="grid" item xs={6}>
+                  <div  variant="caption" color="text.secondary">Strength</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2" 
                     variant="determinate" 
                     value={72} 
                     color="success"
                     sx={{ mt: 1 }}
                   />
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="caption" color="text.secondary">
+                </div>
+                <div className="grid" item xs={12}>
+                  <div  variant="caption" color="text.secondary">
                     Based on call/put flow analysis and unusual activity patterns
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Flow Indicators */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Flow Indicators" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Call Flow</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="success.main">
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Flow Indicators" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={6}>
+                  <div  variant="caption" color="text.secondary">Call Flow</div>
+                  <div  variant="h6" fontWeight="bold" color="success.main">
                     65%
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Put Flow</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="error.main">
+                  </div>
+                </div>
+                <div className="grid" item xs={6}>
+                  <div  variant="caption" color="text.secondary">Put Flow</div>
+                  <div  variant="h6" fontWeight="bold" color="error.main">
                     35%
-                  </Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="caption" color="text.secondary">Smart Money</Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                </div>
+                <div className="grid" item xs={12}>
+                  <div  variant="caption" color="text.secondary">Smart Money</div>
+                  <div  variant="body2" fontWeight="bold">
                     Net Buying Calls
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Today's Highlights */}
-          <Card>
-            <CardHeader title="Today's Highlights" />
-            <CardContent>
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Today's Highlights" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div>
+                <div  variant="subtitle2" gutterBottom>
                   🔥 Most Unusual Activity
-                </Typography>
-                <Typography variant="body2" color="text.secondary" paragraph>
+                </div>
+                <div  variant="body2" color="text.secondary" paragraph>
                   TSLA Feb 160 Calls - 15,000 contracts (10x normal volume)
-                </Typography>
+                </div>
                 
-                <Typography variant="subtitle2" gutterBottom>
+                <div  variant="subtitle2" gutterBottom>
                   📈 Largest Flow
-                </Typography>
-                <Typography variant="body2" color="text.secondary" paragraph>
+                </div>
+                <div  variant="body2" color="text.secondary" paragraph>
                   SPY Weekly Puts - $45M notional
-                </Typography>
+                </div>
                 
-                <Typography variant="subtitle2" gutterBottom>
+                <div  variant="subtitle2" gutterBottom>
                   ⚡ Hot Sectors
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Technology (+$145M), Financial (-$123M)
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Container>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

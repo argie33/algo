@@ -422,63 +422,63 @@ function MarketSummaryWidget() {
 
   if (isLoading) {
     return (
-      <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
-        <Grid container spacing={2}>
+      <div  sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</div>
+        <div className="grid" container spacing={2}>
           {Array.from({ length: 6 }).map((_, idx) => (
-            <Grid item xs={12} sm={6} md={2} key={idx}>
-              <Card sx={{ boxShadow: 1 }}>
-                <CardContent sx={{ textAlign: 'center', py: 1 }}>
+            <div className="grid" item xs={12} sm={6} md={2} key={idx}>
+              <div className="bg-white shadow-md rounded-lg" sx={{ boxShadow: 1 }}>
+                <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 1 }}>
                   <Skeleton variant="text" width="60%" />
                   <Skeleton variant="text" width="80%" />
                   <Skeleton variant="text" width="50%" />
-                </CardContent>
-              </Card>
-            </Grid>
+                </div>
+              </div>
+            </div>
           ))}
-        </Grid>
-      </Box>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
-        <Alert severity="error" sx={{ mb: 2 }}>
+      <div  sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</div>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
           {error.message}
-        </Alert>
-      </Box>
+        </div>
+      </div>
     );
   }
 
   const marketSummary = marketData?.data || [];
 
   return (
-    <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
-      <Grid container spacing={2}>
+    <div  sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+      <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</div>
+      <div className="grid" container spacing={2}>
         {marketSummary.map((mkt, idx) => (
-          <Grid item xs={12} sm={6} md={2} key={mkt.name}>
-            <Card sx={{ boxShadow: 1, borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
-              <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString() || 'N/A'}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <div className="grid" item xs={12} sm={6} md={2} key={mkt.name}>
+            <div className="bg-white shadow-md rounded-lg" sx={{ boxShadow: 1, borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
+              <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 1 }}>
+                <div  variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{mkt.name}</div>
+                <div  variant="h6" sx={{ fontWeight: 700 }}>{mkt.value?.toLocaleString() || 'N/A'}</div>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                   {mkt.change >= 0 ? 
                     <ArrowUpward sx={{ color: 'success.main', fontSize: 18 }} /> : 
                     <ArrowDownward sx={{ color: 'error.main', fontSize: 18 }} />
                   }
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? 'success.main' : 'error.main' }}>
+                  <div  variant="body2" sx={{ fontWeight: 600, color: mkt.change >= 0 ? 'success.main' : 'error.main' }}>
                     {mkt.pct || 'N/A'}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ))}
-      </Grid>
-    </Box>
+      </div>
+    </div>
   );
 }
 
@@ -556,55 +556,55 @@ function TechnicalSignalsWidget() {
   const signals = data?.data || [];
   
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <AutoGraph sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</Typography>
-          <Chip label="Live" color="success" size="small" sx={{ ml: 1 }} />
-        </Box>
+          <div  variant="h6" sx={{ fontWeight: 600 }}>Technical Signals</div>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live" color="success" size="small" sx={{ ml: 1 }} />
+        </div>
         
         {isLoading ? (
-          <Typography variant="body2" color="text.secondary">Loading signals...</Typography>
+          <div  variant="body2" color="text.secondary">Loading signals...</div>
         ) : (
-          <TableContainer sx={{ maxHeight: 200 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Signal</TableCell>
-                  <TableCell align="right">Price</TableCell>
-                  <TableCell align="right">Perf</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer sx={{ maxHeight: 200 }}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Signal</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Perf</td>
+                </tr>
+              </thead>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                 {signals.map((sig, idx) => (
-                  <TableRow key={sig.symbol + sig.date + idx}>
-                    <TableCell>{sig.symbol}</TableCell>
-                    <TableCell>
-                      <Chip 
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={sig.symbol + sig.date + idx}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{sig.symbol}</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         label={sig.signal}
                         color={sig.signal === 'Buy' ? 'success' : 'error'}
                         size="small"
                       />
-                    </TableCell>
-                    <TableCell align="right">${sig.current_price?.toFixed(2) || '--'}</TableCell>
-                    <TableCell align="right">
-                      <Typography 
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${sig.current_price?.toFixed(2) || '--'}</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  
                         variant="body2" 
                         color={sig.performance_percent >= 0 ? 'success.main' : 'error.main'}
                       >
                         {sig.performance_percent ? sig.performance_percent.toFixed(1) + '%' : '--'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </tbody>
+            </table>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -620,66 +620,66 @@ function MarketSentimentWidget() {
   };
   
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <PsychologyIcon sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Market Sentiment</Typography>
-        </Box>
+          <div  variant="h6" sx={{ fontWeight: 600 }}>Market Sentiment</div>
+        </div>
         
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment.fearGreed)}>
+        <div className="grid" container spacing={2}>
+          <div className="grid" item xs={6}>
+            <div  textAlign="center">
+              <div  variant="h4" color={getSentimentColor(sentiment.fearGreed)}>
                 {sentiment.fearGreed}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">Fear & Greed</Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment.naaim)}>
+              </div>
+              <div  variant="body2" color="text.secondary">Fear & Greed</div>
+            </div>
+          </div>
+          <div className="grid" item xs={6}>
+            <div  textAlign="center">
+              <div  variant="h4" color={getSentimentColor(sentiment.naaim)}>
                 {sentiment.naaim}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">NAAIM</Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-              <Box>
-                <Typography variant="body2" color="success.main">
+              </div>
+              <div  variant="body2" color="text.secondary">NAAIM</div>
+            </div>
+          </div>
+          <div className="grid" item xs={12}>
+            <div  sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+              <div>
+                <div  variant="body2" color="success.main">
                   Bulls: {sentiment.aaii?.bullish || 45}%
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+              </div>
+              <div>
+                <div  variant="body2" color="text.secondary">
                   Neutral: {sentiment.aaii?.neutral || 27}%
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" color="error.main">
+                </div>
+              </div>
+              <div>
+                <div  variant="body2" color="error.main">
                   Bears: {sentiment.aaii?.bearish || 28}%
-                </Typography>
-              </Box>
-            </Box>
-          </Grid>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         
-        <Box sx={{ mt: 2 }}>
-          <Chip 
+        <div  sx={{ mt: 2 }}>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`${sentiment.status} Market`} 
             color={getSentimentColor(sentiment.fearGreed)}
             size="small"
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`VIX: ${sentiment.vix}`} 
             color={sentiment.vix < 20 ? 'success' : 'warning'}
             size="small"
             sx={{ ml: 1 }}
           />
-        </Box>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -688,12 +688,12 @@ function SectorPerformanceWidget() {
   const sectors = sectorData || [];
   
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Business sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Sector Performance</Typography>
-        </Box>
+          <div  variant="h6" sx={{ fontWeight: 600 }}>Sector Performance</div>
+        </div>
         
         <ResponsiveContainer width="100%" height={200}>
           <RechartsBarChart data={sectors}>
@@ -708,8 +708,8 @@ function SectorPerformanceWidget() {
             </Bar>
           </RechartsBarChart>
         </ResponsiveContainer>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -718,47 +718,47 @@ function TopStocksWidget() {
   const stocks = stocksData || [];
   
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Star sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Top Rated Stocks</Typography>
-        </Box>
+          <div  variant="h6" sx={{ fontWeight: 600 }}>Top Rated Stocks</div>
+        </div>
         
-        <TableContainer sx={{ maxHeight: 250 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Symbol</TableCell>
-                <TableCell align="right">Score</TableCell>
-                <TableCell align="right">Quality</TableCell>
-                <TableCell align="right">Value</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer sx={{ maxHeight: 250 }}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Score</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Quality</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Value</td>
+              </tr>
+            </thead>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
               {stocks.slice(0, 6).map((stock, idx) => (
-                <TableRow key={stock.symbol || idx}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Typography variant="body2" fontWeight="bold">{stock.symbol}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Chip 
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={stock.symbol || idx}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                    <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                      <div  variant="body2" fontWeight="bold">{stock.symbol}</div>
+                    </div>
+                  </td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       label={stock.score} 
                       color={stock.score >= 90 ? 'success' : stock.score >= 80 ? 'warning' : 'default'}
                       size="small"
                     />
-                  </TableCell>
-                  <TableCell align="right">{stock.quality}</TableCell>
-                  <TableCell align="right">{stock.value}</TableCell>
-                </TableRow>
+                  </td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stock.quality}</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stock.value}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -868,16 +868,16 @@ const Dashboard = () => {
       {/* Market Status Bar */}
       <MarketStatusBar />
       
-      <Container maxWidth="xl" sx={{ py: 3 }}>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
         {/* API Key Status */}
-        <Box sx={{ mb: 3 }}>
+        <div  sx={{ mb: 3 }}>
           <ApiKeyStatusIndicator 
             showSetupDialog={true}
             onStatusChange={(status) => {
               console.log('Dashboard - API Key Status:', status);
             }}
           />
-        </Box>
+        </div>
 
         {/* Personalized Header */}
         <PersonalizedDashboardHeader 
@@ -896,7 +896,7 @@ const Dashboard = () => {
         />
 
         {/* Symbol Selection */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+        <div  sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
           <Autocomplete
             options={SYMBOL_OPTIONS}
             value={selectedSymbol}
@@ -904,7 +904,7 @@ const Dashboard = () => {
             loading={symbolsLoading}
             sx={{ width: 300 }}
             renderInput={(params) => (
-              <TextField 
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 {...params} 
                 label="Select Symbol" 
                 size="small"
@@ -912,7 +912,7 @@ const Dashboard = () => {
                   ...params.InputProps,
                   endAdornment: (
                     <>
-                      {symbolsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                      {symbolsLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" color="inherit" size={20} /> : null}
                       {params.InputProps.endAdornment}
                     </>
                   ),
@@ -921,91 +921,91 @@ const Dashboard = () => {
               />
             )}
             renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Typography variant="body2" fontWeight="bold">
+              <div  component="li" {...props}>
+                <div  variant="body2" fontWeight="bold">
                   {option}
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
           />
-        </Box>
+        </div>
 
       {/* Executive Command Center */}
       {isAuthenticated && user && (
-        <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)', color: 'white' }}>
-          <CardContent sx={{ py: 2 }}>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box display="flex" alignItems="center" gap={4}>
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 4, background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)', color: 'white' }}>
+          <div className="bg-white shadow-md rounded-lg"Content sx={{ py: 2 }}>
+            <div  display="flex" alignItems="center" justifyContent="space-between">
+              <div  display="flex" alignItems="center" gap={4}>
+                <div>
+                  <div  variant="h5" fontWeight="bold">
                     Welcome back, {user.firstName || user.username || user.email?.split('@')[0] || 'Investor'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  </div>
+                  <div  variant="body2" sx={{ opacity: 0.9 }}>
                     Portfolio Status: Active | Market Session: Open | Data Feed: Live | Last Updated: {new Date().toLocaleTimeString()}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Box display="flex" gap={4}>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Portfolio Value</Typography>
-                    <Typography variant="h5" fontWeight="bold">
+                <div  display="flex" gap={4}>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Portfolio Value</div>
+                    <div  variant="h5" fontWeight="bold">
                       ${safePortfolio.value.toLocaleString()}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Today's P&L</Typography>
-                    <Typography variant="h5" fontWeight="bold" color={safePortfolio.pnl.daily >= 0 ? 'success.light' : 'error.light'}>
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Today's P&L</div>
+                    <div  variant="h5" fontWeight="bold" color={safePortfolio.pnl.daily >= 0 ? 'success.light' : 'error.light'}>
                       ${safePortfolio.pnl.daily.toLocaleString()}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Active Signals</Typography>
-                    <Typography variant="h5" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Active Signals</div>
+                    <div  variant="h5" fontWeight="bold">
                       {safeSignals.length}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Win Rate</Typography>
-                    <Typography variant="h5" fontWeight="bold" color="success.light">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Win Rate</div>
+                    <div  variant="h5" fontWeight="bold" color="success.light">
                       87.2%
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
-              <Box display="flex" alignItems="center" gap={2}>
-                <Box textAlign="right">
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>System Status</Typography>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Box width={8} height={8} borderRadius="50%" bgcolor="success.main" sx={{ animation: 'pulse 2s infinite' }} />
-                    <Typography variant="body2" fontWeight="bold">All Systems Operational</Typography>
-                  </Box>
-                </Box>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
+              <div  display="flex" alignItems="center" gap={2}>
+                <div  textAlign="right">
+                  <div  variant="body2" sx={{ opacity: 0.8 }}>System Status</div>
+                  <div  display="flex" alignItems="center" gap={1}>
+                    <div  width={8} height={8} borderRadius="50%" bgcolor="success.main" sx={{ animation: 'pulse 2s infinite' }} />
+                    <div  variant="body2" fontWeight="bold">All Systems Operational</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Enhanced Demo Mode Banner */}
       {!isAuthenticated && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="info" 
           sx={{ mb: 4, background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', border: '1px solid #2196f3' }}
           action={
-            <Button color="inherit" size="small" variant="outlined">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small" variant="outlined">
               Sign In
-            </Button>
+            </button>
           }
         >
           <strong>Demo Mode:</strong> You're viewing sample data with full platform capabilities. Sign in to access your personal portfolio, real-time alerts, and advanced analytics.
-        </Alert>
+        </div>
       )}
 
       {/* Enhanced Navigation Grid */}
-      <Grid container spacing={2} mb={4}>
-        <Grid item xs={12} md={2}>
-          <Card 
+      <div className="grid" container spacing={2} mb={4}>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1015,15 +1015,15 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/portfolio'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <AccountBalance sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Portfolio</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Analytics</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Card 
+              <div  variant="h6" fontWeight="bold">Portfolio</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Analytics</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1033,15 +1033,15 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/scores'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <Star sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Scores</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Rankings</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Card 
+              <div  variant="h6" fontWeight="bold">Scores</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Rankings</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1051,15 +1051,15 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/screener'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <FilterList sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Screener</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Discovery</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Card 
+              <div  variant="h6" fontWeight="bold">Screener</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Discovery</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1069,15 +1069,15 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/realtime'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <Timeline sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Real-Time</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Live Data</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Card 
+              <div  variant="h6" fontWeight="bold">Real-Time</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Live Data</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1087,15 +1087,15 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/market-overview'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <Public sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Market</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Overview</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Card 
+              <div  variant="h6" fontWeight="bold">Market</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Overview</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={2}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer', 
               transition: 'all 0.3s',
@@ -1105,35 +1105,35 @@ const Dashboard = () => {
             }}
             onClick={() => window.location.href = '/metrics'}
           >
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
               <Assessment sx={{ fontSize: 32, mb: 1 }} />
-              <Typography variant="h6" fontWeight="bold">Metrics</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Analysis</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              <div  variant="h6" fontWeight="bold">Metrics</div>
+              <div  variant="body2" sx={{ opacity: 0.9 }}>Analysis</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Market Summary Bar */}
       <MarketSummaryWidget />
       
       {/* Core Dashboard Widgets */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: 400, boxShadow: 3, borderLeft: '6px solid #1976d2' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ height: 400, boxShadow: 3, borderLeft: '6px solid #1976d2' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <AccountBalance sx={{ color: 'primary.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Portfolio Overview</Typography>
-              </Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', mb: 2 }}>
+                <div  variant="h6" sx={{ fontWeight: 600 }}>Portfolio Overview</div>
+              </div>
+              <div  variant="h4" sx={{ fontWeight: 700, color: 'primary.main', mb: 2 }}>
                 ${safePortfolio.value.toLocaleString()}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Chip label={`Daily: $${safePortfolio.pnl.daily.toLocaleString()}`} color={safePortfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`MTD: $${safePortfolio.pnl.mtd.toLocaleString()}`} color={safePortfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`} color={safePortfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
-              </Box>
+              </div>
+              <div  sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`Daily: $${safePortfolio.pnl.daily.toLocaleString()}`} color={safePortfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" />
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`MTD: $${safePortfolio.pnl.mtd.toLocaleString()}`} color={safePortfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" />
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`} color={safePortfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
+              </div>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie data={safePortfolio.allocation} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name} ${value}%`}>
@@ -1144,247 +1144,247 @@ const Dashboard = () => {
                   <RechartsTooltip />
                 </PieChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: 400, boxShadow: 3, borderLeft: '6px solid #43a047' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ height: 400, boxShadow: 3, borderLeft: '6px solid #43a047' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <ShowChart sx={{ color: 'success.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <div  variant="h6" sx={{ fontWeight: 600 }}>
                   {userWatchlistData && userWatchlistData.length > 0 && userWatchlistData[0].watchlistName
                     ? userWatchlistData[0].watchlistName
                     : 'My Watchlist'
                   }
-                </Typography>
+                </div>
                 {watchlistLoading && (
-                  <CircularProgress size={16} sx={{ ml: 1 }} />
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} sx={{ ml: 1 }} />
                 )}
-              </Box>
-              <TableContainer sx={{ maxHeight: 320 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Symbol</TableCell>
-                      <TableCell align="right">Price</TableCell>
-                      <TableCell align="right">Change</TableCell>
-                      <TableCell align="right">Score</TableCell>
-                      <TableCell align="center">Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+              </div>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer sx={{ maxHeight: 320 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Score</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Action</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                     {safeWatchlist.map((item, idx) => (
-                      <TableRow key={item.symbol || idx}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
-                        </TableCell>
-                        <TableCell align="right">${item.price?.toFixed(2) || '--'}</TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" color={(item.changePercent || item.change) >= 0 ? 'success.main' : 'error.main'} fontWeight="bold">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={item.symbol || idx}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2" fontWeight="bold">{item.symbol}</div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${item.price?.toFixed(2) || '--'}</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div  variant="body2" color={(item.changePercent || item.change) >= 0 ? 'success.main' : 'error.main'} fontWeight="bold">
                             {(item.changePercent || item.change) >= 0 ? '+' : ''}{(item.changePercent || item.change)?.toFixed(2) ?? '--'}%
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip 
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                             label={item.score} 
                             color={item.score >= 90 ? 'success' : item.score >= 80 ? 'warning' : 'default'}
                             size="small"
                           />
-                        </TableCell>
-                        <TableCell align="center">
-                          <IconButton size="small" color="primary">
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                          <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="primary">
                             <PlayArrow />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
+                          </button>
+                        </td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  </tbody>
+                </table>
+              </div>
               
               {/* Data source indicator */}
-              <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="caption" color="text.secondary">
+              <div  sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div  variant="caption" color="text.secondary">
                   {userWatchlistData && userWatchlistData.length > 0 && userWatchlistData[0].dataSource === 'user-watchlist' 
                     ? '🟢 Live Data' 
                     : '🟡 Demo Data'
                   }
-                </Typography>
+                </div>
                 {userWatchlistData && userWatchlistData.length > 0 && (
-                  <Typography variant="caption" color="text.secondary">
+                  <div  variant="caption" color="text.secondary">
                     {userWatchlistData.length} stocks
-                  </Typography>
+                  </div>
                 )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Advanced Analytics Row */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={3}>
           <MarketSentimentWidget />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <SectorPerformanceWidget />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <TopStocksWidget />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <EconomicIndicatorsWidget />
-        </Grid>
-      </Grid>
+        </div>
+      </div>
       
       {/* Technical Signals & Performance */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={6}>
           <TechnicalSignalsWidget />
-        </Grid>
-        <Grid item xs={12} md={6}>
+        </div>
+        <div className="grid" item xs={12} md={6}>
           <DashboardStockChart 
             symbol={selectedSymbol} 
             height={400}
             showRealTime={true}
             autoRefresh={true}
           />
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Intelligence & Activity Dashboard */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: 350 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ height: 350 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <LocalFireDepartment sx={{ color: 'warning.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Trading Signals</Typography>
-                <Chip label="AI-Powered" color="primary" size="small" sx={{ ml: 1 }} />
-              </Box>
-              <Stack spacing={2}>
+                <div  variant="h6" sx={{ fontWeight: 600 }}>Trading Signals</div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="AI-Powered" color="primary" size="small" sx={{ ml: 1 }} />
+              </div>
+              <div className="flex flex-col space-y-2" spacing={2}>
                 {safeSignals.map((sig, idx) => (
-                  <Box key={sig.symbol || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body1" fontWeight="bold">{sig.symbol}</Typography>
-                        <Typography variant="body2" color="text.secondary">{sig.type} Signal</Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'right' }}>
-                        <Chip 
+                  <div  key={sig.symbol || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div  variant="body1" fontWeight="bold">{sig.symbol}</div>
+                        <div  variant="body2" color="text.secondary">{sig.type} Signal</div>
+                      </div>
+                      <div  sx={{ textAlign: 'right' }}>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={sig.action} 
                           color={sig.action === 'Buy' ? 'success' : 'error'} 
                           size="small"
                           sx={{ mb: 0.5 }}
                         />
-                        <Typography variant="caption" display="block">
+                        <div  variant="caption" display="block">
                           {(sig.confidence * 100).toFixed(0)}% confidence
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </Stack>
-              <Divider sx={{ my: 2 }} />
-              <Box>
-                <Typography variant="body2" color="text.secondary" gutterBottom>Market News</Typography>
-                <Typography variant="body2" color="primary.main" fontWeight="bold">
+              </div>
+              <hr className="border-gray-200" sx={{ my: 2 }} />
+              <div>
+                <div  variant="body2" color="text.secondary" gutterBottom>Market News</div>
+                <div  variant="body2" color="primary.main" fontWeight="bold">
                   {safeNews[0]?.title || 'Loading latest news...'}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: 350 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ height: 350 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Event sx={{ color: 'info.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Economic Calendar</Typography>
-                <Chip label="High Impact" color="warning" size="small" sx={{ ml: 1 }} />
-              </Box>
-              <Stack spacing={2}>
+                <div  variant="h6" sx={{ fontWeight: 600 }}>Economic Calendar</div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="High Impact" color="warning" size="small" sx={{ ml: 1 }} />
+              </div>
+              <div className="flex flex-col space-y-2" spacing={2}>
                 {safeCalendar.map((ev, idx) => (
-                  <Box key={ev.event || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body1" fontWeight="bold">{ev.event}</Typography>
-                        <Typography variant="caption" color="text.secondary">
+                  <div  key={ev.event || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div  variant="body1" fontWeight="bold">{ev.event}</div>
+                        <div  variant="caption" color="text.secondary">
                           {format(new Date(ev.date), 'MMM d, yyyy')}
-                        </Typography>
-                      </Box>
-                      <Chip 
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         label={ev.impact} 
                         color={ev.impact === 'High' ? 'error' : 'warning'} 
                         size="small"
                       />
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                 ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: 350 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ height: 350 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Timeline sx={{ color: 'success.main', mr: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Trading Activity</Typography>
-                <Chip label="Live" color="success" size="small" sx={{ ml: 1 }} />
-              </Box>
-              <Stack spacing={2}>
+                <div  variant="h6" sx={{ fontWeight: 600 }}>Trading Activity</div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live" color="success" size="small" sx={{ ml: 1 }} />
+              </div>
+              <div className="flex flex-col space-y-2" spacing={2}>
                 {safeActivity.map((act, idx) => (
-                  <Box key={act.type + act.desc + idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body1" fontWeight="bold">{act.type}</Typography>
-                        <Typography variant="body2" color="text.secondary">{act.desc}</Typography>
-                        <Typography variant="caption" color="text.secondary">
+                  <div  key={act.type + act.desc + idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div  variant="body1" fontWeight="bold">{act.type}</div>
+                        <div  variant="body2" color="text.secondary">{act.desc}</div>
+                        <div  variant="caption" color="text.secondary">
                           {format(new Date(act.date), 'MMM d, yyyy')}
-                        </Typography>
-                      </Box>
+                        </div>
+                      </div>
                       {act.amount && (
-                        <Typography variant="body2" fontWeight="bold" color="primary.main">
+                        <div  variant="body2" fontWeight="bold" color="primary.main">
                           ${act.amount.toLocaleString()}
-                        </Typography>
+                        </div>
                       )}
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                 ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
 
       {/* AI-Powered Analytics Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)', border: '1px solid #ddd' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)', border: '1px solid #ddd' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <Psychology sx={{ color: 'primary.main', mr: 1, fontSize: 32 }} />
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>AI-Powered Intelligence Center</Typography>
-                <Chip label="Neural Networks" color="primary" size="small" sx={{ ml: 2 }} />
-                <Chip label="Machine Learning" color="secondary" size="small" sx={{ ml: 1 }} />
-              </Box>
+                <div  variant="h5" sx={{ fontWeight: 700 }}>AI-Powered Intelligence Center</div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Neural Networks" color="primary" size="small" sx={{ ml: 2 }} />
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Machine Learning" color="secondary" size="small" sx={{ ml: 1 }} />
+              </div>
               
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #1976d2' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
+              <div className="grid" container spacing={3}>
+                <div className="grid" item xs={12} md={4}>
+                  <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%', border: '2px solid #1976d2' }}>
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
                         Market Intelligence
-                      </Typography>
+                      </div>
                       <List dense>
                         <ListItem>
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'success.main', width: 32, height: 32 }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'success.main', width: 32, height: 32 }}>
                               <TrendingUp fontSize="small" />
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary="Market Sentiment: Bullish"
@@ -1393,9 +1393,9 @@ const Dashboard = () => {
                         </ListItem>
                         <ListItem>
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'warning.main', width: 32, height: 32 }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'warning.main', width: 32, height: 32 }}>
                               <Warning fontSize="small" />
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary="Volatility Forecast"
@@ -1404,9 +1404,9 @@ const Dashboard = () => {
                         </ListItem>
                         <ListItem>
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
                               <AutoGraph fontSize="small" />
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary="Sector Rotation Signal"
@@ -1414,111 +1414,111 @@ const Dashboard = () => {
                           />
                         </ListItem>
                       </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                    </div>
+                  </div>
+                </div>
                 
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #43a047' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'success.main', fontWeight: 600 }}>
+                <div className="grid" item xs={12} md={4}>
+                  <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%', border: '2px solid #43a047' }}>
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  variant="h6" gutterBottom sx={{ color: 'success.main', fontWeight: 600 }}>
                         Risk Management
-                      </Typography>
-                      <Stack spacing={2}>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                      </div>
+                      <div className="flex flex-col space-y-2" spacing={2}>
+                        <div>
+                          <div  variant="body2" color="text.secondary" gutterBottom>
                             Portfolio Beta
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
+                          </div>
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={75}
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                             />
-                            <Typography variant="h6">0.95</Typography>
-                          </Box>
-                        </Box>
+                            <div  variant="h6">0.95</div>
+                          </div>
+                        </div>
                         
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <div>
+                          <div  variant="body2" color="text.secondary" gutterBottom>
                             Value at Risk (95%)
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
+                          </div>
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={60}
                               color="warning"
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                             />
-                            <Typography variant="h6">-$28K</Typography>
-                          </Box>
-                        </Box>
+                            <div  variant="h6">-$28K</div>
+                          </div>
+                        </div>
                         
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <div>
+                          <div  variant="body2" color="text.secondary" gutterBottom>
                             Sharpe Ratio
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
+                          </div>
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={85}
                               color="success"
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                             />
-                            <Typography variant="h6">1.42</Typography>
-                          </Box>
-                        </Box>
+                            <div  variant="h6">1.42</div>
+                          </div>
+                        </div>
                         
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <div>
+                          <div  variant="body2" color="text.secondary" gutterBottom>
                             Max Drawdown
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
+                          </div>
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={25}
                               color="error"
                               sx={{ flex: 1, height: 8, borderRadius: 4 }}
                             />
-                            <Typography variant="h6">-8.2%</Typography>
-                          </Box>
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                            <div  variant="h6">-8.2%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #ff9800' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'warning.main', fontWeight: 600 }}>
+                <div className="grid" item xs={12} md={4}>
+                  <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%', border: '2px solid #ff9800' }}>
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  variant="h6" gutterBottom sx={{ color: 'warning.main', fontWeight: 600 }}>
                         Algorithm Signals
-                      </Typography>
+                      </div>
                       <List dense>
                         {safeSignals.map((signal, idx) => (
                           <ListItem key={idx}>
                             <ListItemAvatar>
-                              <Avatar sx={{ 
+                              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                                 bgcolor: signal.action === 'Buy' ? 'success.main' : 'error.main',
                                 width: 32, height: 32
                               }}>
                                 {signal.action === 'Buy' ? <ArrowUpward fontSize="small" /> : <ArrowDownward fontSize="small" />}
-                              </Avatar>
+                              </div>
                             </ListItemAvatar>
                             <ListItemText
                               primary={`${signal.action} ${signal.symbol}`}
                               secondary={`${(signal.confidence * 100).toFixed(0)}% confidence • ${signal.type}`}
                             />
-                            <IconButton size="small" color="primary">
+                            <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="primary">
                               <PlayArrow />
-                            </IconButton>
+                            </button>
                           </ListItem>
                         ))}
                         <ListItem>
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
                               <Bolt fontSize="small" />
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary="Strategy Performance"
@@ -1526,40 +1526,40 @@ const Dashboard = () => {
                           />
                         </ListItem>
                       </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* News & Market Intelligence */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={8}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={8}>
           <NewsWidget 
             symbols={[selectedSymbol]}
             height={500}
             showSentiment={true}
             autoRefresh={true}
           />
-        </Grid>
-        <Grid item xs={12} md={4}>
+        </div>
+        <div className="grid" item xs={12} md={4}>
           <EconomicIndicatorsWidget 
             height={500}
             autoRefresh={true}
           />
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Quick Actions Panel */}
-      <Card sx={{ mb: 4, border: '2px solid #e3f2fd' }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>Quick Actions</Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={2}>
-              <Button 
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 4, border: '2px solid #e3f2fd' }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" gutterBottom sx={{ fontWeight: 600 }}>Quick Actions</div>
+          <div className="grid" container spacing={2}>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="contained" 
                 startIcon={<Add />} 
                 fullWidth 
@@ -1567,10 +1567,10 @@ const Dashboard = () => {
                 sx={{ background: 'linear-gradient(45deg, #1976d2, #42a5f5)' }}
               >
                 Add Position
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
+              </button>
+            </div>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="contained" 
                 color="secondary"
                 startIcon={<Assessment />} 
@@ -1578,10 +1578,10 @@ const Dashboard = () => {
                 onClick={() => window.location.href = '/backtest'}
               >
                 Run Backtest
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
+              </button>
+            </div>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="contained" 
                 color="success"
                 startIcon={<FilterList />} 
@@ -1589,10 +1589,10 @@ const Dashboard = () => {
                 onClick={() => window.location.href = '/screener'}
               >
                 Screen Stocks
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
+              </button>
+            </div>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="contained" 
                 color="warning"
                 startIcon={<Notifications />} 
@@ -1600,53 +1600,53 @@ const Dashboard = () => {
                 onClick={() => window.location.href = '/alerts'}
               >
                 Set Alert
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
+              </button>
+            </div>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="contained" 
                 color="info"
                 startIcon={<Download />} 
                 fullWidth
               >
                 Export Data
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
+              </button>
+            </div>
+            <div className="grid" item xs={6} md={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 variant="outlined"
                 startIcon={<Settings />} 
                 fullWidth
                 onClick={() => window.location.href = '/settings'}
               >
                 Settings
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       
       {/* Footer */}
-      <Box sx={{ mt: 4, mb: 2, textAlign: 'center', p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
+      <div  sx={{ mt: 4, mb: 2, textAlign: 'center', p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <div  variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
           {BRAND_NAME} - Elite Financial Intelligence
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
+        </div>
+        <div  variant="body2" color="text.secondary" paragraph>
           Powered by advanced machine learning, real-time data feeds, and institutional-grade analytics.
-        </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
-          <Chip icon={<Security />} label="Bank-Grade Security" color="primary" size="small" />
-          <Chip icon={<Speed />} label="Sub-Second Latency" color="success" size="small" />
-          <Chip icon={<Psychology />} label="AI-Powered" color="secondary" size="small" />
-          <Chip icon={<Public />} label="Global Markets" color="info" size="small" />
-        </Box>
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="caption" color="text.secondary">
+        </div>
+        <div  sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<Security />} label="Bank-Grade Security" color="primary" size="small" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<Speed />} label="Sub-Second Latency" color="success" size="small" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<Psychology />} label="AI-Powered" color="secondary" size="small" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<Public />} label="Global Markets" color="info" size="small" />
+        </div>
+        <hr className="border-gray-200" sx={{ my: 2 }} />
+        <div  variant="caption" color="text.secondary">
           For institutional and qualified investors only. Not investment advice. Data may be delayed. 
           Risk disclosure: Trading involves substantial risk of loss. &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
-        </Typography>
-      </Box>
-      </Container>
+        </div>
+      </div>
+      </div>
     </DashboardErrorBoundary>
   );
 };

@@ -82,35 +82,35 @@ class ErrorBoundary extends React.Component {
       const canRetry = retryCount < maxRetries;
       
       return (
-        <Card sx={{ m: 2, border: '2px solid', borderColor: 'error.main' }}>
-          <CardContent sx={{ textAlign: 'center' }}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ m: 2, border: '2px solid', borderColor: 'error.main' }}>
+          <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
             <ErrorOutline sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>Component Error</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <div  variant="h6" gutterBottom>Component Error</div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               This component encountered an error.
-            </Typography>
+            </div>
             
-            <Chip label={`Error ID: ${errorId}`} size="small" color="error" sx={{ mb: 2 }} />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`Error ID: ${errorId}`} size="small" color="error" sx={{ mb: 2 }} />
             
             {canRetry && (
-              <Button
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 startIcon={<Refresh />}
                 onClick={this.handleRetry}
                 sx={{ mr: 1 }}
               >
                 Try Again
-              </Button>
+              </button>
             )}
             
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="outlined"
               onClick={() => window.location.reload()}
             >
               Refresh Page
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
       );
     }
 

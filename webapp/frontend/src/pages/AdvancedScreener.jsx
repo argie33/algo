@@ -90,9 +90,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -786,53 +786,53 @@ const AdvancedScreener = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
       {/* Enhanced Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={3}>
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+      <div  display="flex" alignItems="center" justifyContent="between" mb={3}>
+        <div>
+          <div  variant="h4" gutterBottom sx={{ fontWeight: 700, display: 'flex', alignItems: 'center' }}>
             <Analytics sx={{ mr: 2, color: 'primary.main' }} />
             Advanced Stock Screener
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </div>
+          <div  variant="body1" color="text.secondary">
             Professional-grade stock screening with multi-factor analysis and real-time scoring
-          </Typography>
-          <Box display="flex" gap={1} mt={1}>
-            <Chip label="Multi-Factor Analysis" color="primary" size="small" variant="outlined" />
-            <Chip label="Real-Time Scoring" color="success" size="small" variant="outlined" />
-            <Chip label="Portfolio Integration" color="info" size="small" variant="outlined" />
-            {isAuthenticated && <Chip label="Cloud Sync" color="secondary" size="small" variant="outlined" />}
-          </Box>
-        </Box>
+          </div>
+          <div  display="flex" gap={1} mt={1}>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Multi-Factor Analysis" color="primary" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-Time Scoring" color="success" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Portfolio Integration" color="info" size="small" variant="outlined" />
+            {isAuthenticated && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Cloud Sync" color="secondary" size="small" variant="outlined" />}
+          </div>
+        </div>
 
-        <Box display="flex" alignItems="center" gap={2}>
+        <div  display="flex" alignItems="center" gap={2}>
           {/* Authentication Status */}
           {authLoading ? (
-            <CircularProgress size={24} />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
           ) : isAuthenticated ? (
-            <Box display="flex" alignItems="center" gap={1}>
+            <div  display="flex" alignItems="center" gap={1}>
               <Person color="primary" />
-              <Typography variant="body2" color="primary">
+              <div  variant="body2" color="primary">
                 {user?.username || user?.email || 'User'}
-              </Typography>
-            </Box>
+              </div>
+            </div>
           ) : (
-            <Chip label="Guest Mode" color="warning" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Guest Mode" color="warning" size="small" variant="outlined" />
           )}
 
           {/* Quick Actions */}
-          <Badge badgeContent={savedScreens.length} color="primary">
-            <Button
+          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" badgeContent={savedScreens.length} color="primary">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="outlined"
               startIcon={<FolderOpen />}
               onClick={() => setActiveTab(2)}
               size="small"
             >
               My Screens
-            </Button>
-          </Badge>
+            </button>
+          </span>
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Save />}
             onClick={() => setSaveDialogOpen(true)}
@@ -840,9 +840,9 @@ const AdvancedScreener = () => {
             disabled={!filteredAndSortedResults.length}
           >
             Save Screen
-          </Button>
+          </button>
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Download />}
             onClick={exportResults}
@@ -850,9 +850,9 @@ const AdvancedScreener = () => {
             disabled={!filteredAndSortedResults.length}
           >
             Export
-          </Button>
+          </button>
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Refresh />}
             onClick={runScreen}
@@ -860,11 +860,11 @@ const AdvancedScreener = () => {
             disabled={loading || !results.length}
           >
             Refresh
-          </Button>
+          </button>
 
-          <FormControlLabel
+          <div className="mb-4"Label
             control={
-              <Switch
+              <input type="checkbox" className="toggle"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 size="small"
@@ -875,63 +875,63 @@ const AdvancedScreener = () => {
           />
 
           {autoRefresh && (
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
               size="small"
               sx={{ ml: 1, minWidth: 80 }}
             >
-              <MenuItem value={10}>10s</MenuItem>
-              <MenuItem value={30}>30s</MenuItem>
-              <MenuItem value={60}>1m</MenuItem>
-              <MenuItem value={300}>5m</MenuItem>
-            </TextField>
+              <option  value={10}>10s</option>
+              <option  value={30}>30s</option>
+              <option  value={60}>1m</option>
+              <option  value={300}>5m</option>
+            </input>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Screen Statistics */}
       {filteredAndSortedResults.length > 0 && (
-        <Card sx={{ mb: 3, bgcolor: 'primary.dark', color: 'primary.contrastText' }}>
-          <CardContent sx={{ py: 2 }}>
-            <Box display="flex" alignItems="center" justifyContent="between">
-              <Box display="flex" alignItems="center" gap={4}>
-                <Box>
-                  <Typography variant="h6" fontWeight="bold">
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3, bgcolor: 'primary.dark', color: 'primary.contrastText' }}>
+          <div className="bg-white shadow-md rounded-lg"Content sx={{ py: 2 }}>
+            <div  display="flex" alignItems="center" justifyContent="between">
+              <div  display="flex" alignItems="center" gap={4}>
+                <div>
+                  <div  variant="h6" fontWeight="bold">
                     {filteredAndSortedResults.length} Stocks Found
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  </div>
+                  <div  variant="body2" sx={{ opacity: 0.8 }}>
                     Average Composite Score: {(filteredAndSortedResults.reduce((sum, stock) => sum + stock.scores.composite, 0) / filteredAndSortedResults.length).toFixed(1)}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Box display="flex" gap={3}>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>High Quality (80+)</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                <div  display="flex" gap={3}>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>High Quality (80+)</div>
+                    <div  variant="h6" fontWeight="bold">
                       {filteredAndSortedResults.filter(s => s.scores.quality >= 80).length}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Growth Leaders (70+)</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Growth Leaders (70+)</div>
+                    <div  variant="h6" fontWeight="bold">
                       {filteredAndSortedResults.filter(s => s.scores.growth >= 70).length}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>Selected</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="body2" sx={{ opacity: 0.8 }}>Selected</div>
+                    <div  variant="h6" fontWeight="bold">
                       {selectedStocks.length}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
-              <Box display="flex" alignItems="center" gap={2}>
+              <div  display="flex" alignItems="center" gap={2}>
                 {selectedStocks.length > 0 && (
-                  <Box display="flex" gap={1}>
-                    <Button
+                  <div  display="flex" gap={1}>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       variant="contained"
                       startIcon={<Compare />}
                       onClick={handleCompareStocks}
@@ -939,35 +939,35 @@ const AdvancedScreener = () => {
                       disabled={selectedStocks.length < 2}
                     >
                       Compare ({selectedStocks.length})
-                    </Button>
-                    <Button
+                    </button>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       variant="contained"
                       startIcon={<AddShoppingCart />}
                       onClick={() => handleAddToPortfolio(selectedStocks)}
                       size="small"
                     >
                       Add to Portfolio
-                    </Button>
-                  </Box>
+                    </button>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Preset Screens */}
       {presetScreens.length > 0 && (
-        <Card sx={{ mb: 3 }}>
-          <CardHeader
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Header
             title="Quick Preset Screens"
             subheader="Get started with professionally designed screening strategies"
           />
-          <CardContent>
-            <Grid container spacing={2}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div className="grid" container spacing={2}>
               {presetScreens.map((preset) => (
-                <Grid item xs={12} sm={6} md={3} key={preset.id}>
-                  <Card 
+                <div className="grid" item xs={12} sm={6} md={3} key={preset.id}>
+                  <div className="bg-white shadow-md rounded-lg" 
                     variant="outlined" 
                     sx={{ 
                       cursor: 'pointer', 
@@ -976,52 +976,52 @@ const AdvancedScreener = () => {
                     }}
                     onClick={() => loadPresetScreen(preset)}
                   >
-                    <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                    <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', p: 2 }}>
+                      <div  variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                         {preset.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      </div>
+                      <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         {preset.description}
-                      </Typography>
-                      <Button 
+                      </div>
+                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                         variant="outlined" 
                         size="small" 
                         startIcon={<PlaylistAdd />}
                       >
                         Apply Screen
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </Grid>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
       )}
 
-      <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
-        <Tab label="Screening Criteria" icon={<FilterList />} />
-        <Tab label={`Results (${results.length})`} icon={<Assessment />} />
-        <Tab label="Saved Screens" icon={<Save />} />
-      </Tabs>
+      <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Screening Criteria" icon={<FilterList />} />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label={`Results (${results.length})`} icon={<Assessment />} />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Saved Screens" icon={<Save />} />
+      </div>
 
-      <TabPanel value={activeTab} index={0}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="h6" gutterBottom>
                   Score Criteria
-                </Typography>
+                </div>
                 
-                <Grid container spacing={3}>
+                <div className="grid" container spacing={3}>
                   {Object.entries(screenCriteria).filter(([key]) => 
                     ['quality', 'growth', 'value', 'momentum', 'sentiment', 'positioning'].includes(key)
                   ).map(([key, value]) => (
-                    <Grid item xs={12} sm={6} key={key}>
-                      <Typography variant="body2" sx={{ mb: 1, textTransform: 'capitalize' }}>
+                    <div className="grid" item xs={12} sm={6} key={key}>
+                      <div  variant="body2" sx={{ mb: 1, textTransform: 'capitalize' }}>
                         {key} Score: {value[0]} - {value[1]}
-                      </Typography>
+                      </div>
                       <Slider
                         value={value}
                         onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, [key]: newValue }))}
@@ -1031,23 +1031,23 @@ const AdvancedScreener = () => {
                         color="primary"
                         sx={{ mb: 2 }}
                       />
-                    </Grid>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
 
-            <Card sx={{ mt: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+            <div className="bg-white shadow-md rounded-lg" sx={{ mt: 3 }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="h6" gutterBottom>
                   Financial Metrics
-                </Typography>
+                </div>
                 
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div  variant="body2" sx={{ mb: 1 }}>
                       Dividend Yield: {screenCriteria.dividendYield[0]}% - {screenCriteria.dividendYield[1]}%
-                    </Typography>
+                    </div>
                     <Slider
                       value={screenCriteria.dividendYield}
                       onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, dividendYield: newValue }))}
@@ -1058,12 +1058,12 @@ const AdvancedScreener = () => {
                       color="secondary"
                       sx={{ mb: 2 }}
                     />
-                  </Grid>
+                  </div>
                   
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div  variant="body2" sx={{ mb: 1 }}>
                       P/E Ratio: {screenCriteria.pe[0]} - {screenCriteria.pe[1]}
-                    </Typography>
+                    </div>
                     <Slider
                       value={screenCriteria.pe}
                       onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, pe: newValue }))}
@@ -1073,12 +1073,12 @@ const AdvancedScreener = () => {
                       color="secondary"
                       sx={{ mb: 2 }}
                     />
-                  </Grid>
+                  </div>
                   
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div  variant="body2" sx={{ mb: 1 }}>
                       P/B Ratio: {screenCriteria.pb[0]} - {screenCriteria.pb[1]}
-                    </Typography>
+                    </div>
                     <Slider
                       value={screenCriteria.pb}
                       onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, pb: newValue }))}
@@ -1089,12 +1089,12 @@ const AdvancedScreener = () => {
                       color="secondary"
                       sx={{ mb: 2 }}
                     />
-                  </Grid>
+                  </div>
                   
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div  variant="body2" sx={{ mb: 1 }}>
                       ROE: {screenCriteria.roe[0]}% - {screenCriteria.roe[1]}%
-                    </Typography>
+                    </div>
                     <Slider
                       value={screenCriteria.roe}
                       onChange={(e, newValue) => setScreenCriteria(prev => ({ ...prev, roe: newValue }))}
@@ -1105,75 +1105,75 @@ const AdvancedScreener = () => {
                       color="secondary"
                       sx={{ mb: 2 }}
                     />
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="h6" gutterBottom>
                   Market Filters
-                </Typography>
+                </div>
                 
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Market Cap</InputLabel>
-                  <Select
+                <div className="mb-4" fullWidth sx={{ mb: 2 }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Market Cap</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={screenCriteria.marketCap}
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, marketCap: e.target.value }))}
                   >
-                    <MenuItem value="any">Any</MenuItem>
-                    <MenuItem value="mega_cap">Mega Cap (&gt;$200B)</MenuItem>
-                    <MenuItem value="large_cap">Large Cap ($10B-$200B)</MenuItem>
-                    <MenuItem value="mid_cap">Mid Cap ($2B-$10B)</MenuItem>
-                    <MenuItem value="small_cap">Small Cap ($300M-$2B)</MenuItem>
-                    <MenuItem value="micro_cap">Micro Cap (&lt;$300M)</MenuItem>
-                  </Select>
-                </FormControl>
+                    <option  value="any">Any</option>
+                    <option  value="mega_cap">Mega Cap (&gt;$200B)</option>
+                    <option  value="large_cap">Large Cap ($10B-$200B)</option>
+                    <option  value="mid_cap">Mid Cap ($2B-$10B)</option>
+                    <option  value="small_cap">Small Cap ($300M-$2B)</option>
+                    <option  value="micro_cap">Micro Cap (&lt;$300M)</option>
+                  </select>
+                </div>
 
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Sector</InputLabel>
-                  <Select
+                <div className="mb-4" fullWidth sx={{ mb: 2 }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={screenCriteria.sector}
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, sector: e.target.value }))}
                   >
-                    <MenuItem value="any">Any Sector</MenuItem>
+                    <option  value="any">Any Sector</option>
                     {sectors.map((sector) => (
-                      <MenuItem key={sector.sector} value={sector.sector}>
+                      <option  key={sector.sector} value={sector.sector}>
                         {sector.sector} ({sector.count} stocks)
-                      </MenuItem>
+                      </option>
                     ))}
-                  </Select>
-                </FormControl>
+                  </select>
+                </div>
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Exchange</InputLabel>
-                  <Select
+                <div className="mb-4" fullWidth sx={{ mb: 3 }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exchange</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={screenCriteria.exchange}
                     onChange={(e) => setScreenCriteria(prev => ({ ...prev, exchange: e.target.value }))}
                   >
-                    <MenuItem value="any">Any Exchange</MenuItem>
-                    <MenuItem value="NYSE">NYSE</MenuItem>
-                    <MenuItem value="NASDAQ">NASDAQ</MenuItem>
-                  </Select>
-                </FormControl>
+                    <option  value="any">Any Exchange</option>
+                    <option  value="NYSE">NYSE</option>
+                    <option  value="NASDAQ">NASDAQ</option>
+                  </select>
+                </div>
 
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   color="primary"
                   fullWidth
                   size="large"
                   onClick={runScreen}
                   disabled={loading}
-                  startIcon={loading ? <CircularProgress size={20} /> : <Search />}
+                  startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <Search />}
                   sx={{ mb: 2 }}
                 >
                   {loading ? 'Screening...' : 'Run Screen'}
-                </Button>
+                </button>
 
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   fullWidth
                   onClick={() => setSaveDialogOpen(true)}
@@ -1181,9 +1181,9 @@ const AdvancedScreener = () => {
                   sx={{ mb: 1 }}
                 >
                   Save Screen
-                </Button>
+                </button>
 
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   fullWidth
                   onClick={() => setScreenCriteria({
@@ -1205,109 +1205,109 @@ const AdvancedScreener = () => {
                   startIcon={<Clear />}
                 >
                   Clear Filters
-                </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={1}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6">
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <div  variant="h6">
             Screening Results ({results.length} stocks found)
-          </Typography>
+          </div>
           {results.length > 0 && (
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="outlined"
               startIcon={<Download />}
               onClick={exportResults}
             >
               Export CSV
-            </Button>
+            </button>
           )}
-        </Box>
+        </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {error}
-          </Alert>
+          </div>
         )}
 
         {results.length === 0 && !error ? (
-          <Alert severity="info">
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
             No results to display. Run a screen to see matching stocks.
-          </Alert>
+          </div>
         ) : !error && (
-          <Card>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell>Company</TableCell>
-                    <TableCell align="center">Quality</TableCell>
-                    <TableCell align="center">Growth</TableCell>
-                    <TableCell align="center">Value</TableCell>
-                    <TableCell align="center">Momentum</TableCell>
-                    <TableCell align="center">Sentiment</TableCell>
-                    <TableCell align="center">Composite</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">P/E</TableCell>
-                    <TableCell align="right">P/B</TableCell>
-                    <TableCell align="right">Market Cap</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+          <div className="bg-white shadow-md rounded-lg">
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Quality</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Growth</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Value</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Momentum</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Sentiment</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Composite</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">P/E</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">P/B</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Market Cap</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {results
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((stock) => (
-                    <TableRow key={stock.symbol} hover>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="bold">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={stock.symbol} hover>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  variant="body2" fontWeight="bold">
                           {stock.symbol}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  variant="body2">
                           {stock.company}
-                        </Typography>
-                      </TableCell>
+                        </div>
+                      </td>
                       {['quality', 'growth', 'value', 'momentum', 'sentiment'].map((metric) => (
-                        <TableCell key={metric} align="center">
-                          <Chip
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={metric} align="center">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             label={stock.scores[metric]}
                             color={getScoreColor(stock.scores[metric])}
                             size="small"
                             icon={getScoreIcon(stock.scores[metric])}
                           />
-                        </TableCell>
+                        </td>
                       ))}
-                      <TableCell align="center">
-                        <Chip
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={stock.scores.composite}
                           color={getScoreColor(stock.scores.composite)}
                           variant="filled"
                         />
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {formatCurrency(stock.price)}
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {stock.pe ? formatNumber(stock.pe) : 'N/A'}
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {stock.pb ? formatNumber(stock.pb) : 'N/A'}
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {formatCurrency(stock.marketCap, 0)}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
+                </tbody>
+              </table>
+            </div>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
               component="div"
               count={results.length}
               page={page}
@@ -1318,49 +1318,49 @@ const AdvancedScreener = () => {
                 setPage(0);
               }}
             />
-          </Card>
+          </div>
         )}
-      </TabPanel>
+      </div>
 
-      <TabPanel value={activeTab} index={2}>
-        <Typography variant="h6" gutterBottom>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+        <div  variant="h6" gutterBottom>
           Saved Screening Strategies
-        </Typography>
+        </div>
         
-        <Grid container spacing={2}>
+        <div className="grid" container spacing={2}>
           {savedScreens.map((screen) => (
-            <Grid item xs={12} sm={6} md={4} key={screen.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
+            <div className="grid" item xs={12} sm={6} md={4} key={screen.id}>
+              <div className="bg-white shadow-md rounded-lg">
+                <div className="bg-white shadow-md rounded-lg"Content>
+                  <div  variant="h6" gutterBottom>
                     {screen.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  </div>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     Quality: {screen.criteria.quality[0]}-{screen.criteria.quality[1]}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  </div>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     Growth: {screen.criteria.growth[0]}-{screen.criteria.growth[1]}
-                  </Typography>
-                  <Button
+                  </div>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     size="small"
                     onClick={() => loadScreen(screen.criteria)}
                     sx={{ mt: 1 }}
                   >
                     Load Screen
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
+                  </button>
+                </div>
+              </div>
+            </div>
           ))}
-        </Grid>
-      </TabPanel>
+        </div>
+      </div>
 
       {/* Save Screen Dialog */}
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
-        <DialogTitle>Save Screening Strategy</DialogTitle>
-        <DialogContent>
-          <TextField
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Save Screening Strategy</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
             margin="dense"
             label="Screen Name"
@@ -1369,42 +1369,42 @@ const AdvancedScreener = () => {
             value={screenName}
             onChange={(e) => setScreenName(e.target.value)}
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
-          <Button onClick={saveScreen} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSaveDialogOpen(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={saveScreen} variant="contained">Save</button>
+        </div>
+      </div>
 
       {/* Stock Comparison Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={compareDialogOpen} 
         onClose={() => setCompareDialogOpen(false)}
         maxWidth="lg"
         fullWidth
       >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+          <div  display="flex" alignItems="center" gap={1}>
             <Compare />
             Stock Comparison
-          </Box>
-        </DialogTitle>
-        <DialogContent>
+          </div>
+        </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
           {selectedStocks.length > 0 ? (
-            <Box sx={{ mt: 2 }}>
-              <Grid container spacing={2}>
+            <div  sx={{ mt: 2 }}>
+              <div className="grid" container spacing={2}>
                 {selectedStocks.map((symbol) => {
                   const stock = mockResults.find(s => s.symbol === symbol);
                   if (!stock) return null;
                   
                   return (
-                    <Grid item xs={12} md={6} lg={4} key={symbol}>
-                      <Card>
-                        <CardHeader 
+                    <div className="grid" item xs={12} md={6} lg={4} key={symbol}>
+                      <div className="bg-white shadow-md rounded-lg">
+                        <div className="bg-white shadow-md rounded-lg"Header 
                           title={stock.symbol}
                           subheader={stock.company}
                           avatar={
-                            <Box sx={{ 
+                            <div  sx={{ 
                               bgcolor: getScoreColor(stock.scores.composite) + '.main', 
                               color: 'white',
                               borderRadius: '50%',
@@ -1417,116 +1417,116 @@ const AdvancedScreener = () => {
                               fontWeight: 'bold'
                             }}>
                               {stock.scores.composite}
-                            </Box>
+                            </div>
                           }
                         />
-                        <CardContent>
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="h6" color="primary">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  sx={{ mb: 2 }}>
+                            <div  variant="h6" color="primary">
                               {formatCurrency(stock.price)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            </div>
+                            <div  variant="body2" color="text.secondary">
                               {stock.sector} • {formatCurrency(stock.marketCap, 0)}
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Grid container spacing={1} sx={{ mb: 2 }}>
-                            <Grid item xs={6}>
-                              <Typography variant="body2">P/E Ratio</Typography>
-                              <Typography variant="body1" fontWeight="bold">
+                          <div className="grid" container spacing={1} sx={{ mb: 2 }}>
+                            <div className="grid" item xs={6}>
+                              <div  variant="body2">P/E Ratio</div>
+                              <div  variant="body1" fontWeight="bold">
                                 {stock.pe || 'N/A'}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="body2">P/B Ratio</Typography>
-                              <Typography variant="body1" fontWeight="bold">
+                              </div>
+                            </div>
+                            <div className="grid" item xs={6}>
+                              <div  variant="body2">P/B Ratio</div>
+                              <div  variant="body1" fontWeight="bold">
                                 {stock.pb || 'N/A'}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="body2">ROE</Typography>
-                              <Typography variant="body1" fontWeight="bold">
+                              </div>
+                            </div>
+                            <div className="grid" item xs={6}>
+                              <div  variant="body2">ROE</div>
+                              <div  variant="body1" fontWeight="bold">
                                 {stock.roe ? formatPercentage(stock.roe) : 'N/A'}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="body2">Dividend</Typography>
-                              <Typography variant="body1" fontWeight="bold">
+                              </div>
+                            </div>
+                            <div className="grid" item xs={6}>
+                              <div  variant="body2">Dividend</div>
+                              <div  variant="body1" fontWeight="bold">
                                 {stock.dividendYield ? formatPercentage(stock.dividendYield) : 'N/A'}
-                              </Typography>
-                            </Grid>
-                          </Grid>
+                              </div>
+                            </div>
+                          </div>
 
-                          <Divider sx={{ my: 2 }} />
+                          <hr className="border-gray-200" sx={{ my: 2 }} />
                           
-                          <Typography variant="subtitle2" gutterBottom>
+                          <div  variant="subtitle2" gutterBottom>
                             Score Breakdown
-                          </Typography>
-                          <Grid container spacing={1}>
+                          </div>
+                          <div className="grid" container spacing={1}>
                             {Object.entries(stock.scores).filter(([key]) => key !== 'composite').map(([key, value]) => (
-                              <Grid item xs={6} key={key}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                              <div className="grid" item xs={6} key={key}>
+                                <div  display="flex" alignItems="center" gap={1}>
+                                  <div  variant="body2" sx={{ textTransform: 'capitalize' }}>
                                     {key}:
-                                  </Typography>
-                                  <Chip 
+                                  </div>
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                     label={value}
                                     size="small"
                                     color={getScoreColor(value)}
                                   />
-                                </Box>
-                              </Grid>
+                                </div>
+                              </div>
                             ))}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </Grid>
-            </Box>
+              </div>
+            </div>
           ) : (
-            <Typography>No stocks selected for comparison</Typography>
+            <div>No stocks selected for comparison</div>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCompareDialogOpen(false)}>Close</Button>
-          <Button 
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setCompareDialogOpen(false)}>Close</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={() => handleAddToPortfolio(selectedStocks)}
             disabled={selectedStocks.length === 0}
           >
             Add All to Portfolio
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </button>
+        </div>
+      </div>
 
       {/* Portfolio Integration Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={portfolioDialogOpen} 
         onClose={() => setPortfolioDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+          <div  display="flex" alignItems="center" gap={1}>
             <AddShoppingCart />
             Add to Portfolio
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body1" gutterBottom>
+          </div>
+        </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  sx={{ mt: 2 }}>
+            <div  variant="body1" gutterBottom>
               You're about to add {selectedStocks.length} stock{selectedStocks.length > 1 ? 's' : ''} to your portfolio:
-            </Typography>
+            </div>
             
-            <Box sx={{ my: 2 }}>
+            <div  sx={{ my: 2 }}>
               {selectedStocks.map((symbol) => {
                 const stock = mockResults.find(s => s.symbol === symbol);
                 if (!stock) return null;
                 
                 return (
-                  <Box key={symbol} sx={{ 
+                  <div  key={symbol} sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: 2, 
@@ -1538,7 +1538,7 @@ const AdvancedScreener = () => {
                     borderColor: 'divider',
                     mb: 1
                   }}>
-                    <Box sx={{ 
+                    <div  sx={{ 
                       bgcolor: getScoreColor(stock.scores.composite) + '.main', 
                       color: 'white',
                       borderRadius: '50%',
@@ -1551,72 +1551,72 @@ const AdvancedScreener = () => {
                       fontWeight: 'bold'
                     }}>
                       {stock.scores.composite}
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle1" fontWeight="bold">
+                    </div>
+                    <div  sx={{ flex: 1 }}>
+                      <div  variant="subtitle1" fontWeight="bold">
                         {stock.symbol}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      </div>
+                      <div  variant="body2" color="text.secondary">
                         {stock.company}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'right' }}>
-                      <Typography variant="h6" color="primary">
+                      </div>
+                    </div>
+                    <div  sx={{ textAlign: 'right' }}>
+                      <div  variant="h6" color="primary">
                         {formatCurrency(stock.price)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      </div>
+                      <div  variant="body2" color="text.secondary">
                         {stock.sector}
-                      </Typography>
-                    </Box>
-                  </Box>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
-            </Box>
+            </div>
 
-            <Alert severity="info" sx={{ mt: 2 }}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
               {isAuthenticated ? (
-                <Box>
-                  <Typography variant="body2">
+                <div>
+                  <div  variant="body2">
                     These stocks will be added to your portfolio for tracking. You can manage position sizes and set alerts from your Portfolio page.
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
+                  </div>
+                  <div  variant="body2" sx={{ mt: 1 }}>
                     <strong>Logged in as:</strong> {user?.email}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
               ) : (
-                <Box>
-                  <Typography variant="body2">
+                <div>
+                  <div  variant="body2">
                     You're not signed in. These stocks will be saved locally and won't sync across devices.
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
+                  </div>
+                  <div  variant="body2" sx={{ mt: 1 }}>
                     <strong>Tip:</strong> Sign in to sync your portfolio across all devices.
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
               )}
-            </Alert>
+            </div>
 
             {isAuthenticated && (
-              <Box sx={{ mt: 2 }}>
-                <FormControl fullWidth variant="outlined">
-                  <InputLabel>Portfolio</InputLabel>
-                  <Select
+              <div  sx={{ mt: 2 }}>
+                <div className="mb-4" fullWidth variant="outlined">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Portfolio</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value="main"
                     label="Portfolio"
                   >
-                    <MenuItem value="main">Main Portfolio</MenuItem>
-                    <MenuItem value="watchlist">Watchlist</MenuItem>
-                    <MenuItem value="research">Research List</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+                    <option  value="main">Main Portfolio</option>
+                    <option  value="watchlist">Watchlist</option>
+                    <option  value="research">Research List</option>
+                  </select>
+                </div>
+              </div>
             )}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPortfolioDialogOpen(false)}>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setPortfolioDialogOpen(false)}>
             Cancel
-          </Button>
-          <Button 
+          </button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={() => {
               // Implementation for adding stocks to portfolio
@@ -1628,10 +1628,10 @@ const AdvancedScreener = () => {
             disabled={selectedStocks.length === 0}
           >
             Add to Portfolio
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

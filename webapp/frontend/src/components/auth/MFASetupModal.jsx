@@ -214,17 +214,17 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
   };
 
   const renderMethodSelection = () => (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="h6" gutterBottom>
+    <div  sx={{ mt: 2 }}>
+      <div  variant="h6" gutterBottom>
         Choose Your Preferred MFA Method
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      </div>
+      <div  variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Multi-factor authentication adds an extra layer of security to your account
-      </Typography>
+      </div>
       
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
-          <Card 
+      <div className="grid" container spacing={2}>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer',
               border: selectedMethod === MFA_METHODS.TOTP ? 2 : 1,
@@ -232,23 +232,23 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
             }}
             onClick={() => handleMethodSelect(MFA_METHODS.TOTP)}
           >
-            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 3 }}>
               <QrCode sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 Authenticator App
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Use Google Authenticator, Authy, or similar TOTP apps
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Chip label="Recommended" color="primary" size="small" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+              <div  sx={{ mt: 2 }}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Recommended" color="primary" size="small" />
+              </div>
+            </div>
+          </div>
+        </div>
         
-        <Grid item xs={12} md={6}>
-          <Card 
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg" 
             sx={{ 
               cursor: 'pointer',
               border: selectedMethod === MFA_METHODS.SMS ? 2 : 1,
@@ -256,46 +256,46 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
             }}
             onClick={() => handleMethodSelect(MFA_METHODS.SMS)}
           >
-            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 3 }}>
               <Smartphone sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 SMS Text Message
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Receive verification codes via SMS to {userPhoneNumber || 'your phone'}
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Chip label="Convenient" color="secondary" size="small" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+              </div>
+              <div  sx={{ mt: 2 }}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Convenient" color="secondary" size="small" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderTOTPSetup = () => (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="h6" gutterBottom>
+    <div  sx={{ mt: 2 }}>
+      <div  variant="h6" gutterBottom>
         Setup Authenticator App
-      </Typography>
+      </div>
       
       {qrCodeUrl && (
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="body2" sx={{ mb: 2 }}>
+        <div  sx={{ textAlign: 'center', mb: 3 }}>
+          <div  variant="body2" sx={{ mb: 2 }}>
             Scan this QR code with your authenticator app:
-          </Typography>
+          </div>
           <img src={qrCodeUrl} alt="TOTP QR Code" style={{ maxWidth: 200 }} />
-        </Box>
+        </div>
       )}
       
-      <Divider sx={{ my: 2 }} />
+      <hr className="border-gray-200" sx={{ my: 2 }} />
       
-      <Typography variant="body2" gutterBottom>
+      <div  variant="body2" gutterBottom>
         Or manually enter this secret key:
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <TextField
+      </div>
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           fullWidth
           value={totpSecret}
           InputProps={{
@@ -304,31 +304,31 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
           }}
           size="small"
         />
-        <IconButton onClick={copySecretToClipboard} color="primary">
+        <button className="p-2 rounded-full hover:bg-gray-100" onClick={copySecretToClipboard} color="primary">
           <ContentCopy />
-        </IconButton>
-      </Box>
+        </button>
+      </div>
       
       {secretCopied && (
-        <Typography variant="caption" color="success.main">
+        <div  variant="caption" color="success.main">
           Secret copied to clipboard!
-        </Typography>
+        </div>
       )}
-    </Box>
+    </div>
   );
 
   const renderVerification = () => (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="h6" gutterBottom>
+    <div  sx={{ mt: 2 }}>
+      <div  variant="h6" gutterBottom>
         Verify Your Setup
-      </Typography>
+      </div>
       
       {selectedMethod === MFA_METHODS.TOTP && (
         <>
-          <Typography variant="body2" sx={{ mb: 2 }}>
+          <div  variant="body2" sx={{ mb: 2 }}>
             Enter the 6-digit code from your authenticator app:
-          </Typography>
-          <TextField
+          </div>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             label="Authentication Code"
             value={totpCode}
@@ -345,10 +345,10 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
       
       {selectedMethod === MFA_METHODS.SMS && (
         <>
-          <Typography variant="body2" sx={{ mb: 2 }}>
+          <div  variant="body2" sx={{ mb: 2 }}>
             Enter the 6-digit code sent to your phone:
-          </Typography>
-          <TextField
+          </div>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             label="SMS Code"
             value={smsCode}
@@ -362,19 +362,19 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
           />
         </>
       )}
-    </Box>
+    </div>
   );
 
   const renderComplete = () => (
-    <Box sx={{ textAlign: 'center', py: 4 }}>
+    <div  sx={{ textAlign: 'center', py: 4 }}>
       <CheckCircle sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-      <Typography variant="h5" gutterBottom>
+      <div  variant="h5" gutterBottom>
         MFA Successfully Configured!
-      </Typography>
-      <Typography variant="body1" color="text.secondary">
+      </div>
+      <div  variant="body1" color="text.secondary">
         Your account is now protected with multi-factor authentication using {selectedMethod}.
-      </Typography>
-    </Box>
+      </div>
+    </div>
   );
 
   const getStepContent = () => {
@@ -393,7 +393,7 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
   };
 
   return (
-    <Dialog 
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
       open={open} 
       onClose={handleClose}
       maxWidth="md"
@@ -402,21 +402,21 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
         sx: { borderRadius: 2 }
       }}
     >
-      <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box display="flex" alignItems="center" gap={1}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+        <div  display="flex" alignItems="center" justifyContent="space-between">
+          <div  display="flex" alignItems="center" gap={1}>
             <Security color="primary" />
-            <Typography variant="h6">
+            <div  variant="h6">
               Setup Multi-Factor Authentication
-            </Typography>
-          </Box>
-          <IconButton onClick={handleClose} size="small">
+            </div>
+          </div>
+          <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleClose} size="small">
             <Close />
-          </IconButton>
-        </Box>
-      </DialogTitle>
+          </button>
+        </div>
+      </h2>
       
-      <DialogContent>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
           {SETUP_STEPS.map((label) => (
             <Step key={label}>
@@ -426,52 +426,52 @@ function MFASetupModal({ open, onClose, onSetupComplete, userPhoneNumber }) {
         </Stepper>
         
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {error}
-          </Alert>
+          </div>
         )}
         
         {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mb: 2 }}>
             {success}
-          </Alert>
+          </div>
         )}
         
         {getStepContent()}
         
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-          <Button
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             onClick={handleBack}
             disabled={activeStep === 0 || activeStep === 3}
           >
             Back
-          </Button>
+          </button>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <div  sx={{ display: 'flex', gap: 1 }}>
             {activeStep < 3 && activeStep > 0 && (
-              <Button
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 onClick={handleNext}
                 disabled={loading || (activeStep === 2 && (!totpCode && !smsCode))}
-                startIcon={loading ? <CircularProgress size={20} /> : null}
+                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : null}
               >
                 {activeStep === 2 ? 'Verify' : 'Continue'}
-              </Button>
+              </button>
             )}
             
             {activeStep === 3 && (
-              <Button
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 onClick={handleClose}
                 color="success"
               >
                 Done
-              </Button>
+              </button>
             )}
-          </Box>
-        </Box>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

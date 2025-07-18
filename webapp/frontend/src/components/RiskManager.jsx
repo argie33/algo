@@ -302,206 +302,206 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
     const volatilityRiskLevel = getRiskLevel(riskMetrics.volatility);
 
     return (
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Risk Status Cards */}
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Shield color={totalRiskLevel.level === 'low' ? 'success' : totalRiskLevel.level === 'medium' ? 'warning' : 'error'} />
-                <Typography variant="h6" sx={{ ml: 1 }}>
+                <div  variant="h6" sx={{ ml: 1 }}>
                   Portfolio Risk
-                </Typography>
-              </Box>
-              <Typography variant="h4" color={totalRiskLevel.color}>
+                </div>
+              </div>
+              <div  variant="h4" color={totalRiskLevel.color}>
                 {(riskMetrics.totalRisk * 100).toFixed(2)}%
-              </Typography>
-              <Chip
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 label={totalRiskLevel.label}
                 color={totalRiskLevel.level === 'low' ? 'success' : totalRiskLevel.level === 'medium' ? 'warning' : 'error'}
                 size="small"
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <TrendingDown color="error" />
-                <Typography variant="h6" sx={{ ml: 1 }}>
+                <div  variant="h6" sx={{ ml: 1 }}>
                   Max Drawdown
-                </Typography>
-              </Box>
-              <Typography variant="h4" color="error.main">
+                </div>
+              </div>
+              <div  variant="h4" color="error.main">
                 {(riskMetrics.maxDrawdown * 100).toFixed(2)}%
-              </Typography>
-              <LinearProgress
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2"
                 variant="determinate"
                 value={(riskMetrics.maxDrawdown / riskSettings.maxDrawdown) * 100}
                 color="error"
                 sx={{ mt: 1 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <MonetizationOn color="primary" />
-                <Typography variant="h6" sx={{ ml: 1 }}>
+                <div  variant="h6" sx={{ ml: 1 }}>
                   Value at Risk
-                </Typography>
-              </Box>
-              <Typography variant="h4" color="primary.main">
+                </div>
+              </div>
+              <div  variant="h4" color="primary.main">
                 ${riskMetrics.valueAtRisk.toFixed(0)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 95% confidence, 1 day
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <PieChart color="info" />
-                <Typography variant="h6" sx={{ ml: 1 }}>
+                <div  variant="h6" sx={{ ml: 1 }}>
                   Concentration
-                </Typography>
-              </Box>
-              <Typography variant="h4" color={concentrationRiskLevel.color}>
+                </div>
+              </div>
+              <div  variant="h4" color={concentrationRiskLevel.color}>
                 {(riskMetrics.concentration * 100).toFixed(1)}%
-              </Typography>
-              <Chip
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 label={concentrationRiskLevel.label}
                 color={concentrationRiskLevel.level === 'low' ? 'success' : concentrationRiskLevel.level === 'medium' ? 'warning' : 'error'}
                 size="small"
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Risk Metrics Table */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Risk Metrics
-              </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Metric</TableCell>
-                      <TableCell align="right">Current</TableCell>
-                      <TableCell align="right">Limit</TableCell>
-                      <TableCell align="right">Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Portfolio Risk</TableCell>
-                      <TableCell align="right">{(riskMetrics.totalRisk * 100).toFixed(2)}%</TableCell>
-                      <TableCell align="right">{(riskSettings.maxPortfolioRisk * 100).toFixed(2)}%</TableCell>
-                      <TableCell align="right">
-                        <Chip
+              </div>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Metric</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Limit</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Status</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Portfolio Risk</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskMetrics.totalRisk * 100).toFixed(2)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskSettings.maxPortfolioRisk * 100).toFixed(2)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.totalRisk <= riskSettings.maxPortfolioRisk ? <CheckCircle /> : <Error />}
                           label={riskMetrics.totalRisk <= riskSettings.maxPortfolioRisk ? 'OK' : 'EXCEEDED'}
                           color={riskMetrics.totalRisk <= riskSettings.maxPortfolioRisk ? 'success' : 'error'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Max Drawdown</TableCell>
-                      <TableCell align="right">{(riskMetrics.maxDrawdown * 100).toFixed(2)}%</TableCell>
-                      <TableCell align="right">{(riskSettings.maxDrawdown * 100).toFixed(2)}%</TableCell>
-                      <TableCell align="right">
-                        <Chip
+                      </td>
+                    </tr>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Max Drawdown</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskMetrics.maxDrawdown * 100).toFixed(2)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskSettings.maxDrawdown * 100).toFixed(2)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.maxDrawdown <= riskSettings.maxDrawdown ? <CheckCircle /> : <Error />}
                           label={riskMetrics.maxDrawdown <= riskSettings.maxDrawdown ? 'OK' : 'EXCEEDED'}
                           color={riskMetrics.maxDrawdown <= riskSettings.maxDrawdown ? 'success' : 'error'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Concentration</TableCell>
-                      <TableCell align="right">{(riskMetrics.concentration * 100).toFixed(1)}%</TableCell>
-                      <TableCell align="right">{(riskSettings.maxConcentration * 100).toFixed(1)}%</TableCell>
-                      <TableCell align="right">
-                        <Chip
+                      </td>
+                    </tr>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Concentration</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskMetrics.concentration * 100).toFixed(1)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskSettings.maxConcentration * 100).toFixed(1)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.concentration <= riskSettings.maxConcentration ? <CheckCircle /> : <Error />}
                           label={riskMetrics.concentration <= riskSettings.maxConcentration ? 'OK' : 'EXCEEDED'}
                           color={riskMetrics.concentration <= riskSettings.maxConcentration ? 'success' : 'error'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Volatility</TableCell>
-                      <TableCell align="right">{(riskMetrics.volatility * 100).toFixed(1)}%</TableCell>
-                      <TableCell align="right">25.0%</TableCell>
-                      <TableCell align="right">
-                        <Chip
+                      </td>
+                    </tr>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Volatility</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{(riskMetrics.volatility * 100).toFixed(1)}%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">25.0%</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.volatility <= 0.25 ? <CheckCircle /> : <Error />}
                           label={riskMetrics.volatility <= 0.25 ? 'OK' : 'HIGH'}
                           color={riskMetrics.volatility <= 0.25 ? 'success' : 'warning'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Beta</TableCell>
-                      <TableCell align="right">{riskMetrics.beta.toFixed(2)}</TableCell>
-                      <TableCell align="right">1.5</TableCell>
-                      <TableCell align="right">
-                        <Chip
+                      </td>
+                    </tr>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Beta</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{riskMetrics.beta.toFixed(2)}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">1.5</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.beta <= 1.5 ? <CheckCircle /> : <Error />}
                           label={riskMetrics.beta <= 1.5 ? 'OK' : 'HIGH'}
                           color={riskMetrics.beta <= 1.5 ? 'success' : 'warning'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Sharpe Ratio</TableCell>
-                      <TableCell align="right">{riskMetrics.sharpeRatio.toFixed(2)}</TableCell>
-                      <TableCell align="right">1.0</TableCell>
-                      <TableCell align="right">
-                        <Chip
+                      </td>
+                    </tr>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sharpe Ratio</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{riskMetrics.sharpeRatio.toFixed(2)}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">1.0</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           icon={riskMetrics.sharpeRatio >= 1.0 ? <CheckCircle /> : <Warning />}
                           label={riskMetrics.sharpeRatio >= 1.0 ? 'GOOD' : 'POOR'}
                           color={riskMetrics.sharpeRatio >= 1.0 ? 'success' : 'warning'}
                           size="small"
                         />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Risk Controls */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <div  variant="h6">
                   Risk Controls
-                </Typography>
-                <Box>
-                  <FormControlLabel
+                </div>
+                <div>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={riskMonitoring}
                         onChange={(e) => setRiskMonitoring(e.target.checked)}
                         color="primary"
@@ -509,11 +509,11 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                     }
                     label="Monitor"
                   />
-                </Box>
-              </Box>
+                </div>
+              </div>
 
-              <Box sx={{ mb: 2 }}>
-                <Button
+              <div  sx={{ mb: 2 }}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant={emergencyStop ? "outlined" : "contained"}
                   color={emergencyStop ? "success" : "error"}
                   fullWidth
@@ -521,15 +521,15 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   startIcon={emergencyStop ? <PlayArrow /> : <Stop />}
                 >
                   {emergencyStop ? 'Resume Trading' : 'Emergency Stop'}
-                </Button>
-              </Box>
+                </button>
+              </div>
 
-              <Divider sx={{ my: 2 }} />
+              <hr className="border-gray-200" sx={{ my: 2 }} />
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <FormControlLabel
+              <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={riskSettings.stopLossEnabled}
                       onChange={(e) => updateRiskSettings('stopLossEnabled', e.target.checked)}
                     />
@@ -537,9 +537,9 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   label="Auto Stop Loss"
                 />
                 
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={riskSettings.takeProfitEnabled}
                       onChange={(e) => updateRiskSettings('takeProfitEnabled', e.target.checked)}
                     />
@@ -547,9 +547,9 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   label="Auto Take Profit"
                 />
                 
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={riskSettings.riskAlertsEnabled}
                       onChange={(e) => updateRiskSettings('riskAlertsEnabled', e.target.checked)}
                     />
@@ -557,140 +557,140 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   label="Risk Alerts"
                 />
                 
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={riskSettings.autoHedging}
                       onChange={(e) => updateRiskSettings('autoHedging', e.target.checked)}
                     />
                   }
                   label="Auto Hedging"
                 />
-              </Box>
+              </div>
 
-              <Box sx={{ mt: 2 }}>
-                <Button
+              <div  sx={{ mt: 2 }}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   fullWidth
                   onClick={() => setOpenSettingsDialog(true)}
                   startIcon={<Settings />}
                 >
                   Risk Settings
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
   const renderPositionRisk = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Position Risk Analysis
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Position Value</TableCell>
-                    <TableCell align="right">Portfolio Weight</TableCell>
-                    <TableCell align="right">Risk Level</TableCell>
-                    <TableCell align="right">Unrealized P&L</TableCell>
-                    <TableCell align="right">Risk Value</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            </div>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Position Value</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Portfolio Weight</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Risk Level</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Unrealized P&L</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Risk Value</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {portfolioData.map((holding) => {
                     const positionRisk = calculatePositionRisk(holding);
                     const riskLevel = getRiskLevel(positionRisk.risk);
                     
                     return (
-                      <TableRow key={holding.id}>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={holding.id}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2" fontWeight="bold">
                             {holding.symbol}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                           ${holding.currentValue?.toFixed(2) || '0.00'}
-                        </TableCell>
-                        <TableCell align="right">
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                           {(positionRisk.weight * 100).toFixed(1)}%
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             label={riskLevel.label}
                             color={riskLevel.level === 'low' ? 'success' : riskLevel.level === 'medium' ? 'warning' : 'error'}
                             size="small"
                           />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div 
                             color={holding.gainLoss >= 0 ? 'success.main' : 'error.main'}
                           >
                             ${holding.gainLoss?.toFixed(2) || '0.00'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                           ${positionRisk.riskValue.toFixed(2)}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Set Stop Loss">
-                            <IconButton size="small" color="error">
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                          <div  title="Set Stop Loss">
+                            <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="error">
                               <Stop />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Hedge Position">
-                            <IconButton size="small" color="primary">
+                            </button>
+                          </div>
+                          <div  title="Hedge Position">
+                            <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="primary">
                               <Shield />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderRiskAlerts = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="h6">
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <div  variant="h6">
                 Risk Alerts
-              </Typography>
-              <Button
+              </div>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 size="small"
                 onClick={() => setRiskAlerts([])}
                 disabled={riskAlerts.length === 0}
               >
                 Clear All
-              </Button>
-            </Box>
+              </button>
+            </div>
             
             {riskAlerts.length === 0 ? (
-              <Alert severity="success">
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success">
+                <div  sx={{ display: 'flex', alignItems: 'center' }}>
                   <CheckCircle sx={{ mr: 1 }} />
                   No active risk alerts. Portfolio is within acceptable risk parameters.
-                </Box>
-              </Alert>
+                </div>
+              </div>
             ) : (
               <List>
                 {riskAlerts.map((alert) => (
@@ -704,93 +704,93 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                       primary={alert.title}
                       secondary={
                         <>
-                          <Typography variant="body2">{alert.message}</Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          <div  variant="body2">{alert.message}</div>
+                          <div  variant="caption" color="text.secondary">
                             {alert.timestamp.toLocaleString()}
-                          </Typography>
+                          </div>
                           {alert.action && (
-                            <Typography variant="caption" color="primary.main" sx={{ display: 'block' }}>
+                            <div  variant="caption" color="primary.main" sx={{ display: 'block' }}>
                               Recommended action: {alert.action}
-                            </Typography>
+                            </div>
                           )}
                         </>
                       }
                     />
                     <ListItemSecondaryAction>
-                      <IconButton
+                      <button className="p-2 rounded-full hover:bg-gray-100"
                         onClick={() => handleClearAlert(alert.id)}
                         size="small"
                       >
                         <CheckCircle />
-                      </IconButton>
+                      </button>
                     </ListItemSecondaryAction>
                   </ListItem>
                 ))}
               </List>
             )}
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h5">
+    <div>
+      <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <div  variant="h5">
           <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
           Risk Management
-        </Typography>
+        </div>
         
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <div  sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {emergencyStop && (
-            <Chip
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               icon={<Stop />}
               label="EMERGENCY STOP ACTIVE"
               color="error"
               variant="filled"
             />
           )}
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             onClick={calculateRiskMetrics}
             startIcon={<Refresh />}
             disabled={loading}
           >
             Refresh
-          </Button>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
-      <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-        <Tab label="Overview" />
-        <Tab label="Position Risk" />
-        <Tab label="Alerts" />
-      </Tabs>
+      <div className="border-b border-gray-200" value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Overview" />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Position Risk" />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Alerts" />
+      </div>
 
       {tabValue === 0 && renderRiskOverview()}
       {tabValue === 1 && renderPositionRisk()}
       {tabValue === 2 && renderRiskAlerts()}
 
       {/* Risk Settings Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={openSettingsDialog} 
         onClose={() => setOpenSettingsDialog(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Risk Management Settings</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={3} sx={{ mt: 1 }}>
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle1" gutterBottom>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Risk Management Settings</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div className="grid" container spacing={3} sx={{ mt: 1 }}>
+            <div className="grid" item xs={12} md={6}>
+              <div  variant="subtitle1" gutterBottom>
                 Portfolio Risk Limits
-              </Typography>
+              </div>
               
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Portfolio Risk: {(riskSettings.maxPortfolioRisk * 100).toFixed(1)}%
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxPortfolioRisk * 100}
                   onChange={(e, value) => updateRiskSettings('maxPortfolioRisk', value / 100)}
@@ -800,12 +800,12 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}%`}
                 />
-              </Box>
+              </div>
 
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Position Size: {(riskSettings.maxPositionSize * 100).toFixed(1)}%
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxPositionSize * 100}
                   onChange={(e, value) => updateRiskSettings('maxPositionSize', value / 100)}
@@ -815,12 +815,12 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}%`}
                 />
-              </Box>
+              </div>
 
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Drawdown: {(riskSettings.maxDrawdown * 100).toFixed(1)}%
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxDrawdown * 100}
                   onChange={(e, value) => updateRiskSettings('maxDrawdown', value / 100)}
@@ -830,18 +830,18 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}%`}
                 />
-              </Box>
-            </Grid>
+              </div>
+            </div>
 
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle1" gutterBottom>
+            <div className="grid" item xs={12} md={6}>
+              <div  variant="subtitle1" gutterBottom>
                 Additional Risk Controls
-              </Typography>
+              </div>
               
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Daily Loss: {(riskSettings.maxDailyLoss * 100).toFixed(1)}%
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxDailyLoss * 100}
                   onChange={(e, value) => updateRiskSettings('maxDailyLoss', value / 100)}
@@ -851,12 +851,12 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}%`}
                 />
-              </Box>
+              </div>
 
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Concentration: {(riskSettings.maxConcentration * 100).toFixed(1)}%
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxConcentration * 100}
                   onChange={(e, value) => updateRiskSettings('maxConcentration', value / 100)}
@@ -866,12 +866,12 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}%`}
                 />
-              </Box>
+              </div>
 
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="body2" gutterBottom>
                   Max Leverage: {riskSettings.maxLeverage.toFixed(1)}x
-                </Typography>
+                </div>
                 <Slider
                   value={riskSettings.maxLeverage}
                   onChange={(e, value) => updateRiskSettings('maxLeverage', value)}
@@ -881,18 +881,18 @@ const RiskManager = ({ portfolioData, positions, onRiskAlert }) => {
                   valueLabelDisplay="auto"
                   valueLabelFormat={(value) => `${value}x`}
                 />
-              </Box>
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenSettingsDialog(false)}>Cancel</Button>
-          <Button onClick={() => setOpenSettingsDialog(false)} variant="contained">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setOpenSettingsDialog(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setOpenSettingsDialog(false)} variant="contained">
             Save Settings
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

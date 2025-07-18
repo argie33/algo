@@ -338,60 +338,60 @@ const AIAssistant = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
+    <div className="container mx-auto" maxWidth="lg">
+      <div  sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center' }}>
+            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'primary.main', mr: 2 }}>
               <SmartToyIcon />
-            </Avatar>
-            <Box>
-              <Typography variant="h5" fontWeight="bold">
+            </div>
+            <div>
+              <div  variant="h5" fontWeight="bold">
                 AI Investment Assistant
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Your personal finance advisor powered by AI
-              </Typography>
-            </Box>
-          </Box>
+              </div>
+            </div>
+          </div>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="Digital Human (Beta)">
-              <IconButton 
+          <div  sx={{ display: 'flex', gap: 1 }}>
+            <div  title="Digital Human (Beta)">
+              <button className="p-2 rounded-full hover:bg-gray-100" 
                 color={digitalHumanEnabled ? 'primary' : 'default'}
                 onClick={() => setDigitalHumanEnabled(!digitalHumanEnabled)}
               >
                 {digitalHumanEnabled ? <VideocamIcon /> : <VideocamOffIcon />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={`Voice Chat ${speechService.isRecognitionSupported() ? '' : '(Not Supported)'}`}>
-              <IconButton 
+              </button>
+            </div>
+            <div  title={`Voice Chat ${speechService.isRecognitionSupported() ? '' : '(Not Supported)'}`}>
+              <button className="p-2 rounded-full hover:bg-gray-100" 
                 color={voiceEnabled ? 'primary' : 'default'}
                 onClick={() => setVoiceEnabled(!voiceEnabled)}
                 disabled={!speechService.isRecognitionSupported()}
               >
                 {voiceEnabled ? <VolumeUpIcon /> : <VolumeOffIcon />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Settings">
-              <IconButton onClick={() => setSettingsOpen(true)}>
+              </button>
+            </div>
+            <div  title="Settings">
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSettingsOpen(true)}>
                 <SettingsIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Options">
-              <IconButton onClick={(e) => setOptionsMenuAnchor(e.currentTarget)}>
-                <MoreVertIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
+              </button>
+            </div>
+            <div  title="Options">
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={(e) => setOptionsMenuAnchor(e.currentTarget)}>
+                <⋮  />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Digital Human Video Container */}
         {digitalHumanEnabled && (
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Box 
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  
                 sx={{ 
                   height: 200, 
                   bgcolor: 'grey.100', 
@@ -401,25 +401,25 @@ const AIAssistant = () => {
                   borderRadius: 1
                 }}
               >
-                <Box sx={{ textAlign: 'center' }}>
+                <div  sx={{ textAlign: 'center' }}>
                   <VideocamIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-                  <Typography variant="body2" color="text.secondary">
+                  <div  variant="body2" color="text.secondary">
                     Digital Human Avatar
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     NVIDIA Digital Human integration coming soon
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Quick Actions */}
-        <Grid container spacing={2} sx={{ mb: 2 }}>
+        <div className="grid" container spacing={2} sx={{ mb: 2 }}>
           {quickActions.map((action, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <Card 
+            <div className="grid" item xs={12} sm={6} md={3} key={index}>
+              <div className="bg-white shadow-md rounded-lg" 
                 sx={{ 
                   cursor: 'pointer',
                   transition: 'all 0.2s',
@@ -427,21 +427,21 @@ const AIAssistant = () => {
                 }}
                 onClick={() => handleQuickAction(action.action)}
               >
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <Box sx={{ color: 'primary.main', mb: 1 }}>
+                <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 2 }}>
+                  <div  sx={{ color: 'primary.main', mb: 1 }}>
                     {action.icon}
-                  </Box>
-                  <Typography variant="body2" fontWeight="medium">
+                  </div>
+                  <div  variant="body2" fontWeight="medium">
                     {action.text}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
           ))}
-        </Grid>
+        </div>
 
         {/* Messages Container */}
-        <Paper 
+        <div className="bg-white shadow-md rounded-lg p-4" 
           elevation={2} 
           sx={{ 
             flex: 1, 
@@ -450,7 +450,7 @@ const AIAssistant = () => {
             overflow: 'hidden'
           }}
         >
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <div  sx={{ flex: 1, overflow: 'auto', p: 2 }}>
             <List>
               {messages.map((message) => (
                 <ListItem 
@@ -462,7 +462,7 @@ const AIAssistant = () => {
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar 
+                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" 
                       sx={{ 
                         bgcolor: message.type === 'user' ? 'secondary.main' : 'primary.main',
                         ml: message.type === 'user' ? 1 : 0,
@@ -470,11 +470,11 @@ const AIAssistant = () => {
                       }}
                     >
                       {message.type === 'user' ? <PersonIcon /> : <PsychologyIcon />}
-                    </Avatar>
+                    </div>
                   </ListItemAvatar>
                   
-                  <Box sx={{ flex: 1, maxWidth: '70%' }}>
-                    <Paper
+                  <div  sx={{ flex: 1, maxWidth: '70%' }}>
+                    <div className="bg-white shadow-md rounded-lg p-4"
                       elevation={1}
                       sx={{
                         p: 2,
@@ -484,24 +484,24 @@ const AIAssistant = () => {
                         ...(message.isError && { bgcolor: 'error.light' })
                       }}
                     >
-                      <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                      <div  variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                         {message.content}
-                      </Typography>
-                      <Box sx={{ 
+                      </div>
+                      <div  sx={{ 
                         display: 'flex', 
                         justifyContent: message.type === 'user' ? 'flex-end' : 'space-between',
                         alignItems: 'center',
                         mt: 1 
                       }}>
-                        <Typography 
+                        <div  
                           variant="caption" 
                           sx={{ opacity: 0.7 }}
                         >
                           {message.timestamp.toLocaleTimeString()}
-                        </Typography>
+                        </div>
                         {message.type === 'assistant' && voiceEnabled && speechService.isSynthesisSupported() && (
-                          <Tooltip title={speechService.isCurrentlySpeaking() ? "Stop speaking" : "Speak this message"}>
-                            <IconButton 
+                          <div  title={speechService.isCurrentlySpeaking() ? "Stop speaking" : "Speak this message"}>
+                            <button className="p-2 rounded-full hover:bg-gray-100" 
                               size="small"
                               onClick={() => {
                                 if (speechService.isCurrentlySpeaking()) {
@@ -516,17 +516,17 @@ const AIAssistant = () => {
                                 <StopIcon fontSize="small" /> : 
                                 <PlayArrowIcon fontSize="small" />
                               }
-                            </IconButton>
-                          </Tooltip>
+                            </button>
+                          </div>
                         )}
-                      </Box>
-                    </Paper>
+                      </div>
+                    </div>
                     
                     {/* Suggestions */}
                     {message.suggestions && (
-                      <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      <div  sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {message.suggestions.map((suggestion, index) => (
-                          <Chip
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             key={index}
                             label={suggestion}
                             size="small"
@@ -536,30 +536,30 @@ const AIAssistant = () => {
                             sx={{ fontSize: '0.75rem' }}
                           />
                         ))}
-                      </Box>
+                      </div>
                     )}
-                  </Box>
+                  </div>
                 </ListItem>
               ))}
             </List>
             
             {isLoading && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={24} />
-                <Typography variant="body2" sx={{ ml: 1 }}>
+              <div  sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
+                <div  variant="body2" sx={{ ml: 1 }}>
                   AI is thinking...
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
             
             <div ref={messagesEndRef} />
-          </Box>
+          </div>
           
           {/* Input Area */}
-          <Divider />
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-              <TextField
+          <hr className="border-gray-200" />
+          <div  sx={{ p: 2 }}>
+            <div  sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 ref={inputRef}
                 fullWidth
                 multiline
@@ -574,67 +574,67 @@ const AIAssistant = () => {
                 helperText={isListening && interimTranscript ? `Listening: ${interimTranscript}` : ''}
               />
               {voiceEnabled && (
-                <Tooltip title={isListening ? "Stop listening" : "Start voice input"}>
-                  <IconButton 
+                <div  title={isListening ? "Stop listening" : "Start voice input"}>
+                  <button className="p-2 rounded-full hover:bg-gray-100" 
                     color={isListening ? 'error' : 'primary'}
                     onClick={handleVoiceToggle}
                     disabled={isLoading}
                   >
                     {isListening ? <MicOffIcon /> : <MicIcon />}
-                  </IconButton>
-                </Tooltip>
+                  </button>
+                </div>
               )}
-              <Tooltip title="Send message">
-                <IconButton 
+              <div  title="Send message">
+                <button className="p-2 rounded-full hover:bg-gray-100" 
                   color="primary" 
                   onClick={() => handleSendMessage()}
                   disabled={!inputMessage.trim() || isLoading}
                 >
                   <SendIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-        </Paper>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Options Menu */}
-        <Menu
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10"
           anchorEl={optionsMenuAnchor}
           open={Boolean(optionsMenuAnchor)}
           onClose={() => setOptionsMenuAnchor(null)}
         >
-          <MenuItem onClick={handleClearChat}>
+          <option  onClick={handleClearChat}>
             <ClearIcon sx={{ mr: 1 }} />
             Clear Chat
-          </MenuItem>
-        </Menu>
+          </option>
+        </div>
 
         {/* Settings Dialog */}
-        <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>AI Assistant Settings</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-              <FormControlLabel
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>AI Assistant Settings</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+            <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <div className="mb-4"Label
                 control={
-                  <Switch
+                  <input type="checkbox" className="toggle"
                     checked={digitalHumanEnabled}
                     onChange={(e) => setDigitalHumanEnabled(e.target.checked)}
                   />
                 }
                 label="Enable Digital Human Avatar (Beta)"
               />
-              <FormControlLabel
+              <div className="mb-4"Label
                 control={
-                  <Switch
+                  <input type="checkbox" className="toggle"
                     checked={voiceEnabled}
                     onChange={(e) => setVoiceEnabled(e.target.checked)}
                   />
                 }
                 label="Enable Voice Chat"
               />
-              <FormControlLabel
+              <div className="mb-4"Label
                 control={
-                  <Switch
+                  <input type="checkbox" className="toggle"
                     checked={autoVoiceResponse}
                     onChange={(e) => setAutoVoiceResponse(e.target.checked)}
                     disabled={!voiceEnabled}
@@ -644,34 +644,34 @@ const AIAssistant = () => {
               />
               
               {speechSupported && (
-                <Alert 
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                   severity={speechSupported.fullSupport ? 'success' : 'warning'} 
                   sx={{ mt: 2 }}
                 >
-                  <Typography variant="body2">
+                  <div  variant="body2">
                     <strong>Voice Support:</strong> 
                     {speechSupported.fullSupport 
                       ? ' Full voice chat supported in this browser!' 
                       : ` Limited support. ${speechSupported.recommendedBrowser}`
                     }
-                  </Typography>
-                </Alert>
+                  </div>
+                </div>
               )}
               
-              <Alert severity="info" sx={{ mt: 1 }}>
-                <Typography variant="body2">
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 1 }}>
+                <div  variant="body2">
                   <strong>Digital Human Avatar:</strong> This feature uses NVIDIA's Digital Human technology 
                   to provide a more engaging experience. Currently in beta phase.
-                </Typography>
-              </Alert>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </Container>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSettingsOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -200,45 +200,45 @@ const ProgressiveDataLoader = ({
     }
 
     return (
-      <Box sx={{ p: 2 }}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <CircularProgress size={24} sx={{ mr: 2 }} />
-              <Typography variant="h6">
+      <div  sx={{ p: 2 }}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} sx={{ mr: 2 }} />
+              <div  variant="h6">
                 Loading {pageName}...
-              </Typography>
+              </div>
               {retryCount > 0 && (
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`Retry ${retryCount}/${retryAttempts}`} 
                   size="small" 
                   color="warning"
                   sx={{ ml: 2 }}
                 />
               )}
-            </Box>
+            </div>
             
             {showProgress && (
-              <Box sx={{ mb: 2 }}>
-                <LinearProgress variant="determinate" value={progress} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <div  sx={{ mb: 2 }}>
+                <div className="w-full bg-gray-200 rounded-full h-2" variant="determinate" value={progress} />
+                <div  variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {progress < 20 ? 'Initializing...' :
                    progress < 40 ? 'Checking API health...' :
                    progress < 80 ? 'Fetching data...' :
                    progress < 100 ? 'Processing...' : 'Complete'}
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
 
             {/* Loading skeleton */}
-            <Box>
+            <div>
               <Skeleton variant="text" width="60%" height={32} />
               <Skeleton variant="rectangular" width="100%" height={100} sx={{ my: 1 }} />
               <Skeleton variant="text" width="80%" height={24} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -261,31 +261,31 @@ const ProgressiveDataLoader = ({
 
   // Success state with data
   return (
-    <Box>
+    <div>
       {/* Data source indicator */}
       {(dataSource !== 'live' || error) && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity={dataSource === 'cache' ? 'info' : dataSource === 'fallback' ? 'warning' : 'error'}
           sx={{ mb: 2 }}
           action={
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               color="inherit"
               size="small"
               onClick={handleRetry}
               startIcon={<Refresh />}
             >
               Refresh
-            </Button>
+            </button>
           }
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-            <Typography variant="body2">
+          <div  sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <div  variant="body2">
               {dataSource === 'cache' && 'Showing cached data'}
               {dataSource === 'fallback' && 'Showing demo data'}
               {dataSource === 'live' && error && 'Live data with issues'}
-            </Typography>
+            </div>
             
-            <Chip
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={dataSource.toUpperCase()}
               size="small"
               color={dataSource === 'live' ? 'success' : dataSource === 'cache' ? 'info' : 'warning'}
@@ -296,24 +296,24 @@ const ProgressiveDataLoader = ({
               }
             />
             
-            <Chip
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={`API: ${apiHealth.toUpperCase()}`}
               size="small"
               color={apiHealth === 'healthy' ? 'success' : apiHealth === 'degraded' ? 'warning' : 'error'}
             />
-          </Box>
+          </div>
           
           {error && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
+            <div  variant="body2" sx={{ mt: 1 }}>
               {error}
-            </Typography>
+            </div>
           )}
-        </Alert>
+        </div>
       )}
 
       {/* Render children with data */}
       {children && typeof children === 'function' ? children(data) : children}
-    </Box>
+    </div>
   );
 };
 

@@ -14,7 +14,6 @@ import {
   Divider,
   Grid
 } from '@mui/material';
-import { Visibility, VisibilityOff, PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import PasswordStrengthValidator from './PasswordStrengthValidator';
 
@@ -96,29 +95,29 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
+        <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
           <RegisterIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h4" component="h1" color="primary">
+          <div  variant="h4" component="h1" color="primary">
             Sign Up
-          </Typography>
-        </Box>
+          </div>
+        </div>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <div  variant="body1" color="text.secondary" align="center" mb={3}>
           Create your Financial Dashboard account
-        </Typography>
+        </div>
 
         {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {displayError}
-          </Alert>
+          </div>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
+        <div  component="form" onSubmit={handleSubmit} noValidate>
+          <div className="grid" container spacing={2}>
+            <div className="grid" item xs={12} sm={6}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 id="firstName"
                 name="firstName"
@@ -128,9 +127,9 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
                 autoComplete="given-name"
                 disabled={isLoading}
               />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
+            </div>
+            <div className="grid" item xs={12} sm={6}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 id="lastName"
                 name="lastName"
@@ -140,10 +139,10 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
                 autoComplete="family-name"
                 disabled={isLoading}
               />
-            </Grid>
-          </Grid>
+            </div>
+          </div>
 
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="username"
             name="username"
@@ -157,7 +156,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             helperText="This will be your unique identifier for signing in"
           />
 
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="email"
             name="email"
@@ -185,7 +184,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             required
           />
 
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="confirmPassword"
             name="confirmPassword"
@@ -200,34 +199,34 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
+                  <button className="p-2 rounded-full hover:bg-gray-100"
                     aria-label="toggle confirm password visibility"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     edge="end"
                     disabled={isLoading}
                   >
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
+                  </button>
                 </InputAdornment>
               )
             }}
           />
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <RegisterIcon />}
+            startIcon={isLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <RegisterIcon />}
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
-          </Button>
+          </button>
 
-          <Divider sx={{ my: 2 }} />
+          <hr className="border-gray-200" sx={{ my: 2 }} />
 
-          <Box textAlign="center">
-            <Typography variant="body2" color="text.secondary">
+          <div  textAlign="center">
+            <div  variant="body2" color="text.secondary">
               Already have an account?{' '}
               <Link
                 component="button"
@@ -239,11 +238,11 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
               >
                 Sign in here
               </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -111,9 +111,9 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
 
   if (compact) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {healthLoading ? (
-          <CircularProgress size={16} />
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} />
         ) : (
           <>
             <MonitorHeart 
@@ -122,26 +122,26 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
                 fontSize: 20 
               }} 
             />
-            <Typography variant="caption" color="text.secondary">
+            <div  variant="caption" color="text.secondary">
               {systemHealth?.status || 'Unknown'}
-            </Typography>
+            </div>
           </>
         )}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <div  sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" fontWeight="bold">
+      <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <div  variant="h4" fontWeight="bold">
           🚀 Production Monitoring Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <FormControlLabel
+        </div>
+        <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div className="mb-4"Label
             control={
-              <Switch
+              <input type="checkbox" className="toggle"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 size="small"
@@ -149,171 +149,171 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
             }
             label="Auto Refresh"
           />
-          <IconButton onClick={() => {
+          <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => {
             refetchHealth();
             window.location.reload();
           }}>
             <Refresh />
-          </IconButton>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* System Overview */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} lg={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 System Health Overview
-              </Typography>
+              </div>
               
               {healthLoading ? (
-                <CircularProgress />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
               ) : systemHealth ? (
-                <Grid container spacing={2}>
-                  <Grid item xs={6} md={3}>
-                    <Box textAlign="center">
+                <div className="grid" container spacing={2}>
+                  <div className="grid" item xs={6} md={3}>
+                    <div  textAlign="center">
                       <CheckCircle sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
-                      <Typography variant="h6">{systemHealth.uptime ? formatUptime(systemHealth.uptime) : 'N/A'}</Typography>
-                      <Typography variant="caption" color="text.secondary">Uptime</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Box textAlign="center">
+                      <div  variant="h6">{systemHealth.uptime ? formatUptime(systemHealth.uptime) : 'N/A'}</div>
+                      <div  variant="caption" color="text.secondary">Uptime</div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6} md={3}>
+                    <div  textAlign="center">
                       <Speed sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
-                      <Typography variant="h6">{systemHealth.responseTime || 'N/A'}ms</Typography>
-                      <Typography variant="caption" color="text.secondary">Avg Response</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Box textAlign="center">
+                      <div  variant="h6">{systemHealth.responseTime || 'N/A'}ms</div>
+                      <div  variant="caption" color="text.secondary">Avg Response</div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6} md={3}>
+                    <div  textAlign="center">
                       <Memory sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
-                      <Typography variant="h6">{systemHealth.memoryUsage || 'N/A'}MB</Typography>
-                      <Typography variant="caption" color="text.secondary">Memory Usage</Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Box textAlign="center">
+                      <div  variant="h6">{systemHealth.memoryUsage || 'N/A'}MB</div>
+                      <div  variant="caption" color="text.secondary">Memory Usage</div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6} md={3}>
+                    <div  textAlign="center">
                       <NetworkCheck sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
-                      <Typography variant="h6">{systemHealth.activeConnections || '0'}</Typography>
-                      <Typography variant="caption" color="text.secondary">Active Connections</Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
+                      <div  variant="h6">{systemHealth.activeConnections || '0'}</div>
+                      <div  variant="caption" color="text.secondary">Active Connections</div>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <Alert severity="error">Failed to load system health data</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load system health data</div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Quick Status */}
-        <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} lg={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Service Status
-              </Typography>
+              </div>
               
               {deployLoading ? (
-                <CircularProgress size={24} />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
               ) : deploymentStatus ? (
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <LinearProgress 
+                <div>
+                  <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <div className="w-full bg-gray-200 rounded-full h-2" 
                       variant="determinate" 
                       value={deploymentStatus.overallHealth * 100}
                       sx={{ flexGrow: 1, mr: 2 }}
                       color={deploymentStatus.overallHealth > 0.8 ? 'success' : 'error'}
                     />
-                    <Typography variant="body2">
+                    <div  variant="body2">
                       {Math.round(deploymentStatus.overallHealth * 100)}%
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                   
                   {deploymentStatus.endpoints.slice(0, 5).map((endpoint, index) => (
-                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{endpoint.endpoint}</Typography>
-                      <Chip 
+                    <div  key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <div  variant="body2">{endpoint.endpoint}</div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         size="small" 
                         label={endpoint.success ? 'OK' : 'ERROR'} 
                         color={endpoint.success ? 'success' : 'error'}
                       />
-                    </Box>
+                    </div>
                   ))}
-                </Box>
+                </div>
               ) : (
-                <Alert severity="warning">Deployment status unavailable</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning">Deployment status unavailable</div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Database Health */}
-        <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} lg={6}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Database Health
-              </Typography>
+              </div>
               
               {dbLoading ? (
-                <CircularProgress size={24} />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
               ) : dbHealth ? (
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <div>
+                  <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <Storage sx={{ mr: 1, color: dbHealth.connected ? 'success.main' : 'error.main' }} />
-                    <Typography variant="body1">
+                    <div  variant="body1">
                       {dbHealth.connected ? 'Connected' : 'Disconnected'}
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                   
                   {dbHealth.tables && (
-                    <TableContainer component={Paper} sx={{ maxHeight: 200 }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Table</TableCell>
-                            <TableCell align="right">Records</TableCell>
-                            <TableCell align="right">Status</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ maxHeight: 200 }}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Table</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Records</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Status</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                           {Object.entries(dbHealth.tables).slice(0, 5).map(([table, data]) => (
-                            <TableRow key={table}>
-                              <TableCell>{table}</TableCell>
-                              <TableCell align="right">{data.count || 0}</TableCell>
-                              <TableCell align="right">
-                                <Chip 
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={table}>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{table}</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{data.count || 0}</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   size="small" 
                                   label={data.status || 'unknown'} 
                                   color={data.status === 'healthy' ? 'success' : 'warning'}
                                 />
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                        </tbody>
+                      </table>
+                    </div>
                   )}
-                </Box>
+                </div>
               ) : (
-                <Alert severity="error">Database health check failed</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Database health check failed</div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Performance Trends */}
-        <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} lg={6}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Performance Trends
-              </Typography>
+              </div>
               
               {perfLoading ? (
-                <CircularProgress size={24} />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
               ) : performanceMetrics?.history ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={performanceMetrics.history}>
@@ -329,57 +329,57 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <Alert severity="info">Performance data loading...</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">Performance data loading...</div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Deployment Information */}
-        <Grid item xs={12}>
+        <div className="grid" item xs={12}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography variant="h6">
+              <div  variant="h6">
                 📋 Current Deployment Information
-              </Typography>
+              </div>
             </AccordionSummary>
             <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">Environment</Typography>
-                  <Typography variant="body1">Production (initialbuild branch)</Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">API Gateway</Typography>
-                  <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={12} md={4}>
+                  <div  variant="subtitle2" color="text.secondary">Environment</div>
+                  <div  variant="body1">Production (initialbuild branch)</div>
+                </div>
+                <div className="grid" item xs={12} md={4}>
+                  <div  variant="subtitle2" color="text.secondary">API Gateway</div>
+                  <div  variant="body1" sx={{ fontFamily: 'monospace' }}>
                     {API_BASE}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">Last Deploy</Typography>
-                  <Typography variant="body1">
+                  </div>
+                </div>
+                <div className="grid" item xs={12} md={4}>
+                  <div  variant="subtitle2" color="text.secondary">Last Deploy</div>
+                  <div  variant="body1">
                     {window.__CONFIG__?.BUILD_TIME ? new Date(window.__CONFIG__.BUILD_TIME).toLocaleString() : 'Unknown'}
-                  </Typography>
-                </Grid>
-              </Grid>
+                  </div>
+                </div>
+              </div>
               
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              <div  sx={{ mt: 2 }}>
+                <div  variant="subtitle2" color="text.secondary" gutterBottom>
                   Recent Session Fixes Applied:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  <Chip icon={<CheckCircle />} label="Database SSL Fix" color="success" size="small" />
-                  <Chip icon={<CheckCircle />} label="Cognito Debugging" color="success" size="small" />
-                  <Chip icon={<CheckCircle />} label="Bundle Optimization" color="success" size="small" />
-                  <Chip icon={<CheckCircle />} label="Error Boundaries" color="success" size="small" />
-                  <Chip icon={<CheckCircle />} label="Auth Fallbacks" color="success" size="small" />
-                </Box>
-              </Box>
+                </div>
+                <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<CheckCircle />} label="Database SSL Fix" color="success" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<CheckCircle />} label="Cognito Debugging" color="success" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<CheckCircle />} label="Bundle Optimization" color="success" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<CheckCircle />} label="Error Boundaries" color="success" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" icon={<CheckCircle />} label="Auth Fallbacks" color="success" size="small" />
+                </div>
+              </div>
             </AccordionDetails>
           </Accordion>
-        </Grid>
-      </Grid>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

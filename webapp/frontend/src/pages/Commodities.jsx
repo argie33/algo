@@ -1,20 +1,19 @@
 import React from 'react';
-import { Box, Typography, Paper, Container } from '@mui/material';
 
 const Commodities = () => {
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
+    <div className="container mx-auto" maxWidth="xl">
+      <div  sx={{ py: 4 }}>
+        <div  variant="h4" component="h1" gutterBottom>
           Commodities
-        </Typography>
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="body1">
+        </div>
+        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+          <div  variant="body1">
             Commodities analysis and trading tools coming soon...
-          </Typography>
-        </Paper>
-      </Box>
-    </Container>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

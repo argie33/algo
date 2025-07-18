@@ -5,8 +5,6 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Alert, Button, Dialog, CircularProgress, Typography, Card, CardContent, Chip, LinearProgress } from '@mui/material';
-import { Settings, VpnKey, Warning, TrendingUp } from '@mui/icons-material';
 import { useApiKeys } from './ApiKeyProvider';
 import ApiKeyOnboarding from './ApiKeyOnboarding';
 import { useNavigate } from 'react-router-dom';
@@ -35,9 +33,9 @@ const RequiresApiKeys = ({
   // Show loading state
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
-      </Box>
+      <div  sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+      </div>
     );
   }
 
@@ -86,43 +84,43 @@ const RequiresApiKeys = ({
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Alert 
+    <div  sx={{ p: 3 }}>
+      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
         severity="warning" 
         sx={{ mb: 2 }}
         action={
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
+          <div  sx={{ display: 'flex', gap: 1 }}>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               color="inherit" 
               size="small"
               onClick={handleStartOnboarding}
               startIcon={<VpnKey />}
             >
               Setup API Keys
-            </Button>
-            <Button 
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               color="inherit" 
               size="small"
               onClick={handleGoToSettings}
               startIcon={<Settings />}
             >
               Go to Settings
-            </Button>
-          </Box>
+            </button>
+          </div>
         }
       >
         {message || defaultMessage}
-      </Alert>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
           Error loading API keys: {error}
-        </Alert>
+        </div>
       )}
 
       {/* Show basic info about what's missing */}
-      <Box sx={{ mt: 2 }}>
-        <Alert severity="info">
+      <div  sx={{ mt: 2 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
           <strong>Required for this page:</strong>
           <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
             {requiredProviders.map(provider => (
@@ -132,21 +130,21 @@ const RequiresApiKeys = ({
               </li>
             ))}
           </ul>
-        </Alert>
-      </Box>
+        </div>
+      </div>
 
       {/* Show limited content if skip is allowed */}
       {allowSkip && (
-        <Box sx={{ mt: 3 }}>
-          <Alert severity="info" sx={{ mb: 2 }}>
+        <div  sx={{ mt: 3 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
             You can continue with limited functionality using demo data.
-          </Alert>
+          </div>
           {children}
-        </Box>
+        </div>
       )}
 
       {/* API Key Onboarding Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={onboardingOpen} 
         onClose={() => setOnboardingOpen(false)}
         maxWidth="md"
@@ -156,8 +154,8 @@ const RequiresApiKeys = ({
           onComplete={handleOnboardingComplete}
           onSkip={handleSkipOnboarding}
         />
-      </Dialog>
-    </Box>
+      </div>
+    </div>
   );
 };
 

@@ -10,7 +10,6 @@ import {
   CircularProgress,
   Link
 } from '@mui/material';
-import { CheckCircle as ConfirmIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
 function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) {
@@ -47,27 +46,27 @@ function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) 
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
+        <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
           <ConfirmIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h4" component="h1" color="primary">
+          <div  variant="h4" component="h1" color="primary">
             Verify Account
-          </Typography>
-        </Box>
+          </div>
+        </div>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <div  variant="body1" color="text.secondary" align="center" mb={3}>
           Enter the verification code sent to your email address
-        </Typography>
+        </div>
 
         {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {displayError}
-          </Alert>
+          </div>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField
+        <div  component="form" onSubmit={handleSubmit} noValidate>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="confirmationCode"
             name="confirmationCode"
@@ -83,19 +82,19 @@ function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) 
             inputProps={{ maxLength: 6 }}
           />
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <ConfirmIcon />}
+            startIcon={isLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <ConfirmIcon />}
           >
             {isLoading ? 'Verifying...' : 'Verify Account'}
-          </Button>
+          </button>
 
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2" color="text.secondary">
+          <div  textAlign="center" mt={2}>
+            <div  variant="body2" color="text.secondary">
               Didn't receive the code?{' '}
               <Link
                 component="button"
@@ -110,9 +109,9 @@ function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) 
               >
                 Resend
               </Link>
-            </Typography>
+            </div>
             
-            <Typography variant="body2" color="text.secondary" mt={1}>
+            <div  variant="body2" color="text.secondary" mt={1}>
               <Link
                 component="button"
                 type="button"
@@ -123,11 +122,11 @@ function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) 
               >
                 Back to Sign In
               </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

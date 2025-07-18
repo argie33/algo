@@ -311,92 +311,92 @@ const RealTimeDataStream = () => {
   }, []);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
+    <div  sx={{ p: 3 }}>
+      <div  variant="h4" gutterBottom>
         Real-Time Market Data Stream
-      </Typography>
+      </div>
 
       {/* Connection Status */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" gutterBottom>
             Connection Status
-          </Typography>
+          </div>
           
-          <Grid container spacing={2} alignItems="center">
-            <Grid item>
-              <Chip
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 label={isConnected ? 'Connected' : 'Disconnected'}
                 color={isConnected ? 'success' : 'error'}
                 icon={isConnected ? <TrendingUp /> : <TrendingDown />}
               />
-            </Grid>
+            </div>
             
-            <Grid item>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Provider</InputLabel>
-                <Select
+            <div className="grid" item>
+              <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedProvider}
                   onChange={(e) => setSelectedProvider(e.target.value)}
                   disabled={isStreaming}
                 >
                   {providers.map(provider => (
-                    <MenuItem key={provider} value={provider}>
+                    <option  key={provider} value={provider}>
                       {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                    </MenuItem>
+                    </option>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
+                </select>
+              </div>
+            </div>
             
-            <Grid item>
-              <Button
+            <div className="grid" item>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 color={isStreaming ? "error" : "primary"}
                 onClick={isStreaming ? stopStreaming : startStreaming}
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : (isStreaming ? <Pause /> : <PlayArrow />)}
+                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : (isStreaming ? <Pause /> : <PlayArrow />)}
               >
                 {loading ? 'Connecting...' : (isStreaming ? 'Stop Stream' : 'Start Stream')}
-              </Button>
-            </Grid>
+              </button>
+            </div>
             
-            <Grid item>
-              <Tooltip title="Refresh Status">
-                <IconButton onClick={checkConnectionStatus}>
+            <div className="grid" item>
+              <div  title="Refresh Status">
+                <button className="p-2 rounded-full hover:bg-gray-100" onClick={checkConnectionStatus}>
                   <Refresh />
-                </IconButton>
-              </Tooltip>
-            </Grid>
-          </Grid>
+                </button>
+              </div>
+            </div>
+          </div>
 
           {connectionStatus.connectedProviders && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary">
+            <div  sx={{ mt: 2 }}>
+              <div  variant="body2" color="text.secondary">
                 Connected Providers: {connectionStatus.connectedProviders.join(', ')}
-              </Typography>
-            </Box>
+              </div>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Error Display */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </Alert>
+        </div>
       )}
 
       {/* Symbol Management */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" gutterBottom>
             Symbols
-          </Typography>
+          </div>
           
-          <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            <Grid item>
-              <TextField
+          <div className="grid" container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <div className="grid" item>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 size="small"
                 label="Add Symbol"
                 value={newSymbol}
@@ -404,17 +404,17 @@ const RealTimeDataStream = () => {
                 onKeyPress={(e) => e.key === 'Enter' && addSymbol()}
                 placeholder="AAPL"
               />
-            </Grid>
-            <Grid item>
-              <Button variant="outlined" onClick={addSymbol} startIcon={<Add />}>
+            </div>
+            <div className="grid" item>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" onClick={addSymbol} startIcon={<Add />}>
                 Add
-              </Button>
-            </Grid>
-          </Grid>
+              </button>
+            </div>
+          </div>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {subscribedSymbols.map(symbol => (
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 key={symbol}
                 label={symbol}
                 onDelete={() => removeSymbol(symbol)}
@@ -422,17 +422,17 @@ const RealTimeDataStream = () => {
                 color={realtimeData.has(symbol) ? 'primary' : 'default'}
               />
             ))}
-          </Box>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
       {/* Real-Time Charts */}
       {Array.from(chartData.entries()).map(([symbol, data]) => (
-        <Card key={symbol} sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg" key={symbol} sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               {symbol} - Real-Time Price Chart
-            </Typography>
+            </div>
             
             {data.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -455,98 +455,98 @@ const RealTimeDataStream = () => {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography color="text.secondary">
+              <div  sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div  color="text.secondary">
                   Waiting for real-time data...
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
 
       {/* Latest Quotes */}
       {quotes.size > 0 && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Latest Quotes
-            </Typography>
+            </div>
             
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Bid</TableCell>
-                    <TableCell align="right">Ask</TableCell>
-                    <TableCell align="right">Spread</TableCell>
-                    <TableCell align="right">Time</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Bid</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Ask</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Spread</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Time</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {Array.from(quotes.entries()).map(([symbol, quote]) => (
-                    <TableRow key={symbol}>
-                      <TableCell component="th" scope="row">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={symbol}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row">
                         {symbol}
-                      </TableCell>
-                      <TableCell align="right">{formatPrice(quote.bid)}</TableCell>
-                      <TableCell align="right">{formatPrice(quote.ask)}</TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPrice(quote.bid)}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPrice(quote.ask)}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {formatPrice(quote.ask - quote.bid)}
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {formatTime(quote.timestamp)}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Recent Trades */}
       {trades.length > 0 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Recent Trades
-            </Typography>
+            </div>
             
-            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-              <Table stickyHeader size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">Size</TableCell>
-                    <TableCell align="right">Time</TableCell>
-                    <TableCell>Provider</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ maxHeight: 400 }}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Size</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Time</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Provider</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {trades.map((trade, index) => (
-                    <TableRow key={index}>
-                      <TableCell component="th" scope="row">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row">
                         {trade.symbol}
-                      </TableCell>
-                      <TableCell align="right">{formatPrice(trade.price)}</TableCell>
-                      <TableCell align="right">{trade.size}</TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPrice(trade.price)}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{trade.size}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                         {formatTime(trade.timestamp)}
-                      </TableCell>
-                      <TableCell>{trade.provider}</TableCell>
-                    </TableRow>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{trade.provider}</td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

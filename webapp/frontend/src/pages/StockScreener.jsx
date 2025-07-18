@@ -393,11 +393,11 @@ function StockScreener() {
     const maxValue = filters[maxKey] !== '' ? parseFloat(filters[maxKey]) : max
     
     return (
-      <Box mb={3}>
-        <Typography variant="subtitle2" gutterBottom>
+      <div  mb={3}>
+        <div  variant="subtitle2" gutterBottom>
           {label}
-        </Typography>
-        <Box px={2}>
+        </div>
+        <div  px={2}>
           <Slider
             value={[minValue, maxValue]}
             min={min}
@@ -414,9 +414,9 @@ function StockScreener() {
               { value: max, label: format(max) }
             ]}
           />
-        </Box>
-        <Box display="flex" gap={2} mt={1}>
-          <TextField
+        </div>
+        <div  display="flex" gap={2} mt={1}>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             size="small"
             label="Min"
             type="number"
@@ -424,7 +424,7 @@ function StockScreener() {
             onChange={(e) => handleFilterChange(minKey, e.target.value)}
             sx={{ width: '100px' }}
           />
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             size="small"
             label="Max"
             type="number"
@@ -432,8 +432,8 @@ function StockScreener() {
             onChange={(e) => handleFilterChange(maxKey, e.target.value)}
             sx={{ width: '100px' }}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
     )
   }
 
@@ -540,46 +540,46 @@ function StockScreener() {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
-        <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
+      <div  display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <div>
+          <div  variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Institutional Stock Screener
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </div>
+          <div  variant="body1" color="text.secondary">
             Professional-grade quantitative analysis and advanced factor screening
-          </Typography>
-          <Box display="flex" gap={1} mt={1}>
-            <Chip label="6-Factor Model" color="primary" size="small" variant="outlined" />
-            <Chip label="Institutional Grade" color="success" size="small" variant="outlined" />
-            <Chip label="Real-time Data" color="info" size="small" variant="outlined" />
-          </Box>
-        </Box>
-        <Box display="flex" gap={2}>
-          <Button
+          </div>
+          <div  display="flex" gap={1} mt={1}>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="6-Factor Model" color="primary" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Institutional Grade" color="success" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Data" color="info" size="small" variant="outlined" />
+          </div>
+        </div>
+        <div  display="flex" gap={2}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Clear />}
             onClick={handleClearFilters}
             disabled={getActiveFiltersCount() === 0}
           >
             Clear Filters
-          </Button>
-          <Chip 
+          </button>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`${getActiveFiltersCount()} Filters Active`} 
             color={getActiveFiltersCount() > 0 ? "primary" : "default"}
             icon={<FilterList />}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Quick Strategy Chips */}
-      <Box mb={3}>
-        <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+      <div  mb={3}>
+        <div  variant="subtitle1" fontWeight="bold" mb={2}>
           Quick Strategy Filters
-        </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1}>
-          <Chip 
+        </div>
+        <div  display="flex" flexWrap="wrap" gap={1}>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="Dividend Aristocrats" 
             onClick={() => {
               handleFilterChange('dividendYieldMin', 2)
@@ -590,7 +590,7 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="Growth at Reasonable Price" 
             onClick={() => {
               handleFilterChange('growthScoreMin', 60)
@@ -601,7 +601,7 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="High-Quality Moats" 
             onClick={() => {
               handleFilterChange('qualityScoreMin', 80)
@@ -612,7 +612,7 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="Undervalued Turnarounds" 
             onClick={() => {
               handleFilterChange('valueScoreMin', 70)
@@ -623,7 +623,7 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="Small Cap Growth" 
             onClick={() => {
               handleFilterChange('marketCapMax', 2)
@@ -634,7 +634,7 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label="Large Cap Stability" 
             onClick={() => {
               handleFilterChange('marketCapMin', 10)
@@ -645,27 +645,27 @@ function StockScreener() {
             variant="outlined"
             clickable
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Filters Panel */}
-        <Grid item xs={12} md={3}>
-          <Card sx={{ position: 'sticky', top: 20 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ position: 'sticky', top: 20 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
                 <FilterList />
                 Screening Filters
-              </Typography>
+              </div>
 
               {/* Basic Filters */}
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Basic Criteria</Typography>
+                  <div  variant="subtitle1">Basic Criteria</div>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Box display="flex" flexDirection="column" gap={2}>
-                    <TextField
+                  <div  display="flex" flexDirection="column" gap={2}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       select
                       label="Sector"
                       value={filters.sector}
@@ -673,13 +673,13 @@ function StockScreener() {
                       size="small"
                       fullWidth
                     >
-                      <MenuItem value="">All Sectors</MenuItem>
+                      <option  value="">All Sectors</option>
                       {SECTORS.map(sector => (
-                        <MenuItem key={sector} value={sector}>{sector}</MenuItem>
+                        <option  key={sector} value={sector}>{sector}</option>
                       ))}
-                    </TextField>
+                    </input>
 
-                    <TextField
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       select
                       label="Exchange"
                       value={filters.exchange}
@@ -687,13 +687,13 @@ function StockScreener() {
                       size="small"
                       fullWidth
                     >
-                      <MenuItem value="">All Exchanges</MenuItem>
+                      <option  value="">All Exchanges</option>
                       {EXCHANGES.map(exchange => (
-                        <MenuItem key={exchange} value={exchange}>{exchange}</MenuItem>
+                        <option  key={exchange} value={exchange}>{exchange}</option>
                       ))}
-                    </TextField>
+                    </input>
 
-                    <TextField
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       label="Country"
                       value={filters.country}
                       onChange={(e) => handleFilterChange('country', e.target.value)}
@@ -701,14 +701,14 @@ function StockScreener() {
                       fullWidth
                       placeholder="e.g., US, CA, GB"
                     />
-                  </Box>
+                  </div>
                 </AccordionDetails>
               </Accordion>
 
               {/* Price & Market Cap */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Price & Market Cap</Typography>
+                  <div  variant="subtitle1">Price & Market Cap</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('Stock Price ($)', 'priceMin', 'priceMax', 0, 1000, 1, formatCurrency)}
@@ -719,7 +719,7 @@ function StockScreener() {
               {/* Valuation */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Valuation</Typography>
+                  <div  variant="subtitle1">Valuation</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('P/E Ratio', 'peRatioMin', 'peRatioMax', 0, 50, 0.1)}
@@ -731,7 +731,7 @@ function StockScreener() {
               {/* Profitability */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Profitability</Typography>
+                  <div  variant="subtitle1">Profitability</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('ROE (%)', 'roeMin', 'roeMax', -50, 100, 1, (val) => `${val}%`)}
@@ -743,15 +743,15 @@ function StockScreener() {
               {/* Growth */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Growth</Typography>
+                  <div  variant="subtitle1">Growth</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('Revenue Growth (%)', 'revenueGrowthMin', 'revenueGrowthMax', -50, 100, 1, (val) => `${val}%`)}
                   {renderSliderFilter('Earnings Growth (%)', 'earningsGrowthMin', 'earningsGrowthMax', -100, 200, 1, (val) => `${val}%`)}
                   
-                  <FormControlLabel
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={filters.hasEarningsGrowth}
                         onChange={(e) => handleFilterChange('hasEarningsGrowth', e.target.checked)}
                       />
@@ -764,15 +764,15 @@ function StockScreener() {
               {/* Dividend */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Dividend</Typography>
+                  <div  variant="subtitle1">Dividend</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('Dividend Yield (%)', 'dividendYieldMin', 'dividendYieldMax', 0, 15, 0.1, (val) => `${val}%`)}
                   {renderSliderFilter('Payout Ratio (%)', 'payoutRatioMin', 'payoutRatioMax', 0, 200, 1, (val) => `${val}%`)}
                   
-                  <FormControlLabel
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={filters.paysDividends}
                         onChange={(e) => handleFilterChange('paysDividends', e.target.checked)}
                       />
@@ -785,15 +785,15 @@ function StockScreener() {
               {/* Financial Health */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Financial Health</Typography>
+                  <div  variant="subtitle1">Financial Health</div>
                 </AccordionSummary>
                 <AccordionDetails>
                   {renderSliderFilter('Current Ratio', 'currentRatioMin', 'currentRatioMax', 0, 10, 0.1)}
                   {renderSliderFilter('Debt to Equity', 'debtToEquityMin', 'debtToEquityMax', 0, 5, 0.1)}
                   
-                  <FormControlLabel
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={filters.hasPositiveCashFlow}
                         onChange={(e) => handleFilterChange('hasPositiveCashFlow', e.target.checked)}
                       />
@@ -806,16 +806,16 @@ function StockScreener() {
               {/* Advanced Factor Analysis */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <Typography variant="subtitle1">Advanced Factor Analysis</Typography>
+                  <div  variant="subtitle1">Advanced Factor Analysis</div>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Screen based on our proprietary 6-factor scoring model
-                  </Typography>
+                  </div>
                   
                   {/* Quality Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Quality Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Quality Score (0-100)</div>
                     <Slider
                       value={[filters.qualityScoreMin || 0, filters.qualityScoreMax || 100]}
                       onChange={(e, value) => {
@@ -834,11 +834,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Growth Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Growth Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Growth Score (0-100)</div>
                     <Slider
                       value={[filters.growthScoreMin || 0, filters.growthScoreMax || 100]}
                       onChange={(e, value) => {
@@ -857,11 +857,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Value Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Value Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Value Score (0-100)</div>
                     <Slider
                       value={[filters.valueScoreMin || 0, filters.valueScoreMax || 100]}
                       onChange={(e, value) => {
@@ -880,11 +880,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Momentum Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Momentum Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Momentum Score (0-100)</div>
                     <Slider
                       value={[filters.momentumScoreMin || 0, filters.momentumScoreMax || 100]}
                       onChange={(e, value) => {
@@ -903,11 +903,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Sentiment Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Sentiment Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Sentiment Score (0-100)</div>
                     <Slider
                       value={[filters.sentimentScoreMin || 0, filters.sentimentScoreMax || 100]}
                       onChange={(e, value) => {
@@ -926,11 +926,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Positioning Score */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Positioning Score (0-100)</Typography>
+                  <div  sx={{ mb: 3 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Positioning Score (0-100)</div>
                     <Slider
                       value={[filters.positioningScoreMin || 0, filters.positioningScoreMax || 100]}
                       onChange={(e, value) => {
@@ -949,11 +949,11 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Composite Score */}
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ mb: 1 }}>Composite Score (0-100)</Typography>
+                  <div  sx={{ mb: 2 }}>
+                    <div  variant="body2" sx={{ mb: 1 }}>Composite Score (0-100)</div>
                     <Slider
                       value={[filters.compositeScoreMin || 0, filters.compositeScoreMax || 100]}
                       onChange={(e, value) => {
@@ -972,13 +972,13 @@ function StockScreener() {
                         { value: 100, label: '100' }
                       ]}
                     />
-                  </Box>
+                  </div>
 
                   {/* Preset Factor Strategies */}
-                  <Divider sx={{ my: 2 }} />
-                  <Typography variant="body2" sx={{ mb: 2 }}>Preset Strategies:</Typography>
-                  <Box display="flex" flexWrap="wrap" gap={1}>
-                    <Button 
+                  <hr className="border-gray-200" sx={{ my: 2 }} />
+                  <div  variant="body2" sx={{ mb: 2 }}>Preset Strategies:</div>
+                  <div  display="flex" flexWrap="wrap" gap={1}>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                       variant="outlined" 
                       size="small"
                       onClick={() => {
@@ -988,8 +988,8 @@ function StockScreener() {
                       }}
                     >
                       Quality Growth
-                    </Button>
-                    <Button 
+                    </button>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                       variant="outlined" 
                       size="small"
                       onClick={() => {
@@ -999,8 +999,8 @@ function StockScreener() {
                       }}
                     >
                       Deep Value
-                    </Button>
-                    <Button 
+                    </button>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                       variant="outlined" 
                       size="small"
                       onClick={() => {
@@ -1010,8 +1010,8 @@ function StockScreener() {
                       }}
                     >
                       Momentum
-                    </Button>
-                    <Button 
+                    </button>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                       variant="outlined" 
                       size="small"
                       onClick={() => {
@@ -1019,78 +1019,78 @@ function StockScreener() {
                       }}
                     >
                       Top Tier
-                    </Button>
-                  </Box>
+                    </button>
+                  </div>
                 </AccordionDetails>
               </Accordion>
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Results Panel */}
-        <Grid item xs={12} md={9}>
-          <Card>
-            <CardContent>
+        <div className="grid" item xs={12} md={9}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
               {/* Results Header */}
-              <Box display="flex" alignItems="center" justifyContent="between" mb={3}>
-                <Typography variant="h6">
+              <div  display="flex" alignItems="center" justifyContent="between" mb={3}>
+                <div  variant="h6">
                   Screening Results
                   {totalCount > 0 && (
-                    <Chip 
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       label={`${totalCount} stocks found`} 
                       color="primary" 
                       variant="outlined" 
                       sx={{ ml: 2 }} 
                     />
                   )}
-                </Typography>
+                </div>
                 
-                <Box display="flex" gap={2} alignItems="center">
-                  <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Columns</InputLabel>
-                    <Select
+                <div  display="flex" gap={2} alignItems="center">
+                  <div className="mb-4" size="small" sx={{ minWidth: 150 }}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Columns</label>
+                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       multiple
                       value={selectedColumns}
                       onChange={(e) => setSelectedColumns(e.target.value)}
                       label="Columns"
                       renderValue={(selected) => `${selected.length} columns`}
                     >
-                      <MenuItem value="symbol">Symbol</MenuItem>
-                      <MenuItem value="company_name">Company</MenuItem>
-                      <MenuItem value="price">Price</MenuItem>
-                      <MenuItem value="market_capitalization">Market Cap</MenuItem>
-                      <MenuItem value="pe_ratio">P/E Ratio</MenuItem>
-                      <MenuItem value="peg_ratio">PEG Ratio</MenuItem>
-                      <MenuItem value="pb_ratio">P/B Ratio</MenuItem>
-                      <MenuItem value="dividend_yield">Dividend Yield</MenuItem>
-                      <MenuItem value="return_on_equity">ROE</MenuItem>
-                      <MenuItem value="return_on_assets">ROA</MenuItem>
-                      <MenuItem value="revenue_growth">Revenue Growth</MenuItem>
-                      <MenuItem value="earnings_growth">EPS Growth</MenuItem>
-                      <MenuItem value="current_ratio">Current Ratio</MenuItem>
-                      <MenuItem value="debt_to_equity">Debt/Equity</MenuItem>
-                      <MenuItem value="gross_margin">Gross Margin</MenuItem>
-                      <MenuItem value="operating_margin">Operating Margin</MenuItem>
-                      <MenuItem value="net_margin">Net Margin</MenuItem>
-                      <Divider />
-                      <MenuItem value="qualityScore">Quality Score</MenuItem>
-                      <MenuItem value="growthScore">Growth Score</MenuItem>
-                      <MenuItem value="valueScore">Value Score</MenuItem>
-                      <MenuItem value="momentumScore">Momentum Score</MenuItem>
-                      <MenuItem value="sentimentScore">Sentiment Score</MenuItem>
-                      <MenuItem value="positioningScore">Positioning Score</MenuItem>
-                      <MenuItem value="compositeScore">Composite Score</MenuItem>
-                      <Divider />
-                      <MenuItem value="analyst_rating">Analyst Rating</MenuItem>
-                      <MenuItem value="beta">Beta</MenuItem>
-                      <MenuItem value="volume">Volume</MenuItem>
-                      <MenuItem value="sector">Sector</MenuItem>
-                      <MenuItem value="industry">Industry</MenuItem>
-                      <MenuItem value="country">Country</MenuItem>
-                    </Select>
-                  </FormControl>
+                      <option  value="symbol">Symbol</option>
+                      <option  value="company_name">Company</option>
+                      <option  value="price">Price</option>
+                      <option  value="market_capitalization">Market Cap</option>
+                      <option  value="pe_ratio">P/E Ratio</option>
+                      <option  value="peg_ratio">PEG Ratio</option>
+                      <option  value="pb_ratio">P/B Ratio</option>
+                      <option  value="dividend_yield">Dividend Yield</option>
+                      <option  value="return_on_equity">ROE</option>
+                      <option  value="return_on_assets">ROA</option>
+                      <option  value="revenue_growth">Revenue Growth</option>
+                      <option  value="earnings_growth">EPS Growth</option>
+                      <option  value="current_ratio">Current Ratio</option>
+                      <option  value="debt_to_equity">Debt/Equity</option>
+                      <option  value="gross_margin">Gross Margin</option>
+                      <option  value="operating_margin">Operating Margin</option>
+                      <option  value="net_margin">Net Margin</option>
+                      <hr className="border-gray-200" />
+                      <option  value="qualityScore">Quality Score</option>
+                      <option  value="growthScore">Growth Score</option>
+                      <option  value="valueScore">Value Score</option>
+                      <option  value="momentumScore">Momentum Score</option>
+                      <option  value="sentimentScore">Sentiment Score</option>
+                      <option  value="positioningScore">Positioning Score</option>
+                      <option  value="compositeScore">Composite Score</option>
+                      <hr className="border-gray-200" />
+                      <option  value="analyst_rating">Analyst Rating</option>
+                      <option  value="beta">Beta</option>
+                      <option  value="volume">Volume</option>
+                      <option  value="sector">Sector</option>
+                      <option  value="industry">Industry</option>
+                      <option  value="country">Country</option>
+                    </select>
+                  </div>
                   
-                  <TextField
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     select
                     label="Sort By"
                     value={orderBy}
@@ -1098,104 +1098,104 @@ function StockScreener() {
                     size="small"
                     sx={{ minWidth: 150 }}
                   >
-                    <MenuItem value="market_capitalization">Market Cap</MenuItem>
-                    <MenuItem value="price">Price</MenuItem>
-                    <MenuItem value="pe_ratio">P/E Ratio</MenuItem>
-                    <MenuItem value="dividend_yield">Dividend Yield</MenuItem>
-                    <MenuItem value="return_on_equity">ROE</MenuItem>
-                    <MenuItem value="revenue_growth">Revenue Growth</MenuItem>
-                    <MenuItem value="qualityScore">Quality Score</MenuItem>
-                    <MenuItem value="growthScore">Growth Score</MenuItem>
-                    <MenuItem value="compositeScore">Composite Score</MenuItem>
-                  </TextField>
+                    <option  value="market_capitalization">Market Cap</option>
+                    <option  value="price">Price</option>
+                    <option  value="pe_ratio">P/E Ratio</option>
+                    <option  value="dividend_yield">Dividend Yield</option>
+                    <option  value="return_on_equity">ROE</option>
+                    <option  value="revenue_growth">Revenue Growth</option>
+                    <option  value="qualityScore">Quality Score</option>
+                    <option  value="growthScore">Growth Score</option>
+                    <option  value="compositeScore">Composite Score</option>
+                  </input>
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant={order === 'desc' ? 'contained' : 'outlined'}
                     size="small"
                     onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
                     startIcon={order === 'desc' ? <TrendingDown /> : <TrendingUp />}
                   >
                     {order === 'desc' ? 'Desc' : 'Asc'}
-                  </Button>
-                </Box>
-              </Box>
+                  </button>
+                </div>
+              </div>
 
               {/* Advanced Controls */}
-              <Box display="flex" alignItems="center" justifyContent="between" mb={3} p={2} bgcolor="grey.50" borderRadius={1}>
-                <Box display="flex" gap={2} alignItems="center">
-                  <Typography variant="body2" color="text.secondary">
+              <div  display="flex" alignItems="center" justifyContent="between" mb={3} p={2} bgcolor="grey.50" borderRadius={1}>
+                <div  display="flex" gap={2} alignItems="center">
+                  <div  variant="body2" color="text.secondary">
                     Advanced Controls:
-                  </Typography>
-                  <Button 
+                  </div>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     size="small" 
                     variant="outlined"
                     onClick={() => setSelectedColumns(['symbol', 'company_name', 'qualityScore', 'growthScore', 'valueScore', 'compositeScore'])}
                   >
                     Factor View
-                  </Button>
-                  <Button 
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     size="small" 
                     variant="outlined"
                     onClick={() => setSelectedColumns(['symbol', 'company_name', 'price', 'market_capitalization', 'pe_ratio', 'dividend_yield', 'return_on_equity', 'sector'])}
                   >
                     Fundamental View
-                  </Button>
-                  <Button 
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     size="small" 
                     variant="outlined"
                     onClick={() => setSelectedColumns(['symbol', 'company_name', 'price', 'revenue_growth', 'earnings_growth', 'gross_margin', 'operating_margin', 'net_margin'])}
                   >
                     Growth View
-                  </Button>
-                </Box>
+                  </button>
+                </div>
                 
-                <Box display="flex" gap={1}>
-                  <Tooltip title="Export to CSV">
-                    <IconButton size="small" onClick={handleExportCSV}>
+                <div  display="flex" gap={1}>
+                  <div  title="Export to CSV">
+                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleExportCSV}>
                       <FileDownload />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Save Screen">
-                    <IconButton size="small" onClick={() => setShowSaveDialog(true)}>
+                    </button>
+                  </div>
+                  <div  title="Save Screen">
+                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => setShowSaveDialog(true)}>
                       <Save />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Share Screen">
-                    <IconButton size="small" onClick={() => {
+                    </button>
+                  </div>
+                  <div  title="Share Screen">
+                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => {
                       const url = new URL(window.location);
                       url.searchParams.set('filters', JSON.stringify(filters));
                       navigator.clipboard.writeText(url.toString());
                       setSnackbar({ open: true, message: 'Screen URL copied to clipboard', severity: 'success' });
                     }}>
                       <Share />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Loading State */}
               {isLoading && (
-                <Box display="flex" justifyContent="center" p={4}>
-                  <CircularProgress size={60} />
-                </Box>
+                <div  display="flex" justifyContent="center" p={4}>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
+                </div>
               )}
 
               {/* Error State */}
               {error && (
-                <Alert severity="error" sx={{ mb: 3 }}>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
                   Error loading screening results: {error.message}
-                </Alert>
+                </div>
               )}
 
               {/* Results Table */}
               {screenResults && !isLoading && (
                 <>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small" stickyHeader>
-                      <TableHead>
-                        <TableRow>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small" stickyHeader>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
                           {visibleColumns.map((column) => (
-                            <TableCell
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell
                               key={column.id}
                               sortDirection={orderBy === column.id ? order : false}
                               sx={{ 
@@ -1210,25 +1210,25 @@ function StockScreener() {
                             >
                               {column.label}
                               {column.isFactorScore && (
-                                <Chip size="small" label="Factor" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" size="small" label="Factor" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
                               )}
                               {orderBy === column.id && (
-                                <Box component="span" ml={1}>
+                                <div  component="span" ml={1}>
                                   {order === 'desc' ? '↓' : '↑'}
-                                </Box>
+                                </div>
                               )}
-                            </TableCell>
+                            </td>
                           ))}
-                          <TableCell>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+                        </tr>
+                      </thead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                         {stocksList.map((stock) => {
                           // Calculate factor scores based on available data
                           const factorScores = calculateFactorScores(stock);
                           
                           return (
-                            <TableRow
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow
                               key={stock.symbol}
                               hover
                               sx={{ 
@@ -1238,14 +1238,14 @@ function StockScreener() {
                               onClick={() => handleRowClick(stock.symbol)}
                             >
                               {visibleColumns.map((column) => (
-                                <TableCell key={column.id} sx={{ width: column.width }}>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={column.id} sx={{ width: column.width }}>
                                   {column.isFactorScore ? (
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                      <Typography variant="body2" fontWeight="bold">
+                                    <div  display="flex" alignItems="center" gap={1}>
+                                      <div  variant="body2" fontWeight="bold">
                                         {factorScores[column.id]}
-                                      </Typography>
-                                      <Box width={40} height={6} bgcolor="grey.200" borderRadius={3}>
-                                        <Box 
+                                      </div>
+                                      <div  width={40} height={6} bgcolor="grey.200" borderRadius={3}>
+                                        <div  
                                           width={`${factorScores[column.id]}%`} 
                                           height="100%" 
                                           bgcolor={
@@ -1254,27 +1254,27 @@ function StockScreener() {
                                           }
                                           borderRadius={3}
                                         />
-                                      </Box>
-                                    </Box>
+                                      </div>
+                                    </div>
                                   ) : column.format ? (
                                     column.format(stock[column.id])
                                   ) : (
                                     stock[column.id] || 'N/A'
                                   )}
-                                </TableCell>
+                                </td>
                               ))}
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                <Box display="flex" gap={1}>
-                                  <Tooltip title="View Details">
-                                    <IconButton 
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell onClick={(e) => e.stopPropagation()}>
+                                <div  display="flex" gap={1}>
+                                  <div  title="View Details">
+                                    <button className="p-2 rounded-full hover:bg-gray-100" 
                                       size="small"
                                       onClick={() => handleRowClick(stock.symbol)}
                                     >
                                       <ShowChart />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title={favorites.has(stock.symbol) ? "Remove from Favorites" : "Add to Favorites"}>
-                                    <IconButton 
+                                    </button>
+                                  </div>
+                                  <div  title={favorites.has(stock.symbol) ? "Remove from Favorites" : "Add to Favorites"}>
+                                    <button className="p-2 rounded-full hover:bg-gray-100" 
                                       size="small"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1283,11 +1283,11 @@ function StockScreener() {
                                       color={favorites.has(stock.symbol) ? "primary" : "default"}
                                     >
                                       {favorites.has(stock.symbol) ? <Star /> : <StarBorder />}
-                                    </IconButton>
-                                  </Tooltip>
+                                    </button>
+                                  </div>
                                   {watchlists.length > 0 && (
-                                    <FormControl size="small" sx={{ minWidth: 120 }}>
-                                      <Select
+                                    <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+                                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         value={selectedWatchlist}
                                         displayEmpty
                                         onChange={(e) => {
@@ -1298,36 +1298,36 @@ function StockScreener() {
                                         }}
                                         renderValue={(selected) => {
                                           if (!selected) {
-                                            return <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            return <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                               <BookmarkBorder fontSize="small" />
-                                              <Typography variant="caption">Add to...</Typography>
-                                            </Box>
+                                              <div  variant="caption">Add to...</div>
+                                            </div>
                                           }
                                           return selected;
                                         }}
                                       >
-                                        <MenuItem value="" disabled>
-                                          <Typography variant="caption" color="text.secondary">Select Watchlist</Typography>
-                                        </MenuItem>
+                                        <option  value="" disabled>
+                                          <div  variant="caption" color="text.secondary">Select Watchlist</div>
+                                        </option>
                                         {watchlists.map((watchlist) => (
-                                          <MenuItem key={watchlist.id} value={watchlist.id}>
+                                          <option  key={watchlist.id} value={watchlist.id}>
                                             {watchlist.name}
-                                          </MenuItem>
+                                          </option>
                                         ))}
-                                      </Select>
-                                    </FormControl>
+                                      </select>
+                                    </div>
                                   )}
-                                </Box>
-                              </TableCell>
-                            </TableRow>
+                                </div>
+                              </td>
+                            </tr>
                           );
                         })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Pagination */}
-                  <TablePagination
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
                     rowsPerPageOptions={[10, 25, 50, 100]}
                     component="div"
                     count={totalCount}
@@ -1341,84 +1341,84 @@ function StockScreener() {
 
               {/* No Results */}
               {screenResults && stocksList.length === 0 && !isLoading && (
-                <Box textAlign="center" py={6}>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                <div  textAlign="center" py={6}>
+                  <div  variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" mb={3}>
+                  </div>
+                  <div  variant="body2" color="text.secondary" mb={3}>
                     Try adjusting your filters to see more results
-                  </Typography>
-                  <Button 
+                  </div>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     variant="outlined" 
                     onClick={handleClearFilters}
                     startIcon={<Clear />}
                   >
                     Clear All Filters
-                  </Button>
-                </Box>
+                  </button>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Saved Screens Panel */}
       {savedScreens.length > 0 && (
-        <Box mt={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div  mt={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Saved Screens
-              </Typography>
-              <Grid container spacing={2}>
+              </div>
+              <div className="grid" container spacing={2}>
                 {savedScreens.map((screen) => (
-                  <Grid item xs={12} sm={6} md={4} key={screen.id}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Typography variant="subtitle1" gutterBottom>
+                  <div className="grid" item xs={12} sm={6} md={4} key={screen.id}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="subtitle1" gutterBottom>
                           {screen.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                        </div>
+                        <div  variant="body2" color="text.secondary" gutterBottom>
                           {screen.description || 'No description'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        </div>
+                        <div  variant="caption" color="text.secondary">
                           Created: {new Date(screen.createdAt).toLocaleDateString()}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" display="block">
+                        </div>
+                        <div  variant="caption" color="text.secondary" display="block">
                           Results: {screen.resultCount}
-                        </Typography>
-                        <Box mt={2} display="flex" gap={1}>
-                          <Button
+                        </div>
+                        <div  mt={2} display="flex" gap={1}>
+                          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             size="small"
                             variant="outlined"
                             onClick={() => handleLoadScreen(screen)}
                           >
                             Load
-                          </Button>
-                          <Button
+                          </button>
+                          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             size="small"
                             variant="outlined"
                             color="error"
                             onClick={() => handleDeleteScreen(screen.id)}
                           >
                             Delete
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </Grid>
-            </CardContent>
-          </Card>
-        </Box>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Save Screen Dialog */}
-      <Dialog open={showSaveDialog} onClose={() => setShowSaveDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Save Screen</DialogTitle>
-        <DialogContent>
-          <TextField
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={showSaveDialog} onClose={() => setShowSaveDialog(false)} maxWidth="sm" fullWidth>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Save Screen</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
             margin="dense"
             label="Screen Name"
@@ -1427,7 +1427,7 @@ function StockScreener() {
             value={screenName}
             onChange={(e) => setScreenName(e.target.value)}
           />
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             margin="dense"
             label="Description (optional)"
             fullWidth
@@ -1437,34 +1437,34 @@ function StockScreener() {
             value={screenDescription}
             onChange={(e) => setScreenDescription(e.target.value)}
           />
-          <Box mt={2}>
-            <Typography variant="body2" color="text.secondary">
+          <div  mt={2}>
+            <div  variant="body2" color="text.secondary">
               This screen will save your current filters, column selection, and sorting preferences.
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
-          <Button onClick={handleSaveScreen} variant="contained">
+            </div>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowSaveDialog(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleSaveScreen} variant="contained">
             Save Screen
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </button>
+        </div>
+      </div>
 
       {/* Snackbar for notifications */}
-      <Snackbar
+      <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
 

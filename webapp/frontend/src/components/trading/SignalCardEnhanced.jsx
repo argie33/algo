@@ -36,7 +36,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 
 const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
-  const theme = useTheme();
+  const theme = { palette: { mode: "light" } };
 
   // Calculate buy zone position (O'Neill 5% rule)
   const buyZoneStart = signal.pivot_price || signal.entry_price;
@@ -80,7 +80,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
   };
 
   return (
-    <Card 
+    <div className="bg-white shadow-md rounded-lg" 
       sx={{ 
         height: '100%',
         display: 'flex',
@@ -94,28 +94,28 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
         }
       }}
     >
-      <CardContent sx={{ flex: 1 }}>
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ flex: 1 }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="h5" fontWeight={700}>
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <div>
+            <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <div  variant="h5" fontWeight={700}>
                 {signal.symbol}
-              </Typography>
-              <Chip
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={signal.signal === 'Buy' ? <TrendingUp /> : <TrendingDown />}
                 label={signal.signal}
                 size="small"
                 color={signal.signal === 'Buy' ? 'success' : 'error'}
                 sx={{ fontWeight: 600 }}
               />
-            </Box>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               {signal.company_name}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Chip
+            </div>
+          </div>
+          <div  sx={{ display: 'flex', gap: 1 }}>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={signal.breakout_quality || 'B'}
               sx={{
                 backgroundColor: getQualityColor(signal.breakout_quality) + '33',
@@ -124,22 +124,22 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
                 fontSize: '0.9rem'
               }}
             />
-            <IconButton 
+            <button className="p-2 rounded-full hover:bg-gray-100" 
               size="small" 
               onClick={() => onBookmark(signal.symbol)}
               color={isBookmarked ? 'primary' : 'default'}
             >
               {isBookmarked ? <Bookmark /> : <BookmarkBorder />}
-            </IconButton>
-          </Box>
-        </Box>
+            </button>
+          </div>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <hr className="border-gray-200" sx={{ my: 2 }} />
 
         {/* Signal Details */}
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Paper 
+        <div className="grid" container spacing={2}>
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg p-4" 
               elevation={0} 
               sx={{ 
                 p: 2, 
@@ -147,24 +147,24 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
                 border: `1px solid ${'#1976d21A'}`
               }}
             >
-              <Typography variant="subtitle2" gutterBottom>
+              <div  variant="subtitle2" gutterBottom>
                 {signal.signal_type || 'Breakout'} Signal
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Chip
+              </div>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                   icon={<ShowChart />}
                   label={`${signal.base_type || 'Pattern'} ${getBasePatternIcon(signal.base_type)}`}
                   size="small"
                   variant="outlined"
                 />
-                <Chip
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                   icon={<Timeline />}
                   label={`${signal.base_length_days || 0} days`}
                   size="small"
                   variant="outlined"
                 />
                 {signal.rs_rating && (
-                  <Chip
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     icon={<Speed />}
                     label={`RS: ${signal.rs_rating}`}
                     size="small"
@@ -172,27 +172,27 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
                     variant="outlined"
                   />
                 )}
-              </Box>
-            </Paper>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
           {/* Buy Zone Indicator */}
-          <Grid item xs={12}>
-            <Box sx={{ mb: 1 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2" fontWeight={600}>
+          <div className="grid" item xs={12}>
+            <div  sx={{ mb: 1 }}>
+              <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <div  variant="body2" fontWeight={600}>
                   5% Buy Zone (O'Neill Method)
-                </Typography>
-                <Typography 
+                </div>
+                <div  
                   variant="body2" 
                   color={isInBuyZone ? 'success.main' : 'error.main'}
                   fontWeight={600}
                 >
                   {isInBuyZone ? 'IN ZONE' : 'OUT OF ZONE'}
-                </Typography>
-              </Box>
-              <Box sx={{ position: 'relative' }}>
-                <LinearProgress 
+                </div>
+              </div>
+              <div  sx={{ position: 'relative' }}>
+                <div className="w-full bg-gray-200 rounded-full h-2" 
                   variant="determinate" 
                   value={Math.min(100, Math.max(0, buyZonePosition))}
                   sx={{ 
@@ -204,119 +204,119 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
                     }
                   }}
                 />
-                <Box sx={{ 
+                <div  sx={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   mt: 0.5 
                 }}>
-                  <Typography variant="caption">
+                  <div  variant="caption">
                     {formatCurrency(buyZoneStart)}
-                  </Typography>
-                  <Typography variant="caption" fontWeight={600}>
+                  </div>
+                  <div  variant="caption" fontWeight={600}>
                     Current: {formatCurrency(currentPrice)}
-                  </Typography>
-                  <Typography variant="caption">
+                  </div>
+                  <div  variant="caption">
                     {formatCurrency(buyZoneEnd)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Price & Volume */}
-          <Grid item xs={6}>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Entry Price</Typography>
-              <Typography variant="h6" fontWeight={600}>
+          <div className="grid" item xs={6}>
+            <div>
+              <div  variant="caption" color="text.secondary">Entry Price</div>
+              <div  variant="h6" fontWeight={600}>
                 {formatCurrency(signal.entry_price || buyZoneStart)}
-              </Typography>
-              <Typography variant="caption" color="error.main">
+              </div>
+              <div  variant="caption" color="error.main">
                 Stop: {formatCurrency((signal.entry_price || buyZoneStart) * 0.93)}
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Volume Surge</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              </div>
+            </div>
+          </div>
+          <div className="grid" item xs={6}>
+            <div>
+              <div  variant="caption" color="text.secondary">Volume Surge</div>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <VolumeUp sx={{ color: getVolumeSurgeColor() }} />
-                <Typography 
+                <div  
                   variant="h6" 
                   fontWeight={600}
                   color={getVolumeSurgeColor()}
                 >
                   +{volumeSurge.toFixed(0)}%
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
+                </div>
+              </div>
+              <div  variant="caption" color="text.secondary">
                 vs 50-day avg
-              </Typography>
-            </Box>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
           {/* Exit Zones Preview */}
-          <Grid item xs={12}>
-            <Box sx={{ 
+          <div className="grid" item xs={12}>
+            <div  sx={{ 
               p: 1.5, 
               backgroundColor: '#9e9e9e0D',
               borderRadius: 1
             }}>
-              <Typography variant="caption" color="text.secondary" gutterBottom>
+              <div  variant="caption" color="text.secondary" gutterBottom>
                 Exit Zone Targets (O'Neill Method)
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Chip 
+              </div>
+              <div className="flex flex-col space-y-2" direction="row" spacing={1} sx={{ mt: 1 }}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`20%: ${formatCurrency((signal.entry_price || buyZoneStart) * 1.20)}`}
                   size="small"
                   variant="outlined"
                   color="success"
                 />
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`25%: ${formatCurrency((signal.entry_price || buyZoneStart) * 1.25)}`}
                   size="small"
                   variant="outlined"
                   color="success"
                 />
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label="21 EMA"
                   size="small"
                   variant="outlined"
                   color="warning"
                 />
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label="50 SMA"
                   size="small"
                   variant="outlined"
                   color="error"
                 />
-              </Stack>
-            </Box>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
           {/* Risk/Reward */}
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+          <div className="grid" item xs={12}>
+            <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div  variant="body2" color="text.secondary">
                 Risk/Reward Ratio
-              </Typography>
-              <Typography variant="body2" fontWeight={600}>
+              </div>
+              <div  variant="body2" fontWeight={600}>
                 1:{((0.20 / 0.07).toFixed(1))} to 1:{((0.25 / 0.07).toFixed(1))}
-              </Typography>
-            </Box>
-          </Grid>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Signal Strength */}
-        <Box sx={{ mt: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2" color="text.secondary">
+        <div  sx={{ mt: 2 }}>
+          <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <div  variant="body2" color="text.secondary">
               Signal Strength
-            </Typography>
-            <Typography variant="body2" fontWeight={600}>
+            </div>
+            <div  variant="body2" fontWeight={600}>
               {Math.round(signal.signal_strength * 100)}%
-            </Typography>
-          </Box>
-          <LinearProgress 
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2" 
             variant="determinate" 
             value={signal.signal_strength * 100}
             sx={{ 
@@ -331,32 +331,32 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
               }
             }}
           />
-        </Box>
+        </div>
 
         {/* Market Conditions */}
         {signal.market_in_uptrend !== undefined && (
-          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <div  sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
             {signal.market_in_uptrend ? (
               <>
                 <CheckCircle sx={{ color: '#4caf50', fontSize: 20 }} />
-                <Typography variant="caption" color="success.main">
+                <div  variant="caption" color="success.main">
                   Market in confirmed uptrend
-                </Typography>
+                </div>
               </>
             ) : (
               <>
                 <Warning sx={{ color: '#ff9800', fontSize: 20 }} />
-                <Typography variant="caption" color="warning.main">
+                <div  variant="caption" color="warning.main">
                   Market under pressure
-                </Typography>
+                </div>
               </>
             )}
-          </Box>
+          </div>
         )}
-      </CardContent>
+      </div>
 
-      <CardActions sx={{ p: 2, pt: 0 }}>
-        <Button 
+      <div className="bg-white shadow-md rounded-lg"Actions sx={{ p: 2, pt: 0 }}>
+        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
           fullWidth 
           variant="contained" 
           color={signal.signal === 'Buy' ? 'success' : 'error'}
@@ -368,9 +368,9 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
             ? (isInBuyZone ? 'Enter Position' : 'Wait for Buy Zone')
             : 'Exit Position'
           }
-        </Button>
-      </CardActions>
-    </Card>
+        </button>
+      </div>
+    </div>
   );
 };
 

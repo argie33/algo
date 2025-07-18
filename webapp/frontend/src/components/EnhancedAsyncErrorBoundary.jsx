@@ -490,52 +490,52 @@ class EnhancedAsyncErrorBoundary extends Component {
     // Show offline status if offline and no other errors
     if (!isOnline && !hasError && offlineErrors.length === 0) {
       return (
-        <Box sx={{ p: 2 }}>
-          <Alert 
+        <div  sx={{ p: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
             severity="warning" 
             icon={<CloudOff />}
             action={
-              <Button size="small" onClick={() => window.location.reload()}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" onClick={() => window.location.reload()}>
                 Refresh
-              </Button>
+              </button>
             }
           >
             You're currently offline. Some features may be limited.
-          </Alert>
+          </div>
           {this.props.children}
-        </Box>
+        </div>
       );
     }
 
     // Show offline errors queue
     if (offlineErrors.length > 0 && !hasError) {
       return (
-        <Box sx={{ p: 2 }}>
-          <Alert 
+        <div  sx={{ p: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
             severity="warning" 
             icon={<CloudOff />}
             action={
-              <Button size="small" onClick={this.handleRetryOfflineErrors}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" onClick={this.handleRetryOfflineErrors}>
                 Retry ({offlineErrors.length})
-              </Button>
+              </button>
             }
           >
             {offlineErrors.length} error(s) occurred while offline. Will retry when connection is restored.
-          </Alert>
+          </div>
           {this.props.children}
           
-          <Snackbar
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
             open={showSnackbar}
             autoHideDuration={6000}
             onClose={() => this.setState({ showSnackbar: false })}
             message={snackbarMessage}
             action={
-              <IconButton size="small" onClick={() => this.setState({ showSnackbar: false })}>
+              <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => this.setState({ showSnackbar: false })}>
                 <Close fontSize="small" />
-              </IconButton>
+              </button>
             }
           />
-        </Box>
+        </div>
       );
     }
 
@@ -551,140 +551,140 @@ class EnhancedAsyncErrorBoundary extends Component {
       };
 
       return (
-        <Box sx={{ p: 2 }}>
-          <Card sx={{ border: '2px solid', borderColor: 'error.main' }}>
-            <CardContent>
-              <Stack spacing={2}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div  sx={{ p: 2 }}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ border: '2px solid', borderColor: 'error.main' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={2}>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <ErrorOutline sx={{ fontSize: 48, color: 'error.main' }} />
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
+                  <div>
+                    <div  variant="h6" gutterBottom>
                       {this.props.title || 'Something went wrong'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                    <div  variant="body2" color="text.secondary">
                       {userMessage || 'An unexpected error occurred'}
-                    </Typography>
-                  </Box>
-                </Box>
+                    </div>
+                  </div>
+                </div>
 
-                <Stack direction="row" spacing={1} flexWrap="wrap">
-                  <Chip 
+                <div className="flex flex-col space-y-2" direction="row" spacing={1} flexWrap="wrap">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`ID: ${correlationId?.substring(0, 8) || 'Unknown'}`} 
                     size="small" 
                     color="error" 
                   />
-                  <Chip 
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`Category: ${errorCategory}`} 
                     size="small" 
                     variant="outlined" 
                   />
-                  <Chip 
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`Severity: ${errorSeverity}`} 
                     size="small" 
                     color={getSeverityColor(errorSeverity)}
                   />
                   {!isOnline && (
-                    <Chip 
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       label="Offline" 
                       size="small" 
                       color="warning"
                       icon={<CloudOff />}
                     />
                   )}
-                </Stack>
+                </div>
 
-                <Stack direction="row" spacing={1} flexWrap="wrap">
+                <div className="flex flex-col space-y-2" direction="row" spacing={1} flexWrap="wrap">
                   {canRetry && retryCount < maxRetries && (
-                    <Button
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       variant="contained"
-                      startIcon={isRetrying ? <CircularProgress size={16} /> : <Refresh />}
+                      startIcon={isRetrying ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <Refresh />}
                       onClick={this.handleRetry}
                       disabled={isRetrying}
                     >
                       {isRetrying ? 'Retrying...' : `Try Again (${retryCount}/${maxRetries})`}
-                    </Button>
+                    </button>
                   )}
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<Home />}
                     onClick={() => window.location.href = '/'}
                   >
                     Go Home
-                  </Button>
+                  </button>
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     onClick={() => window.location.reload()}
                   >
                     Refresh Page
-                  </Button>
+                  </button>
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<BugReport />}
                     onClick={this.handleReportError}
                   >
                     Report Error
-                  </Button>
-                </Stack>
+                  </button>
+                </div>
 
                 {this.props.showDetails !== false && (
-                  <Box>
-                    <Button
+                  <div>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       startIcon={showDetails ? <ExpandLess /> : <ExpandMore />}
                       onClick={() => this.setState({ showDetails: !showDetails })}
                       size="small"
                     >
                       {showDetails ? 'Hide' : 'Show'} Technical Details
-                    </Button>
+                    </button>
                     
                     <Collapse in={showDetails}>
-                      <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                        <Typography variant="subtitle2" gutterBottom>
+                      <div  sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                        <div  variant="subtitle2" gutterBottom>
                           Error Details:
-                        </Typography>
-                        <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
+                        </div>
+                        <div  variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
                           {error?.message || 'No error message available'}
-                        </Typography>
+                        </div>
                         
                         {error?.stack && (
                           <>
-                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                            <div  variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
                               Stack Trace:
-                            </Typography>
-                            <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
+                            </div>
+                            <div  variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
                               {error.stack}
-                            </Typography>
+                            </div>
                           </>
                         )}
                         
-                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                        <div  variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
                           Error Stats:
-                        </Typography>
-                        <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
+                        </div>
+                        <div  variant="body2" component="pre" sx={{ fontSize: '0.75rem' }}>
                           {JSON.stringify(errorTracker.getErrorStats(), null, 2)}
-                        </Typography>
-                      </Box>
+                        </div>
+                      </div>
                     </Collapse>
-                  </Box>
+                  </div>
                 )}
-              </Stack>
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </div>
 
-          <Snackbar
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
             open={showSnackbar}
             autoHideDuration={6000}
             onClose={() => this.setState({ showSnackbar: false })}
             message={snackbarMessage}
             action={
-              <IconButton size="small" onClick={() => this.setState({ showSnackbar: false })}>
+              <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => this.setState({ showSnackbar: false })}>
                 <Close fontSize="small" />
-              </IconButton>
+              </button>
             }
           />
-        </Box>
+        </div>
       );
     }
 
@@ -692,15 +692,15 @@ class EnhancedAsyncErrorBoundary extends Component {
       <>
         {this.props.children}
         
-        <Snackbar
+        <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
           open={showSnackbar}
           autoHideDuration={6000}
           onClose={() => this.setState({ showSnackbar: false })}
           message={snackbarMessage}
           action={
-            <IconButton size="small" onClick={() => this.setState({ showSnackbar: false })}>
+            <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => this.setState({ showSnackbar: false })}>
               <Close fontSize="small" />
-            </IconButton>
+            </button>
           }
         />
       </>

@@ -1,7 +1,7 @@
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider } from '@mui/material/styles'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Dashboard from '../src/pages/Dashboard'
 import theme from '../src/theme'
@@ -27,9 +27,9 @@ const createWrapper = () => {
   return ({ children }) => (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ThemeProvider theme={theme}>
+        <div className="theme-provider">
           {children}
-        </ThemeProvider>
+        </div>
       </BrowserRouter>
     </QueryClientProvider>
   )

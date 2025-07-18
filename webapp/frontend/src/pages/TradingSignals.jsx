@@ -146,10 +146,10 @@ const SignalStrength = ({ strength, type = 'buy' }) => {
   const activeBars = Math.ceil(strength * bars);
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Box sx={{ display: 'flex', gap: 0.5 }}>
+    <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div  sx={{ display: 'flex', gap: 0.5 }}>
         {[...Array(bars)].map((_, index) => (
-          <Box
+          <div 
             key={index}
             sx={{
               width: 4,
@@ -159,11 +159,11 @@ const SignalStrength = ({ strength, type = 'buy' }) => {
             }}
           />
         ))}
-      </Box>
-      <Typography variant="caption" sx={{ color: getStrengthColor(strength), fontWeight: 600 }}>
+      </div>
+      <div  variant="caption" sx={{ color: getStrengthColor(strength), fontWeight: 600 }}>
         {getStrengthLabel(strength)}
-      </Typography>
-    </Box>
+      </div>
+    </div>
   );
 };
 
@@ -172,7 +172,7 @@ const SignalTypeChip = ({ signal, strength, signalType }) => {
   const isPositive = signalType === 'buy' || (signal && parseFloat(signal) > 0);
   
   return (
-    <Chip
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
       icon={isPositive ? <TrendingUp /> : <TrendingDown />}
       label={isPositive ? 'BUY' : 'SELL'}
       color={isPositive ? 'success' : 'error'}
@@ -210,12 +210,12 @@ const PerformanceIndicator = ({ performance, status }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+    <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         {React.cloneElement(getStatusIcon(status), { 
           sx: { fontSize: '1rem', color: getStatusColor(status) } 
         })}
-        <Typography 
+        <div  
           variant="body2" 
           sx={{ 
             color: getStatusColor(status),
@@ -223,9 +223,9 @@ const PerformanceIndicator = ({ performance, status }) => {
           }}
         >
           {performance ? `${performance > 0 ? '+' : ''}${performance.toFixed(1)}%` : '0.0%'}
-        </Typography>
-      </Box>
-      <Chip
+        </div>
+      </div>
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
         label={status}
         size="small"
         sx={{
@@ -236,7 +236,7 @@ const PerformanceIndicator = ({ performance, status }) => {
           border: `1px solid ${getStatusColor(status)}4D`
         }}
       />
-    </Box>
+    </div>
   );
 };
 
@@ -245,7 +245,7 @@ const CurrentPeriodBadge = ({ isCurrentPeriod, daysSince }) => {
   if (!isCurrentPeriod) return null;
   
   return (
-    <Chip
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
       icon={<NewReleases />}
       label={`${daysSince}d ago`}
       size="small"
@@ -275,7 +275,7 @@ const MarketCapChip = ({ marketCap }) => {
   const category = getMarketCapCategory(marketCap);
   
   return (
-    <Chip
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
       label={category.label}
       color={category.color}
       variant="outlined"
@@ -305,7 +305,7 @@ const SectorChip = ({ sector }) => {
   };
 
   return (
-    <Chip
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
       label={sector || 'Unknown'}
       color={getSectorColor(sector)}
       variant="outlined"
@@ -325,9 +325,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -625,128 +625,128 @@ const TradingSignals = () => {
 
   // Render enhanced statistics cards
   const renderStatsCards = () => (
-    <Grid container spacing={3} sx={{ mb: 3 }}>
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ 
+    <div className="grid" container spacing={3} sx={{ mb: 3 }}>
+      <div className="grid" item xs={12} sm={6} md={3}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ 
           background: 'linear-gradient(135deg, #1976d21A 0%, #1976d233 100%)',
           border: '1px solid #1976d233'
         }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: '#1976d2' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#1976d2' }}>
                 <SignalWifi4Bar />
-              </Avatar>
-              <Box>
-                <Typography variant="h4" fontWeight={700}>
+              </div>
+              <div>
+                <div  variant="h4" fontWeight={700}>
                   {stats.total}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Active Signals
-                </Typography>
+                </div>
                 {stats.uniqueSymbols > 0 && (
-                  <Typography variant="caption" color="text.secondary">
+                  <div  variant="caption" color="text.secondary">
                     {stats.uniqueSymbols} symbols, {stats.sectors} sectors
-                  </Typography>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ 
+      <div className="grid" item xs={12} sm={6} md={3}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ 
           background: 'linear-gradient(135deg, #4caf501A 0%, #4caf5033 100%)',
           border: '1px solid #4caf5033'
         }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: '#4caf50' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#4caf50' }}>
                 <TrendingUp />
-              </Avatar>
-              <Box>
-                <Typography variant="h4" fontWeight={700} color="success.main">
+              </div>
+              <div>
+                <div  variant="h4" fontWeight={700} color="success.main">
                   {stats.buy}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Buy Signals ({stats.buyPercentage.toFixed(1)}%)
-                </Typography>
+                </div>
                 {stats.avgWinning > 0 && (
-                  <Typography variant="caption" color="success.main">
+                  <div  variant="caption" color="success.main">
                     Avg Win: +{stats.avgWinning.toFixed(1)}%
-                  </Typography>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ 
+      <div className="grid" item xs={12} sm={6} md={3}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ 
           background: 'linear-gradient(135deg, #f443361A 0%, #f4433633 100%)',
           border: '1px solid #f4433633'
         }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: '#f44336' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#f44336' }}>
                 <TrendingDown />
-              </Avatar>
-              <Box>
-                <Typography variant="h4" fontWeight={700} color="error.main">
+              </div>
+              <div>
+                <div  variant="h4" fontWeight={700} color="error.main">
                   {stats.sell}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Sell Signals ({stats.sellPercentage.toFixed(1)}%)
-                </Typography>
+                </div>
                 {stats.avgLosing < 0 && (
-                  <Typography variant="caption" color="error.main">
+                  <div  variant="caption" color="error.main">
                     Avg Loss: {stats.avgLosing.toFixed(1)}%
-                  </Typography>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ 
+      <div className="grid" item xs={12} sm={6} md={3}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ 
           background: 'linear-gradient(135deg, #2196f31A 0%, #2196f333 100%)',
           border: '1px solid #2196f333'
         }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: '#2196f3' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#2196f3' }}>
                 <CheckCircle />
-              </Avatar>
-              <Box>
-                <Typography variant="h4" fontWeight={700} color="info.main">
+              </div>
+              <div>
+                <div  variant="h4" fontWeight={700} color="info.main">
                   {stats.winning || stats.strong}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   {stats.winning ? 'Winning' : 'Strong'} Signals
-                </Typography>
+                </div>
                 {stats.winRate > 0 && (
-                  <Typography variant="caption" color="info.main">
+                  <div  variant="caption" color="info.main">
                     Win Rate: {stats.winRate.toFixed(1)}%
-                  </Typography>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   // Render filters
   const renderFilters = () => (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} md={3}>
-            <TextField
+    <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div className="grid" container spacing={3} alignItems="center">
+          <div className="grid" item xs={12} md={3}>
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               variant="outlined"
               placeholder="Search symbols, companies..."
@@ -755,68 +755,68 @@ const TradingSignals = () => {
               InputProps={{
                 startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
                 endAdornment: searchTerm && (
-                  <IconButton onClick={() => setSearchTerm('')} size="small">
+                  <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSearchTerm('')} size="small">
                     <Clear />
-                  </IconButton>
+                  </button>
                 )
               }}
             />
-          </Grid>
+          </div>
 
-          <Grid item xs={12} md={2}>
-            <FormControl fullWidth>
-              <InputLabel>Timeframe</InputLabel>
-              <Select
+          <div className="grid" item xs={12} md={2}>
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={timeframe}
                 label="Timeframe"
                 onChange={(e) => setTimeframe(e.target.value)}
               >
-                <MenuItem value="daily">Daily</MenuItem>
-                <MenuItem value="weekly">Weekly</MenuItem>
-                <MenuItem value="monthly">Monthly</MenuItem>
-                <MenuItem value="summary">
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <option  value="daily">Daily</option>
+                <option  value="weekly">Weekly</option>
+                <option  value="monthly">Monthly</option>
+                <option  value="summary">
+                  <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Analytics sx={{ fontSize: '1rem' }} />
                     Summary
-                  </Box>
-                </MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+                  </div>
+                </option>
+              </select>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={2}>
-            <FormControl fullWidth>
-              <InputLabel>Signal Type</InputLabel>
-              <Select
+          <div className="grid" item xs={12} md={2}>
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Signal Type</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={signalType}
                 label="Signal Type"
                 onChange={(e) => setSignalType(e.target.value)}
               >
-                <MenuItem value="all">All Signals</MenuItem>
-                <MenuItem value="buy">Buy Only</MenuItem>
-                <MenuItem value="sell">Sell Only</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+                <option  value="all">All Signals</option>
+                <option  value="buy">Buy Only</option>
+                <option  value="sell">Sell Only</option>
+              </select>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={2}>
-            <FormControl fullWidth>
-              <InputLabel>Sector</InputLabel>
-              <Select
+          <div className="grid" item xs={12} md={2}>
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedSector}
                 label="Sector"
                 onChange={(e) => setSelectedSector(e.target.value)}
               >
-                <MenuItem value="all">All Sectors</MenuItem>
+                <option  value="all">All Sectors</option>
                 {uniqueSectors.map(sector => (
-                  <MenuItem key={sector} value={sector}>{sector}</MenuItem>
+                  <option  key={sector} value={sector}>{sector}</option>
                 ))}
-              </Select>
-            </FormControl>
-          </Grid>
+              </select>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={3}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <div className="grid" item xs={12} md={3}>
+            <div  sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
@@ -831,9 +831,9 @@ const TradingSignals = () => {
                 </ToggleButton>
               </ToggleButtonGroup>
 
-              <FormControlLabel
+              <div className="mb-4"Label
                 control={
-                  <Switch 
+                  <input type="checkbox" className="toggle" 
                     checked={autoRefresh} 
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                     size="small"
@@ -842,26 +842,26 @@ const TradingSignals = () => {
                 label="Auto"
               />
 
-              <IconButton onClick={loadSignals} disabled={loading}>
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={loadSignals} disabled={loading}>
                 <Refresh />
-              </IconButton>
-            </Box>
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   // Render table view
   const renderTableView = () => (
-    <Card>
-      <CardContent>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>
-                  <TableSortLabel
+    <div className="bg-white shadow-md rounded-lg">
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
                     active={sortBy === 'symbol'}
                     direction={sortBy === 'symbol' ? sortOrder : 'asc'}
                     onClick={() => {
@@ -871,14 +871,14 @@ const TradingSignals = () => {
                   >
                     Stock
                   </TableSortLabel>
-                </TableCell>
-                <TableCell>Signal</TableCell>
-                {timeframe === 'summary' && <TableCell>Confidence</TableCell>}
-                <TableCell>Performance</TableCell>
-                <TableCell>Strength</TableCell>
-                {timeframe === 'summary' && <TableCell>Recommendation</TableCell>}
-                <TableCell>
-                  <TableSortLabel
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Signal</td>
+                {timeframe === 'summary' && <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Confidence</td>}
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Performance</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strength</td>
+                {timeframe === 'summary' && <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Recommendation</td>}
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
                     active={sortBy === 'date'}
                     direction={sortBy === 'date' ? sortOrder : 'asc'}
                     onClick={() => {
@@ -888,27 +888,27 @@ const TradingSignals = () => {
                   >
                     Date
                   </TableSortLabel>
-                </TableCell>
-                <TableCell>Entry/Current</TableCell>
-                <TableCell>Market Cap</TableCell>
-                <TableCell>P/E</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Entry/Current</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Market Cap</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>P/E</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+              </tr>
+            </thead>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
               {loading ? (
                 [...Array(5)].map((_, index) => (
-                  <TableRow key={index}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
                     {[...Array(timeframe === 'summary' ? 11 : 9)].map((_, cellIndex) => (
-                      <TableCell key={cellIndex}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={cellIndex}>
                         <Skeleton animation="wave" />
-                      </TableCell>
+                      </td>
                     ))}
-                  </TableRow>
+                  </tr>
                 ))
               ) : (
                 paginatedSignals.map((signal, index) => (
-                  <TableRow 
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow 
                     key={`${signal.symbol}-${signal.date}-${index}`} 
                     hover
                     sx={{
@@ -924,125 +924,125 @@ const TradingSignals = () => {
                           : 'none'
                     }}
                   >
-                    <TableCell>
-                      <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2" fontWeight={600}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <div  variant="subtitle2" fontWeight={600}>
                             {signal.symbol}
-                          </Typography>
+                          </div>
                           <CurrentPeriodBadge 
                             isCurrentPeriod={signal.is_current_period} 
                             daysSince={signal.days_since_signal} 
                           />
-                        </Box>
-                        <Typography variant="caption" color="text.secondary">
+                        </div>
+                        <div  variant="caption" color="text.secondary">
                           {signal.company_name}
-                        </Typography>
-                        <Box sx={{ mt: 0.5 }}>
+                        </div>
+                        <div  sx={{ mt: 0.5 }}>
                           <SectorChip sector={signal.sector} />
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
+                        </div>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                       <SignalTypeChip 
                         signal={signal.signal} 
                         strength={signal.signal_strength} 
                         signalType={signal.signal_type}
                       />
-                    </TableCell>
+                    </td>
                     {timeframe === 'summary' && (
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" fontWeight={600}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <div  variant="body2" fontWeight={600}>
                             {Math.round(signal.confidence || 0)}%
-                          </Typography>
-                          <LinearProgress 
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={signal.confidence || 0} 
                             sx={{ width: 60, height: 6, borderRadius: 3 }}
                             color={signal.confidence >= 70 ? 'success' : signal.confidence >= 50 ? 'warning' : 'error'}
                           />
-                        </Box>
-                      </TableCell>
+                        </div>
+                      </td>
                     )}
-                    <TableCell>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                       <PerformanceIndicator 
                         performance={signal.performance_percent} 
                         status={signal.signal_status} 
                       />
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                       <SignalStrength strength={signal.signal_strength} type={signal.signal_type} />
-                    </TableCell>
+                    </td>
                     {timeframe === 'summary' && (
-                      <TableCell>
-                        <Typography variant="body2" sx={{ maxWidth: 200 }}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  variant="body2" sx={{ maxWidth: 200 }}>
                           {signal.recommendation || 'No recommendation'}
-                        </Typography>
-                      </TableCell>
+                        </div>
+                      </td>
                     )}
-                    <TableCell>
-                      <Typography variant="body2">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div  variant="body2">
                         {new Date(signal.date).toLocaleDateString()}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <div  variant="caption" color="text.secondary">
                         {new Date(signal.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div>
+                        <div  variant="caption" color="text.secondary">
                           Entry: {formatCurrency(signal.entry_price || signal.current_price)}
-                        </Typography>
-                        <Typography variant="subtitle2">
+                        </div>
+                        <div  variant="subtitle2">
                           Current: {formatCurrency(signal.current_price)}
-                        </Typography>
+                        </div>
                         {signal.stop_loss && (
-                          <Typography variant="caption" color="error.main">
+                          <div  variant="caption" color="error.main">
                             Stop: {formatCurrency(signal.stop_loss)}
-                          </Typography>
+                          </div>
                         )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="body2">
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div>
+                        <div  variant="body2">
                           {formatCurrency(signal.market_cap, { notation: 'compact' })}
-                        </Typography>
+                        </div>
                         <MarketCapChip marketCap={signal.market_cap} />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div  variant="body2">
                         {signal.trailing_pe ? signal.trailing_pe.toFixed(1) : 'N/A'}
-                      </Typography>
+                      </div>
                       {signal.beta && (
-                        <Typography variant="caption" color="text.secondary" display="block">
+                        <div  variant="caption" color="text.secondary" display="block">
                           β: {signal.beta.toFixed(2)}
-                        </Typography>
+                        </div>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <button className="p-2 rounded-full hover:bg-gray-100"
                         onClick={() => toggleWatchlist(signal.symbol)}
                         size="small"
                         color={watchlist.has(signal.symbol) ? 'primary' : 'default'}
                       >
                         {watchlist.has(signal.symbol) ? <Bookmark /> : <BookmarkBorder />}
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
+                      </button>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-          <Typography variant="body2" color="text.secondary">
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+          <div  variant="body2" color="text.secondary">
             Showing {Math.min(page * rowsPerPage + 1, filteredSignals.length)} - {Math.min((page + 1) * rowsPerPage, filteredSignals.length)} of {filteredSignals.length} signals
-          </Typography>
-          <TablePagination
+          </div>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
             component="div"
             count={filteredSignals.length}
             page={page}
@@ -1054,34 +1054,34 @@ const TradingSignals = () => {
             }}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
-        </Box>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 
   // Render card view
   const renderCardView = () => (
-    <Grid container spacing={3}>
+    <div className="grid" container spacing={3}>
       {loading ? (
         [...Array(6)].map((_, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
-            <Card>
-              <CardContent>
+          <div className="grid" item xs={12} sm={6} md={4} key={index}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <Skeleton variant="text" width="60%" height={32} />
                 <Skeleton variant="text" width="40%" height={24} />
                 <Skeleton variant="rectangular" width="100%" height={60} sx={{ mt: 1 }} />
-                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                <div  sx={{ display: 'flex', gap: 1, mt: 2 }}>
                   <Skeleton variant="rounded" width={80} height={24} />
                   <Skeleton variant="rounded" width={60} height={24} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
         ))
       ) : (
         paginatedSignals.map((signal, index) => (
-          <Grid item xs={12} sm={6} md={4} key={`${signal.symbol}-${signal.date}-${index}`}>
-            <Card sx={{ 
+          <div className="grid" item xs={12} sm={6} md={4} key={`${signal.symbol}-${signal.date}-${index}`}>
+            <div className="bg-white shadow-md rounded-lg" sx={{ 
               height: '100%',
               transition: 'all 0.3s ease',
               '&:hover': { 
@@ -1089,149 +1089,149 @@ const TradingSignals = () => {
                 boxShadow: '0px 12px 17px 2px rgba(0,0,0,0.14), 0px 5px 22px 4px rgba(0,0,0,0.12), 0px 7px 8px -4px rgba(0,0,0,0.2)'
               }
             }}>
-              <CardHeader
+              <div className="bg-white shadow-md rounded-lg"Header
                 avatar={
-                  <Avatar sx={{ 
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                     bgcolor: signal.signal_type === 'buy' ? '#4caf50' : '#f44336',
                     color: 'white'
                   }}>
                     {signal.signal_type === 'buy' ? <TrendingUp /> : <TrendingDown />}
-                  </Avatar>
+                  </div>
                 }
                 action={
-                  <IconButton
+                  <button className="p-2 rounded-full hover:bg-gray-100"
                     onClick={() => toggleWatchlist(signal.symbol)}
                     size="small"
                     color={watchlist.has(signal.symbol) ? 'primary' : 'default'}
                   >
                     {watchlist.has(signal.symbol) ? <Bookmark /> : <BookmarkBorder />}
-                  </IconButton>
+                  </button>
                 }
                 title={
-                  <Typography variant="h6" fontWeight={600}>
+                  <div  variant="h6" fontWeight={600}>
                     {signal.symbol}
-                  </Typography>
+                  </div>
                 }
                 subheader={
-                  <Typography variant="body2" color="text.secondary">
+                  <div  variant="body2" color="text.secondary">
                     {signal.company_name}
-                  </Typography>
+                  </div>
                 }
               />
-              <CardContent>
-                <Box sx={{ mb: 2 }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ mb: 2 }}>
                   <SignalTypeChip signal={signal.signal} strength={signal.signal_strength} />
-                  <Box sx={{ mt: 1 }}>
+                  <div  sx={{ mt: 1 }}>
                     <SignalStrength strength={signal.signal_strength} type={signal.signal_type} />
-                  </Box>
-                </Box>
+                  </div>
+                </div>
 
-                <Divider sx={{ my: 2 }} />
+                <hr className="border-gray-200" sx={{ my: 2 }} />
 
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
+                <div className="grid" container spacing={2}>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">
                       Price
-                    </Typography>
-                    <Typography variant="subtitle2">
+                    </div>
+                    <div  variant="subtitle2">
                       {formatCurrency(signal.current_price)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">
                       P/E Ratio
-                    </Typography>
-                    <Typography variant="subtitle2">
+                    </div>
+                    <div  variant="subtitle2">
                       {signal.trailing_pe ? signal.trailing_pe.toFixed(1) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">
                       Market Cap
-                    </Typography>
-                    <Typography variant="subtitle2">
+                    </div>
+                    <div  variant="subtitle2">
                       {formatCurrency(signal.market_cap, { notation: 'compact' })}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">
                       Dividend
-                    </Typography>
-                    <Typography variant="subtitle2">
+                    </div>
+                    <div  variant="subtitle2">
                       {signal.dividend_yield ? formatPercentage(signal.dividend_yield / 100) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                </Grid>
+                    </div>
+                  </div>
+                </div>
 
-                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <div  sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <SectorChip sector={signal.sector} />
                   <MarketCapChip marketCap={signal.market_cap} />
-                </Box>
+                </div>
 
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="caption" color="text.secondary">
+                <div  sx={{ mt: 2 }}>
+                  <div  variant="caption" color="text.secondary">
                     Signal Date: {new Date(signal.date).toLocaleDateString()}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ))
       )}
-    </Grid>
+    </div>
   );
 
   return (
-    <Container maxWidth="xl">
+    <div className="container mx-auto" maxWidth="xl">
       {/* API Key Status */}
-      <Box sx={{ mb: 3 }}>
+      <div  sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           showSetupDialog={true}
           onStatusChange={(status) => {
             console.log('Trading Signals - API Key Status:', status);
           }}
         />
-      </Box>
+      </div>
 
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" fontWeight={700} gutterBottom>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h3" fontWeight={700} gutterBottom>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {timeframe === 'summary' ? (
               <Analytics sx={{ fontSize: '2.5rem', color: 'secondary.main' }} />
             ) : (
               <FlashOn sx={{ fontSize: '2.5rem', color: 'primary.main' }} />
             )}
             {timeframe === 'summary' ? 'Aggregate Signal Summary' : 'Trading Signals'}
-          </Box>
-        </Typography>
-        <Typography variant="h6" color="text.secondary" paragraph>
+          </div>
+        </div>
+        <div  variant="h6" color="text.secondary" paragraph>
           {timeframe === 'summary' 
             ? 'Cross-timeframe aggregate signals with confidence scoring and recommendations'
             : 'Current period active signals with real-time performance tracking and technical analysis'
           }
-        </Typography>
+        </div>
         
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+        <div  sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
           {timeframe === 'summary' ? (
             <>
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Analytics />}
                 label="Multi-Timeframe Analysis"
                 color="secondary"
                 variant="filled"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<CompareArrows />}
                 label="Cross-Signal Validation"
                 color="info"
                 variant="outlined"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Psychology />}
                 label="Confidence Scoring"
                 variant="outlined"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Assessment />}
                 label="Smart Recommendations"
                 variant="outlined"
@@ -1239,31 +1239,31 @@ const TradingSignals = () => {
             </>
           ) : (
             <>
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<NewReleases />}
                 label="Current Period Focus"
                 color="primary"
                 variant="filled"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Timeline />}
                 label="Performance Tracking"
                 color="success"
                 variant="outlined"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Schedule />}
                 label={timeframe === 'daily' ? 'Last 30 Days' : 
                        timeframe === 'weekly' ? 'Last 12 Weeks' : 'Last 6 Months'}
                 variant="outlined"
               />
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 icon={<Analytics />}
                 label="Technical Analysis"
                 variant="outlined"
               />
               {stats.winRate > 0 && (
-                <Chip
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                   icon={<CheckCircle />}
                   label={`${stats.winRate.toFixed(1)}% Win Rate`}
                   color="info"
@@ -1272,20 +1272,20 @@ const TradingSignals = () => {
               )}
             </>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {renderStatsCards()}
       {renderFilters()}
       
       {filteredSignals.length === 0 && !loading ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
           No signals found matching your criteria. Try adjusting your filters.
-        </Alert>
+        </div>
       ) : null}
 
       {viewMode === 'table' ? renderTableView() : renderCardView()}
-    </Container>
+    </div>
   );
 };
 

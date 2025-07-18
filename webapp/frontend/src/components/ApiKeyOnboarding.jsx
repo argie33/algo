@@ -155,43 +155,43 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
     switch (activeStep) {
       case 0:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
+          <div  sx={{ textAlign: 'center', py: 4 }}>
             <TrendingUp sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h4" gutterBottom>
+            <div  variant="h4" gutterBottom>
               Welcome to API Key Setup
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
+            </div>
+            <div  variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
               To provide you with real-time market data and trading capabilities, 
               we need to connect to your broker's API. This process is secure and 
               your credentials are encrypted.
-            </Typography>
-            <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
-              <Typography variant="subtitle2" gutterBottom>
+            </div>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2, textAlign: 'left' }}>
+              <div  variant="subtitle2" gutterBottom>
                 What you'll need:
-              </Typography>
+              </div>
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
                 <li>An account with a supported broker (Alpaca or TD Ameritrade)</li>
                 <li>API credentials from your broker's developer portal</li>
                 <li>5-10 minutes to complete the setup</li>
               </ul>
-            </Alert>
-          </Box>
+            </div>
+          </div>
         );
 
       case 1:
         return (
-          <Box sx={{ py: 2 }}>
-            <Typography variant="h5" gutterBottom>
+          <div  sx={{ py: 2 }}>
+            <div  variant="h5" gutterBottom>
               Choose Your Broker
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Select your broker to configure API access. You can add multiple brokers later.
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
+            <div className="grid" container spacing={2}>
               {Object.entries(providerInfo).map(([provider, info]) => (
-                <Grid item xs={12} md={6} key={provider}>
-                  <Card 
+                <div className="grid" item xs={12} md={6} key={provider}>
+                  <div className="bg-white shadow-md rounded-lg" 
                     sx={{ 
                       cursor: 'pointer',
                       border: selectedProvider === provider ? 2 : 1,
@@ -199,28 +199,28 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
                     }}
                     onClick={() => handleProviderChange(provider)}
                   >
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                         <VpnKey sx={{ mr: 1, color: 'primary.main' }} />
-                        <Typography variant="h6">{info.name}</Typography>
+                        <div  variant="h6">{info.name}</div>
                         {selectedProvider === provider && (
                           <CheckCircle sx={{ ml: 'auto', color: 'success.main' }} />
                         )}
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      </div>
+                      <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         {info.description}
-                      </Typography>
-                      <Box sx={{ mb: 2 }}>
+                      </div>
+                      <div  sx={{ mb: 2 }}>
                         {info.features.map((feature, index) => (
-                          <Chip key={index} label={feature} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={index} label={feature} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
                         ))}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </Grid>
-          </Box>
+            </div>
+          </div>
         );
 
       case 2:
@@ -228,15 +228,15 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
         const keys = apiKeyData[selectedProvider];
         
         return (
-          <Box sx={{ py: 2 }}>
-            <Typography variant="h5" gutterBottom>
+          <div  sx={{ py: 2 }}>
+            <div  variant="h5" gutterBottom>
               Configure {provider.name} API
-            </Typography>
+            </div>
             
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
+              <div  variant="subtitle2" gutterBottom>
                 Get your API credentials:
-              </Typography>
+              </div>
               <Link 
                 href={provider.setupUrl} 
                 target="_blank" 
@@ -246,21 +246,21 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
                 Open {provider.name} Developer Portal
                 <OpenInNew sx={{ ml: 0.5, fontSize: 16 }} />
               </Link>
-            </Alert>
+            </div>
 
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
+            <div  sx={{ mb: 3 }}>
+              <div  variant="subtitle1" gutterBottom>
                 Required Information:
-              </Typography>
+              </div>
               <ul>
                 {provider.requirements.map((req, index) => (
                   <li key={index}>{req}</li>
                 ))}
               </ul>
-            </Box>
+            </div>
 
-            <Box sx={{ mb: 2 }}>
-              <TextField
+            <div  sx={{ mb: 2 }}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 label={selectedProvider === 'alpaca' ? 'API Key ID' : 'Consumer Key'}
                 value={keys.keyId}
@@ -270,7 +270,7 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
               />
               
               {selectedProvider === 'alpaca' && (
-                <TextField
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Secret Key"
                   type="password"
@@ -279,73 +279,73 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
                   placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                 />
               )}
-            </Box>
+            </div>
 
             {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
                 {error}
-              </Alert>
+              </div>
             )}
-          </Box>
+          </div>
         );
 
       case 3:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
+          <div  sx={{ textAlign: 'center', py: 4 }}>
             <CheckCircle sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-            <Typography variant="h5" gutterBottom>
+            <div  variant="h5" gutterBottom>
               API Keys Validated Successfully
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               Your {providerInfo[selectedProvider].name} API credentials have been validated 
               and are ready to use.
-            </Typography>
+            </div>
             
-            <Card sx={{ maxWidth: 400, mx: 'auto', textAlign: 'left' }}>
-              <CardContent>
-                <Typography variant="subtitle1" gutterBottom>
+            <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, mx: 'auto', textAlign: 'left' }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="subtitle1" gutterBottom>
                   Configuration Summary:
-                </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Provider:</Typography>
-                  <Chip label={providerInfo[selectedProvider].name} size="small" color="primary" />
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Key Status:</Typography>
-                  <Chip label="Valid" size="small" color="success" />
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Encryption:</Typography>
-                  <Chip label="AES-256-GCM" size="small" />
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
+                </div>
+                <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <div  variant="body2">Provider:</div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={providerInfo[selectedProvider].name} size="small" color="primary" />
+                </div>
+                <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <div  variant="body2">Key Status:</div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Valid" size="small" color="success" />
+                </div>
+                <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div  variant="body2">Encryption:</div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="AES-256-GCM" size="small" />
+                </div>
+              </div>
+            </div>
+          </div>
         );
 
       case 4:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
+          <div  sx={{ textAlign: 'center', py: 4 }}>
             <CheckCircle sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-            <Typography variant="h4" gutterBottom>
+            <div  variant="h4" gutterBottom>
               Setup Complete!
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               Your API keys have been securely saved and encrypted. You can now access 
               real-time market data and trading features.
-            </Typography>
+            </div>
             
-            <Alert severity="success" sx={{ mb: 3, textAlign: 'left' }}>
-              <Typography variant="subtitle2" gutterBottom>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mb: 3, textAlign: 'left' }}>
+              <div  variant="subtitle2" gutterBottom>
                 What's Next:
-              </Typography>
+              </div>
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
                 <li>Access your portfolio and real-time data</li>
                 <li>Configure additional API providers in Settings</li>
                 <li>Explore trading features and analytics</li>
               </ul>
-            </Alert>
-          </Box>
+            </div>
+          </div>
         );
 
       default:
@@ -354,7 +354,7 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <div  sx={{ p: 3 }}>
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
         {steps.map((label) => (
           <Step key={label}>
@@ -363,49 +363,49 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
         ))}
       </Stepper>
 
-      <Box sx={{ minHeight: 400 }}>
+      <div  sx={{ minHeight: 400 }}>
         {renderStepContent()}
-      </Box>
+      </div>
 
-      <Divider sx={{ my: 3 }} />
+      <hr className="border-gray-200" sx={{ my: 3 }} />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button
+      <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={activeStep === 0}
           onClick={handleBack}
           startIcon={<ArrowBack />}
         >
           Back
-        </Button>
+        </button>
 
-        <Box>
+        <div>
           {onSkip && activeStep < 4 && (
-            <Button onClick={onSkip} sx={{ mr: 1 }}>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={onSkip} sx={{ mr: 1 }}>
               Skip for Now
-            </Button>
+            </button>
           )}
           
           {activeStep < 4 ? (
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               onClick={handleNext}
               disabled={loading || (activeStep === 2 && (!apiKeyData[selectedProvider].keyId || (selectedProvider === 'alpaca' && !apiKeyData[selectedProvider].secretKey)))}
-              endIcon={loading ? <CircularProgress size={20} /> : <ArrowForward />}
+              endIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <ArrowForward />}
             >
               {activeStep === 2 ? 'Validate' : activeStep === 3 ? 'Save & Continue' : 'Next'}
-            </Button>
+            </button>
           ) : (
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               onClick={handleComplete}
               color="success"
             >
               Complete Setup
-            </Button>
+            </button>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

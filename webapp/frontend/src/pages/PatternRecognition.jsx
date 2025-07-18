@@ -314,9 +314,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -474,83 +474,83 @@ const PatternRecognition = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
           <SmartToy sx={{ mr: 2, color: 'primary.main' }} />
           AI Pattern Recognition
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </div>
+        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Machine learning-powered technical pattern detection with real-time analysis and predictive insights
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Chip label="ML-Powered" color="primary" size="small" variant="outlined" />
-          <Chip label="Real-time Scanning" color="success" size="small" variant="outlined" />
-          <Chip label="Pattern Alerts" color="warning" size="small" variant="outlined" />
-          <Chip label="Predictive Analytics" color="info" size="small" variant="outlined" />
-        </Box>
-      </Box>
+        </div>
+        <div  display="flex" gap={1} flexWrap="wrap">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="ML-Powered" color="primary" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Scanning" color="success" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Pattern Alerts" color="warning" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Predictive Analytics" color="info" size="small" variant="outlined" />
+        </div>
+      </div>
 
       {/* Control Panel */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={2}>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} sm={2}>
               <Autocomplete
                 options={['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ']}
                 value={filters.symbol}
                 onChange={(_, value) => setFilters(prev => ({ ...prev, symbol: value || '' }))}
                 renderInput={(params) => (
-                  <TextField {...params} label="Symbol" size="small" />
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Symbol" size="small" />
                 )}
               />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Category</InputLabel>
-                <Select
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={filters.category}
                   label="Category"
                   onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
                 >
-                  <MenuItem value="all">All Patterns</MenuItem>
+                  <option  value="all">All Patterns</option>
                   {Object.entries(patternTypes).map(([key, category]) => (
-                    <MenuItem key={key} value={key}>{category.name}</MenuItem>
+                    <option  key={key} value={key}>{category.name}</option>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Direction</InputLabel>
-                <Select
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={filters.direction}
                   label="Direction"
                   onChange={(e) => setFilters(prev => ({ ...prev, direction: e.target.value }))}
                 >
-                  <MenuItem value="all">All</MenuItem>
-                  <MenuItem value="bullish">Bullish</MenuItem>
-                  <MenuItem value="bearish">Bearish</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <Button
+                  <option  value="all">All</option>
+                  <option  value="bullish">Bullish</option>
+                  <option  value="bearish">Bearish</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
-                startIcon={loading ? <CircularProgress size={16} /> : <Refresh />}
+                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <Refresh />}
                 onClick={loadPatterns}
                 disabled={loading}
                 fullWidth
               >
                 Scan
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box display="flex" gap={2}>
-                <FormControlLabel
+              </button>
+            </div>
+            <div className="grid" item xs={12} sm={4}>
+              <div  display="flex" gap={2}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={realTimeEnabled}
                       onChange={(e) => setRealTimeEnabled(e.target.checked)}
                       size="small"
@@ -558,9 +558,9 @@ const PatternRecognition = () => {
                   }
                   label="Real-time"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={mlModelEnabled}
                       onChange={(e) => setMlModelEnabled(e.target.checked)}
                       size="small"
@@ -568,9 +568,9 @@ const PatternRecognition = () => {
                   }
                   label="AI Mode"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={alertsEnabled}
                       onChange={(e) => setAlertsEnabled(e.target.checked)}
                       size="small"
@@ -578,188 +578,188 @@ const PatternRecognition = () => {
                   }
                   label="Alerts"
                 />
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Statistics Dashboard */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" gutterBottom>Total Patterns</Typography>
-                  <Typography variant="h4" fontWeight="bold">
+      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="space-between">
+                <div>
+                  <div  color="text.secondary" gutterBottom>Total Patterns</div>
+                  <div  variant="h4" fontWeight="bold">
                     {patternStats.total}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <DataUsage sx={{ fontSize: 48, color: 'primary.main', opacity: 0.7 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" gutterBottom>High Confidence</Typography>
-                  <Typography variant="h4" fontWeight="bold" color="success.main">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="space-between">
+                <div>
+                  <div  color="text.secondary" gutterBottom>High Confidence</div>
+                  <div  variant="h4" fontWeight="bold" color="success.main">
                     {patternStats.highConfidence}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     ≥80% confidence
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <CheckCircle sx={{ fontSize: 48, color: 'success.main', opacity: 0.7 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" gutterBottom>Bullish Signals</Typography>
-                  <Typography variant="h4" fontWeight="bold" color="success.main">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="space-between">
+                <div>
+                  <div  color="text.secondary" gutterBottom>Bullish Signals</div>
+                  <div  variant="h4" fontWeight="bold" color="success.main">
                     {patternStats.bullish}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     vs {patternStats.bearish} bearish
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <TrendingUp sx={{ fontSize: 48, color: 'success.main', opacity: 0.7 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" gutterBottom>Avg Confidence</Typography>
-                  <Typography variant="h4" fontWeight="bold" color="info.main">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="space-between">
+                <div>
+                  <div  color="text.secondary" gutterBottom>Avg Confidence</div>
+                  <div  variant="h4" fontWeight="bold" color="info.main">
                     {patternStats.avgConfidence}%
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     AI reliability score
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Psychology sx={{ fontSize: 48, color: 'info.main', opacity: 0.7 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Main Pattern List */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardHeader
+        <div className="grid" item xs={12} lg={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header
               title={
-                <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable">
-                  <Tab label="All Patterns" />
-                  <Tab label="High Confidence" />
-                  <Tab label="Watchlist" />
-                  <Tab label="Alerts" />
-                </Tabs>
+                <div className="border-b border-gray-200" value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="All Patterns" />
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="High Confidence" />
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Watchlist" />
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Alerts" />
+                </div>
               }
               action={
-                <Box display="flex" gap={1}>
-                  <IconButton onClick={() => setSettingsOpen(true)}>
+                <div  display="flex" gap={1}>
+                  <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSettingsOpen(true)}>
                     <Settings />
-                  </IconButton>
-                  <Button variant="outlined" startIcon={<DownloadIcon />} size="small">
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<⬇  />} size="small">
                     Export
-                  </Button>
-                </Box>
+                  </button>
+                </div>
               }
             />
 
-            <TabPanel value={activeTab} index={0}>
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-                <Table stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Symbol</TableCell>
-                      <TableCell>Pattern</TableCell>
-                      <TableCell>Direction</TableCell>
-                      <TableCell align="right">Confidence</TableCell>
-                      <TableCell align="right">Current Price</TableCell>
-                      <TableCell align="right">Target</TableCell>
-                      <TableCell align="right">R/R</TableCell>
-                      <TableCell>Timeframe</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Pattern</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Direction</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Confidence</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current Price</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Target</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">R/R</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Timeframe</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                     {patterns.slice(0, 50).map((pattern, index) => (
-                      <TableRow key={pattern.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={pattern.id} hover>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2" fontWeight="bold">
                             {pattern.symbol}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2">
                             {pattern.pattern}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          </div>
+                          <div  variant="caption" color="text.secondary">
                             {patternTypes[pattern.category]?.name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             label={pattern.direction}
                             color={getPatternColor(pattern.direction)}
                             size="small"
                             icon={pattern.direction === 'bullish' ? <TrendingUp /> : <TrendingDown />}
                           />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box display="flex" alignItems="center" justifyContent="flex-end">
-                            <Typography
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div  display="flex" alignItems="center" justifyContent="flex-end">
+                            <div 
                               variant="body2"
                               fontWeight="bold"
                               color={getConfidenceColor(pattern.confidence) + '.main'}
                             >
                               {pattern.confidence}%
-                            </Typography>
+                            </div>
                             {mlModelEnabled && (
-                              <Tooltip title="AI Enhanced">
+                              <div  title="AI Enhanced">
                                 <SmartToy sx={{ ml: 0.5, fontSize: 16, color: 'primary.main' }} />
-                              </Tooltip>
+                              </div>
                             )}
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                           {formatCurrency(pattern.currentPrice)}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div 
                             variant="body2"
                             color={pattern.direction === 'bullish' ? 'success.main' : 'error.main'}
                           >
                             {formatCurrency(pattern.targetPrice)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight="bold">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div  variant="body2" fontWeight="bold">
                             {pattern.riskReward}:1
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={pattern.timeframe} size="small" variant="outlined" />
-                        </TableCell>
-                        <TableCell>
-                          <Box display="flex" gap={0.5}>
-                            <IconButton
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={pattern.timeframe} size="small" variant="outlined" />
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  display="flex" gap={0.5}>
+                            <button className="p-2 rounded-full hover:bg-gray-100"
                               size="small"
                               onClick={() => {
                                 setSelectedPattern(pattern);
@@ -767,53 +767,53 @@ const PatternRecognition = () => {
                               }}
                             >
                               <Analytics />
-                            </IconButton>
-                            <IconButton
+                            </button>
+                            <button className="p-2 rounded-full hover:bg-gray-100"
                               size="small"
                               onClick={() => addToWatchlist(pattern)}
                             >
                               <Star />
-                            </IconButton>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </TabPanel>
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-            <TabPanel value={activeTab} index={1}>
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-                <Table stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Symbol</TableCell>
-                      <TableCell>Pattern</TableCell>
-                      <TableCell>Reliability Score</TableCell>
-                      <TableCell align="right">Confidence</TableCell>
-                      <TableCell align="right">Breakout Probability</TableCell>
-                      <TableCell>Historical Accuracy</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Pattern</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Reliability Score</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Confidence</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Breakout Probability</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Historical Accuracy</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                     {patterns
                       .filter(p => p.confidence >= 80)
                       .map((pattern) => (
-                        <TableRow key={pattern.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={pattern.id} hover>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2" fontWeight="bold">
                               {pattern.symbol}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2">
                               {pattern.pattern}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Box display="flex" alignItems="center">
-                              <LinearProgress
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  display="flex" alignItems="center">
+                              <div className="w-full bg-gray-200 rounded-full h-2"
                                 variant="determinate"
                                 value={analyzePatternReliability(pattern)}
                                 sx={{ width: 60, mr: 1 }}
@@ -822,34 +822,34 @@ const PatternRecognition = () => {
                                   analyzePatternReliability(pattern) > 60 ? 'warning' : 'error'
                                 }
                               />
-                              <Typography variant="caption">
+                              <div  variant="caption">
                                 {analyzePatternReliability(pattern)}%
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight="bold" color="success.main">
+                              </div>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2" fontWeight="bold" color="success.main">
                               {pattern.confidence}%
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2">
                               {(pattern.breakoutProbability * 100).toFixed(1)}%
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2">
                               {(pattern.historicalAccuracy * 100).toFixed(1)}%
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </TabPanel>
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-            <TabPanel value={activeTab} index={2}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
               {watchlist.length > 0 ? (
                 <List>
                   {watchlist.map((pattern) => (
@@ -862,7 +862,7 @@ const PatternRecognition = () => {
                         secondary={`${pattern.confidence}% confidence • ${pattern.direction}`}
                       />
                       <ListItemSecondaryAction>
-                        <Chip
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={pattern.direction}
                           color={getPatternColor(pattern.direction)}
                           size="small"
@@ -872,13 +872,13 @@ const PatternRecognition = () => {
                   ))}
                 </List>
               ) : (
-                <Alert severity="info">
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                   No patterns in watchlist. Click the star icon to add patterns to your watchlist.
-                </Alert>
+                </div>
               )}
-            </TabPanel>
+            </div>
 
-            <TabPanel value={activeTab} index={3}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
               {alerts.length > 0 ? (
                 <List>
                   {alerts.slice(0, 20).map((alert) => (
@@ -891,7 +891,7 @@ const PatternRecognition = () => {
                         secondary={`${alert.timestamp.toLocaleString()}`}
                       />
                       <ListItemSecondaryAction>
-                        <Chip
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={`${alert.pattern.confidence}%`}
                           color="warning"
                           size="small"
@@ -901,20 +901,20 @@ const PatternRecognition = () => {
                   ))}
                 </List>
               ) : (
-                <Alert severity="info">
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                   No pattern alerts. Enable alerts to get notified of high-confidence patterns.
-                </Alert>
+                </div>
               )}
-            </TabPanel>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Sidebar Analytics */}
-        <Grid item xs={12} lg={4}>
+        <div className="grid" item xs={12} lg={4}>
           {/* Pattern Distribution */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Pattern Distribution" />
-            <CardContent>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Pattern Distribution" />
+            <div className="bg-white shadow-md rounded-lg"Content>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
@@ -933,16 +933,16 @@ const PatternRecognition = () => {
                   <RechartsTooltip />
                 </PieChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Confidence Filter */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Confidence Filter" />
-            <CardContent>
-              <Typography variant="subtitle2" gutterBottom>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Confidence Filter" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="subtitle2" gutterBottom>
                 Minimum Confidence: {filters.minConfidence}%
-              </Typography>
+              </div>
               <Slider
                 value={filters.minConfidence}
                 onChange={(_, value) => setFilters(prev => ({ ...prev, minConfidence: value }))}
@@ -956,67 +956,67 @@ const PatternRecognition = () => {
                   { value: 90, label: '90%' }
                 ]}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              <div  variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                 Showing {patterns.filter(p => p.confidence >= filters.minConfidence).length} patterns above threshold
-              </Typography>
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </div>
 
           {/* ML Model Status */}
           {mlModelEnabled && (
-            <Card>
-              <CardHeader title="AI Model Status" />
-              <CardContent>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Paper sx={{ p: 2, textAlign: 'center' }}>
-                      <Typography variant="h5" color="success.main">
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="AI Model Status" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={2}>
+                  <div className="grid" item xs={6}>
+                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                      <div  variant="h5" color="success.main">
                         98.5%
-                      </Typography>
-                      <Typography variant="caption">Model Accuracy</Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Paper sx={{ p: 2, textAlign: 'center' }}>
-                      <Typography variant="h5" color="info.main">
+                      </div>
+                      <div  variant="caption">Model Accuracy</div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                      <div  variant="h5" color="info.main">
                         2.1s
-                      </Typography>
-                      <Typography variant="caption">Scan Time</Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">
+                      </div>
+                      <div  variant="caption">Scan Time</div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12}>
+                    <div  variant="body2" color="text.secondary">
                       Last trained: {new Date().toLocaleDateString()}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                    <div  variant="body2" color="text.secondary">
                       Training data: 50M+ historical patterns
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                    <div  variant="body2" color="text.secondary">
                       Model version: v3.2.1 (Transformer-based)
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Pattern Details Dialog */}
-      <Dialog
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
           Pattern Analysis: {selectedPattern?.symbol} - {selectedPattern?.pattern}
-        </DialogTitle>
-        <DialogContent>
+        </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
           {selectedPattern && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Pattern Details</Typography>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12} md={6}>
+                <div  variant="h6" gutterBottom>Pattern Details</div>
                 <List dense>
                   <ListItem>
                     <ListItemText primary="Confidence" secondary={`${selectedPattern.confidence}%`} />
@@ -1034,9 +1034,9 @@ const PatternRecognition = () => {
                     <ListItemText primary="Reliability Score" secondary={`${analyzePatternReliability(selectedPattern)}%`} />
                   </ListItem>
                 </List>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Price Targets</Typography>
+              </div>
+              <div className="grid" item xs={12} md={6}>
+                <div  variant="h6" gutterBottom>Price Targets</div>
                 <List dense>
                   <ListItem>
                     <ListItemText primary="Current Price" secondary={formatCurrency(selectedPattern.currentPrice)} />
@@ -1054,13 +1054,13 @@ const PatternRecognition = () => {
                     <ListItemText primary="Resistance Level" secondary={formatCurrency(selectedPattern.resistanceLevel)} />
                   </ListItem>
                 </List>
-              </Grid>
-            </Grid>
+              </div>
+            </div>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailsOpen(false)}>Close</Button>
-          <Button
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setDetailsOpen(false)}>Close</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="contained"
             onClick={() => {
               addToWatchlist(selectedPattern);
@@ -1068,10 +1068,10 @@ const PatternRecognition = () => {
             }}
           >
             Add to Watchlist
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

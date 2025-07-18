@@ -56,9 +56,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -175,34 +175,34 @@ const TradingSignalsEnhanced = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight={700}>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" gutterBottom fontWeight={700}>
           Swing Trading Signals
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </div>
+        <div  variant="body1" color="text.secondary">
           Professional swing trading using William O'Neill's proven methodology
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
       {/* Market Timing Panel - Always visible */}
-      <Box sx={{ mb: 3 }}>
+      <div  sx={{ mb: 3 }}>
         <MarketTimingPanel marketData={marketData} />
-      </Box>
+      </div>
 
       {/* Main Tabs */}
-      <Card>
-        <CardHeader
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Header
           title={
-            <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-              <Tab label="Trading Signals" icon={<ShowChart />} iconPosition="start" />
-              <Tab label="Active Positions" icon={<AccountBalance />} iconPosition="start" />
-              <Tab label="Analytics" icon={<Assessment />} iconPosition="start" />
-            </Tabs>
+            <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Trading Signals" icon={<ShowChart />} iconPosition="start" />
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Active Positions" icon={<AccountBalance />} iconPosition="start" />
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Analytics" icon={<Assessment />} iconPosition="start" />
+            </div>
           }
           action={
-            <Stack direction="row" spacing={1}>
+            <div className="flex flex-col space-y-2" direction="row" spacing={1}>
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
@@ -216,7 +216,7 @@ const TradingSignalsEnhanced = () => {
                   <ViewList />
                 </ToggleButton>
               </ToggleButtonGroup>
-              <Button
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 startIcon={<Refresh />}
                 onClick={() => {
                   loadSignals();
@@ -225,19 +225,19 @@ const TradingSignalsEnhanced = () => {
                 }}
               >
                 Refresh
-              </Button>
-            </Stack>
+              </button>
+            </div>
           }
         />
-        <Divider />
+        <hr className="border-gray-200" />
         
         {/* Trading Signals Tab */}
-        <TabPanel value={activeTab} index={0}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
           {/* Filters */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={3}>
-                <TextField
+          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, mb: 3 }}>
+            <div className="grid" container spacing={2} alignItems="center">
+              <div className="grid" item xs={12} md={3}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   size="small"
                   placeholder="Search symbols..."
@@ -246,153 +246,153 @@ const TradingSignalsEnhanced = () => {
                   InputProps={{
                     startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
                     endAdornment: filters.searchTerm && (
-                      <IconButton size="small" onClick={() => setFilters({ ...filters, searchTerm: '' })}>
+                      <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => setFilters({ ...filters, searchTerm: '' })}>
                         <Clear />
-                      </IconButton>
+                      </button>
                     )
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Signal Type</InputLabel>
-                  <Select
+              </div>
+              <div className="grid" item xs={12} md={2}>
+                <div className="mb-4" fullWidth size="small">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Signal Type</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={filters.signalType}
                     onChange={(e) => setFilters({ ...filters, signalType: e.target.value })}
                     label="Signal Type"
                   >
-                    <MenuItem value="all">All Signals</MenuItem>
-                    <MenuItem value="Buy">Buy Only</MenuItem>
-                    <MenuItem value="Sell">Sell Only</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Strength</InputLabel>
-                  <Select
+                    <option  value="all">All Signals</option>
+                    <option  value="Buy">Buy Only</option>
+                    <option  value="Sell">Sell Only</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid" item xs={12} md={2}>
+                <div className="mb-4" fullWidth size="small">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Strength</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={filters.minStrength}
                     onChange={(e) => setFilters({ ...filters, minStrength: e.target.value })}
                     label="Min Strength"
                   >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={60}>60%+</MenuItem>
-                    <MenuItem value={70}>70%+</MenuItem>
-                    <MenuItem value={80}>80%+</MenuItem>
-                    <MenuItem value={90}>90%+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Sector</InputLabel>
-                  <Select
+                    <option  value={0}>All</option>
+                    <option  value={60}>60%+</option>
+                    <option  value={70}>70%+</option>
+                    <option  value={80}>80%+</option>
+                    <option  value={90}>90%+</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid" item xs={12} md={2}>
+                <div className="mb-4" fullWidth size="small">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={filters.sector}
                     onChange={(e) => setFilters({ ...filters, sector: e.target.value })}
                     label="Sector"
                   >
-                    <MenuItem value="all">All Sectors</MenuItem>
-                    <MenuItem value="Technology">Technology</MenuItem>
-                    <MenuItem value="Healthcare">Healthcare</MenuItem>
-                    <MenuItem value="Financial">Financial</MenuItem>
-                    <MenuItem value="Consumer">Consumer</MenuItem>
-                    <MenuItem value="Industrial">Industrial</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Button
+                    <option  value="all">All Sectors</option>
+                    <option  value="Technology">Technology</option>
+                    <option  value="Healthcare">Healthcare</option>
+                    <option  value="Financial">Financial</option>
+                    <option  value="Consumer">Consumer</option>
+                    <option  value="Industrial">Industrial</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid" item xs={12} md={3}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   variant={filters.inBuyZone ? 'contained' : 'outlined'}
                   onClick={() => setFilters({ ...filters, inBuyZone: !filters.inBuyZone })}
                   startIcon={<FilterList />}
                 >
                   In Buy Zone Only
-                </Button>
-              </Grid>
-            </Grid>
-          </Paper>
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* Signal Statistics */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="h4" fontWeight={700} color="success.main">
+          <div className="grid" container spacing={2} sx={{ mb: 3 }}>
+            <div className="grid" item xs={12} sm={4}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                <div  variant="h4" fontWeight={700} color="success.main">
                   {buySignals.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Buy Signals
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="h4" fontWeight={700} color="error.main">
+                </div>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={4}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                <div  variant="h4" fontWeight={700} color="error.main">
                   {sellSignals.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Sell Signals
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
+                </div>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={4}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                <div  variant="h4" fontWeight={700} color="primary.main">
                   {buySignals.filter(s => s.is_in_buy_zone).length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   In Buy Zone
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Signals Display */}
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress />
-            </Box>
+            <div  sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+            </div>
           ) : filteredSignals.length === 0 ? (
-            <Alert severity="info">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
               No signals match your current filters. Try adjusting the criteria.
-            </Alert>
+            </div>
           ) : (
-            <Grid container spacing={3}>
+            <div className="grid" container spacing={3}>
               {viewMode === 'cards' ? (
                 filteredSignals.map((signal, index) => (
-                  <Grid item xs={12} md={6} lg={4} key={`${signal.symbol}-${index}`}>
+                  <div className="grid" item xs={12} md={6} lg={4} key={`${signal.symbol}-${index}`}>
                     <SignalCardEnhanced
                       signal={signal}
                       onBookmark={toggleWatchlist}
                       isBookmarked={watchlist.has(signal.symbol)}
                       onTrade={handleTrade}
                     />
-                  </Grid>
+                  </div>
                 ))
               ) : (
-                <Grid item xs={12}>
+                <div className="grid" item xs={12}>
                   {/* Table view implementation would go here */}
-                  <Alert severity="info">Table view coming soon</Alert>
-                </Grid>
+                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">Table view coming soon</div>
+                </div>
               )}
-            </Grid>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
         {/* Active Positions Tab */}
-        <TabPanel value={activeTab} index={1}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
           <PositionManager
             positions={positions}
             onUpdatePosition={handleUpdatePosition}
             onClosePosition={handleClosePosition}
           />
-        </TabPanel>
+        </div>
 
         {/* Analytics Tab */}
-        <TabPanel value={activeTab} index={2}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Alert severity="info">
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+          <div className="grid" container spacing={3}>
+            <div className="grid" item xs={12}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                 Advanced analytics and backtesting coming soon. This will include:
                 <ul>
                   <li>Win rate analysis by signal type and quality</li>
@@ -400,12 +400,12 @@ const TradingSignalsEnhanced = () => {
                   <li>Sector rotation analysis</li>
                   <li>Historical performance by market conditions</li>
                 </ul>
-              </Alert>
-            </Grid>
-          </Grid>
-        </TabPanel>
-      </Card>
-    </Container>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

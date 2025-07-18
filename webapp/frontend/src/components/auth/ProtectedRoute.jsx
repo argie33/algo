@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Box, CircularProgress, Typography, Button, Card, CardContent, Alert } from '@mui/material';
-import { Lock, Key, Settings } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getApiKeys } from '../../services/api';
@@ -48,9 +46,9 @@ function ProtectedRoute({
   // Show loading spinner while checking authentication
   if (isLoading || loadingApiKeys) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <CircularProgress />
-      </Box>
+      <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+      </div>
     );
   }
 
@@ -62,79 +60,79 @@ function ProtectedRoute({
   // Show auth required message
   if (requireAuth && !isAuthenticated) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Card sx={{ maxWidth: 400, textAlign: 'center' }}>
-          <CardContent>
+      <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, textAlign: 'center' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
             <Lock sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
+            <div  variant="h6" gutterBottom>
               Authentication Required
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Please sign in to access this page.
-            </Typography>
-            <Button
+            </div>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               onClick={() => navigate('/login')}
             >
               Sign In
-            </Button>
-          </CardContent>
-        </Card>
-      </Box>
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   // Show API key setup required message
   if (requireApiKeys && isAuthenticated && apiKeys.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Card sx={{ maxWidth: 500, textAlign: 'center' }}>
-          <CardContent>
+      <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 500, textAlign: 'center' }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
             <Key sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
+            <div  variant="h6" gutterBottom>
               API Key Setup Required
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               This page requires connection to your brokerage account to display live data. 
               Set up your API keys to get started.
-            </Typography>
+            </div>
             
-            <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3, textAlign: 'left' }}>
+              <div  variant="body2">
                 <strong>Why do I need API keys?</strong><br />
                 API keys allow us to securely connect to your brokerage account to:
                 <br />• Import your real portfolio holdings
                 <br />• Display live market data
                 <br />• Execute trades (if enabled)
                 <br />• Provide real-time analytics
-              </Typography>
-            </Alert>
+              </div>
+            </div>
 
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-              <Button
+            <div  sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 startIcon={<Key />}
                 onClick={() => setShowSetupWizard(true)}
               >
                 Set Up API Keys
-              </Button>
-              <Button
+              </button>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<Settings />}
                 onClick={() => navigate('/settings')}
               >
                 Go to Settings
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <ApiKeySetupWizard
           open={showSetupWizard}
           onClose={() => setShowSetupWizard(false)}
           onComplete={handleApiKeySetup}
         />
-      </Box>
+      </div>
     );
   }
 

@@ -180,22 +180,22 @@ const ApiKeyHealthCheck = ({
 
   if (apiKeys.length === 0) {
     return (
-      <Card>
-        <CardContent>
-          <Box sx={{ textAlign: 'center', py: 3 }}>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  sx={{ textAlign: 'center', py: 3 }}>
             <CloudOff sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+            <div  variant="h6" color="text.secondary" gutterBottom>
               No API Keys Configured
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            </div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Add API keys to monitor connection health and performance.
-            </Typography>
-            <Button variant="contained" onClick={onSettings} startIcon={<Settings />}>
+            </div>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" onClick={onSettings} startIcon={<Settings />}>
               Set Up API Keys
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -203,30 +203,30 @@ const ApiKeyHealthCheck = ({
   const overallConfig = getStatusConfig(overallHealth);
 
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <div className="bg-white shadow-md rounded-lg">
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Assessment color="primary" />
-            <Typography variant="h6">
+            <div  variant="h6">
               API Health Status
-            </Typography>
-            <Chip 
+            </div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               size="small" 
               label={overallConfig.label}
               color={overallConfig.color}
               icon={overallConfig.icon}
             />
-          </Box>
+          </div>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <div  sx={{ display: 'flex', gap: 1 }}>
             {lastCheck && (
-              <Typography variant="caption" color="text.secondary">
+              <div  variant="caption" color="text.secondary">
                 Last check: {lastCheck.toLocaleTimeString()}
-              </Typography>
+              </div>
             )}
-            <Tooltip title="Refresh health check">
-              <IconButton 
+            <div  title="Refresh health check">
+              <button className="p-2 rounded-full hover:bg-gray-100" 
                 size="small" 
                 onClick={performHealthCheck}
                 disabled={isChecking}
@@ -238,21 +238,21 @@ const ApiKeyHealthCheck = ({
                     '100%': { transform: 'rotate(360deg)' }
                   }
                 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
+              </button>
+            </div>
+          </div>
+        </div>
 
         {isChecking && (
-          <Box sx={{ mb: 2 }}>
-            <LinearProgress />
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+          <div  sx={{ mb: 2 }}>
+            <div className="w-full bg-gray-200 rounded-full h-2" />
+            <div  variant="caption" color="text.secondary" sx={{ mt: 1 }}>
               Checking API connections...
-            </Typography>
-          </Box>
+            </div>
+          </div>
         )}
 
-        <Grid container spacing={2}>
+        <div className="grid" container spacing={2}>
           {apiKeys.map((apiKey) => {
             const health = healthData[apiKey.id];
             if (!health) return null;
@@ -260,60 +260,60 @@ const ApiKeyHealthCheck = ({
             const statusConfig = getStatusConfig(health.status);
 
             return (
-              <Grid item xs={12} md={6} key={apiKey.id}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <div className="grid" item xs={12} md={6} key={apiKey.id}>
+                <div className="bg-white shadow-md rounded-lg p-4" variant="outlined" sx={{ p: 2 }}>
+                  <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                     {statusConfig.icon}
-                    <Box>
-                      <Typography variant="subtitle2" fontWeight="bold">
+                    <div>
+                      <div  variant="subtitle2" fontWeight="bold">
                         {apiKey.provider.toUpperCase()} 
                         {apiKey.isSandbox && (
-                          <Chip size="small" label="Paper" sx={{ ml: 1 }} />
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" size="small" label="Paper" sx={{ ml: 1 }} />
                         )}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <div  variant="caption" color="text.secondary">
                         {apiKey.description || 'No description'}
-                      </Typography>
-                    </Box>
-                  </Box>
+                      </div>
+                    </div>
+                  </div>
 
-                  <Grid container spacing={2} sx={{ mb: 2 }}>
-                    <Grid item xs={6}>
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color={statusConfig.color}>
+                  <div className="grid" container spacing={2} sx={{ mb: 2 }}>
+                    <div className="grid" item xs={6}>
+                      <div  sx={{ textAlign: 'center' }}>
+                        <div  variant="h6" color={statusConfig.color}>
                           {health.latency}ms
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        </div>
+                        <div  variant="caption" color="text.secondary">
                           Latency
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="success.main">
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid" item xs={6}>
+                      <div  sx={{ textAlign: 'center' }}>
+                        <div  variant="h6" color="success.main">
                           {health.uptime.toFixed(1)}%
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        </div>
+                        <div  variant="caption" color="text.secondary">
                           Uptime
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
+                  <div  sx={{ mb: 1 }}>
+                    <div  variant="caption" color="text.secondary">
                       Rate Limit Usage
-                    </Typography>
-                    <LinearProgress 
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2" 
                       variant="determinate" 
                       value={health.rateLimitUsed}
                       color={health.rateLimitUsed > 80 ? 'warning' : 'primary'}
                       sx={{ mt: 0.5 }}
                     />
-                    <Typography variant="caption" color="text.secondary">
+                    <div  variant="caption" color="text.secondary">
                       {health.rateLimitUsed}% used
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
 
                   <List dense>
                     <ListItem sx={{ px: 0 }}>
@@ -344,28 +344,28 @@ const ApiKeyHealthCheck = ({
                   </List>
 
                   {health.errorCount24h > 0 && (
-                    <Alert severity="warning" sx={{ mt: 1 }}>
-                      <Typography variant="caption">
+                    <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mt: 1 }}>
+                      <div  variant="caption">
                         {health.errorCount24h} errors in last 24h
-                      </Typography>
-                    </Alert>
+                      </div>
+                    </div>
                   )}
-                </Paper>
-              </Grid>
+                </div>
+              </div>
             );
           })}
-        </Grid>
+        </div>
 
         {overallHealth !== 'excellent' && overallHealth !== 'good' && (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            <Typography variant="body2">
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mt: 2 }}>
+            <div  variant="body2">
               Some API connections are experiencing issues. 
               Check your broker account and API key settings.
-            </Typography>
-          </Alert>
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert as MuiAlert, AlertTitle as MuiAlertTitle } from '@mui/material';
 
 export const Alert = React.forwardRef(({ className, variant = "info", ...props }, ref) => {
   const severity = variant === "destructive" ? "error" : variant;

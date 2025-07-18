@@ -750,89 +750,89 @@ const PortfolioOptimization = () => {
   
   if (loading) {
     return (
-      <Container maxWidth="xl">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl">
+        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
+        </div>
+      </div>
     );
   }
   
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom>
           Portfolio Optimization
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </div>
+        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Advanced portfolio optimization using Modern Portfolio Theory and risk analysis
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Chip label="Monte Carlo Optimization" color="primary" size="small" variant="outlined" />
-          <Chip label="Efficient Frontier Analysis" color="success" size="small" variant="outlined" />
-          <Chip label="Risk Parity Available" color="info" size="small" variant="outlined" />
-          <Chip label="Real-time Rebalancing" color="warning" size="small" variant="outlined" />
-        </Box>
-      </Box>
+        </div>
+        <div  display="flex" gap={1} flexWrap="wrap">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Monte Carlo Optimization" color="primary" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Efficient Frontier Analysis" color="success" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Risk Parity Available" color="info" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Rebalancing" color="warning" size="small" variant="outlined" />
+        </div>
+      </div>
 
       {/* API Key Status */}
-      <Box sx={{ mb: 3 }}>
+      <div  sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           showSetupDialog={true}
           onStatusChange={(status) => {
             console.log('Portfolio Optimization - API Key Status:', status);
           }}
         />
-      </Box>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </Alert>
+        </div>
       )}
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Main Optimization Panel */}
-        <Grid item xs={12} lg={8}>
-          <Card sx={{ mb: 3 }}>
-            <CardHeader 
+        <div className="grid" item xs={12} lg={8}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Optimization Engine"
               subheader="Configure and run portfolio optimization"
               action={
-                <Box display="flex" gap={1}>
-                  <Tooltip title="Refresh market data">
-                    <IconButton onClick={initializePortfolio} disabled={loading}>
-                      <RefreshIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
+                <div  display="flex" gap={1}>
+                  <div  title="Refresh market data">
+                    <button className="p-2 rounded-full hover:bg-gray-100" onClick={initializePortfolio} disabled={loading}>
+                      <↻  />
+                    </button>
+                  </div>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="contained"
-                    startIcon={optimizing ? <CircularProgress size={20} /> : <ScienceIcon />}
+                    startIcon={optimizing ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <ScienceIcon />}
                     onClick={handleOptimization}
                     disabled={optimizing || !currentPortfolio}
                     size="large"
                   >
                     {optimizing ? 'Optimizing...' : 'Run Optimization'}
-                  </Button>
-                </Box>
+                  </button>
+                </div>
               }
             />
-            <CardContent>
-              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
-                <Tab label="Objectives" />
-                <Tab label="Constraints" />
-                <Tab label="Analysis" />
-                <Tab label="Results" />
-              </Tabs>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Objectives" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Constraints" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Analysis" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Results" />
+              </div>
               
               {/* Objectives Tab */}
               {activeTab === 0 && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Optimization Objective</InputLabel>
-                      <Select
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="mb-4" fullWidth>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Optimization Objective</label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={optimizationParams.objective}
                         label="Optimization Objective"
                         onChange={(e) => setOptimizationParams({
@@ -840,43 +840,43 @@ const PortfolioOptimization = () => {
                           objective: e.target.value
                         })}
                       >
-                        <MenuItem value="maxSharpe">
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">Maximize Sharpe Ratio</Typography>
-                            <Typography variant="caption" color="text.secondary">Best risk-adjusted returns</Typography>
-                          </Box>
-                        </MenuItem>
-                        <MenuItem value="minRisk">
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">Minimize Risk</Typography>
-                            <Typography variant="caption" color="text.secondary">Lowest portfolio volatility</Typography>
-                          </Box>
-                        </MenuItem>
-                        <MenuItem value="maxReturn">
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">Maximize Return</Typography>
-                            <Typography variant="caption" color="text.secondary">Highest expected returns</Typography>
-                          </Box>
-                        </MenuItem>
-                        <MenuItem value="equalWeight">
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">Equal Weight</Typography>
-                            <Typography variant="caption" color="text.secondary">Equal allocation across assets</Typography>
-                          </Box>
-                        </MenuItem>
-                        <MenuItem value="riskParity">
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">Risk Parity</Typography>
-                            <Typography variant="caption" color="text.secondary">Equal risk contribution</Typography>
-                          </Box>
-                        </MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Investment Horizon</InputLabel>
-                      <Select
+                        <option  value="maxSharpe">
+                          <div>
+                            <div  variant="body2" fontWeight="bold">Maximize Sharpe Ratio</div>
+                            <div  variant="caption" color="text.secondary">Best risk-adjusted returns</div>
+                          </div>
+                        </option>
+                        <option  value="minRisk">
+                          <div>
+                            <div  variant="body2" fontWeight="bold">Minimize Risk</div>
+                            <div  variant="caption" color="text.secondary">Lowest portfolio volatility</div>
+                          </div>
+                        </option>
+                        <option  value="maxReturn">
+                          <div>
+                            <div  variant="body2" fontWeight="bold">Maximize Return</div>
+                            <div  variant="caption" color="text.secondary">Highest expected returns</div>
+                          </div>
+                        </option>
+                        <option  value="equalWeight">
+                          <div>
+                            <div  variant="body2" fontWeight="bold">Equal Weight</div>
+                            <div  variant="caption" color="text.secondary">Equal allocation across assets</div>
+                          </div>
+                        </option>
+                        <option  value="riskParity">
+                          <div>
+                            <div  variant="body2" fontWeight="bold">Risk Parity</div>
+                            <div  variant="caption" color="text.secondary">Equal risk contribution</div>
+                          </div>
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="mb-4" fullWidth>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Investment Horizon</label>
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={optimizationParams.timeHorizon}
                         label="Investment Horizon"
                         onChange={(e) => setOptimizationParams({
@@ -884,18 +884,18 @@ const PortfolioOptimization = () => {
                           timeHorizon: e.target.value
                         })}
                       >
-                        <MenuItem value="3M">3 Months</MenuItem>
-                        <MenuItem value="6M">6 Months</MenuItem>
-                        <MenuItem value="1Y">1 Year</MenuItem>
-                        <MenuItem value="2Y">2 Years</MenuItem>
-                        <MenuItem value="5Y">5+ Years</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography gutterBottom>
+                        <option  value="3M">3 Months</option>
+                        <option  value="6M">6 Months</option>
+                        <option  value="1Y">1 Year</option>
+                        <option  value="2Y">2 Years</option>
+                        <option  value="5Y">5+ Years</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12}>
+                    <div  gutterBottom>
                       Risk Tolerance: {optimizationParams.riskTolerance}%
-                    </Typography>
+                    </div>
                     <Slider
                       value={optimizationParams.riskTolerance}
                       onChange={(e, value) => setOptimizationParams({
@@ -912,15 +912,15 @@ const PortfolioOptimization = () => {
                         { value: 100, label: 'Aggressive' }
                       ]}
                     />
-                  </Grid>
-                </Grid>
+                  </div>
+                </div>
               )}
               
               {/* Constraints Tab */}
               {activeTab === 1 && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       fullWidth
                       label="Maximum Single Position (%)"
                       type="number"
@@ -934,9 +934,9 @@ const PortfolioOptimization = () => {
                       })}
                       inputProps={{ min: 1, max: 100 }}
                     />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       fullWidth
                       label="Minimum Single Position (%)"
                       type="number"
@@ -950,9 +950,9 @@ const PortfolioOptimization = () => {
                       })}
                       inputProps={{ min: 0, max: 50 }}
                     />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       fullWidth
                       label="Rebalance Threshold (%)"
                       type="number"
@@ -967,9 +967,9 @@ const PortfolioOptimization = () => {
                       inputProps={{ min: 1, max: 20 }}
                       helperText="Minimum allocation change to trigger rebalancing"
                     />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       fullWidth
                       label="Lookback Period (Days)"
                       type="number"
@@ -981,11 +981,11 @@ const PortfolioOptimization = () => {
                       inputProps={{ min: 30, max: 1260 }}
                       helperText="Historical data window for calculations"
                     />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <FormControlLabel
+                  </div>
+                  <div className="grid" item xs={12}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={optimizationParams.constraints.allowShorts}
                           onChange={(e) => setOptimizationParams({
                             ...optimizationParams,
@@ -998,17 +998,17 @@ const PortfolioOptimization = () => {
                       }
                       label="Allow Short Selling"
                     />
-                  </Grid>
-                </Grid>
+                  </div>
+                </div>
               )}
               
               {/* Analysis Tab */}
               {activeTab === 2 && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Current Portfolio</Typography>
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" gutterBottom>Current Portfolio</div>
                         {currentPortfolio && (
                           <ResponsiveContainer width="100%" height={200}>
                             <PieChart>
@@ -1032,13 +1032,13 @@ const PortfolioOptimization = () => {
                             </PieChart>
                           </ResponsiveContainer>
                         )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Efficient Frontier</Typography>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" gutterBottom>Efficient Frontier</div>
                         <ResponsiveContainer width="100%" height={200}>
                           <ScatterChart data={efficientFrontier}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -1063,64 +1063,64 @@ const PortfolioOptimization = () => {
                             <Scatter dataKey="risk" fill="#8884d8" />
                           </ScatterChart>
                         </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
               
               {/* Results Tab */}
               {activeTab === 3 && optimizedPortfolio && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Performance Comparison</Typography>
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Metric</TableCell>
-                                <TableCell align="right">Current</TableCell>
-                                <TableCell align="right">Optimized</TableCell>
-                                <TableCell align="right">Change</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              <TableRow>
-                                <TableCell>Expected Return</TableCell>
-                                <TableCell align="right">{currentPortfolio.metrics.expectedReturn.toFixed(2)}%</TableCell>
-                                <TableCell align="right">{optimizedPortfolio.metrics.expectedReturn.toFixed(2)}%</TableCell>
-                                <TableCell align="right" sx={{ color: optimizedPortfolio.improvement.returnImprovement >= 0 ? 'success.main' : 'error.main' }}>
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" gutterBottom>Performance Comparison</div>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Metric</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Optimized</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
+                              </tr>
+                            </thead>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Expected Return</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{currentPortfolio.metrics.expectedReturn.toFixed(2)}%</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{optimizedPortfolio.metrics.expectedReturn.toFixed(2)}%</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: optimizedPortfolio.improvement.returnImprovement >= 0 ? 'success.main' : 'error.main' }}>
                                   {optimizedPortfolio.improvement.returnImprovement >= 0 ? '+' : ''}{optimizedPortfolio.improvement.returnImprovement.toFixed(2)}%
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell>Risk (Volatility)</TableCell>
-                                <TableCell align="right">{currentPortfolio.metrics.risk.toFixed(2)}%</TableCell>
-                                <TableCell align="right">{optimizedPortfolio.metrics.risk.toFixed(2)}%</TableCell>
-                                <TableCell align="right" sx={{ color: optimizedPortfolio.improvement.riskReduction >= 0 ? 'success.main' : 'error.main' }}>
+                                </td>
+                              </tr>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Risk (Volatility)</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{currentPortfolio.metrics.risk.toFixed(2)}%</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{optimizedPortfolio.metrics.risk.toFixed(2)}%</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: optimizedPortfolio.improvement.riskReduction >= 0 ? 'success.main' : 'error.main' }}>
                                   {optimizedPortfolio.improvement.riskReduction >= 0 ? '-' : '+'}{Math.abs(optimizedPortfolio.improvement.riskReduction).toFixed(2)}%
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell>Sharpe Ratio</TableCell>
-                                <TableCell align="right">{currentPortfolio.metrics.sharpeRatio.toFixed(2)}</TableCell>
-                                <TableCell align="right">{optimizedPortfolio.metrics.sharpeRatio.toFixed(2)}</TableCell>
-                                <TableCell align="right" sx={{ color: 'success.main' }}>
+                                </td>
+                              </tr>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sharpe Ratio</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{currentPortfolio.metrics.sharpeRatio.toFixed(2)}</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{optimizedPortfolio.metrics.sharpeRatio.toFixed(2)}</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>
                                   +{optimizedPortfolio.improvement.sharpeImprovement.toFixed(2)}
-                                </TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>Optimized Allocation</Typography>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" gutterBottom>Optimized Allocation</div>
                         <ResponsiveContainer width="100%" height={200}>
                           <PieChart>
                             <Pie
@@ -1142,94 +1142,94 @@ const PortfolioOptimization = () => {
                             <RechartsTooltip formatter={(value) => [`${value.toFixed(2)}%`, 'Weight']} />
                           </PieChart>
                         </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Rebalancing Recommendations */}
           {rebalanceRecommendations.length > 0 && (
-            <Card>
-              <CardHeader 
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="Rebalancing Recommendations"
                 subheader={`${rebalanceRecommendations.length} positions need adjustment`}
                 action={
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
-                    startIcon={<DownloadIcon />}
+                    startIcon={<⬇  />}
                     onClick={exportResults}
                     size="small"
                   >
                     Export
-                  </Button>
+                  </button>
                 }
               />
-              <CardContent>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell align="right">Current %</TableCell>
-                        <TableCell align="right">Target %</TableCell>
-                        <TableCell align="right">Change %</TableCell>
-                        <TableCell align="right">Amount ($)</TableCell>
-                        <TableCell>Action</TableCell>
-                        <TableCell>Priority</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current %</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Target %</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change %</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Amount ($)</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Action</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Priority</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {rebalanceRecommendations.map((rec) => (
-                        <TableRow key={rec.symbol}>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">{rec.symbol}</Typography>
-                          </TableCell>
-                          <TableCell align="right">{rec.currentWeight.toFixed(2)}%</TableCell>
-                          <TableCell align="right">{rec.targetWeight.toFixed(2)}%</TableCell>
-                          <TableCell 
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={rec.symbol}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2" fontWeight="bold">{rec.symbol}</div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{rec.currentWeight.toFixed(2)}%</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{rec.targetWeight.toFixed(2)}%</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
                             align="right"
                             sx={{ color: rec.difference >= 0 ? 'success.main' : 'error.main' }}
                           >
                             {rec.difference >= 0 ? '+' : ''}{rec.difference.toFixed(2)}%
-                          </TableCell>
-                          <TableCell align="right">
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                             ${rec.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={rec.action} 
                               color={rec.action === 'BUY' ? 'success' : 'error'}
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={rec.priority} 
                               color={rec.priority === 'HIGH' ? 'error' : 'warning'}
                               size="small"
                               variant="outlined"
                             />
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           )}
-        </Grid>
+        </div>
 
         {/* Sidebar */}
-        <Grid item xs={12} lg={4}>
+        <div className="grid" item xs={12} lg={4}>
           {/* Current Portfolio Summary */}
           {currentPortfolio && (
-            <Card sx={{ mb: 3 }}>
-              <CardHeader title="Portfolio Summary" />
-              <CardContent>
+            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+              <div className="bg-white shadow-md rounded-lg"Header title="Portfolio Summary" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <List dense>
                   <ListItem>
                     <ListItemIcon><AccountBalance /></ListItemIcon>
@@ -1260,51 +1260,51 @@ const PortfolioOptimization = () => {
                     />
                   </ListItem>
                 </List>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Risk Analysis */}
           {riskAnalysis && (
-            <Card>
-              <CardHeader title="Risk Analysis" />
-              <CardContent>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Risk Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ mb: 3 }}>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     Risk Score: {riskAnalysis.riskScore.toFixed(1)}/100
-                  </Typography>
-                  <LinearProgress 
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2" 
                     variant="determinate" 
                     value={riskAnalysis.riskScore}
                     color={riskAnalysis.riskScore > 70 ? 'error' : riskAnalysis.riskScore > 40 ? 'warning' : 'success'}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
-                </Box>
+                </div>
 
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Max Drawdown</Typography>
-                    <Typography variant="body2" fontWeight="bold">{riskAnalysis.maxDrawdown}%</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Beta</Typography>
-                    <Typography variant="body2" fontWeight="bold">{riskAnalysis.beta}</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Alpha</Typography>
-                    <Typography variant="body2" fontWeight="bold">{riskAnalysis.alpha}%</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Information Ratio</Typography>
-                    <Typography variant="body2" fontWeight="bold">{riskAnalysis.informationRatio}</Typography>
-                  </Grid>
-                </Grid>
+                <div className="grid" container spacing={2} sx={{ mb: 3 }}>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Max Drawdown</div>
+                    <div  variant="body2" fontWeight="bold">{riskAnalysis.maxDrawdown}%</div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Beta</div>
+                    <div  variant="body2" fontWeight="bold">{riskAnalysis.beta}</div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Alpha</div>
+                    <div  variant="body2" fontWeight="bold">{riskAnalysis.alpha}%</div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Information Ratio</div>
+                    <div  variant="body2" fontWeight="bold">{riskAnalysis.informationRatio}</div>
+                  </div>
+                </div>
 
-                <Typography variant="subtitle2" gutterBottom>Risk Factors</Typography>
+                <div  variant="subtitle2" gutterBottom>Risk Factors</div>
                 {riskAnalysis.riskFactors?.map((factor, index) => (
                   <Accordion key={index}>
                     <AccordionSummary expandIcon={<ExpandMore />}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <div  sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                         <Warning 
                           sx={{ 
                             mr: 1, 
@@ -1312,9 +1312,9 @@ const PortfolioOptimization = () => {
                                    factor.severity === 'MEDIUM' ? 'warning.main' : 'info.main' 
                           }} 
                         />
-                        <Typography variant="body2">{factor.name}</Typography>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Chip 
+                        <div  variant="body2">{factor.name}</div>
+                        <div  sx={{ flexGrow: 1 }} />
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={factor.severity} 
                           size="small" 
                           color={
@@ -1322,24 +1322,24 @@ const PortfolioOptimization = () => {
                             factor.severity === 'MEDIUM' ? 'warning' : 'info'
                           }
                         />
-                      </Box>
+                      </div>
                     </AccordionSummary>
                     <AccordionDetails>
-                      <Typography variant="body2" color="text.secondary" paragraph>
+                      <div  variant="body2" color="text.secondary" paragraph>
                         {factor.description}
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold">
+                      </div>
+                      <div  variant="body2" fontWeight="bold">
                         Recommendation: {factor.recommendation}
-                      </Typography>
+                      </div>
                     </AccordionDetails>
                   </Accordion>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
-        </Grid>
-      </Grid>
-    </Container>
+        </div>
+      </div>
+    </div>
   );
 };
 

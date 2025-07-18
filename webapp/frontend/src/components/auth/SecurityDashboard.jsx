@@ -169,203 +169,203 @@ function SecurityDashboard() {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <div  sx={{ p: 3 }}>
+      <div  variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Security color="primary" />
         Security Dashboard
-      </Typography>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Security Overview Cards */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Shield color="primary" />
-                <Typography variant="h6">Account Security</Typography>
-              </Box>
+                <div  variant="h6">Account Security</div>
+              </div>
               
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
+              <div  sx={{ mb: 1 }}>
+                <div  variant="body2" color="text.secondary">
                   Multi-Factor Authentication
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Chip 
+                </div>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={securityData.securitySettings.mfaEnabled ? "Enabled" : "Disabled"}
                     color={securityData.securitySettings.mfaEnabled ? "success" : "warning"}
                     size="small"
                     icon={securityData.securitySettings.mfaEnabled ? <CheckCircle /> : <Warning />}
                   />
                   {!securityData.securitySettings.mfaEnabled && (
-                    <Button size="small" onClick={() => setShowMFASetup(true)}>
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" onClick={() => setShowMFASetup(true)}>
                       Setup
-                    </Button>
+                    </button>
                   )}
-                </Box>
-              </Box>
+                </div>
+              </div>
 
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
+              <div  sx={{ mb: 1 }}>
+                <div  variant="body2" color="text.secondary">
                   Biometric Authentication
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Chip 
+                </div>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={securityData.securitySettings.biometricEnabled ? "Enabled" : "Available"}
                     color={securityData.securitySettings.biometricEnabled ? "success" : "info"}
                     size="small"
                     icon={<Fingerprint />}
                   />
-                  <Button size="small" onClick={() => setShowBiometricSetup(true)}>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" onClick={() => setShowBiometricSetup(true)}>
                     {securityData.securitySettings.biometricEnabled ? "Manage" : "Setup"}
-                  </Button>
-                </Box>
-              </Box>
+                  </button>
+                </div>
+              </div>
 
-              <Box>
-                <Typography variant="body2" color="text.secondary">
+              <div>
+                <div  variant="body2" color="text.secondary">
                   Password Strength
-                </Typography>
-                <Chip 
+                </div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={securityData.securitySettings.passwordStrength}
                   color="success"
                   size="small"
                   icon={<VpnKey />}
                 />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Current Session Info */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Schedule color="primary" />
-                <Typography variant="h6">Current Session</Typography>
-              </Box>
+                <div  variant="h6">Current Session</div>
+              </div>
               
               {sessionInfo && (
                 <>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     Started: {formatTimestamp(sessionInfo.sessionStarted)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  </div>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     User: {sessionInfo.email}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  </div>
+                  <div  variant="body2" color="text.secondary" gutterBottom>
                     Refreshed: {sessionInfo.refreshCount} times
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <Chip 
+                  </div>
+                  <div  sx={{ mt: 2 }}>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       label="Active"
                       color="success"
                       size="small"
                       icon={<CheckCircle />}
                     />
-                  </Box>
+                  </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Quick Actions */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Quick Actions
-              </Typography>
+              </div>
               
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Button 
+              <div  sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   variant="outlined" 
                   startIcon={<VpnKey />}
                   size="small"
                 >
                   Change Password
-                </Button>
-                <Button 
+                </button>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   variant="outlined" 
                   startIcon={<Refresh />}
                   size="small"
                 >
                   Review Active Sessions
-                </Button>
-                <Button 
+                </button>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   variant="outlined" 
                   startIcon={<Block />}
                   color="error"
                   size="small"
                 >
                   Lock Account
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Login History */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Recent Login Activity
-              </Typography>
+              </div>
               
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date & Time</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>Device</TableCell>
-                      <TableCell>Method</TableCell>
-                      <TableCell>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Date & Time</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Location</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Device</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Method</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                     {securityData.loginHistory.map((login) => (
-                      <TableRow key={login.id}>
-                        <TableCell>{formatTimestamp(login.timestamp)}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={login.id}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{formatTimestamp(login.timestamp)}</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <LocationOn fontSize="small" color="action" />
                             {login.location}
-                          </Box>
-                        </TableCell>
-                        <TableCell>{login.device}</TableCell>
-                        <TableCell>
-                          <Chip 
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{login.device}</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                             label={login.method}
                             size="small"
                             variant="outlined"
                           />
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                             label={login.status}
                             color={getStatusColor(login.status)}
                             size="small"
                           />
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Trusted Devices */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Trusted Devices
-              </Typography>
+              </div>
               
               <List dense>
                 {securityData.devices.map((device) => (
@@ -376,21 +376,21 @@ function SecurityDashboard() {
                     <ListItemText
                       primary={device.name}
                       secondary={
-                        <Box>
-                          <Typography variant="caption" display="block">
+                        <div>
+                          <div  variant="caption" display="block">
                             {device.browser}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          </div>
+                          <div  variant="caption" color="text.secondary">
                             Last seen: {formatTimestamp(device.lastSeen)}
-                          </Typography>
+                          </div>
                           {device.isCurrent && (
-                            <Chip label="Current" size="small" color="primary" sx={{ ml: 1 }} />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Current" size="small" color="primary" sx={{ ml: 1 }} />
                           )}
-                        </Box>
+                        </div>
                       }
                     />
                     <ListItemSecondaryAction>
-                      <IconButton 
+                      <button className="p-2 rounded-full hover:bg-gray-100" 
                         edge="end" 
                         size="small"
                         onClick={() => {
@@ -399,58 +399,58 @@ function SecurityDashboard() {
                         }}
                       >
                         <Visibility />
-                      </IconButton>
+                      </button>
                     </ListItemSecondaryAction>
                   </ListItem>
                 ))}
               </List>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Device Details Dialog */}
-      <Dialog open={showDeviceDialog} onClose={() => setShowDeviceDialog(false)}>
-        <DialogTitle>Device Details</DialogTitle>
-        <DialogContent>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={showDeviceDialog} onClose={() => setShowDeviceDialog(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Device Details</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
           {selectedDevice && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
+            <div>
+              <div  variant="h6" gutterBottom>
                 {selectedDevice.name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              </div>
+              <div  variant="body2" color="text.secondary" gutterBottom>
                 Browser: {selectedDevice.browser}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              </div>
+              <div  variant="body2" color="text.secondary" gutterBottom>
                 Last Location: {selectedDevice.location}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              </div>
+              <div  variant="body2" color="text.secondary" gutterBottom>
                 Last Seen: {formatTimestamp(selectedDevice.lastSeen)}
-              </Typography>
+              </div>
               
               {selectedDevice.isCurrent && (
-                <Alert severity="info" sx={{ mt: 2 }}>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
                   This is your current device
-                </Alert>
+                </div>
               )}
-            </Box>
+            </div>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowDeviceDialog(false)}>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowDeviceDialog(false)}>
             Close
-          </Button>
+          </button>
           {selectedDevice && !selectedDevice.isCurrent && (
-            <Button 
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               color="error" 
               onClick={() => handleRemoveDevice(selectedDevice.id)}
               startIcon={<Delete />}
             >
               Remove Device
-            </Button>
+            </button>
           )}
-        </DialogActions>
-      </Dialog>
+        </div>
+      </div>
 
       {/* MFA Setup Modal */}
       <MFASetupModal
@@ -461,14 +461,14 @@ function SecurityDashboard() {
       />
 
       {/* Biometric Setup Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={showBiometricSetup} 
         onClose={() => setShowBiometricSetup(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Biometric Authentication</DialogTitle>
-        <DialogContent>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Biometric Authentication</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
           <BiometricAuth
             userId={user?.userId}
             username={user?.username}
@@ -491,14 +491,14 @@ function SecurityDashboard() {
             showSetup={true}
             compact={false}
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowBiometricSetup(false)}>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowBiometricSetup(false)}>
             Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

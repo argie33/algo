@@ -68,7 +68,7 @@ import { formatDistanceToNow } from 'date-fns';
 function TabPanel({ children, value, index }) {
   return (
     <div hidden={value !== index}>
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
+      {value === index && <div  sx={{ py: 2 }}>{children}</div>}
     </div>
   );
 }
@@ -300,180 +300,180 @@ const MarketCommentary = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom>
           Market Commentary
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </div>
+        <div  variant="body1" color="text.secondary">
           Expert market commentary and analysis from our research team
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
       {/* Market Insights Overview */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="subtitle2" color="text.secondary" gutterBottom>
                 Current Market Regime
-              </Typography>
-              <Typography variant="h5" fontWeight={600} gutterBottom>
+              </div>
+              <div  variant="h5" fontWeight={600} gutterBottom>
                 {marketInsights?.marketRegime.current}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              </div>
+              <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {marketInsights?.marketRegime.description}
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="caption">Confidence:</Typography>
-                <Chip 
+              </div>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <div  variant="caption">Confidence:</div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`${(marketInsights?.marketRegime.confidence * 100).toFixed(0)}%`}
                   size="small"
                   color="primary"
                 />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardHeader title="Weekly Market Outlook" />
-            <CardContent>
-              <Grid container spacing={2}>
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Weekly Market Outlook" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2}>
                 {Object.entries(marketInsights?.weeklyOutlook || {}).map(([index, data]) => (
-                  <Grid item xs={6} md={3} key={index}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="subtitle2" sx={{ textTransform: 'uppercase' }}>
+                  <div className="grid" item xs={6} md={3} key={index}>
+                    <div  sx={{ textAlign: 'center' }}>
+                      <div  variant="subtitle2" sx={{ textTransform: 'uppercase' }}>
                         {index}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, my: 1 }}>
+                      </div>
+                      <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, my: 1 }}>
                         {getDirectionIcon(data.direction)}
-                        <Typography variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
+                        <div  variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
                           {data.direction}
-                        </Typography>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
+                        </div>
+                      </div>
+                      <div  variant="caption" color="text.secondary">
                         Target: {data.target}
-                      </Typography>
-                    </Box>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Timeframe</InputLabel>
-                <Select
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} md={3}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={timeframe}
                   label="Timeframe"
                   onChange={(e) => setTimeframe(e.target.value)}
                 >
-                  <MenuItem value="day">Today</MenuItem>
-                  <MenuItem value="week">This Week</MenuItem>
-                  <MenuItem value="month">This Month</MenuItem>
-                  <MenuItem value="quarter">This Quarter</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Category</InputLabel>
-                <Select
+                  <option  value="day">Today</option>
+                  <option  value="week">This Week</option>
+                  <option  value="month">This Month</option>
+                  <option  value="quarter">This Quarter</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={3}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={category}
                   label="Category"
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  <MenuItem value="all">All Categories</MenuItem>
-                  <MenuItem value="monetary-policy">Monetary Policy</MenuItem>
-                  <MenuItem value="sector-analysis">Sector Analysis</MenuItem>
-                  <MenuItem value="thematic-investing">Thematic Investing</MenuItem>
-                  <MenuItem value="global-macro">Global Macro</MenuItem>
-                  <MenuItem value="technical-analysis">Technical Analysis</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Author</InputLabel>
-                <Select
+                  <option  value="all">All Categories</option>
+                  <option  value="monetary-policy">Monetary Policy</option>
+                  <option  value="sector-analysis">Sector Analysis</option>
+                  <option  value="thematic-investing">Thematic Investing</option>
+                  <option  value="global-macro">Global Macro</option>
+                  <option  value="technical-analysis">Technical Analysis</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={3}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={author}
                   label="Author"
                   onChange={(e) => setAuthor(e.target.value)}
                 >
-                  <MenuItem value="all">All Authors</MenuItem>
-                  <MenuItem value="sarah-mitchell">Sarah Mitchell</MenuItem>
-                  <MenuItem value="michael-chen">Michael Chen</MenuItem>
-                  <MenuItem value="elena-rodriguez">Elena Rodriguez</MenuItem>
-                  <MenuItem value="david-thompson">David Thompson</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Button
+                  <option  value="all">All Authors</option>
+                  <option  value="sarah-mitchell">Sarah Mitchell</option>
+                  <option  value="michael-chen">Michael Chen</option>
+                  <option  value="elena-rodriguez">Elena Rodriguez</option>
+                  <option  value="david-thompson">David Thompson</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={3}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="outlined"
                 startIcon={<Refresh />}
                 onClick={() => { loadCommentaryData(); loadMarketInsights(); }}
                 fullWidth
               >
                 Refresh
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <Card>
-        <CardContent sx={{ pb: 0 }}>
-          <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)}>
-            <Tab label="Latest Commentary" icon={<Article />} iconPosition="start" />
-            <Tab label="Key Themes" icon={<Assessment />} iconPosition="start" />
-            <Tab label="Risk Factors" icon={<Warning />} iconPosition="start" />
-          </Tabs>
-        </CardContent>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content sx={{ pb: 0 }}>
+          <div className="border-b border-gray-200" value={activeTab} onChange={(e, val) => setActiveTab(val)}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Latest Commentary" icon={<Article />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Key Themes" icon={<Assessment />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Risk Factors" icon={<Warning />} iconPosition="start" />
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={0}>
-          <Stack spacing={3} sx={{ p: 3 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
+          <div className="flex flex-col space-y-2" spacing={3} sx={{ p: 3 }}>
             {commentary.map((article) => (
-              <Card key={article.id} variant="outlined">
-                <CardContent>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={8}>
-                      <Typography variant="h6" gutterBottom>
+              <div className="bg-white shadow-md rounded-lg" key={article.id} variant="outlined">
+                <div className="bg-white shadow-md rounded-lg"Content>
+                  <div className="grid" container spacing={2}>
+                    <div className="grid" item xs={12} md={8}>
+                      <div  variant="h6" gutterBottom>
                         {article.title}
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                        <Avatar sx={{ width: 32, height: 32 }}>
+                      </div>
+                      <div className="flex flex-col space-y-2" direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                        <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ width: 32, height: 32 }}>
                           {article.author.name.split(' ').map(n => n[0]).join('')}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="body2" fontWeight={600}>
+                        </div>
+                        <div>
+                          <div  variant="body2" fontWeight={600}>
                             {article.author.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          </div>
+                          <div  variant="caption" color="text.secondary">
                             {article.author.title}
-                          </Typography>
-                        </Box>
-                        <Chip size="small" label={article.category.replace('-', ' ')} />
-                        <Typography variant="caption" color="text.secondary">
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" size="small" label={article.category.replace('-', ' ')} />
+                        <div  variant="caption" color="text.secondary">
                           {formatDistanceToNow(article.publishedAt)} ago • {article.readTime} min read
-                        </Typography>
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        </div>
+                      </div>
+                      <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         {article.summary}
-                      </Typography>
-                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                        <Chip
+                      </div>
+                      <div className="flex flex-col space-y-2" direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={article.sentiment}
                           size="small"
                           sx={{
@@ -482,7 +482,7 @@ const MarketCommentary = () => {
                             textTransform: 'capitalize'
                           }}
                         />
-                        <Chip
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           label={`${article.marketImpact} Impact`}
                           size="small"
                           variant="outlined"
@@ -492,15 +492,15 @@ const MarketCommentary = () => {
                             textTransform: 'capitalize'
                           }}
                         />
-                      </Stack>
-                      <Stack direction="row" spacing={2} flexWrap="wrap">
+                      </div>
+                      <div className="flex flex-col space-y-2" direction="row" spacing={2} flexWrap="wrap">
                         {article.tags.map(tag => (
-                          <Chip key={tag} label={tag} size="small" variant="outlined" />
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={tag} label={tag} size="small" variant="outlined" />
                         ))}
-                      </Stack>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Typography variant="subtitle2" gutterBottom>Key Takeaways</Typography>
+                      </div>
+                    </div>
+                    <div className="grid" item xs={12} md={4}>
+                      <div  variant="subtitle2" gutterBottom>Key Takeaways</div>
                       <List dense>
                         {article.keyTakeaways.map((takeaway, index) => (
                           <ListItem key={index} sx={{ py: 0.5 }}>
@@ -512,11 +512,11 @@ const MarketCommentary = () => {
                         ))}
                       </List>
                       {article.relatedStocks.length > 0 && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle2" gutterBottom>Related Stocks</Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <div  sx={{ mt: 2 }}>
+                          <div  variant="subtitle2" gutterBottom>Related Stocks</div>
+                          <div className="flex flex-col space-y-2" direction="row" spacing={1} flexWrap="wrap">
                             {article.relatedStocks.map(ticker => (
-                              <Chip
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 key={ticker}
                                 label={ticker}
                                 size="small"
@@ -524,43 +524,43 @@ const MarketCommentary = () => {
                                 sx={{ cursor: 'pointer' }}
                               />
                             ))}
-                          </Stack>
-                        </Box>
+                          </div>
+                        </div>
                       )}
-                      <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <div className="flex flex-col space-y-2" direction="row" spacing={2} sx={{ mt: 2 }}>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Visibility sx={{ fontSize: 16 }} />
-                          <Typography variant="caption">{article.views.toLocaleString()}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <div  variant="caption">{article.views.toLocaleString()}</div>
+                        </div>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <ThumbUp sx={{ fontSize: 16 }} />
-                          <Typography variant="caption">{article.likes}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <div  variant="caption">{article.likes}</div>
+                        </div>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Comment sx={{ fontSize: 16 }} />
-                          <Typography variant="caption">{article.comments}</Typography>
-                        </Box>
-                      </Stack>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
+                          <div  variant="caption">{article.comments}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ))}
-          </Stack>
-        </TabPanel>
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={1}>
-          <Box sx={{ p: 3 }}>
-            <Grid container spacing={3}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+          <div  sx={{ p: 3 }}>
+            <div className="grid" container spacing={3}>
               {marketInsights?.keyThemes.map((theme, index) => (
-                <Grid item xs={12} md={6} key={index}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>{theme.theme}</Typography>
-                      <Stack spacing={2}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2">Impact Level:</Typography>
-                          <Chip
+                <div className="grid" item xs={12} md={6} key={index}>
+                  <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  variant="h6" gutterBottom>{theme.theme}</div>
+                      <div className="flex flex-col space-y-2" spacing={2}>
+                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <div  variant="body2">Impact Level:</div>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             label={theme.impact}
                             size="small"
                             sx={{
@@ -568,44 +568,44 @@ const MarketCommentary = () => {
                               color: getImpactColor(theme.impact.toLowerCase())
                             }}
                           />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2">Timeline:</Typography>
-                          <Typography variant="body2" fontWeight={600}>{theme.timeline}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2">Probability:</Typography>
-                          <Typography variant="body2" fontWeight={600}>
+                        </div>
+                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <div  variant="body2">Timeline:</div>
+                          <div  variant="body2" fontWeight={600}>{theme.timeline}</div>
+                        </div>
+                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <div  variant="body2">Probability:</div>
+                          <div  variant="body2" fontWeight={600}>
                             {(theme.probability * 100).toFixed(0)}%
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </Grid>
-          </Box>
-        </TabPanel>
+            </div>
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={2}>
-          <Box sx={{ p: 3 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+          <div  sx={{ p: 3 }}>
             <List>
               {marketInsights?.riskFactors.map((risk, index) => (
                 <ListItem key={index}>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: '#ff98001A' }}>
+                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#ff98001A' }}>
                       <Warning sx={{ color: '#ff9800' }} />
-                    </Avatar>
+                    </div>
                   </ListItemAvatar>
                   <ListItemText primary={risk} />
                 </ListItem>
               ))}
             </List>
-          </Box>
-        </TabPanel>
-      </Card>
-    </Container>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

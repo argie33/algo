@@ -170,33 +170,33 @@ const CryptoAdvancedDashboard = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
+        </div>
+      </div>
     )
   }
 
   if (error) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="error">{String(error)}</Alert>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">{String(error)}</div>
+      </div>
     )
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+      <div  display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <div  variant="h4" component="h1" sx={{ fontWeight: 700 }}>
           Advanced Crypto Dashboard
-        </Typography>
-        <Box display="flex" alignItems="center" gap={2}>
-          <FormControlLabel
+        </div>
+        <div  display="flex" alignItems="center" gap={2}>
+          <div className="mb-4"Label
             control={
-              <Switch
+              <input type="checkbox" className="toggle"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 size="small"
@@ -204,48 +204,48 @@ const CryptoAdvancedDashboard = () => {
             }
             label="Auto-refresh"
           />
-          <Tooltip title="Refresh data">
-            <IconButton onClick={handleRefresh} color="primary">
+          <div  title="Refresh data">
+            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh} color="primary">
               <Refresh />
-            </IconButton>
-          </Tooltip>
+            </button>
+          </div>
           {lastUpdated && (
-            <Typography variant="caption" color="text.secondary">
+            <div  variant="caption" color="text.secondary">
               Last updated: {new Date(lastUpdated).toLocaleTimeString()}
-            </Typography>
+            </div>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Main Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
-          <Tab icon={<PieChart />} label="Portfolio Analytics" />
-          <Tab icon={<AutoGraph />} label="Trading Signals" />
-          <Tab icon={<Shield />} label="Risk Management" />
-          <Tab icon={<Analytics />} label="Market Analytics" />
-        </Tabs>
-      </Box>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={activeTab} onChange={handleTabChange}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" icon={<PieChart />} label="Portfolio Analytics" />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" icon={<AutoGraph />} label="Trading Signals" />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" icon={<Shield />} label="Risk Management" />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" icon={<Analytics />} label="Market Analytics" />
+        </div>
+      </div>
 
       {/* Portfolio Analytics Tab */}
       {activeTab === 0 && portfolioAnalytics && (
-        <Grid container spacing={3}>
+        <div className="grid" container spacing={3}>
           {/* Portfolio Overview */}
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>Portfolio Performance</Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
+              <div  variant="h6" gutterBottom>Portfolio Performance</div>
+              <div className="grid" container spacing={3}>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
                       {formatCurrency(portfolioAnalytics.analytics?.totalValue || 0)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Total Value</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography 
+                    </div>
+                    <div  variant="body2" color="text.secondary">Total Value</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  
                       variant="h4" 
                       sx={{ 
                         fontWeight: 700, 
@@ -253,45 +253,45 @@ const CryptoAdvancedDashboard = () => {
                       }}
                     >
                       {formatPercentage(portfolioAnalytics.analytics?.totalPnLPercent || 0)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Total P&L</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Total P&L</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700 }}>
                       {portfolioAnalytics.analytics?.sharpeRatio?.toFixed(2) || '0.00'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Sharpe Ratio</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700 }}>
                       {portfolioAnalytics.analytics?.volatility?.toFixed(1) || '0.0'}%
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Volatility</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Volatility</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Holdings Breakdown */}
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Portfolio Holdings</Typography>
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Asset</TableCell>
-                      <TableCell align="right">Quantity</TableCell>
-                      <TableCell align="right">Current Price</TableCell>
-                      <TableCell align="right">Market Value</TableCell>
-                      <TableCell align="right">P&L</TableCell>
-                      <TableCell align="right">Weight</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+              <div  variant="h6" gutterBottom>Portfolio Holdings</div>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Asset</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Quantity</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current Price</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Market Value</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">P&L</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Weight</td>
+                    </tr>
+                  </thead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                     {portfolioAnalytics.portfolio?.map((holding) => {
                       const marketValue = holding.quantity * holding.current_price
                       const pnl = marketValue - holding.cost_basis
@@ -299,56 +299,56 @@ const CryptoAdvancedDashboard = () => {
                       const weight = (marketValue / portfolioAnalytics.analytics.totalValue) * 100
 
                       return (
-                        <TableRow key={holding.symbol}>
-                          <TableCell>
-                            <Box display="flex" alignItems="center">
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={holding.symbol}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  display="flex" alignItems="center">
+                              <div  variant="body2" sx={{ fontWeight: 600 }}>
                                 {holding.symbol}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
+                              </div>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2">
                               {holding.quantity.toFixed(6)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2">
                               {formatCurrency(holding.current_price)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2">
                               {formatCurrency(marketValue)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  
                               variant="body2" 
                               color={pnl >= 0 ? 'success.main' : 'error.main'}
                               sx={{ fontWeight: 600 }}
                             >
                               {formatCurrency(pnl)} ({formatPercentage(pnlPercent)})
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body2">
                               {weight.toFixed(1)}%
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                        </tr>
                       )
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Grid>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
           {/* Analytics Summary */}
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>Portfolio Metrics</Typography>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
+              <div  variant="h6" gutterBottom>Portfolio Metrics</div>
               <List dense>
                 <ListItem>
                   <ListItemIcon><Assessment /></ListItemIcon>
@@ -376,26 +376,26 @@ const CryptoAdvancedDashboard = () => {
                   <ListItemText 
                     primary="Diversification Score" 
                     secondary={
-                      <Box display="flex" alignItems="center">
-                        <LinearProgress 
+                      <div  display="flex" alignItems="center">
+                        <div className="w-full bg-gray-200 rounded-full h-2" 
                           variant="determinate" 
                           value={portfolioAnalytics.analytics?.diversificationScore || 0} 
                           sx={{ width: 100, mr: 1 }}
                         />
-                        <Typography variant="body2">
+                        <div  variant="body2">
                           {portfolioAnalytics.analytics?.diversificationScore?.toFixed(0) || '0'}
-                        </Typography>
-                      </Box>
+                        </div>
+                      </div>
                     }
                   />
                 </ListItem>
               </List>
-            </Paper>
+            </div>
 
             {/* Sector Breakdown */}
             {portfolioAnalytics.analytics?.sectorBreakdown && (
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>Sector Breakdown</Typography>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                <div  variant="h6" gutterBottom>Sector Breakdown</div>
                 <ResponsiveContainer width="100%" height={200}>
                   <RechartsPieChart>
                     <Pie
@@ -418,11 +418,11 @@ const CryptoAdvancedDashboard = () => {
                     <RechartsTooltip formatter={(value) => `${value.toFixed(1)}%`} />
                   </RechartsPieChart>
                 </ResponsiveContainer>
-                <Box mt={2}>
+                <div  mt={2}>
                   {Object.entries(portfolioAnalytics.analytics.sectorBreakdown).map(([sector, data], index) => (
-                    <Box key={sector} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                      <Box display="flex" alignItems="center">
-                        <Box 
+                    <div  key={sector} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                      <div  display="flex" alignItems="center">
+                        <div  
                           sx={{ 
                             width: 12, 
                             height: 12, 
@@ -431,30 +431,30 @@ const CryptoAdvancedDashboard = () => {
                             mr: 1 
                           }} 
                         />
-                        <Typography variant="body2">{sector}</Typography>
-                      </Box>
-                      <Typography variant="body2" fontWeight={600}>{data.percentage.toFixed(1)}%</Typography>
-                    </Box>
+                        <div  variant="body2">{sector}</div>
+                      </div>
+                      <div  variant="body2" fontWeight={600}>{data.percentage.toFixed(1)}%</div>
+                    </div>
                   ))}
-                </Box>
-              </Paper>
+                </div>
+              </div>
             )}
-          </Grid>
+          </div>
 
           {/* Insights and Recommendations */}
           {portfolioAnalytics.insights && (
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>Portfolio Insights & Recommendations</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={4}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box display="flex" alignItems="center" mb={1}>
+            <div className="grid" item xs={12}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                <div  variant="h6" gutterBottom>Portfolio Insights & Recommendations</div>
+                <div className="grid" container spacing={2}>
+                  <div className="grid" item xs={12} sm={4}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  display="flex" alignItems="center" mb={1}>
                           <Shield color="primary" sx={{ mr: 1 }} />
-                          <Typography variant="h6">Risk Level</Typography>
-                        </Box>
-                        <Chip 
+                          <div  variant="h6">Risk Level</div>
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={portfolioAnalytics.insights.riskLevel}
                           color={
                             portfolioAnalytics.insights.riskLevel === 'Low' ? 'success' :
@@ -462,20 +462,20 @@ const CryptoAdvancedDashboard = () => {
                           }
                           sx={{ mb: 1 }}
                         />
-                        <Typography variant="body2" color="text.secondary">
+                        <div  variant="body2" color="text.secondary">
                           Based on volatility and risk metrics
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box display="flex" alignItems="center" mb={1}>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} sm={4}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  display="flex" alignItems="center" mb={1}>
                           <Assessment color="primary" sx={{ mr: 1 }} />
-                          <Typography variant="h6">Diversification</Typography>
-                        </Box>
-                        <Chip 
+                          <div  variant="h6">Diversification</div>
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={`Grade ${portfolioAnalytics.insights.diversificationGrade}`}
                           sx={{ 
                             mb: 1,
@@ -483,138 +483,138 @@ const CryptoAdvancedDashboard = () => {
                             color: 'white'
                           }}
                         />
-                        <Typography variant="body2" color="text.secondary">
+                        <div  variant="body2" color="text.secondary">
                           Portfolio diversification quality
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box display="flex" alignItems="center" mb={1}>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} sm={4}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  display="flex" alignItems="center" mb={1}>
                           <Insights color="primary" sx={{ mr: 1 }} />
-                          <Typography variant="h6">Recommendations</Typography>
-                        </Box>
-                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          <div  variant="h6">Recommendations</div>
+                        </div>
+                        <div  variant="h6" sx={{ mb: 1 }}>
                           {portfolioAnalytics.insights.recommendations?.length || 0}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        </div>
+                        <div  variant="body2" color="text.secondary">
                           Active recommendations
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Recommendations List */}
                 {portfolioAnalytics.insights.recommendations && portfolioAnalytics.insights.recommendations.length > 0 && (
-                  <Box mt={3}>
-                    <Typography variant="h6" gutterBottom>Active Recommendations</Typography>
+                  <div  mt={3}>
+                    <div  variant="h6" gutterBottom>Active Recommendations</div>
                     {portfolioAnalytics.insights.recommendations.map((rec, index) => (
-                      <Alert 
+                      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                         key={index}
                         severity={rec.priority === 'high' ? 'warning' : 'info'}
                         sx={{ mb: 1 }}
                       >
-                        <Typography variant="body2" fontWeight={600}>{rec.message}</Typography>
-                        <Typography variant="body2">{rec.action}</Typography>
-                      </Alert>
+                        <div  variant="body2" fontWeight={600}>{rec.message}</div>
+                        <div  variant="body2">{rec.action}</div>
+                      </div>
                     ))}
-                  </Box>
+                  </div>
                 )}
-              </Paper>
-            </Grid>
+              </div>
+            </div>
           )}
-        </Grid>
+        </div>
       )}
 
       {/* Trading Signals Tab */}
       {activeTab === 1 && tradingSignals && (
-        <Grid container spacing={3}>
+        <div className="grid" container spacing={3}>
           {tradingSignals.signals?.map((signal) => (
-            <Grid item xs={12} md={6} lg={4} key={signal.symbol}>
-              <Paper sx={{ p: 3 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="h6">{signal.symbol}</Typography>
-                  <Chip 
+            <div className="grid" item xs={12} md={6} lg={4} key={signal.symbol}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                <div  display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <div  variant="h6">{signal.symbol}</div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={signal.overallSignal?.direction || 'Neutral'}
                     sx={{ 
                       backgroundColor: getSignalColor(signal.overallSignal?.direction),
                       color: 'white'
                     }}
                   />
-                </Box>
+                </div>
 
                 {/* Signal Strength */}
-                <Box mb={2}>
-                  <Typography variant="body2" gutterBottom>
+                <div  mb={2}>
+                  <div  variant="body2" gutterBottom>
                     Signal Strength: {signal.overallSignal?.strength?.toFixed(0) || 0}%
-                  </Typography>
-                  <LinearProgress 
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2" 
                     variant="determinate" 
                     value={signal.overallSignal?.strength || 0}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
-                </Box>
+                </div>
 
                 {/* Key Indicators */}
-                <Grid container spacing={1}>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">RSI</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                <div className="grid" container spacing={1}>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">RSI</div>
+                    <div  variant="body2" fontWeight={600}>
                       {signal.indicators?.rsi?.current?.toFixed(1) || '--'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">MACD</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">MACD</div>
+                    <div  variant="body2" fontWeight={600}>
                       {signal.indicators?.macd?.trend || '--'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Trend</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Trend</div>
+                    <div  variant="body2" fontWeight={600}>
                       {signal.signals?.trend?.direction || '--'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">Volume</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={6}>
+                    <div  variant="caption" color="text.secondary">Volume</div>
+                    <div  variant="body2" fontWeight={600}>
                       {signal.signals?.volume?.strength || '--'}
-                    </Typography>
-                  </Grid>
-                </Grid>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Recommendations */}
                 {signal.recommendations && signal.recommendations.length > 0 && (
-                  <Box mt={2}>
-                    <Typography variant="caption" color="text.secondary">Top Recommendation</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                  <div  mt={2}>
+                    <div  variant="caption" color="text.secondary">Top Recommendation</div>
+                    <div  variant="body2" fontWeight={600}>
                       {signal.recommendations[0].action?.toUpperCase() || 'HOLD'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                    <div  variant="body2" color="text.secondary">
                       {signal.recommendations[0].reason}
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                 )}
-              </Paper>
-            </Grid>
+              </div>
+            </div>
           ))}
-        </Grid>
+        </div>
       )}
 
       {/* Risk Management Tab */}
       {activeTab === 2 && riskAnalysis && (
-        <Grid container spacing={3}>
+        <div className="grid" container spacing={3}>
           {/* Risk Overview */}
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>Risk Assessment Overview</Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography 
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
+              <div  variant="h6" gutterBottom>Risk Assessment Overview</div>
+              <div className="grid" container spacing={3}>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  
                       variant="h4" 
                       sx={{ 
                         fontWeight: 700, 
@@ -622,49 +622,49 @@ const CryptoAdvancedDashboard = () => {
                       }}
                     >
                       {riskAnalysis.risk_analysis?.overallRiskScore?.risk_grade || 'C'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Risk Grade</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Risk Grade</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700 }}>
                       {riskAnalysis.risk_analysis?.overallRiskScore?.overall_score || 50}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Risk Score</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Risk Score</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700 }}>
                       {formatCurrency(riskAnalysis.risk_analysis?.var?.var_amount || 0)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Value at Risk (95%)</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Value at Risk (95%)</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" sx={{ fontWeight: 700 }}>
                       {formatPercentage(riskAnalysis.risk_analysis?.maxDrawdown?.max_drawdown_percentage || 0)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
+                    </div>
+                    <div  variant="body2" color="text.secondary">Max Drawdown</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Risk Components */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Risk Components</Typography>
+          <div className="grid" item xs={12} md={6}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+              <div  variant="h6" gutterBottom>Risk Components</div>
               <List>
                 <ListItem>
                   <ListItemIcon><Security /></ListItemIcon>
                   <ListItemText 
                     primary="Concentration Risk" 
                     secondary={
-                      <Chip 
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         size="small"
                         label={riskAnalysis.risk_analysis?.concentrationRisk?.risk_level || 'Medium'}
                         color={
@@ -675,9 +675,9 @@ const CryptoAdvancedDashboard = () => {
                     }
                   />
                   <ListItemSecondaryAction>
-                    <Typography variant="body2">
+                    <div  variant="body2">
                       {riskAnalysis.risk_analysis?.concentrationRisk?.concentration_score?.toFixed(0) || '50'}
-                    </Typography>
+                    </div>
                   </ListItemSecondaryAction>
                 </ListItem>
                 <ListItem>
@@ -685,7 +685,7 @@ const CryptoAdvancedDashboard = () => {
                   <ListItemText 
                     primary="Liquidity Risk" 
                     secondary={
-                      <Chip 
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         size="small"
                         label={riskAnalysis.risk_analysis?.liquidityRisk?.risk_level || 'Medium'}
                         color={
@@ -696,9 +696,9 @@ const CryptoAdvancedDashboard = () => {
                     }
                   />
                   <ListItemSecondaryAction>
-                    <Typography variant="body2">
+                    <div  variant="body2">
                       {riskAnalysis.risk_analysis?.liquidityRisk?.overall_liquidity_score?.toFixed(0) || '60'}
-                    </Typography>
+                    </div>
                   </ListItemSecondaryAction>
                 </ListItem>
                 <ListItem>
@@ -706,7 +706,7 @@ const CryptoAdvancedDashboard = () => {
                   <ListItemText 
                     primary="Correlation Risk" 
                     secondary={
-                      <Chip 
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         size="small"
                         label={riskAnalysis.risk_analysis?.correlationRisk?.risk_level || 'Medium'}
                         color={
@@ -717,24 +717,24 @@ const CryptoAdvancedDashboard = () => {
                     }
                   />
                   <ListItemSecondaryAction>
-                    <Typography variant="body2">
+                    <div  variant="body2">
                       {(riskAnalysis.risk_analysis?.correlationRisk?.average_correlation * 100)?.toFixed(0) || '60'}%
-                    </Typography>
+                    </div>
                   </ListItemSecondaryAction>
                 </ListItem>
               </List>
-            </Paper>
-          </Grid>
+            </div>
+          </div>
 
           {/* Stress Tests */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Stress Test Results</Typography>
+          <div className="grid" item xs={12} md={6}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+              <div  variant="h6" gutterBottom>Stress Test Results</div>
               {riskAnalysis.risk_analysis?.stressTests?.stress_tests?.slice(0, 5).map((test, index) => (
-                <Box key={index} mb={2}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body2" fontWeight={600}>{test.scenario}</Typography>
-                    <Chip 
+                <div  key={index} mb={2}>
+                  <div  display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <div  variant="body2" fontWeight={600}>{test.scenario}</div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       size="small"
                       label={test.severity}
                       color={
@@ -742,47 +742,47 @@ const CryptoAdvancedDashboard = () => {
                         test.severity === 'high' ? 'warning' : 'error'
                       }
                     />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     {test.description}
-                  </Typography>
-                  <Box display="flex" justifyContent="space-between" mt={1}>
-                    <Typography variant="body2" color="error.main">
+                  </div>
+                  <div  display="flex" justifyContent="space-between" mt={1}>
+                    <div  variant="body2" color="error.main">
                       {formatPercentage(test.loss_percentage)}
-                    </Typography>
-                    <Typography variant="body2" color="error.main">
+                    </div>
+                    <div  variant="body2" color="error.main">
                       {formatCurrency(test.loss_amount)}
-                    </Typography>
-                  </Box>
-                  <LinearProgress 
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2" 
                     variant="determinate" 
                     value={Math.min(100, test.loss_percentage)} 
                     color="error"
                     sx={{ mt: 1, height: 4 }}
                   />
-                </Box>
+                </div>
               ))}
-            </Paper>
-          </Grid>
+            </div>
+          </div>
 
           {/* Risk Recommendations */}
           {riskAnalysis.risk_analysis?.recommendations && (
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>Risk Management Recommendations</Typography>
-                <Grid container spacing={2}>
+            <div className="grid" item xs={12}>
+              <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                <div  variant="h6" gutterBottom>Risk Management Recommendations</div>
+                <div className="grid" container spacing={2}>
                   {riskAnalysis.risk_analysis.recommendations.map((rec, index) => (
-                    <Grid item xs={12} md={6} key={index}>
-                      <Alert 
+                    <div className="grid" item xs={12} md={6} key={index}>
+                      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                         severity={rec.priority === 'high' ? 'error' : rec.priority === 'medium' ? 'warning' : 'info'}
                         sx={{ height: '100%' }}
                       >
-                        <Typography variant="body2" fontWeight={600} gutterBottom>
+                        <div  variant="body2" fontWeight={600} gutterBottom>
                           {rec.title}
-                        </Typography>
-                        <Typography variant="body2" gutterBottom>
+                        </div>
+                        <div  variant="body2" gutterBottom>
                           {rec.description}
-                        </Typography>
+                        </div>
                         <List dense>
                           {rec.actions?.map((action, actionIndex) => (
                             <ListItem key={actionIndex} sx={{ py: 0.5 }}>
@@ -793,27 +793,27 @@ const CryptoAdvancedDashboard = () => {
                             </ListItem>
                           ))}
                         </List>
-                      </Alert>
-                    </Grid>
+                      </div>
+                    </div>
                   ))}
-                </Grid>
-              </Paper>
-            </Grid>
+                </div>
+              </div>
+            </div>
           )}
-        </Grid>
+        </div>
       )}
 
       {/* Market Analytics Tab */}
       {activeTab === 3 && marketAnalytics && (
-        <Grid container spacing={3}>
+        <div className="grid" container spacing={3}>
           {/* Market Health Score */}
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>Market Health Overview</Typography>
-              <Grid container spacing={3} alignItems="center">
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography 
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, mb: 3 }}>
+              <div  variant="h6" gutterBottom>Market Health Overview</div>
+              <div className="grid" container spacing={3} alignItems="center">
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  
                       variant="h3" 
                       sx={{ 
                         fontWeight: 700, 
@@ -821,22 +821,22 @@ const CryptoAdvancedDashboard = () => {
                       }}
                     >
                       {marketAnalytics.market_health_score?.grade || 'C'}
-                    </Typography>
-                    <Typography variant="h6" color="text.secondary">Health Grade</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="h6" color="text.secondary">Health Grade</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h3" sx={{ fontWeight: 700 }}>
                       {marketAnalytics.market_health_score?.score || 50}
-                    </Typography>
-                    <Typography variant="h6" color="text.secondary">Health Score</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Box>
-                    <Typography variant="h6" gutterBottom>Market Status</Typography>
-                    <Chip 
+                    </div>
+                    <div  variant="h6" color="text.secondary">Health Score</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12} sm={6}>
+                  <div>
+                    <div  variant="h6" gutterBottom>Market Status</div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                       label={marketAnalytics.market_health_score?.status?.toUpperCase() || 'CAUTIOUS'}
                       color={
                         marketAnalytics.market_health_score?.status === 'healthy' ? 'success' :
@@ -844,65 +844,65 @@ const CryptoAdvancedDashboard = () => {
                       }
                       sx={{ mb: 1 }}
                     />
-                    <Typography variant="body2" color="text.secondary">
+                    <div  variant="body2" color="text.secondary">
                       Overall market conditions and sentiment
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Market Metrics */}
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Key Market Metrics</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+              <div  variant="h6" gutterBottom>Key Market Metrics</div>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
+                    <div  variant="h6" sx={{ fontWeight: 700 }}>
                       {formatCurrency(marketAnalytics.market_metrics?.total_market_cap || 0, 0)}
-                    </Typography>
-                    <Typography variant="caption">Market Cap</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="caption">Market Cap</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
+                    <div  variant="h6" sx={{ fontWeight: 700 }}>
                       {formatCurrency(marketAnalytics.market_metrics?.total_volume_24h || 0, 0)}
-                    </Typography>
-                    <Typography variant="caption">24h Volume</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="caption">24h Volume</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
+                    <div  variant="h6" sx={{ fontWeight: 700 }}>
                       {marketAnalytics.market_metrics?.btc_dominance?.toFixed(1) || '42.5'}%
-                    </Typography>
-                    <Typography variant="caption">BTC Dominance</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    </div>
+                    <div  variant="caption">BTC Dominance</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center" p={2} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
+                    <div  variant="h6" sx={{ fontWeight: 700 }}>
                       {marketAnalytics.sentiment_analysis?.fear_greed_index?.value || 35}
-                    </Typography>
-                    <Typography variant="caption">Fear & Greed</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
+                    </div>
+                    <div  variant="caption">Fear & Greed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Sector Performance */}
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Top Performing Sectors</Typography>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+              <div  variant="h6" gutterBottom>Top Performing Sectors</div>
               {marketAnalytics.sector_analysis?.sectors?.slice(0, 5).map((sector, index) => (
-                <Box key={sector.name} display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                  <Typography variant="body2">{sector.name}</Typography>
-                  <Box display="flex" alignItems="center">
-                    <Typography 
+                <div  key={sector.name} display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                  <div  variant="body2">{sector.name}</div>
+                  <div  display="flex" alignItems="center">
+                    <div  
                       variant="body2" 
                       sx={{ 
                         fontWeight: 600,
@@ -910,19 +910,19 @@ const CryptoAdvancedDashboard = () => {
                       }}
                     >
                       {sector.change_24h >= 0 ? '+' : ''}{sector.change_24h?.toFixed(1)}%
-                    </Typography>
+                    </div>
                     {sector.change_24h >= 0 ? 
                       <TrendingUp fontSize="small" color="success" sx={{ ml: 0.5 }} /> :
                       <TrendingDown fontSize="small" color="error" sx={{ ml: 0.5 }} />
                     }
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               ))}
-            </Paper>
-          </Grid>
-        </Grid>
+            </div>
+          </div>
+        </div>
       )}
-    </Container>
+    </div>
   )
 }
 

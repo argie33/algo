@@ -295,9 +295,9 @@ function BiometricAuth({
 
   if (compact) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {hasCredentials ? (
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             size="small"
             startIcon={getBiometricIcon()}
@@ -305,60 +305,60 @@ function BiometricAuth({
             disabled={loading}
           >
             {loading ? 'Authenticating...' : getBiometricLabel()}
-          </Button>
+          </button>
         ) : showSetup ? (
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="text"
             size="small"
             startIcon={<Settings />}
             onClick={() => setShowSetupDialog(true)}
           >
             Setup {getBiometricLabel()}
-          </Button>
+          </button>
         ) : null}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box>
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Box display="flex" alignItems="center" gap={1}>
+    <div>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <div  display="flex" alignItems="center" gap={1}>
               {getBiometricIcon()}
-              <Typography variant="h6">
+              <div  variant="h6">
                 {getBiometricLabel()}
-              </Typography>
-            </Box>
+              </div>
+            </div>
             
             {hasCredentials && (
-              <Chip 
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label="Configured" 
                 color="success" 
                 size="small"
                 icon={<CheckCircle />}
               />
             )}
-          </Box>
+          </div>
           
-          <Typography variant="body2" color="text.secondary" gutterBottom>
+          <div  variant="body2" color="text.secondary" gutterBottom>
             {hasCredentials 
               ? `Use your ${getBiometricLabel().toLowerCase()} for quick and secure authentication`
               : `Setup ${getBiometricLabel().toLowerCase()} for enhanced security and convenience`
             }
-          </Typography>
+          </div>
           
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
               {error}
-            </Alert>
+            </div>
           )}
           
-          <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+          <div  sx={{ mt: 2, display: 'flex', gap: 1 }}>
             {hasCredentials ? (
               <>
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   startIcon={getBiometricIcon()}
                   onClick={handleBiometricAuth}
@@ -366,15 +366,15 @@ function BiometricAuth({
                 >
                   {loading ? (
                     <>
-                      <CircularProgress size={20} sx={{ mr: 1 }} />
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} sx={{ mr: 1 }} />
                       Authenticating...
                     </>
                   ) : (
                     `Use ${getBiometricLabel()}`
                   )}
-                </Button>
+                </button>
                 
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   color="error"
                   onClick={() => {
@@ -383,68 +383,68 @@ function BiometricAuth({
                   }}
                 >
                   Remove
-                </Button>
+                </button>
               </>
             ) : showSetup ? (
-              <Button
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
                 startIcon={<Settings />}
                 onClick={() => setShowSetupDialog(true)}
               >
                 Setup {getBiometricLabel()}
-              </Button>
+              </button>
             ) : null}
-          </Box>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
       {/* Setup Dialog */}
-      <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)}>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={showSetupDialog} onClose={() => setShowSetupDialog(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+          <div  display="flex" alignItems="center" justifyContent="space-between">
+            <div  display="flex" alignItems="center" gap={1}>
               {getBiometricIcon()}
-              <Typography variant="h6">
+              <div  variant="h6">
                 Setup {getBiometricLabel()}
-              </Typography>
-            </Box>
-            <IconButton onClick={() => setShowSetupDialog(false)} size="small">
+              </div>
+            </div>
+            <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setShowSetupDialog(false)} size="small">
               <Close />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+            </button>
+          </div>
+        </h2>
         
-        <DialogContent>
-          <Typography variant="body1" gutterBottom>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  variant="body1" gutterBottom>
             {getBiometricLabel()} provides secure and convenient authentication using your device's built-in biometric sensors.
-          </Typography>
+          </div>
           
-          <Alert severity="info" sx={{ mt: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
             Your biometric data is stored securely on your device and never leaves your device.
-          </Alert>
+          </div>
           
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
               {error}
-            </Alert>
+            </div>
           )}
-        </DialogContent>
+        </div>
         
-        <DialogActions>
-          <Button onClick={() => setShowSetupDialog(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowSetupDialog(false)}>
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="contained"
             onClick={handleSetupBiometric}
             disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : getBiometricIcon()}
+            startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : getBiometricIcon()}
           >
             {loading ? 'Setting up...' : `Setup ${getBiometricLabel()}`}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

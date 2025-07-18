@@ -10,7 +10,6 @@ import {
   CircularProgress,
   Link
 } from '@mui/material';
-import { LockReset as ResetIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
 function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
@@ -47,27 +46,27 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
+        <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
           <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h4" component="h1" color="primary">
+          <div  variant="h4" component="h1" color="primary">
             Reset Password
-          </Typography>
-        </Box>
+          </div>
+        </div>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <div  variant="body1" color="text.secondary" align="center" mb={3}>
           Enter your username or email address and we'll send you a reset code
-        </Typography>
+        </div>
 
         {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {displayError}
-          </Alert>
+          </div>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField
+        <div  component="form" onSubmit={handleSubmit} noValidate>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="username"
             name="username"
@@ -82,19 +81,19 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
             autoComplete="username"
           />
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
+            startIcon={isLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <ResetIcon />}
           >
             {isLoading ? 'Sending...' : 'Send Reset Code'}
-          </Button>
+          </button>
 
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2" color="text.secondary">
+          <div  textAlign="center" mt={2}>
+            <div  variant="body2" color="text.secondary">
               Remember your password?{' '}
               <Link
                 component="button"
@@ -106,11 +105,11 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
               >
                 Back to Sign In
               </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

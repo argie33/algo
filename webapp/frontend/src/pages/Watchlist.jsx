@@ -87,7 +87,7 @@ import { useAuth } from '../contexts/AuthContext';
 function TabPanel({ children, value, index }) {
   return (
     <div hidden={value !== index}>
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
+      {value === index && <div  sx={{ py: 2 }}>{children}</div>}
     </div>
   );
 }
@@ -402,19 +402,19 @@ const Watchlist = () => {
     const color = ratio > 1.5 ? 'error.main' : ratio > 1.2 ? 'warning.main' : 'text.secondary';
     
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <Typography variant="body2" color={color}>
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <div  variant="body2" color={color}>
           {formatNumber(volume)}
-        </Typography>
+        </div>
         {ratio > 1.2 && (
-          <Chip 
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`${ratio.toFixed(1)}x`} 
             size="small" 
             color={ratio > 1.5 ? 'error' : 'warning'}
             sx={{ fontSize: '0.65rem', height: 16 }}
           />
         )}
-      </Box>
+      </div>
     );
   };
 
@@ -443,17 +443,17 @@ const Watchlist = () => {
   const renderWatchlistTable = () => {
     if (!isAuthenticated) {
       return (
-        <Alert severity="info" sx={{ mt: 2 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
           Please sign in to view your watchlists.
-        </Alert>
+        </div>
       );
     }
 
     if (watchlists.length === 0) {
       return (
-        <Alert severity="info" sx={{ mt: 2 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
           No watchlists found. Create your first watchlist to get started.
-        </Alert>
+        </div>
       );
     }
 
@@ -461,57 +461,57 @@ const Watchlist = () => {
       <DragDropContext onDragEnd={handleDragEnd}>
         <Droppable droppableId="watchlist">
           {(provided) => (
-            <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: '#1976d214' }}>
-                    <TableCell width="30px"></TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ mt: 2 }}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: '#1976d214' }}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell width="30px"></td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <Business fontSize="small" />
                         Stock
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <AttachMoney fontSize="small" />
                         Price
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <TrendingUp fontSize="small" />
                         Change
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <BarChart fontSize="small" />
                         Volume
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <AccountBalance fontSize="small" />
                         Market Cap
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <Assessment fontSize="small" />
                         P/E
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
                         <ShowChart fontSize="small" />
                         52W Range
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                      </div>
+                    </td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody ref={provided.innerRef} {...provided.droppableProps}>
                   {(watchlistItems || []).map((item, index) => {
                     const peRating = getPERating(item.trailing_pe);
                     const priceRange = item.fifty_two_week_low && item.fifty_two_week_high ? 
@@ -520,7 +520,7 @@ const Watchlist = () => {
                     return (
                       <Draggable key={item.id} draggableId={item.id.toString()} index={index}>
                         {(provided) => (
-                          <TableRow
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             sx={{ 
@@ -528,19 +528,19 @@ const Watchlist = () => {
                               borderLeft: `3px solid ${getPriceColor(item.day_change_percent)}`,
                             }}
                           >
-                            <TableCell {...provided.dragHandleProps}>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell {...provided.dragHandleProps}>
                               <DragIndicator sx={{ color: 'text.disabled' }} />
-                            </TableCell>
-                            <TableCell>
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              <div>
+                                <div  variant="body2" fontWeight="bold">
                                   {item.symbol}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                </div>
+                                <div  variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                   {item.short_name || item.security_name || 'N/A'}
-                                </Typography>
+                                </div>
                                 {item.sector && (
-                                  <Chip 
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                     label={item.sector} 
                                     size="small" 
                                     variant="outlined"
@@ -552,58 +552,58 @@ const Watchlist = () => {
                                     }}
                                   />
                                 )}
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div>
+                                <div  variant="body2" fontWeight="bold">
                                   {item.current_price ? formatCurrency(item.current_price) : 'N/A'}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                </div>
+                                <div  variant="caption" color="text.secondary">
                                   {item.previous_close ? `Prev: ${formatCurrency(item.previous_close)}` : ''}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography 
+                                </div>
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div>
+                                <div  
                                   variant="body2" 
                                   color={getPriceColor(item.day_change_percent)}
                                   fontWeight="bold"
                                 >
                                   {item.day_change_amount ? formatCurrency(item.day_change_amount) : 'N/A'}
-                                </Typography>
-                                <Typography 
+                                </div>
+                                <div  
                                   variant="caption" 
                                   color={getPriceColor(item.day_change_percent)}
                                 >
                                   {item.day_change_percent ? formatPercentage(item.day_change_percent) : 'N/A'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
+                                </div>
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div>
                                 {getVolumeDisplay(item.volume, item.average_volume)}
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                <div  variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                   Avg: {item.average_volume ? formatNumber(item.average_volume) : 'N/A'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
+                                </div>
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  
                                 variant="body2" 
                                 color={getMarketCapColor(item.market_cap)}
                                 fontWeight="bold"
                               >
                                 {item.market_cap ? formatNumber(item.market_cap) : 'N/A'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div>
+                                <div  variant="body2" fontWeight="bold">
                                   {item.trailing_pe ? item.trailing_pe.toFixed(1) : 'N/A'}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={peRating.label} 
                                   size="small" 
                                   sx={{ 
@@ -614,19 +614,19 @@ const Watchlist = () => {
                                     border: `1px solid ${peRating.color + '4D'}`
                                   }}
                                 />
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2">
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div>
+                                <div  variant="body2">
                                   {item.fifty_two_week_low && item.fifty_two_week_high ? 
                                     `${formatCurrency(item.fifty_two_week_low)} - ${formatCurrency(item.fifty_two_week_high)}` : 
                                     'N/A'
                                   }
-                                </Typography>
+                                </div>
                                 {item.fifty_two_week_low && item.fifty_two_week_high && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                    <Box 
+                                  <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                    <div  
                                       sx={{ 
                                         width: 40, 
                                         height: 4, 
@@ -635,7 +635,7 @@ const Watchlist = () => {
                                         position: 'relative'
                                       }}
                                     >
-                                      <Box 
+                                      <div  
                                         sx={{ 
                                           width: 2, 
                                           height: 8, 
@@ -646,34 +646,34 @@ const Watchlist = () => {
                                           borderRadius: 1
                                         }}
                                       />
-                                    </Box>
-                                    <Typography variant="caption" color="text.secondary">
+                                    </div>
+                                    <div  variant="caption" color="text.secondary">
                                       {priceRange.toFixed(0)}%
-                                    </Typography>
-                                  </Box>
+                                    </div>
+                                  </div>
                                 )}
-                              </Box>
-                            </TableCell>
-                            <TableCell align="center">
-                              <Tooltip title="Remove from watchlist">
-                                <IconButton
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                              <div  title="Remove from watchlist">
+                                <button className="p-2 rounded-full hover:bg-gray-100"
                                   size="small"
                                   onClick={() => handleRemoveStock(item.id)}
                                   color="error"
                                 >
                                   <Delete />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         )}
                       </Draggable>
                     );
                   })}
                   {provided.placeholder}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                </tbody>
+              </table>
+            </div>
           )}
         </Droppable>
       </DragDropContext>
@@ -682,74 +682,74 @@ const Watchlist = () => {
 
   if (!isAuthenticated) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="info">
+      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
           Please sign in to access your watchlists.
-        </Alert>
-      </Container>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
+    <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" component="h1" gutterBottom>
           Watchlists
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </div>
+        <div  variant="body1" color="text.secondary">
           Track your favorite stocks and monitor their performance
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader
+      <div className="grid" container spacing={3}>
+        <div className="grid" item xs={12}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header
               title={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="h6">
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <div  variant="h6">
                     {watchlists.length > 0 ? watchlists[activeWatchlist]?.name : 'No Watchlists'}
-                  </Typography>
-                  <Chip 
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`${watchlistItems.length} stocks`} 
                     size="small" 
                     color="primary" 
                     variant="outlined"
                   />
-                </Box>
+                </div>
               }
               action={
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Tooltip title="Refresh">
-                    <IconButton onClick={handleRefresh}>
+                <div  sx={{ display: 'flex', gap: 1 }}>
+                  <div  title="Refresh">
+                    <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh}>
                       <Refresh />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
+                    </button>
+                  </div>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<Add />}
                     onClick={() => setCreateDialogOpen(true)}
                   >
                     New Watchlist
-                  </Button>
-                </Box>
+                  </button>
+                </div>
               }
             />
-            <CardContent>
+            <div className="bg-white shadow-md rounded-lg"Content>
               {watchlists.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Tabs
+                <div  sx={{ mb: 3 }}>
+                  <div className="border-b border-gray-200"
                     value={activeWatchlist}
                     onChange={(e, newValue) => setActiveWatchlist(newValue)}
                     variant="scrollable"
                     scrollButtons="auto"
                   >
                     {watchlists.map((watchlist, index) => (
-                      <Tab 
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" 
                         key={watchlist.id} 
                         label={watchlist.name}
                         icon={
-                          <IconButton
+                          <button className="p-2 rounded-full hover:bg-gray-100"
                             size="small"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -757,22 +757,22 @@ const Watchlist = () => {
                             }}
                           >
                             <Delete fontSize="small" />
-                          </IconButton>
+                          </button>
                         }
                         iconPosition="end"
                       />
                     ))}
-                  </Tabs>
-                </Box>
+                  </div>
+                </div>
               )}
 
               {watchlists.length > 0 && watchlists[activeWatchlist] && (
-                <Box sx={{ mb: 3 }}>
+                <div  sx={{ mb: 3 }}>
                   <Autocomplete
                     options={allStocks}
                     getOptionLabel={(option) => option.symbol || option}
                     renderInput={(params) => (
-                      <TextField
+                      <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         {...params}
                         label="Add Stock"
                         placeholder="Search for a stock symbol..."
@@ -790,21 +790,21 @@ const Watchlist = () => {
                     freeSolo
                     value={null}
                   />
-                </Box>
+                </div>
               )}
 
-              {loading && <LinearProgress />}
+              {loading && <div className="w-full bg-gray-200 rounded-full h-2" />}
               {renderWatchlistTable()}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Create Watchlist Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-        <DialogTitle>Create New Watchlist</DialogTitle>
-        <DialogContent>
-          <TextField
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Create New Watchlist</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
             margin="dense"
             label="Watchlist Name"
@@ -813,7 +813,7 @@ const Watchlist = () => {
             value={newWatchlistName}
             onChange={(e) => setNewWatchlistName(e.target.value)}
           />
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             margin="dense"
             label="Description (optional)"
             fullWidth
@@ -823,27 +823,27 @@ const Watchlist = () => {
             value={newWatchlistDescription}
             onChange={(e) => setNewWatchlistDescription(e.target.value)}
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateWatchlist} variant="contained">Create</Button>
-        </DialogActions>
-      </Dialog>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setCreateDialogOpen(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleCreateWatchlist} variant="contained">Create</button>
+        </div>
+      </div>
 
       {/* Snackbar for notifications */}
-      <Snackbar
+      <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+        </div>
+      </div>
+    </div>
   );
 };
 

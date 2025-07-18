@@ -1,8 +1,7 @@
 import React, { Suspense, lazy } from 'react';
-import { CircularProgress, Box } from '@mui/material';
 
 const ChartLoader = ({ height = 200 }) => (
-  <Box 
+  <div  
     sx={{ 
       display: 'flex', 
       justifyContent: 'center', 
@@ -12,8 +11,8 @@ const ChartLoader = ({ height = 200 }) => (
       borderRadius: 1
     }}
   >
-    <CircularProgress size={24} />
-  </Box>
+    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
+  </div>
 );
 
 // This is a completely wrong approach - just export normal recharts for now

@@ -164,18 +164,18 @@ const ApiKeySetupWizard = ({
     switch (step) {
       case 0:
         return (
-          <Box>
-            <Typography variant="h6" gutterBottom>
+          <div>
+            <div  variant="h6" gutterBottom>
               Choose Your Broker
-            </Typography>
-            <Typography color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  color="text.secondary" sx={{ mb: 3 }}>
               Select your broker to connect your trading account and access live market data.
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
+            <div className="grid" container spacing={2}>
               {providers.map((provider) => (
-                <Grid item xs={12} key={provider.id}>
-                  <Card
+                <div className="grid" item xs={12} key={provider.id}>
+                  <div className="bg-white shadow-md rounded-lg"
                     sx={{
                       cursor: 'pointer',
                       border: formData.provider === provider.id ? 2 : 1,
@@ -188,7 +188,7 @@ const ApiKeySetupWizard = ({
                     onClick={() => setFormData({ ...formData, provider: provider.id })}
                   >
                     {provider.recommended && (
-                      <Chip
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                         label="Recommended"
                         color="primary"
                         size="small"
@@ -201,83 +201,83 @@ const ApiKeySetupWizard = ({
                       />
                     )}
                     
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                        <Box sx={{ color: provider.color, mt: 0.5 }}>
+                    <div className="bg-white shadow-md rounded-lg"Content>
+                      <div  sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                        <div  sx={{ color: provider.color, mt: 0.5 }}>
                           {provider.icon}
-                        </Box>
+                        </div>
                         
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" gutterBottom>
+                        <div  sx={{ flex: 1 }}>
+                          <div  variant="h6" gutterBottom>
                             {provider.name}
-                          </Typography>
+                          </div>
                           
-                          <Typography color="text.secondary" sx={{ mb: 2 }}>
+                          <div  color="text.secondary" sx={{ mb: 2 }}>
                             {provider.description}
-                          </Typography>
+                          </div>
                           
-                          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                          <div  sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                             {provider.features.map((feature) => (
-                              <Chip 
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 key={feature} 
                                 label={feature} 
                                 size="small" 
                                 variant="outlined" 
                               />
                             ))}
-                          </Box>
+                          </div>
                           
-                          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                            <Chip 
+                          <div  sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`Setup: ${provider.setupTime}`} 
                               size="small" 
                               color="info" 
                             />
-                            <Chip 
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={provider.difficulty} 
                               size="small" 
                               color={provider.difficulty === 'Easy' ? 'success' : 'warning'} 
                             />
-                          </Box>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </Grid>
+            </div>
             
             {errors.provider && (
-              <Alert severity="error" sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
                 {errors.provider}
-              </Alert>
+              </div>
             )}
-          </Box>
+          </div>
         );
 
       case 1:
         const selectedProvider = getSelectedProvider();
         return (
-          <Box>
-            <Typography variant="h6" gutterBottom>
+          <div>
+            <div  variant="h6" gutterBottom>
               Security & Risk Information
-            </Typography>
+            </div>
             
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
+              <div  variant="body2">
                 Your API keys are encrypted using AES-256-GCM encryption before storage. 
                 We never store your credentials in plain text.
-              </Typography>
-            </Alert>
+              </div>
+            </div>
 
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <Shield color="primary" />
-                  <Typography variant="subtitle1" fontWeight="bold">
+                  <div  variant="subtitle1" fontWeight="bold">
                     How Your Data is Protected
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
                 <List dense>
                   <ListItem>
@@ -305,21 +305,21 @@ const ApiKeySetupWizard = ({
                     <ListItemText primary="API keys only decrypted for authorized requests" />
                   </ListItem>
                 </List>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <Warning color="warning" />
-                  <Typography variant="subtitle1" fontWeight="bold">
+                  <div  variant="subtitle1" fontWeight="bold">
                     Important Considerations
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Typography variant="body2" sx={{ mb: 2 }}>
+                <div  variant="body2" sx={{ mb: 2 }}>
                   Please read and understand the following before proceeding:
-                </Typography>
+                </div>
                 
                 <List dense>
                   <ListItem>
@@ -341,19 +341,19 @@ const ApiKeySetupWizard = ({
                     />
                   </ListItem>
                 </List>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Box sx={{ mt: 3 }}>
-              <FormControlLabel
+            <div  sx={{ mt: 3 }}>
+              <div className="mb-4"Label
                 control={
-                  <Checkbox
+                  <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600"
                     checked={formData.agreedToTerms}
                     onChange={(e) => setFormData({ ...formData, agreedToTerms: e.target.checked })}
                   />
                 }
                 label={
-                  <Typography variant="body2">
+                  <div  variant="body2">
                     I agree to the{' '}
                     <Link href="#" onClick={(e) => e.preventDefault()}>
                       Terms of Service
@@ -362,43 +362,43 @@ const ApiKeySetupWizard = ({
                     <Link href="#" onClick={(e) => e.preventDefault()}>
                       Privacy Policy
                     </Link>
-                  </Typography>
+                  </div>
                 }
               />
               
-              <FormControlLabel
+              <div className="mb-4"Label
                 control={
-                  <Checkbox
+                  <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600"
                     checked={formData.understoodRisks}
                     onChange={(e) => setFormData({ ...formData, understoodRisks: e.target.checked })}
                   />
                 }
                 label={
-                  <Typography variant="body2">
+                  <div  variant="body2">
                     I understand the security implications and risks of API key integration
-                  </Typography>
+                  </div>
                 }
               />
-            </Box>
+            </div>
 
             {(errors.agreedToTerms || errors.understoodRisks) && (
-              <Alert severity="error" sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
                 Please review and accept all terms before proceeding.
-              </Alert>
+              </div>
             )}
-          </Box>
+          </div>
         );
 
       case 2:
         const provider = getSelectedProvider();
         return (
-          <Box>
-            <Typography variant="h6" gutterBottom>
+          <div>
+            <div  variant="h6" gutterBottom>
               Configure API Access
-            </Typography>
+            </div>
             
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
+              <div  variant="body2">
                 You'll need to create API keys in your {provider?.name} account first.{' '}
                 <Link 
                   href={provider?.docsUrl} 
@@ -408,11 +408,11 @@ const ApiKeySetupWizard = ({
                 >
                   View Setup Guide <Launch fontSize="small" />
                 </Link>
-              </Typography>
-            </Alert>
+              </div>
+            </div>
 
-            <Box sx={{ mb: 3 }}>
-              <TextField
+            <div  sx={{ mb: 3 }}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 label="API Key"
                 value={formData.apiKey}
@@ -424,7 +424,7 @@ const ApiKeySetupWizard = ({
                 sx={{ mb: 2 }}
               />
               
-              <TextField
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 label="API Secret (if required)"
                 value={formData.apiSecret}
@@ -435,7 +435,7 @@ const ApiKeySetupWizard = ({
                 sx={{ mb: 2 }}
               />
               
-              <TextField
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 label="Description"
                 value={formData.description}
@@ -445,34 +445,34 @@ const ApiKeySetupWizard = ({
                 sx={{ mb: 2 }}
               />
               
-              <FormControlLabel
+              <div className="mb-4"Label
                 control={
-                  <Switch
+                  <input type="checkbox" className="toggle"
                     checked={formData.isSandbox}
                     onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
                   />
                 }
                 label="Paper Trading Environment"
               />
-              <Typography variant="caption" color="text.secondary" display="block">
+              <div  variant="caption" color="text.secondary" display="block">
                 Start with paper trading to test safely. You can switch to live trading later.
-              </Typography>
-            </Box>
-          </Box>
+              </div>
+            </div>
+          </div>
         );
 
       case 3:
         return (
-          <Box>
-            <Typography variant="h6" gutterBottom>
+          <div>
+            <div  variant="h6" gutterBottom>
               Review & Confirm
-            </Typography>
+            </div>
             
-            <Card>
-              <CardContent>
-                <Typography variant="subtitle1" gutterBottom>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  variant="subtitle1" gutterBottom>
                   Configuration Summary
-                </Typography>
+                </div>
                 
                 <List>
                   <ListItem>
@@ -502,21 +502,21 @@ const ApiKeySetupWizard = ({
                     </ListItem>
                   )}
                 </List>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Alert severity="success" sx={{ mt: 2 }}>
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mt: 2 }}>
+              <div  variant="body2">
                 Ready to connect! Your API keys will be securely encrypted and stored.
-              </Typography>
-            </Alert>
+              </div>
+            </div>
 
             {errors.submit && (
-              <Alert severity="error" sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
                 {errors.submit}
-              </Alert>
+              </div>
             )}
-          </Box>
+          </div>
         );
 
       default:
@@ -525,7 +525,7 @@ const ApiKeySetupWizard = ({
   };
 
   return (
-    <Dialog 
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
       open={open} 
       onClose={onClose} 
       maxWidth="md" 
@@ -534,15 +534,15 @@ const ApiKeySetupWizard = ({
         sx: { minHeight: 600 }
       }}
     >
-      <DialogTitle>
-        <Typography variant="h5">Set Up API Keys</Typography>
-        <Typography color="text.secondary">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+        <div  variant="h5">Set Up API Keys</div>
+        <div  color="text.secondary">
           Connect your broker account for live trading data
-        </Typography>
-      </DialogTitle>
+        </div>
+      </h2>
 
-      <DialogContent>
-        <Box sx={{ mb: 3 }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+        <div  sx={{ mb: 3 }}>
           <Stepper activeStep={activeStep} alternativeLabel>
             {steps.map((label) => (
               <Step key={label}>
@@ -550,44 +550,44 @@ const ApiKeySetupWizard = ({
               </Step>
             ))}
           </Stepper>
-        </Box>
+        </div>
 
         {renderStepContent(activeStep)}
-      </DialogContent>
+      </div>
 
-      <DialogActions sx={{ p: 3, pt: 0 }}>
-        <Button onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions sx={{ p: 3, pt: 0 }}>
+        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={onClose}>
           Cancel
-        </Button>
+        </button>
         
-        <Box sx={{ flex: 1 }} />
+        <div  sx={{ flex: 1 }} />
         
         {activeStep > 0 && (
-          <Button onClick={handleBack}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleBack}>
             Back
-          </Button>
+          </button>
         )}
         
         {activeStep < steps.length - 1 ? (
-          <Button 
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={handleNext}
             disabled={activeStep === 0 && !formData.provider}
           >
             Next
-          </Button>
+          </button>
         ) : (
-          <Button 
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={handleSubmit}
             disabled={isSubmitting}
-            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
+            startIcon={isSubmitting ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : null}
           >
             {isSubmitting ? 'Setting Up...' : 'Complete Setup'}
-          </Button>
+          </button>
         )}
-      </DialogActions>
-    </Dialog>
+      </div>
+    </div>
   );
 };
 

@@ -98,31 +98,31 @@ const DashboardCustomization = ({ onSettingsChange }) => {
   };
 
   return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Settings />
-            <Typography variant="h6">Dashboard Customization</Typography>
-          </Box>
-          <Button
+            <div  variant="h6">Dashboard Customization</div>
+          </div>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             onClick={() => setExpanded(!expanded)}
             startIcon={<Tune />}
             size="small"
           >
             {expanded ? 'Hide' : 'Customize'}
-          </Button>
-        </Box>
+          </button>
+        </div>
 
         <Collapse in={expanded}>
-          <Stack spacing={3}>
+          <div className="flex flex-col space-y-2" spacing={3}>
             {/* Layout Settings */}
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>Layout Style</Typography>
-              <Stack direction="row" spacing={1}>
+            <div>
+              <div  variant="subtitle1" gutterBottom>Layout Style</div>
+              <div className="flex flex-col space-y-2" direction="row" spacing={1}>
                 {['grid', 'list', 'compact'].map((layout) => (
-                  <Chip
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     key={layout}
                     label={layout.charAt(0).toUpperCase() + layout.slice(1)}
                     clickable
@@ -130,66 +130,66 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                     onClick={() => handleLayoutChange(layout)}
                   />
                 ))}
-              </Stack>
-            </Box>
+              </div>
+            </div>
 
-            <Divider />
+            <hr className="border-gray-200" />
 
             {/* Widget Management */}
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>Widgets</Typography>
-              <Grid container spacing={2}>
+            <div>
+              <div  variant="subtitle1" gutterBottom>Widgets</div>
+              <div className="grid" container spacing={2}>
                 {Object.entries(settings.widgets).map(([key, widget]) => (
-                  <Grid item xs={12} sm={6} md={4} key={key}>
-                    <Card variant="outlined" sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <div className="grid" item xs={12} sm={6} md={4} key={key}>
+                    <div className="bg-white shadow-md rounded-lg" variant="outlined" sx={{ p: 2 }}>
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         {widgetIcons[key]}
-                        <Typography variant="body2" sx={{ flex: 1 }}>
+                        <div  variant="body2" sx={{ flex: 1 }}>
                           {widgetLabels[key]}
-                        </Typography>
-                        <Switch
+                        </div>
+                        <input type="checkbox" className="toggle"
                           checked={widget.enabled}
                           onChange={() => handleWidgetToggle(key)}
                           size="small"
                         />
-                      </Box>
+                      </div>
                       {widget.enabled && (
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>Size</InputLabel>
-                          <Select
+                        <div className="mb-4" size="small" fullWidth>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
+                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             value={widget.size}
                             onChange={(e) => handleWidgetSize(key, e.target.value)}
                           >
-                            <MenuItem value="small">Small</MenuItem>
-                            <MenuItem value="medium">Medium</MenuItem>
-                            <MenuItem value="large">Large</MenuItem>
-                          </Select>
-                        </FormControl>
+                            <option  value="small">Small</option>
+                            <option  value="medium">Medium</option>
+                            <option  value="large">Large</option>
+                          </select>
+                        </div>
                       )}
-                    </Card>
-                  </Grid>
+                    </div>
+                  </div>
                 ))}
-              </Grid>
-            </Box>
+              </div>
+            </div>
 
-            <Divider />
+            <hr className="border-gray-200" />
 
             {/* Performance Settings */}
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>Performance</Typography>
-              <Stack spacing={2}>
-                <FormControlLabel
+            <div>
+              <div  variant="subtitle1" gutterBottom>Performance</div>
+              <div className="flex flex-col space-y-2" spacing={2}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.animations}
                       onChange={(e) => updateSettings({ ...settings, animations: e.target.checked })}
                     />
                   }
                   label="Enable animations"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.autoRefresh}
                       onChange={(e) => updateSettings({ ...settings, autoRefresh: e.target.checked })}
                     />
@@ -197,10 +197,10 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                   label="Auto-refresh data"
                 />
                 {settings.autoRefresh && (
-                  <Box>
-                    <Typography variant="body2" gutterBottom>
+                  <div>
+                    <div  variant="body2" gutterBottom>
                       Refresh interval: {settings.refreshInterval} seconds
-                    </Typography>
+                    </div>
                     <Slider
                       value={settings.refreshInterval}
                       onChange={(_, value) => updateSettings({ ...settings, refreshInterval: value })}
@@ -214,18 +214,18 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                       ]}
                       sx={{ mt: 1 }}
                     />
-                  </Box>
+                  </div>
                 )}
-              </Stack>
-            </Box>
+              </div>
+            </div>
 
-            <Divider />
+            <hr className="border-gray-200" />
 
             {/* Quick Actions */}
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>Quick Actions</Typography>
-              <Stack direction="row" spacing={1}>
-                <Button
+            <div>
+              <div  variant="subtitle1" gutterBottom>Quick Actions</div>
+              <div className="flex flex-col space-y-2" direction="row" spacing={1}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   size="small"
                   onClick={() => {
@@ -245,8 +245,8 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                   }}
                 >
                   Reset to Default
-                </Button>
-                <Button
+                </button>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   size="small"
                   onClick={() => {
@@ -264,8 +264,8 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                   }}
                 >
                   Compact Mode
-                </Button>
-                <Button
+                </button>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="outlined"
                   size="small"
                   onClick={() => {
@@ -283,13 +283,13 @@ const DashboardCustomization = ({ onSettingsChange }) => {
                   }}
                 >
                   Performance Mode
-                </Button>
-              </Stack>
-            </Box>
-          </Stack>
+                </button>
+              </div>
+            </div>
+          </div>
         </Collapse>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

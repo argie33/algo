@@ -347,62 +347,62 @@ const GreeksMonitor = () => {
   };
   
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom>
           Greeks Portfolio Monitor
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </div>
+        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Real-time portfolio Greeks monitoring, risk analysis, and scenario planning for options portfolios
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Chip label="Live Greeks" color="primary" size="small" variant="outlined" />
-          <Chip label="Risk Alerts" color="error" size="small" variant="outlined" />
-          <Chip label="Scenario Analysis" color="warning" size="small" variant="outlined" />
-          <Chip label="Portfolio Hedging" color="success" size="small" variant="outlined" />
-        </Box>
-      </Box>
+        </div>
+        <div  display="flex" gap={1} flexWrap="wrap">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live Greeks" color="primary" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Risk Alerts" color="error" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Scenario Analysis" color="warning" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Portfolio Hedging" color="success" size="small" variant="outlined" />
+        </div>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </Alert>
+        </div>
       )}
 
       {/* Controls */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Portfolio</InputLabel>
-                <Select
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Portfolio</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedPortfolio}
                   label="Portfolio"
                   onChange={(e) => setSelectedPortfolio(e.target.value)}
                 >
                   {portfolios.map(portfolio => (
-                    <MenuItem key={portfolio} value={portfolio}>
+                    <option  key={portfolio} value={portfolio}>
                       {portfolio.charAt(0).toUpperCase() + portfolio.slice(1)}
-                    </MenuItem>
+                    </option>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <FormControlLabel
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <div className="mb-4"Label
                 control={
-                  <Switch 
+                  <input type="checkbox" className="toggle" 
                     checked={autoRefresh} 
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                   />
                 }
                 label="Auto Refresh"
               />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <TextField
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 label="Interval (sec)"
                 type="number"
                 value={refreshInterval}
@@ -411,152 +411,152 @@ const GreeksMonitor = () => {
                 fullWidth
                 disabled={!autoRefresh}
               />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <Button
+            </div>
+            <div className="grid" item xs={12} sm={2}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 variant="contained"
-                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <↻  />}
                 onClick={loadGreeksData}
                 disabled={loading}
                 fullWidth
               >
                 Refresh
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={4}>
+              </button>
+            </div>
+            <div className="grid" item xs={12} sm={4}>
               {portfolioGreeks && (
-                <Box display="flex" gap={2}>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">Total P&L</Typography>
-                    <Typography 
+                <div  display="flex" gap={2}>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">Total P&L</div>
+                    <div  
                       variant="h6" 
                       fontWeight="bold"
                       color={portfolioGreeks.pnl >= 0 ? 'success.main' : 'error.main'}
                     >
                       ${portfolioGreeks.pnl.toFixed(0)}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">Positions</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">Positions</div>
+                    <div  variant="h6" fontWeight="bold">
                       {positions.length}
-                    </Typography>
-                  </Box>
-                  <Box textAlign="center">
-                    <Typography variant="caption" color="text.secondary">Notional</Typography>
-                    <Typography variant="h6" fontWeight="bold">
+                    </div>
+                  </div>
+                  <div  textAlign="center">
+                    <div  variant="caption" color="text.secondary">Notional</div>
+                    <div  variant="h6" fontWeight="bold">
                       ${(portfolioGreeks.notional / 1000).toFixed(0)}K
-                    </Typography>
-                  </Box>
-                </Box>
+                    </div>
+                  </div>
+                </div>
               )}
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Main Greeks Dashboard */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12} lg={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Portfolio Greeks Dashboard"
               subheader={`Last updated: ${new Date().toLocaleTimeString()}`}
               action={
-                <Box display="flex" gap={1}>
-                  <FormControlLabel
+                <div  display="flex" gap={1}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch 
+                      <input type="checkbox" className="toggle" 
                         checked={alertsEnabled} 
                         onChange={(e) => setAlertsEnabled(e.target.checked)}
                       />
                     }
                     label="Alerts"
                   />
-                  <Button variant="outlined" startIcon={<SaveIcon />} size="small">
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<SaveIcon />} size="small">
                     Save
-                  </Button>
-                </Box>
+                  </button>
+                </div>
               }
             />
-            <CardContent>
-              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
-                <Tab label="Greeks Summary" />
-                <Tab label="Position Details" />
-                <Tab label="Risk Analysis" />
-                <Tab label="Scenarios" />
-                <Tab label="History" />
-              </Tabs>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Greeks Summary" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Position Details" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Risk Analysis" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Scenarios" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="History" />
+              </div>
               
               {activeTab === 0 && portfolioGreeks && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="h6" gutterBottom>Portfolio Greeks</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography 
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div  variant="h6" gutterBottom>Portfolio Greeks</div>
+                    <div className="grid" container spacing={2}>
+                      <div className="grid" item xs={6}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  
                             variant="h4" 
                             fontWeight="bold"
                             color={getGreekColor(portfolioGreeks.delta, 'delta')}
                           >
                             {portfolioGreeks.delta.toFixed(0)}
-                          </Typography>
-                          <Typography variant="caption">Delta</Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </div>
+                          <div  variant="caption">Delta</div>
+                          <div  variant="body2" color="text.secondary">
                             $1 move = ${portfolioGreeks.delta.toFixed(0)} P&L
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography 
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  
                             variant="h4" 
                             fontWeight="bold"
                             color={getGreekColor(portfolioGreeks.gamma, 'gamma')}
                           >
                             {portfolioGreeks.gamma.toFixed(1)}
-                          </Typography>
-                          <Typography variant="caption">Gamma</Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </div>
+                          <div  variant="caption">Gamma</div>
+                          <div  variant="body2" color="text.secondary">
                             Delta change rate
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography 
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  
                             variant="h4" 
                             fontWeight="bold"
                             color={getGreekColor(portfolioGreeks.theta, 'theta')}
                           >
                             {portfolioGreeks.theta.toFixed(0)}
-                          </Typography>
-                          <Typography variant="caption">Theta</Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </div>
+                          <div  variant="caption">Theta</div>
+                          <div  variant="body2" color="text.secondary">
                             Daily time decay
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography 
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  
                             variant="h4" 
                             fontWeight="bold"
                             color={getGreekColor(portfolioGreeks.vega, 'vega')}
                           >
                             {portfolioGreeks.vega.toFixed(0)}
-                          </Typography>
-                          <Typography variant="caption">Vega</Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </div>
+                          <div  variant="caption">Vega</div>
+                          <div  variant="body2" color="text.secondary">
                             1% vol change impact
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    </Grid>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="h6" gutterBottom>Greeks Distribution</Typography>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <div  variant="h6" gutterBottom>Greeks Distribution</div>
                     <ResponsiveContainer width="100%" height={250}>
                       <RadarChart data={[
                         { 
@@ -597,198 +597,198 @@ const GreeksMonitor = () => {
                         />
                       </RadarChart>
                     </ResponsiveContainer>
-                  </Grid>
-                </Grid>
+                  </div>
+                </div>
               )}
               
               {activeTab === 1 && (
-                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell align="right">Qty</TableCell>
-                        <TableCell align="right">Strike</TableCell>
-                        <TableCell align="right">DTE</TableCell>
-                        <TableCell align="right">Delta</TableCell>
-                        <TableCell align="right">Gamma</TableCell>
-                        <TableCell align="right">Theta</TableCell>
-                        <TableCell align="right">Vega</TableCell>
-                        <TableCell align="right">P&L</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Qty</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Strike</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">DTE</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Delta</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Gamma</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Theta</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Vega</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">P&L</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {positions.map((position) => (
-                        <TableRow key={position.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={position.id} hover>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="body2" fontWeight="bold">
                               {position.symbol}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={position.type} 
                               color={position.type === 'CALL' ? 'success' : 'error'}
                               size="small"
                               variant="outlined"
                             />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography 
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  
                               variant="body2"
                               color={position.quantity > 0 ? 'success.main' : 'error.main'}
                             >
                               {position.quantity > 0 ? '+' : ''}{position.quantity}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">${position.strike.toFixed(2)}</TableCell>
-                          <TableCell align="right">{position.dte}d</TableCell>
-                          <TableCell align="right">
-                            <Typography sx={{ color: getGreekColor(position.delta, 'delta') }}>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${position.strike.toFixed(2)}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{position.dte}d</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  sx={{ color: getGreekColor(position.delta, 'delta') }}>
                               {position.delta.toFixed(1)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography sx={{ color: getGreekColor(position.gamma, 'gamma') }}>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  sx={{ color: getGreekColor(position.gamma, 'gamma') }}>
                               {position.gamma.toFixed(3)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography sx={{ color: getGreekColor(position.theta, 'theta') }}>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  sx={{ color: getGreekColor(position.theta, 'theta') }}>
                               {position.theta.toFixed(2)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography sx={{ color: getGreekColor(position.vega, 'vega') }}>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  sx={{ color: getGreekColor(position.vega, 'vega') }}>
                               {position.vega.toFixed(1)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography 
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  
                               variant="body2"
                               color={position.pnl >= 0 ? 'success.main' : 'error.main'}
                               fontWeight="bold"
                             >
                               ${position.pnl.toFixed(0)}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               )}
               
               {activeTab === 2 && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>Risk Analysis</Typography>
-                  <Grid container spacing={2}>
+                <div>
+                  <div  variant="h6" gutterBottom>Risk Analysis</div>
+                  <div className="grid" container spacing={2}>
                     {riskAnalysis.map((risk, index) => (
-                      <Grid item xs={12} md={6} key={index}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Box display="flex" alignItems="center" gap={1} mb={1}>
-                              <Chip 
+                      <div className="grid" item xs={12} md={6} key={index}>
+                        <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                          <div className="bg-white shadow-md rounded-lg"Content>
+                            <div  display="flex" alignItems="center" gap={1} mb={1}>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={risk.level} 
                                 color={getRiskLevelColor(risk.level)}
                                 size="small"
                               />
-                              <Typography variant="subtitle1" fontWeight="bold">
+                              <div  variant="subtitle1" fontWeight="bold">
                                 {risk.type}
-                              </Typography>
-                            </Box>
-                            <Typography variant="body2" color="text.secondary" paragraph>
+                              </div>
+                            </div>
+                            <div  variant="body2" color="text.secondary" paragraph>
                               {risk.description}
-                            </Typography>
-                            <Typography variant="body2" color="primary.main">
+                            </div>
+                            <div  variant="body2" color="primary.main">
                               💡 {risk.suggestion}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </Grid>
-                </Box>
+                  </div>
+                </div>
               )}
               
               {activeTab === 3 && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>Scenario Analysis</Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Price Change</TableCell>
-                          <TableCell align="right">New Price</TableCell>
-                          <TableCell align="right">Delta P&L</TableCell>
-                          <TableCell align="right">Gamma P&L</TableCell>
-                          <TableCell align="right">Total P&L</TableCell>
-                          <TableCell align="right">Impact</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
+                <div>
+                  <div  variant="h6" gutterBottom>Scenario Analysis</div>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Price Change</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">New Price</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Delta P&L</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Gamma P&L</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Total P&L</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Impact</td>
+                        </tr>
+                      </thead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                         {scenarios.map((scenario, index) => (
-                          <TableRow 
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow 
                             key={index} 
                             hover
                             sx={{ 
                               bgcolor: scenario.priceChangeNum === 0 ? 'action.hover' : 'inherit'
                             }}
                           >
-                            <TableCell>
-                              <Typography 
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              <div  
                                 variant="body2" 
                                 fontWeight={scenario.priceChangeNum === 0 ? 'bold' : 'normal'}
                               >
                                 {scenario.priceChange}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">${scenario.newPrice}</TableCell>
-                            <TableCell align="right">
-                              <Typography 
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${scenario.newPrice}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  
                                 variant="body2"
                                 color={parseFloat(scenario.deltaPnL) >= 0 ? 'success.main' : 'error.main'}
                               >
                                 ${scenario.deltaPnL}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  
                                 variant="body2"
                                 color={parseFloat(scenario.gammaPnL) >= 0 ? 'success.main' : 'error.main'}
                               >
                                 ${scenario.gammaPnL}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  
                                 variant="body2"
                                 color={parseFloat(scenario.totalPnL) >= 0 ? 'success.main' : 'error.main'}
                                 fontWeight="bold"
                               >
                                 ${scenario.totalPnL}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <LinearProgress 
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div className="w-full bg-gray-200 rounded-full h-2" 
                                 variant="determinate" 
                                 value={Math.min(100, Math.abs(parseFloat(scenario.totalPnL)) / 100)} 
                                 color={parseFloat(scenario.totalPnL) >= 0 ? 'success' : 'error'}
                                 sx={{ width: 50 }}
                               />
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
               
               {activeTab === 4 && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>Greeks History (30 Days)</Typography>
+                <div>
+                  <div  variant="h6" gutterBottom>Greeks History (30 Days)</div>
                   <ResponsiveContainer width="100%" height={400}>
                     <LineChart data={greeksHistory}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -801,22 +801,22 @@ const GreeksMonitor = () => {
                       <Line type="monotone" dataKey="vega" stroke="#ff7300" name="Vega" />
                     </LineChart>
                   </ResponsiveContainer>
-                </Box>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Sidebar */}
-        <Grid item xs={12} lg={4}>
+        <div className="grid" item xs={12} lg={4}>
           {/* Risk Thresholds */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Risk Thresholds" />
-            <CardContent>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Risk Thresholds" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="subtitle2" gutterBottom>
                   Delta Threshold: {deltaThreshold}
-                </Typography>
+                </div>
                 <Slider
                   value={deltaThreshold}
                   onChange={(_, value) => setDeltaThreshold(value)}
@@ -825,11 +825,11 @@ const GreeksMonitor = () => {
                   step={50}
                   valueLabelDisplay="auto"
                 />
-              </Box>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
+              </div>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="subtitle2" gutterBottom>
                   Gamma Threshold: {gammaThreshold}
-                </Typography>
+                </div>
                 <Slider
                   value={gammaThreshold}
                   onChange={(_, value) => setGammaThreshold(value)}
@@ -838,11 +838,11 @@ const GreeksMonitor = () => {
                   step={5}
                   valueLabelDisplay="auto"
                 />
-              </Box>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
+              </div>
+              <div  sx={{ mb: 2 }}>
+                <div  variant="subtitle2" gutterBottom>
                   Theta Threshold: {thetaThreshold}
-                </Typography>
+                </div>
                 <Slider
                   value={thetaThreshold}
                   onChange={(_, value) => setThetaThreshold(value)}
@@ -851,11 +851,11 @@ const GreeksMonitor = () => {
                   step={25}
                   valueLabelDisplay="auto"
                 />
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
+              </div>
+              <div>
+                <div  variant="subtitle2" gutterBottom>
                   Vega Threshold: {vegaThreshold}
-                </Typography>
+                </div>
                 <Slider
                   value={vegaThreshold}
                   onChange={(_, value) => setVegaThreshold(value)}
@@ -864,51 +864,51 @@ const GreeksMonitor = () => {
                   step={250}
                   valueLabelDisplay="auto"
                 />
-              </Box>
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </div>
 
           {/* Quick Actions */}
-          <Card>
-            <CardHeader title="Quick Actions" />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid item xs={6}>
-                  <Button variant="outlined" fullWidth size="small" startIcon={<Security />}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Quick Actions" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={1}>
+                <div className="grid" item xs={6}>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" fullWidth size="small" startIcon={<Security />}>
                     Delta Hedge
-                  </Button>
-                </Grid>
-                <Grid item xs={6}>
-                  <Button variant="outlined" fullWidth size="small" startIcon={<Speed />}>
+                  </button>
+                </div>
+                <div className="grid" item xs={6}>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" fullWidth size="small" startIcon={<Speed />}>
                     Gamma Adjust
-                  </Button>
-                </Grid>
-                <Grid item xs={6}>
-                  <Button variant="outlined" fullWidth size="small" startIcon={<AccessTime />}>
+                  </button>
+                </div>
+                <div className="grid" item xs={6}>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" fullWidth size="small" startIcon={<AccessTime />}>
                     Roll Positions
-                  </Button>
-                </Grid>
-                <Grid item xs={6}>
-                  <Button variant="outlined" fullWidth size="small" startIcon={<ShowChart />}>
+                  </button>
+                </div>
+                <div className="grid" item xs={6}>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" fullWidth size="small" startIcon={<ShowChart />}>
                     Vol Hedge
-                  </Button>
-                </Grid>
-              </Grid>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle2" gutterBottom>
+                  </button>
+                </div>
+              </div>
+              <hr className="border-gray-200" sx={{ my: 2 }} />
+              <div  variant="subtitle2" gutterBottom>
                 Hedging Suggestions
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Based on current Greeks exposure, consider:
                 • Delta hedging with {Math.abs(portfolioGreeks?.delta || 0).toFixed(0)} shares
                 • Monitor gamma risk before major moves
                 • Time decay acceleration near expiration
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Container>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

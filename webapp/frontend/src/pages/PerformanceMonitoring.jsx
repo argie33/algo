@@ -166,54 +166,54 @@ const PerformanceMonitoring = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="error">
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
           Error loading performance data: {error}
-        </Alert>
-      </Container>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" component="h1">
+      <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <div  variant="h4" component="h1">
           Performance Monitoring
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <FormControlLabel
+        </div>
+        <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div className="mb-4"Label
             control={
-              <Switch
+              <input type="checkbox" className="toggle"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
               />
             }
             label="Auto Refresh"
           />
-          <IconButton onClick={fetchPerformanceData} disabled={loading}>
+          <button className="p-2 rounded-full hover:bg-gray-100" onClick={fetchPerformanceData} disabled={loading}>
             <Refresh />
-          </IconButton>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
       {/* Alerts */}
       {alerts.length > 0 && (
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 4 }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Active Alerts
-            </Typography>
+            </div>
             <List>
               {alerts.map((alert, index) => (
                 <ListItem key={index}>
@@ -227,187 +227,187 @@ const PerformanceMonitoring = () => {
                 </ListItem>
               ))}
             </List>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* System Overview */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 {getStatusIcon(summary?.status)}
-                <Box sx={{ ml: 2 }}>
-                  <Typography variant="h6">System Status</Typography>
-                  <Chip 
+                <div  sx={{ ml: 2 }}>
+                  <div  variant="h6">System Status</div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={summary?.status || 'Unknown'} 
                     color={getStatusColor(summary?.status)} 
                     size="small"
                   />
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
+                </div>
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Uptime: {formatDuration(summary?.uptime || 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Speed color="primary" />
-                <Box sx={{ ml: 2 }}>
-                  <Typography variant="h6">Response Time</Typography>
-                  <Typography variant="h4" color="primary">
+                <div  sx={{ ml: 2 }}>
+                  <div  variant="h6">Response Time</div>
+                  <div  variant="h4" color="primary">
                     {summary?.avgResponseTime?.toFixed(0) || 0}ms
-                  </Typography>
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
+                  </div>
+                </div>
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Average response time
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Memory color="secondary" />
-                <Box sx={{ ml: 2 }}>
-                  <Typography variant="h6">Memory Usage</Typography>
-                  <Typography variant="h4" color="secondary">
+                <div  sx={{ ml: 2 }}>
+                  <div  variant="h6">Memory Usage</div>
+                  <div  variant="h4" color="secondary">
                     {summary?.memoryUsage?.utilization?.toFixed(1) || 0}%
-                  </Typography>
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
+                  </div>
+                </div>
+              </div>
+              <div  variant="body2" color="text.secondary">
                 {formatBytes(summary?.memoryUsage?.used || 0)} / {formatBytes(summary?.memoryUsage?.total || 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Api color="info" />
-                <Box sx={{ ml: 2 }}>
-                  <Typography variant="h6">Requests</Typography>
-                  <Typography variant="h4" color="info">
+                <div  sx={{ ml: 2 }}>
+                  <div  variant="h6">Requests</div>
+                  <div  variant="h4" color="info">
                     {summary?.activeRequests || 0}
-                  </Typography>
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
+                  </div>
+                </div>
+              </div>
+              <div  variant="body2" color="text.secondary">
                 {summary?.totalRequests || 0} total requests
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Error Rate */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Error Rate
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h3" color={summary?.errorRate > 0.05 ? 'error' : 'success'}>
+              </div>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <div  variant="h3" color={summary?.errorRate > 0.05 ? 'error' : 'success'}>
                   {((summary?.errorRate || 0) * 100).toFixed(2)}%
-                </Typography>
-                <Box sx={{ ml: 2 }}>
+                </div>
+                <div  sx={{ ml: 2 }}>
                   {summary?.errorRate > 0.05 ? (
                     <TrendingUp color="error" />
                   ) : (
                     <TrendingDown color="success" />
                   )}
-                </Box>
-              </Box>
-              <LinearProgress 
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={Math.min((summary?.errorRate || 0) * 100, 100)} 
                 color={summary?.errorRate > 0.05 ? 'error' : 'success'}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" gutterBottom>
                 Memory Utilization
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h3" color={(summary?.memoryUsage?.utilization || 0) > 80 ? 'error' : 'primary'}>
+              </div>
+              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <div  variant="h3" color={(summary?.memoryUsage?.utilization || 0) > 80 ? 'error' : 'primary'}>
                   {(summary?.memoryUsage?.utilization || 0).toFixed(1)}%
-                </Typography>
-                <Box sx={{ ml: 2 }}>
+                </div>
+                <div  sx={{ ml: 2 }}>
                   <Memory color={(summary?.memoryUsage?.utilization || 0) > 80 ? 'error' : 'primary'} />
-                </Box>
-              </Box>
-              <LinearProgress 
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={Math.min(summary?.memoryUsage?.utilization || 0, 100)} 
                 color={(summary?.memoryUsage?.utilization || 0) > 80 ? 'error' : 'primary'}
               />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* API Endpoints Performance */}
       {metrics && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               API Endpoints Performance
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Endpoint</TableCell>
-                    <TableCell align="right">Requests</TableCell>
-                    <TableCell align="right">Errors</TableCell>
-                    <TableCell align="right">Error Rate</TableCell>
-                    <TableCell align="right">Avg Response Time</TableCell>
-                    <TableCell align="right">Max Response Time</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            </div>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Endpoint</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Requests</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Errors</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Error Rate</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg Response Time</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Max Response Time</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {Object.entries(metrics.api?.requests || {}).map(([endpoint, stats]) => (
-                    <TableRow key={endpoint}>
-                      <TableCell>{endpoint}</TableCell>
-                      <TableCell align="right">{stats.count}</TableCell>
-                      <TableCell align="right">{stats.errors}</TableCell>
-                      <TableCell align="right">
-                        <Chip 
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={endpoint}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{endpoint}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stats.count}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stats.errors}</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={`${((stats.errors / stats.count) * 100).toFixed(2)}%`}
                           color={stats.errors / stats.count > 0.05 ? 'error' : 'success'}
                           size="small"
                         />
-                      </TableCell>
-                      <TableCell align="right">{stats.avgResponseTime?.toFixed(0)}ms</TableCell>
-                      <TableCell align="right">{stats.maxResponseTime?.toFixed(0)}ms</TableCell>
-                    </TableRow>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stats.avgResponseTime?.toFixed(0)}ms</td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{stats.maxResponseTime?.toFixed(0)}ms</td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
-    </Container>
+    </div>
   );
 };
 

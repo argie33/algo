@@ -80,7 +80,7 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <Box
+        <div 
           sx={{
             backgroundColor: 'background.paper',
             border: 1,
@@ -90,41 +90,41 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
             boxShadow: 2
           }}
         >
-          <Typography variant="subtitle2" gutterBottom>
+          <div  variant="subtitle2" gutterBottom>
             {formatTooltipDate(label)}
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             <strong>Open:</strong> {formatPrice(data.open)}
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             <strong>High:</strong> {formatPrice(data.high)}
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             <strong>Low:</strong> {formatPrice(data.low)}
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             <strong>Close:</strong> {formatPrice(data.close)}
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             <strong>Volume:</strong> {data.volume?.toLocaleString() || 'N/A'}
-          </Typography>
-        </Box>
+          </div>
+        </div>
       );
     }
     return null;
   };
 
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ShowChart sx={{ color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <div  variant="h6" sx={{ fontWeight: 600 }}>
               Historical Prices - {symbol}
-            </Typography>
-          </Box>
-          <Button
+            </div>
+          </div>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             size="small"
             onClick={() => refetch()}
@@ -132,90 +132,90 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
             startIcon={<Timeline />}
           >
             Refresh
-          </Button>
-        </Box>
+          </button>
+        </div>
 
         {/* Controls */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-          <ButtonGroup size="small" variant="outlined">
-            <Button 
+        <div  sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group size="small" variant="outlined">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setTimeframe('daily')}
               variant={timeframe === 'daily' ? 'contained' : 'outlined'}
             >
               Daily
-            </Button>
-            <Button 
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setTimeframe('weekly')}
               variant={timeframe === 'weekly' ? 'contained' : 'outlined'}
             >
               Weekly
-            </Button>
-            <Button 
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setTimeframe('monthly')}
               variant={timeframe === 'monthly' ? 'contained' : 'outlined'}
             >
               Monthly
-            </Button>
+            </button>
           </ButtonGroup>
 
-          <ButtonGroup size="small" variant="outlined">
-            <Button 
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group size="small" variant="outlined">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setPeriod(30)}
               variant={period === 30 ? 'contained' : 'outlined'}
             >
               30 periods
-            </Button>
-            <Button 
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setPeriod(90)}
               variant={period === 90 ? 'contained' : 'outlined'}
             >
               90 periods
-            </Button>
-            <Button 
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               onClick={() => setPeriod(252)}
               variant={period === 252 ? 'contained' : 'outlined'}
             >
               1 Year
-            </Button>
+            </button>
           </ButtonGroup>
-        </Box>
+        </div>
 
         {/* Price Summary */}
         {latestPrice && (
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <Chip 
+          <div  sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={`Current: ${formatPrice(latestPrice.close)}`}
               color="primary"
               variant="outlined"
             />
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               icon={priceChange >= 0 ? <TrendingUp /> : <TrendingDown />}
               label={`${priceChange >= 0 ? '+' : ''}${formatPrice(priceChange)} (${priceChangePct.toFixed(2)}%)`}
               color={priceChange >= 0 ? 'success' : 'error'}
               variant="outlined"
             />
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={`Volume: ${latestPrice.volume?.toLocaleString() || 'N/A'}`}
               variant="outlined"
             />
-          </Box>
+          </div>
         )}
 
         {/* Loading State */}
         {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-            <CircularProgress />
-          </Box>
+          <div  sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+          </div>
         )}
 
         {/* Error State */}
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2">Failed to load price data</Typography>
-            <Typography variant="body2">
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+            <div  variant="subtitle2">Failed to load price data</div>
+            <div  variant="body2">
               {error.message || 'Unknown error occurred'}
-            </Typography>
-          </Alert>
+            </div>
+          </div>
         )}
 
         {/* Chart */}
@@ -233,7 +233,7 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
                 domain={['auto', 'auto']}
                 tickFormatter={(value) => `$${value?.toFixed(2)}`}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <div  content={<CustomTooltip />} />
               <Line 
                 type="monotone" 
                 dataKey="close" 
@@ -248,26 +248,26 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
 
         {/* No Data State */}
         {!isLoading && !error && chartData.length === 0 && (
-          <Alert severity="info">
-            <Typography variant="subtitle2">No price data available</Typography>
-            <Typography variant="body2">
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+            <div  variant="subtitle2">No price data available</div>
+            <div  variant="body2">
               The price data for {symbol} ({timeframe}) is not yet loaded. 
               The price loaders need to populate the database tables.
-            </Typography>
-          </Alert>
+            </div>
+          </div>
         )}
 
         {/* Data Summary */}
         {chartData.length > 0 && (
-          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-            <Typography variant="caption" color="text.secondary">
+          <div  sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+            <div  variant="caption" color="text.secondary">
               Showing {chartData.length} {timeframe} data points for {symbol}
               {latestPrice && ` • Latest: ${formatDate(latestPrice.date)}`}
-            </Typography>
-          </Box>
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

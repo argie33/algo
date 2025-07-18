@@ -73,29 +73,29 @@ const ProfessionalChart = ({
   const renderChart = () => {
     if (loading) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div  sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Skeleton variant="rectangular" width="100%" height={height - 60} />
-        </Box>
+        </div>
       );
     }
 
     if (error) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Typography color="error" variant="body2">
+        <div  sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div  color="error" variant="body2">
             {String(error)}
-          </Typography>
-        </Box>
+          </div>
+        </div>
       );
     }
 
     if (!data || data.length === 0) {
       return (
-        <Box sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Typography color="text.secondary" variant="body2">
+        <div  sx={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div  color="text.secondary" variant="body2">
             No data available
-          </Typography>
-        </Box>
+          </div>
+        </div>
       );
     }
 
@@ -320,53 +320,53 @@ const ProfessionalChart = ({
   };
 
   return (
-    <Card elevation={2} className={className} {...props}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+    <div className="bg-white shadow-md rounded-lg" elevation={2} className={className} {...props}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <div>
+            <div  variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               {title}
-            </Typography>
+            </div>
             {subtitle && (
-              <Typography variant="body2" color="text.secondary">
+              <div  variant="body2" color="text.secondary">
                 {subtitle}
-              </Typography>
+              </div>
             )}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          </div>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {onRefresh && (
-              <Tooltip title="Refresh">
-                <IconButton size="small" onClick={onRefresh}>
+              <div  title="Refresh">
+                <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={onRefresh}>
                   <Refresh fontSize="small" />
-                </IconButton>
-              </Tooltip>
+                </button>
+              </div>
             )}
             {onDownload && (
-              <Tooltip title="Download">
-                <IconButton size="small" onClick={onDownload}>
+              <div  title="Download">
+                <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={onDownload}>
                   <Download fontSize="small" />
-                </IconButton>
-              </Tooltip>
+                </button>
+              </div>
             )}
             {onFullscreen && (
-              <Tooltip title="Fullscreen">
-                <IconButton size="small" onClick={onFullscreen}>
+              <div  title="Fullscreen">
+                <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={onFullscreen}>
                   <Fullscreen fontSize="small" />
-                </IconButton>
-              </Tooltip>
+                </button>
+              </div>
             )}
             {actions.map((action, index) => (
-              <Tooltip key={index} title={action.tooltip}>
-                <IconButton size="small" onClick={action.onClick}>
+              <div  key={index} title={action.tooltip}>
+                <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={action.onClick}>
                   {action.icon}
-                </IconButton>
-              </Tooltip>
+                </button>
+              </div>
             ))}
-          </Box>
-        </Box>
+          </div>
+        </div>
         {renderChart()}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

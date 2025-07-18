@@ -117,94 +117,94 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
 
   return (
     <>
-      <Card>
-        <CardHeader 
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Header 
           title="Active Positions"
           subheader="Manage your swing trading positions with O'Neill exit zones"
           action={
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={`${positions.length} Active`}
               color="primary"
               size="small"
             />
           }
         />
-        <CardContent>
+        <div className="bg-white shadow-md rounded-lg"Content>
           {positions.length === 0 ? (
-            <Alert severity="info">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
               No active positions. Look for buy signals to enter new positions.
-            </Alert>
+            </div>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell>Entry</TableCell>
-                    <TableCell>Current</TableCell>
-                    <TableCell>Gain/Loss</TableCell>
-                    <TableCell>Exit Progress</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Days Held</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Entry</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Current</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Gain/Loss</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Exit Progress</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Days Held</td>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Actions</td>
+                  </tr>
+                </thead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                   {positions.map((position) => {
                     const metrics = calculatePositionMetrics(position);
                     const status = getPositionStatus(position);
                     const exitProgress = getExitProgress(position);
                     
                     return (
-                      <TableRow key={position.id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle2" fontWeight={600}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={position.id} hover>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <div  variant="subtitle2" fontWeight={600}>
                               {position.symbol}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${position.shares} shares`}
                               size="small"
                               variant="outlined"
                             />
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2">
                             {formatCurrency(position.entry_price)}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          </div>
+                          <div  variant="caption" color="text.secondary">
                             {new Date(position.entry_date).toLocaleDateString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2" fontWeight={600}>
                             {formatCurrency(position.current_price)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography 
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <div  
                               variant="body2" 
                               fontWeight={600}
                               color={metrics.unrealizedGainPct >= 0 ? 'success.main' : 'error.main'}
                             >
                               {metrics.unrealizedGainPct >= 0 ? '+' : ''}{metrics.unrealizedGainPct.toFixed(2)}%
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            </div>
+                            <div  variant="caption" color="text.secondary">
                               ({formatCurrency(metrics.unrealizedGain)})
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ width: 120 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="caption">Exit Progress</Typography>
-                              <Typography variant="caption" fontWeight={600}>
+                            </div>
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  sx={{ width: 120 }}>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <div  variant="caption">Exit Progress</div>
+                              <div  variant="caption" fontWeight={600}>
                                 {exitProgress}%
-                              </Typography>
-                            </Box>
-                            <LinearProgress 
+                              </div>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={exitProgress}
                               sx={{ 
@@ -213,10 +213,10 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                                 backgroundColor: '#1976d21A'
                               }}
                             />
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                             icon={status.icon}
                             label={status.status}
                             size="small"
@@ -229,24 +229,24 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                               }
                             }}
                           />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <div  variant="body2">
                             {metrics.daysHeld} days
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <Tooltip title="View Details">
-                              <IconButton 
+                          </div>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          <div className="flex flex-col space-y-2" direction="row" spacing={1} justifyContent="flex-end">
+                            <div  title="View Details">
+                              <button className="p-2 rounded-full hover:bg-gray-100" 
                                 size="small"
                                 onClick={() => setSelectedPosition(position)}
                               >
                                 <ShowChart />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Exit Position">
-                              <IconButton 
+                              </button>
+                            </div>
+                            <div  title="Exit Position">
+                              <button className="p-2 rounded-full hover:bg-gray-100" 
                                 size="small"
                                 color="primary"
                                 onClick={() => {
@@ -255,114 +255,114 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
                                 }}
                               >
                                 <ExitToApp />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Portfolio Summary */}
-          <Box sx={{ mt: 3, p: 2, backgroundColor: '#1976d20D', borderRadius: 1 }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="caption" color="text.secondary">Total Value</Typography>
-                <Typography variant="h6" fontWeight={600}>
+          <div  sx={{ mt: 3, p: 2, backgroundColor: '#1976d20D', borderRadius: 1 }}>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12} sm={3}>
+                <div  variant="caption" color="text.secondary">Total Value</div>
+                <div  variant="h6" fontWeight={600}>
                   {formatCurrency(positions.reduce((sum, p) => sum + (p.shares * p.current_price), 0))}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="caption" color="text.secondary">Total Cost Basis</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                </div>
+              </div>
+              <div className="grid" item xs={12} sm={3}>
+                <div  variant="caption" color="text.secondary">Total Cost Basis</div>
+                <div  variant="h6" fontWeight={600}>
                   {formatCurrency(positions.reduce((sum, p) => sum + (p.shares * p.entry_price), 0))}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="caption" color="text.secondary">Unrealized Gain</Typography>
-                <Typography 
+                </div>
+              </div>
+              <div className="grid" item xs={12} sm={3}>
+                <div  variant="caption" color="text.secondary">Unrealized Gain</div>
+                <div  
                   variant="h6" 
                   fontWeight={600}
                   color={positions.reduce((sum, p) => sum + ((p.shares * p.current_price) - (p.shares * p.entry_price)), 0) >= 0 ? 'success.main' : 'error.main'}
                 >
                   {formatCurrency(positions.reduce((sum, p) => sum + ((p.shares * p.current_price) - (p.shares * p.entry_price)), 0))}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="caption" color="text.secondary">Win Rate</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                </div>
+              </div>
+              <div className="grid" item xs={12} sm={3}>
+                <div  variant="caption" color="text.secondary">Win Rate</div>
+                <div  variant="h6" fontWeight={600}>
                   {positions.length > 0 
                     ? `${((positions.filter(p => p.current_price > p.entry_price).length / positions.length) * 100).toFixed(0)}%`
                     : '0%'
                   }
-                </Typography>
-              </Grid>
-            </Grid>
-          </Box>
-        </CardContent>
-      </Card>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Position Details Dialog */}
       {selectedPosition && !exitDialog && (
-        <Dialog 
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
           open={Boolean(selectedPosition) && !exitDialog} 
           onClose={() => setSelectedPosition(null)}
           maxWidth="md"
           fullWidth
         >
-          <DialogTitle>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6">{selectedPosition.symbol} Position Details</Typography>
-              <IconButton onClick={() => setSelectedPosition(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+            <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div  variant="h6">{selectedPosition.symbol} Position Details</div>
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSelectedPosition(null)}>
                 <Close />
-              </IconButton>
-            </Box>
-          </DialogTitle>
-          <DialogContent dividers>
+              </button>
+            </div>
+          </h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content dividers>
             <ExitZoneVisualizer 
               signal={selectedPosition}
               currentPrice={selectedPosition.current_price}
               entryPrice={selectedPosition.entry_price}
             />
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       )}
 
       {/* Exit Position Dialog */}
-      <Dialog 
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
         open={exitDialog} 
         onClose={() => setExitDialog(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Exit Position - {selectedPosition?.symbol}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={3}>
-            <Alert severity="info">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Exit Position - {selectedPosition?.symbol}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content dividers>
+          <div className="flex flex-col space-y-2" spacing={3}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
               Following O'Neill's methodology, consider taking partial profits at key levels.
-            </Alert>
+            </div>
 
-            <FormControl fullWidth>
-              <InputLabel>Exit Zone</InputLabel>
-              <Select
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Exit Zone</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={exitZone}
                 onChange={(e) => setExitZone(e.target.value)}
                 label="Exit Zone"
               >
-                <MenuItem value="zone1">Zone 1 - 20% Profit Target</MenuItem>
-                <MenuItem value="zone2">Zone 2 - 25% Profit Target</MenuItem>
-                <MenuItem value="zone3">Zone 3 - 21 EMA Breach</MenuItem>
-                <MenuItem value="zone4">Zone 4 - 50 SMA Breach</MenuItem>
-                <MenuItem value="stoploss">Stop Loss - 7% Loss</MenuItem>
-                <MenuItem value="custom">Custom Exit</MenuItem>
-              </Select>
-            </FormControl>
+                <option  value="zone1">Zone 1 - 20% Profit Target</option>
+                <option  value="zone2">Zone 2 - 25% Profit Target</option>
+                <option  value="zone3">Zone 3 - 21 EMA Breach</option>
+                <option  value="zone4">Zone 4 - 50 SMA Breach</option>
+                <option  value="stoploss">Stop Loss - 7% Loss</option>
+                <option  value="custom">Custom Exit</option>
+              </select>
+            </div>
 
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               label="Percentage to Sell"
               type="number"
               value={exitPercentage}
@@ -375,7 +375,7 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
             />
 
             {exitZone === 'custom' && (
-              <TextField
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 label="Exit Price"
                 type="number"
                 value={customExitPrice}
@@ -389,38 +389,38 @@ const PositionManager = ({ positions = [], onUpdatePosition, onClosePosition }) 
             )}
 
             {selectedPosition && (
-              <Box sx={{ p: 2, backgroundColor: '#9e9e9e1A', borderRadius: 1 }}>
-                <Typography variant="body2" gutterBottom>
+              <div  sx={{ p: 2, backgroundColor: '#9e9e9e1A', borderRadius: 1 }}>
+                <div  variant="body2" gutterBottom>
                   Exit Summary:
-                </Typography>
-                <Typography variant="body2">
+                </div>
+                <div  variant="body2">
                   Shares to sell: {Math.floor(selectedPosition.shares * (exitPercentage / 100))}
-                </Typography>
-                <Typography variant="body2">
+                </div>
+                <div  variant="body2">
                   Exit price: {formatCurrency(customExitPrice || selectedPosition.current_price)}
-                </Typography>
-                <Typography variant="body2" fontWeight={600}>
+                </div>
+                <div  variant="body2" fontWeight={600}>
                   Proceeds: {formatCurrency(
                     Math.floor(selectedPosition.shares * (exitPercentage / 100)) * 
                     (customExitPrice || selectedPosition.current_price)
                   )}
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExitDialog(false)}>Cancel</Button>
-          <Button 
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setExitDialog(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             onClick={handleExitPosition} 
             variant="contained" 
             color="primary"
             disabled={!exitZone}
           >
             Execute Exit
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </button>
+        </div>
+      </div>
     </>
   );
 };

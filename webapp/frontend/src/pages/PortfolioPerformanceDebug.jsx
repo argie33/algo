@@ -96,9 +96,9 @@ const PortfolioPerformanceDebug = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <div className="container mx-auto" maxWidth="xl">
       {/* API Key Status */}
-      <Box sx={{ mb: 3 }}>
+      <div  sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           compact={true}
           showSetupDialog={true}
@@ -106,89 +106,89 @@ const PortfolioPerformanceDebug = () => {
             console.log('Portfolio Performance Debug - API Key Status:', status);
           }}
         />
-      </Box>
+      </div>
 
-      <Typography variant="h4" gutterBottom>
+      <div  variant="h4" gutterBottom>
         Portfolio Performance (Debug Version)
-      </Typography>
+      </div>
       
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
+      <div  sx={{ mb: 3 }}>
+        <div  variant="h6" gutterBottom>
           Authentication Status:
-        </Typography>
-        <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-          <Typography>Auth Loading: {authLoading ? '⏳ Yes' : '✅ No'}</Typography>
-          <Typography>Authenticated: {isAuthenticated ? '✅ Yes' : '❌ No'}</Typography>
-          <Typography>User: {user ? `✅ ${user.username}` : '❌ None'}</Typography>
-          <Typography>Auth Context: {isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</Typography>
-        </Paper>
-      </Box>
+        </div>
+        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, bgcolor: 'grey.50' }}>
+          <div>Auth Loading: {authLoading ? '⏳ Yes' : '✅ No'}</div>
+          <div>Authenticated: {isAuthenticated ? '✅ Yes' : '❌ No'}</div>
+          <div>User: {user ? `✅ ${user.username}` : '❌ None'}</div>
+          <div>Auth Context: {isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</div>
+        </div>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
           {error}
-          <Button onClick={retryFetch} sx={{ ml: 2 }}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={retryFetch} sx={{ ml: 2 }}>
             Retry
-          </Button>
-        </Alert>
+          </button>
+        </div>
       )}
 
       {(loading || authLoading) && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-          <CircularProgress />
-          <Typography>
+        <div  sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+          <div>
             {authLoading ? 'Initializing authentication...' : 'Loading portfolio data...'}
-          </Typography>
-        </Box>
+          </div>
+        </div>
       )}
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" gutterBottom>
             Data Status
-          </Typography>
+          </div>
           
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1">Performance Data:</Typography>
+          <div  sx={{ mb: 2 }}>
+            <div  variant="subtitle1">Performance Data:</div>
             {performanceData ? (
-              <Typography color="success.main">
+              <div  color="success.main">
                 ✅ Loaded ({performanceData.data?.performance?.length || 0} data points)
-              </Typography>
+              </div>
             ) : (
-              <Typography color="error.main">❌ Not loaded</Typography>
+              <div  color="error.main">❌ Not loaded</div>
             )}
-          </Box>
+          </div>
 
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1">Analytics Data:</Typography>
+          <div  sx={{ mb: 2 }}>
+            <div  variant="subtitle1">Analytics Data:</div>
             {analyticsData ? (
-              <Typography color="success.main">
+              <div  color="success.main">
                 ✅ Loaded ({analyticsData.data?.holdings?.length || 0} holdings)
-              </Typography>
+              </div>
             ) : (
-              <Typography color="error.main">❌ Not loaded</Typography>
+              <div  color="error.main">❌ Not loaded</div>
             )}
-          </Box>
+          </div>
 
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button onClick={retryFetch} variant="outlined">
+          <div  sx={{ display: 'flex', gap: 2 }}>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={retryFetch} variant="outlined">
               Reload Data
-            </Button>
-            <Button onClick={clearDebugInfo} variant="outlined">
+            </button>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={clearDebugInfo} variant="outlined">
               Clear Debug Log
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" gutterBottom>
             Debug Log ({debugInfo.length} entries):
-          </Typography>
-          <Box sx={{ maxHeight: 400, overflow: 'auto', bgcolor: 'grey.50', p: 1 }}>
+          </div>
+          <div  sx={{ maxHeight: 400, overflow: 'auto', bgcolor: 'grey.50', p: 1 }}>
             {debugInfo.map((info, index) => (
-              <Typography 
+              <div  
                 key={index} 
                 variant="body2" 
                 sx={{ 
@@ -198,12 +198,12 @@ const PortfolioPerformanceDebug = () => {
                 }}
               >
                 {info}
-              </Typography>
+              </div>
             ))}
-          </Box>
-        </CardContent>
-      </Card>
-    </Container>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

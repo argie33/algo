@@ -12,7 +12,6 @@ import {
   InputAdornment,
   IconButton
 } from '@mui/material';
-import { Visibility, VisibilityOff, LockReset as ResetIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
 function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }) {
@@ -81,27 +80,27 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+    <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
+        <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
           <ResetIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h4" component="h1" color="primary">
+          <div  variant="h4" component="h1" color="primary">
             Set New Password
-          </Typography>
-        </Box>
+          </div>
+        </div>
 
-        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
+        <div  variant="body1" color="text.secondary" align="center" mb={3}>
           Enter the code from your email and choose a new password
-        </Typography>
+        </div>
 
         {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
             {displayError}
-          </Alert>
+          </div>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField
+        <div  component="form" onSubmit={handleSubmit} noValidate>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="confirmationCode"
             name="confirmationCode"
@@ -117,7 +116,7 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             inputProps={{ maxLength: 6 }}
           />
 
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="newPassword"
             name="newPassword"
@@ -133,20 +132,20 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
+                  <button className="p-2 rounded-full hover:bg-gray-100"
                     aria-label="toggle password visibility"
                     onClick={() => setShowPassword(!showPassword)}
                     edge="end"
                     disabled={isLoading}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
+                  </button>
                 </InputAdornment>
               )
             }}
           />
 
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             fullWidth
             id="confirmPassword"
             name="confirmPassword"
@@ -161,32 +160,32 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
+                  <button className="p-2 rounded-full hover:bg-gray-100"
                     aria-label="toggle confirm password visibility"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     edge="end"
                     disabled={isLoading}
                   >
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
+                  </button>
                 </InputAdornment>
               )
             }}
           />
 
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <ResetIcon />}
+            startIcon={isLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <ResetIcon />}
           >
             {isLoading ? 'Resetting...' : 'Reset Password'}
-          </Button>
+          </button>
 
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2" color="text.secondary">
+          <div  textAlign="center" mt={2}>
+            <div  variant="body2" color="text.secondary">
               <Link
                 component="button"
                 type="button"
@@ -197,11 +196,11 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
               >
                 Back to Sign In
               </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -265,7 +265,7 @@ function TabPanel({ children, value, index, ...other }) {
       aria-labelledby={`commodities-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <div  sx={{ py: 3 }}>{children}</div>}
     </div>
   );
 }
@@ -283,7 +283,7 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <Card 
+      <div className="bg-white shadow-md rounded-lg" 
         sx={{ 
           height: 280,
           cursor: 'pointer',
@@ -298,18 +298,18 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
         }}
         onClick={() => onClick(category)}
       >
-        <CardHeader
+        <div className="bg-white shadow-md rounded-lg"Header
           avatar={
-            <Avatar sx={{ bgcolor: category.color, width: 48, height: 48 }}>
+            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: category.color, width: 48, height: 48 }}>
               <Icon sx={{ fontSize: 28 }} />
-            </Avatar>
+            </div>
           }
           title={
-            <Box display="flex" alignItems="center" gap={1}>
-              <Typography variant="h6" fontWeight="bold">
+            <div  display="flex" alignItems="center" gap={1}>
+              <div  variant="h6" fontWeight="bold">
                 {category.name}
-              </Typography>
-              <Chip 
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={`${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%`}
                 size="small"
                 sx={{ 
@@ -318,42 +318,42 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
                   fontWeight: 'bold'
                 }}
               />
-            </Box>
+            </div>
           }
           subheader={category.description}
         />
-        <CardContent>
-          <Stack spacing={2}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Typography variant="body2" color="textSecondary">
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="flex flex-col space-y-2" spacing={2}>
+            <div  display="flex" justifyContent="space-between" alignItems="center">
+              <div  variant="body2" color="textSecondary">
                 {data.length} commodities
-              </Typography>
-              <Box display="flex" gap={1}>
-                <Chip 
+              </div>
+              <div  display="flex" gap={1}>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`${gainers} ↑`} 
                   size="small" 
                   color="success" 
                   variant="outlined"
                 />
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={`${losers} ↓`} 
                   size="small" 
                   color="error" 
                   variant="outlined"
                 />
-              </Box>
-            </Box>
+              </div>
+            </div>
             
-            <Box>
-              <Typography variant="caption" color="textSecondary">
+            <div>
+              <div  variant="caption" color="textSecondary">
                 Key Factors:
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
+              </div>
+              <div  variant="body2" sx={{ mt: 0.5 }}>
                 {category.keyFactors.slice(0, 2).join(', ')}
-              </Typography>
-            </Box>
+              </div>
+            </div>
             
-            <LinearProgress
+            <div className="w-full bg-gray-200 rounded-full h-2"
               variant="determinate"
               value={Math.abs(avgChange) * 10}
               sx={{
@@ -366,9 +366,9 @@ const CommodityCard = ({ category, data, onClick, isSelected }) => {
                 }
               }}
             />
-          </Stack>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 };
@@ -384,11 +384,11 @@ const TradingSignal = ({ signal }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card sx={{ mb: 2, border: `1px solid ${strength.color + '4D'}` }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={2} mb={1}>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2, border: `1px solid ${strength.color + '4D'}` }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  display="flex" alignItems="center" gap={2} mb={1}>
             <SignalIcon sx={{ color: strength.color }} />
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={signal.signal}
               size="small"
               sx={{ 
@@ -397,7 +397,7 @@ const TradingSignal = ({ signal }) => {
                 fontWeight: 'bold'
               }}
             />
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={signal.strength}
               size="small"
               sx={{ 
@@ -405,21 +405,21 @@ const TradingSignal = ({ signal }) => {
                 color: 'white'
               }}
             />
-            <Chip 
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={signal.timeframe}
               size="small"
               variant="outlined"
             />
-            <Box ml="auto">
-              <Typography variant="caption" color="textSecondary">
+            <div  ml="auto">
+              <div  variant="caption" color="textSecondary">
                 Confidence: {signal.confidence}%
-              </Typography>
-            </Box>
-          </Box>
-          <Typography variant="body2" sx={{ mb: 1 }}>
+              </div>
+            </div>
+          </div>
+          <div  variant="body2" sx={{ mb: 1 }}>
             {signal.reason}
-          </Typography>
-          <LinearProgress 
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2" 
             variant="determinate" 
             value={signal.confidence} 
             sx={{
@@ -432,8 +432,8 @@ const TradingSignal = ({ signal }) => {
               }
             }}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </motion.div>
   );
 };
@@ -443,54 +443,54 @@ const PriceTable = ({ data, loading, onRowClick }) => {
   
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
+      <div  sx={{ p: 3 }}>
         {[...Array(8)].map((_, i) => (
-          <Box key={i} sx={{ mb: 2 }}>
+          <div  key={i} sx={{ mb: 2 }}>
             <Skeleton variant="rectangular" height={60} />
-          </Box>
+          </div>
         ))}
-      </Box>
+      </div>
     );
   }
   
   return (
-    <TableContainer>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>
-              <Typography variant="subtitle2" fontWeight="bold">
+    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+              <div  variant="subtitle2" fontWeight="bold">
                 Commodity
-              </Typography>
-            </TableCell>
-            <TableCell align="right">
-              <Typography variant="subtitle2" fontWeight="bold">
+              </div>
+            </td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+              <div  variant="subtitle2" fontWeight="bold">
                 Price
-              </Typography>
-            </TableCell>
-            <TableCell align="right">
-              <Typography variant="subtitle2" fontWeight="bold">
+              </div>
+            </td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+              <div  variant="subtitle2" fontWeight="bold">
                 Change
-              </Typography>
-            </TableCell>
-            <TableCell align="right">
-              <Typography variant="subtitle2" fontWeight="bold">
+              </div>
+            </td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+              <div  variant="subtitle2" fontWeight="bold">
                 % Change
-              </Typography>
-            </TableCell>
-            <TableCell align="center">
-              <Typography variant="subtitle2" fontWeight="bold">
+              </div>
+            </td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+              <div  variant="subtitle2" fontWeight="bold">
                 Trend
-              </Typography>
-            </TableCell>
-            <TableCell align="center">
-              <Typography variant="subtitle2" fontWeight="bold">
+              </div>
+            </td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+              <div  variant="subtitle2" fontWeight="bold">
                 Score
-              </Typography>
-            </TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+              </div>
+            </td>
+          </tr>
+        </thead>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
           {data.map((item, index) => (
             <motion.tr
               key={item.symbol}
@@ -500,9 +500,9 @@ const PriceTable = ({ data, loading, onRowClick }) => {
               style={{ cursor: 'pointer' }}
               onClick={() => onRowClick(item)}
             >
-              <TableCell>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Avatar 
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  display="flex" alignItems="center" gap={2}>
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" 
                     sx={{ 
                       width: 32, 
                       height: 32,
@@ -512,24 +512,24 @@ const PriceTable = ({ data, loading, onRowClick }) => {
                     }}
                   >
                     {item.symbol.slice(0, 2)}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
+                  </div>
+                  <div>
+                    <div  variant="body2" fontWeight="medium">
                       {item.name}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
+                    </div>
+                    <div  variant="caption" color="textSecondary">
                       {item.symbol}
-                    </Typography>
-                  </Box>
-                </Box>
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2" fontWeight="bold">
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                <div  variant="body2" fontWeight="bold">
                   ${item.price?.toFixed(2)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography 
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                <div  
                   variant="body2" 
                   sx={{ 
                     color: (item.change_amount || 0) >= 0 ? COLORS.success : COLORS.error,
@@ -537,10 +537,10 @@ const PriceTable = ({ data, loading, onRowClick }) => {
                   }}
                 >
                   {(item.change_amount || 0) >= 0 ? '+' : ''}{item.change_amount?.toFixed(3)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Chip
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                   label={`${(item.change_percent || 0) >= 0 ? '+' : ''}${item.change_percent?.toFixed(2)}%`}
                   size="small"
                   sx={{
@@ -549,17 +549,17 @@ const PriceTable = ({ data, loading, onRowClick }) => {
                     fontWeight: 'bold'
                   }}
                 />
-              </TableCell>
-              <TableCell align="center">
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
                 {(item.change_percent || 0) > 0 ? (
                   <TrendingUp sx={{ color: COLORS.success }} />
                 ) : (
                   <TrendingDown sx={{ color: COLORS.error }} />
                 )}
-              </TableCell>
-              <TableCell align="center">
-                <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
-                  <CircularProgress
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                <div  display="flex" alignItems="center" justifyContent="center" gap={1}>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"
                     variant="determinate"
                     value={item.overall_score || 50}
                     size={32}
@@ -568,16 +568,16 @@ const PriceTable = ({ data, loading, onRowClick }) => {
                       color: getScoreColor(item.overall_score || 50),
                     }}
                   />
-                  <Typography variant="caption" fontWeight="bold">
+                  <div  variant="caption" fontWeight="bold">
                     {item.overall_score || 50}
-                  </Typography>
-                </Box>
-              </TableCell>
+                  </div>
+                </div>
+              </td>
             </motion.tr>
           ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+        </tbody>
+      </table>
+    </div>
   );
 };
 
@@ -773,11 +773,11 @@ const CommoditiesEnhanced = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Header */}
-        <Grid item xs={12}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Typography variant="h4" fontWeight="bold" sx={{ 
+        <div className="grid" item xs={12}>
+          <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <div  variant="h4" fontWeight="bold" sx={{ 
               background: `linear-gradient(45deg, ${COLORS.primary}, ${COLORS.secondary})`,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -787,18 +787,18 @@ const CommoditiesEnhanced = () => {
             }}>
               <Assessment />
               Commodities Trading Dashboard
-            </Typography>
-            <Box display="flex" gap={1}>
-              <FormControlLabel
-                control={<Switch checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />}
+            </div>
+            <div  display="flex" gap={1}>
+              <div className="mb-4"Label
+                control={<input type="checkbox" className="toggle" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />}
                 label="Auto Refresh"
               />
-              <IconButton onClick={handleRefresh} color="primary">
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh} color="primary">
                 <Refresh />
-              </IconButton>
-            </Box>
-          </Box>
-        </Grid>
+              </button>
+            </div>
+          </div>
+        </div>
         
         {/* Category Cards */}
         {Object.entries(COMMODITY_CATEGORIES).map(([key, category]) => {
@@ -807,34 +807,34 @@ const CommoditiesEnhanced = () => {
           });
           
           return (
-            <Grid item xs={12} sm={6} md={4} lg={2} key={key}>
+            <div className="grid" item xs={12} sm={6} md={4} lg={2} key={key}>
               <CommodityCard 
                 category={category}
                 data={categoryData}
                 onClick={handleCategorySelect}
                 isSelected={selectedCategory?.name === category.name}
               />
-            </Grid>
+            </div>
           );
         })}
 
         {/* Live Price Table */}
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title={
-                <Box display="flex" alignItems="center" gap={1}>
+                <div  display="flex" alignItems="center" gap={1}>
                   <ShowChart />
                   Live Commodity Prices
-                  <Badge 
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" 
                     badgeContent={pricesData.length} 
                     color="primary"
                     sx={{ ml: 1 }}
                   />
-                </Box>
+                </div>
               }
               action={
-                <Chip 
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label="LIVE" 
                   size="small" 
                   sx={{ 
@@ -846,16 +846,16 @@ const CommoditiesEnhanced = () => {
                 />
               }
             />
-            <CardContent sx={{ p: 0 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 0 }}>
               <PriceTable 
                 data={pricesData} 
                 loading={loading} 
                 onRowClick={handleCommoditySelect}
               />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 
@@ -865,47 +865,47 @@ const CommoditiesEnhanced = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Header */}
-        <Grid item xs={12}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Typography variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div className="grid" item xs={12}>
+          <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <div  variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <BarChart />
               Commitment of Traders Analysis
-            </Typography>
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Select Commodity</InputLabel>
-              <Select
+            </div>
+            <div className="mb-4" sx={{ minWidth: 200 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Commodity</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedCommodity}
                 onChange={(e) => setSelectedCommodity(e.target.value)}
                 label="Select Commodity"
               >
                 {pricesData.map((item) => (
-                  <MenuItem key={item.symbol} value={item.symbol}>
+                  <option  key={item.symbol} value={item.symbol}>
                     {item.symbol} - {item.name}
-                  </MenuItem>
+                  </option>
                 ))}
-              </Select>
-            </FormControl>
-          </Box>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="subtitle2">Understanding COT Data</Typography>
-            <Typography variant="body2">
+              </select>
+            </div>
+          </div>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
+            <div  variant="subtitle2">Understanding COT Data</div>
+            <div  variant="body2">
               Commercial traders are typically producers and consumers (smart money). 
               Non-commercial traders are speculators and hedge funds. When commercials are net long, 
               it's generally bullish; when net short, it's bearish.
-            </Typography>
-          </Alert>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* COT Charts */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Net Positions Over Time"
               subheader="Commercial vs Non-Commercial Positioning"
             />
-            <CardContent>
+            <div className="bg-white shadow-md rounded-lg"Content>
               <ResponsiveContainer width="100%" height={400}>
                 <ComposedChart data={cotData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -934,116 +934,116 @@ const CommoditiesEnhanced = () => {
                   />
                 </ComposedChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* COT Summary */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader title="Current COT Analysis" />
-            <CardContent>
-              <Stack spacing={3}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Current COT Analysis" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={3}>
                 {cotData.length > 0 && (
                   <>
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
+                    <div>
+                      <div  variant="subtitle2" gutterBottom>
                         Commercial Net Position
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="h6" color={cotData[0].commercial_net > 0 ? "success.main" : "error.main"}>
+                      </div>
+                      <div  display="flex" alignItems="center" gap={1}>
+                        <div  variant="h6" color={cotData[0].commercial_net > 0 ? "success.main" : "error.main"}>
                           {cotData[0].commercial_net > 0 ? '+' : ''}{cotData[0].commercial_net?.toLocaleString()}
-                        </Typography>
-                        <Chip 
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={cotData[0].commercial_net > 0 ? "Bullish" : "Bearish"} 
                           size="small" 
                           color={cotData[0].commercial_net > 0 ? "success" : "error"}
                         />
-                      </Box>
-                      <Typography variant="caption" color="textSecondary">
+                      </div>
+                      <div  variant="caption" color="textSecondary">
                         {cotData[0].commercial_net_pct?.toFixed(1)}% of open interest
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
 
-                    <Divider />
+                    <hr className="border-gray-200" />
 
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
+                    <div>
+                      <div  variant="subtitle2" gutterBottom>
                         Non-Commercial Net Position
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="h6" color={cotData[0].non_commercial_net > 0 ? "success.main" : "error.main"}>
+                      </div>
+                      <div  display="flex" alignItems="center" gap={1}>
+                        <div  variant="h6" color={cotData[0].non_commercial_net > 0 ? "success.main" : "error.main"}>
                           {cotData[0].non_commercial_net > 0 ? '+' : ''}{cotData[0].non_commercial_net?.toLocaleString()}
-                        </Typography>
-                        <Chip 
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={cotData[0].non_commercial_net > 0 ? "Long" : "Short"} 
                           size="small" 
                           color={cotData[0].non_commercial_net > 0 ? "success" : "error"}
                         />
-                      </Box>
-                      <Typography variant="caption" color="textSecondary">
+                      </div>
+                      <div  variant="caption" color="textSecondary">
                         {cotData[0].non_commercial_net_pct?.toFixed(1)}% of open interest
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
 
-                    <Divider />
+                    <hr className="border-gray-200" />
 
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
+                    <div>
+                      <div  variant="subtitle2" gutterBottom>
                         Smart Money Signal
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
+                      </div>
+                      <div  display="flex" alignItems="center" gap={1}>
                         <CheckCircle sx={{ color: 'success.main' }} />
-                        <Typography variant="body2">
+                        <div  variant="body2">
                           {cotData[0].commercial_net > 0 
                             ? "Commercial traders are net long, suggesting bullish outlook"
                             : "Commercial traders are net short, suggesting bearish outlook"
                           }
-                        </Typography>
-                      </Box>
-                    </Box>
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Trading Signals */}
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title={
-                <Box display="flex" alignItems="center" gap={1}>
+                <div  display="flex" alignItems="center" gap={1}>
                   <SignalCellular4Bar />
                   Trading Signals
-                  <Badge badgeContent={tradingSignals.length} color="primary" />
-                </Box>
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" badgeContent={tradingSignals.length} color="primary" />
+                </div>
               }
             />
-            <CardContent>
+            <div className="bg-white shadow-md rounded-lg"Content>
               {tradingSignals.length > 0 ? (
-                <Grid container spacing={2}>
+                <div className="grid" container spacing={2}>
                   {tradingSignals.map((signal, index) => (
-                    <Grid item xs={12} md={6} key={index}>
+                    <div className="grid" item xs={12} md={6} key={index}>
                       <TradingSignal signal={signal} />
-                    </Grid>
+                    </div>
                   ))}
-                </Grid>
+                </div>
               ) : (
-                <Box textAlign="center" py={4}>
-                  <Typography variant="h6" color="textSecondary">
+                <div  textAlign="center" py={4}>
+                  <div  variant="h6" color="textSecondary">
                     No trading signals available
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
+                  </div>
+                  <div  variant="body2" color="textSecondary">
                     Select a commodity to view analysis
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 
@@ -1053,39 +1053,39 @@ const CommoditiesEnhanced = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Header */}
-        <Grid item xs={12}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Typography variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div className="grid" item xs={12}>
+          <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <div  variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Timeline />
               Seasonal Analysis & Patterns
-            </Typography>
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Select Commodity</InputLabel>
-              <Select
+            </div>
+            <div className="mb-4" sx={{ minWidth: 200 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Commodity</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedCommodity}
                 onChange={(e) => setSelectedCommodity(e.target.value)}
                 label="Select Commodity"
               >
                 {pricesData.map((item) => (
-                  <MenuItem key={item.symbol} value={item.symbol}>
+                  <option  key={item.symbol} value={item.symbol}>
                     {item.symbol} - {item.name}
-                  </MenuItem>
+                  </option>
                 ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </Grid>
+              </select>
+            </div>
+          </div>
+        </div>
 
         {/* Seasonal Chart */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardHeader 
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Seasonal Performance Patterns"
               subheader="Historical win rates and average returns by month"
             />
-            <CardContent>
+            <div className="bg-white shadow-md rounded-lg"Content>
               <ResponsiveContainer width="100%" height={400}>
                 <ComposedChart data={seasonalityData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -1110,16 +1110,16 @@ const CommoditiesEnhanced = () => {
                   />
                 </ComposedChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Seasonal Insights */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader title="Seasonal Insights" />
-            <CardContent>
-              <Stack spacing={2}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Seasonal Insights" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={2}>
                 {seasonalityData.length > 0 ? (
                   <>
                     {/* Current month highlight */}
@@ -1127,14 +1127,14 @@ const CommoditiesEnhanced = () => {
                       const currentMonth = new Date().getMonth() + 1;
                       const currentSeasonality = seasonalityData.find(s => s.month === currentMonth);
                       return currentSeasonality ? (
-                        <Alert severity={currentSeasonality.strength === 'Strong' ? 'success' : 
+                        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity={currentSeasonality.strength === 'Strong' ? 'success' : 
                                        currentSeasonality.strength === 'Moderate' ? 'info' : 'warning'}>
-                          <Typography variant="subtitle2">Current Month ({currentSeasonality.month_name})</Typography>
-                          <Typography variant="body2">
+                          <div  variant="subtitle2">Current Month ({currentSeasonality.month_name})</div>
+                          <div  variant="body2">
                             Win Rate: {currentSeasonality.win_rate?.toFixed(1)}% | 
                             Avg Return: {currentSeasonality.avg_return_pct?.toFixed(2)}%
-                          </Typography>
-                        </Alert>
+                          </div>
+                        </div>
                       ) : null;
                     })()}
 
@@ -1149,35 +1149,35 @@ const CommoditiesEnhanced = () => {
                       
                       return (
                         <>
-                          <Alert severity="success">
-                            <Typography variant="subtitle2">Best Month: {bestMonth.month_name}</Typography>
-                            <Typography variant="body2">
+                          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success">
+                            <div  variant="subtitle2">Best Month: {bestMonth.month_name}</div>
+                            <div  variant="body2">
                               Win Rate: {bestMonth.win_rate?.toFixed(1)}% | 
                               Avg Return: {bestMonth.avg_return_pct?.toFixed(2)}%
-                            </Typography>
-                          </Alert>
+                            </div>
+                          </div>
                           
-                          <Alert severity="error">
-                            <Typography variant="subtitle2">Worst Month: {worstMonth.month_name}</Typography>
-                            <Typography variant="body2">
+                          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
+                            <div  variant="subtitle2">Worst Month: {worstMonth.month_name}</div>
+                            <div  variant="body2">
                               Win Rate: {worstMonth.win_rate?.toFixed(1)}% | 
                               Avg Return: {worstMonth.avg_return_pct?.toFixed(2)}%
-                            </Typography>
-                          </Alert>
+                            </div>
+                          </div>
                         </>
                       );
                     })()}
                   </>
                 ) : (
-                  <Typography variant="body2" color="textSecondary">
+                  <div  variant="body2" color="textSecondary">
                     No seasonal data available for selected commodity
-                  </Typography>
+                  </div>
                 )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 
@@ -1187,51 +1187,51 @@ const CommoditiesEnhanced = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Header and Controls */}
-        <Grid item xs={12}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            <Typography variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div className="grid" item xs={12}>
+          <div  display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <div  variant="h5" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ShowChart />
               Technical Analysis & Metrics
-            </Typography>
-            <Box display="flex" gap={2}>
-              <FormControl sx={{ minWidth: 150 }}>
-                <InputLabel>Commodity</InputLabel>
-                <Select
+            </div>
+            <div  display="flex" gap={2}>
+              <div className="mb-4" sx={{ minWidth: 150 }}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Commodity</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedCommodity}
                   onChange={(e) => setSelectedCommodity(e.target.value)}
                   label="Commodity"
                 >
                   {pricesData.map((item) => (
-                    <MenuItem key={item.symbol} value={item.symbol}>
+                    <option  key={item.symbol} value={item.symbol}>
                       {item.symbol} - {item.name}
-                    </MenuItem>
+                    </option>
                   ))}
-                </Select>
-              </FormControl>
+                </select>
+              </div>
 
-              <ButtonGroup variant="outlined">
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group variant="outlined">
                 {['1D', '1W', '1M', '3M', '6M', '1Y'].map((timeframe) => (
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     key={timeframe}
                     variant={selectedTimeframe === timeframe ? 'contained' : 'outlined'}
                     onClick={() => setSelectedTimeframe(timeframe)}
                     size="small"
                   >
                     {timeframe}
-                  </Button>
+                  </button>
                 ))}
               </ButtonGroup>
-            </Box>
-          </Box>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Price Chart */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardHeader title={`${selectedCommodity} Price Chart`} />
-            <CardContent>
+        <div className="grid" item xs={12} md={8}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title={`${selectedCommodity} Price Chart`} />
+            <div className="bg-white shadow-md rounded-lg"Content>
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={historyData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -1247,146 +1247,146 @@ const CommoditiesEnhanced = () => {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
         {/* Technical Indicators */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardHeader title="Technical Indicators" />
-            <CardContent>
-              <Stack spacing={3}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Technical Indicators" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={3}>
                 {commodityMetrics ? (
                   <>
-                    <Box>
-                      <Typography variant="subtitle2">RSI (14)</Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="h6">{commodityMetrics.rsi?.toFixed(1)}</Typography>
-                        <Chip 
+                    <div>
+                      <div  variant="subtitle2">RSI (14)</div>
+                      <div  display="flex" alignItems="center" gap={1}>
+                        <div  variant="h6">{commodityMetrics.rsi?.toFixed(1)}</div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={commodityMetrics.rsi < 30 ? "Oversold" : 
                                  commodityMetrics.rsi > 70 ? "Overbought" : "Neutral"} 
                           size="small" 
                           color={commodityMetrics.rsi < 30 ? "success" : 
                                  commodityMetrics.rsi > 70 ? "error" : "default"}
                         />
-                      </Box>
-                      <LinearProgress 
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2" 
                         variant="determinate" 
                         value={commodityMetrics.rsi} 
                         sx={{ mt: 1 }}
                       />
-                    </Box>
+                    </div>
 
-                    <Box>
-                      <Typography variant="subtitle2">Price Position (52W)</Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="h6">{(commodityMetrics.price_position_52w * 100)?.toFixed(1)}%</Typography>
-                        <Chip 
+                    <div>
+                      <div  variant="subtitle2">Price Position (52W)</div>
+                      <div  display="flex" alignItems="center" gap={1}>
+                        <div  variant="h6">{(commodityMetrics.price_position_52w * 100)?.toFixed(1)}%</div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={commodityMetrics.price_position_52w < 0.3 ? "Near Lows" : 
                                  commodityMetrics.price_position_52w > 0.7 ? "Near Highs" : "Mid-Range"} 
                           size="small" 
                           color={commodityMetrics.price_position_52w < 0.3 ? "success" : 
                                  commodityMetrics.price_position_52w > 0.7 ? "error" : "default"}
                         />
-                      </Box>
-                      <LinearProgress 
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2" 
                         variant="determinate" 
                         value={commodityMetrics.price_position_52w * 100} 
                         sx={{ mt: 1 }}
                       />
-                    </Box>
+                    </div>
 
-                    <Box>
-                      <Typography variant="subtitle2">Overall Score</Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <CircularProgress
+                    <div>
+                      <div  variant="subtitle2">Overall Score</div>
+                      <div  display="flex" alignItems="center" gap={1}>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"
                           variant="determinate"
                           value={commodityMetrics.overall_score}
                           size={40}
                           thickness={4}
                           sx={{ color: getScoreColor(commodityMetrics.overall_score) }}
                         />
-                        <Typography variant="h6">{commodityMetrics.overall_score}</Typography>
-                      </Box>
-                    </Box>
+                        <div  variant="h6">{commodityMetrics.overall_score}</div>
+                      </div>
+                    </div>
 
-                    <Box>
-                      <Typography variant="subtitle2">Support/Resistance</Typography>
-                      <Typography variant="body2" color="error.main">
+                    <div>
+                      <div  variant="subtitle2">Support/Resistance</div>
+                      <div  variant="body2" color="error.main">
                         Support: ${commodityMetrics.support_level?.toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" color="success.main">
+                      </div>
+                      <div  variant="body2" color="success.main">
                         Resistance: ${commodityMetrics.resistance_level?.toFixed(2)}
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
 
-                    <Box>
-                      <Typography variant="subtitle2">Volatility (Annual)</Typography>
-                      <Typography variant="h6">{commodityMetrics.volatility_annual?.toFixed(1)}%</Typography>
-                      <LinearProgress 
+                    <div>
+                      <div  variant="subtitle2">Volatility (Annual)</div>
+                      <div  variant="h6">{commodityMetrics.volatility_annual?.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2" 
                         variant="determinate" 
                         value={Math.min(commodityMetrics.volatility_annual, 100)} 
                         sx={{ mt: 1 }}
                       />
-                    </Box>
+                    </div>
                   </>
                 ) : (
-                  <Typography variant="body2" color="textSecondary">
+                  <div  variant="body2" color="textSecondary">
                     Loading technical indicators...
-                  </Typography>
+                  </div>
                 )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 
   if (error) {
     return (
-      <Container maxWidth="xl" sx={{ py: 3 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6">Error Loading Data</Typography>
-          <Typography variant="body2">{String(error)}</Typography>
-        </Alert>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+          <div  variant="h6">Error Loading Data</div>
+          <div  variant="body2">{String(error)}</div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs 
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" 
           value={activeTab} 
           onChange={(_, newValue) => setActiveTab(newValue)}
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Market Overview" icon={<Assessment />} />
-          <Tab label="COT Analysis" icon={<BarChart />} />
-          <Tab label="Seasonal Patterns" icon={<Timeline />} />
-          <Tab label="Technical Analysis" icon={<ShowChart />} />
-        </Tabs>
-      </Box>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Overview" icon={<Assessment />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="COT Analysis" icon={<BarChart />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Seasonal Patterns" icon={<Timeline />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Technical Analysis" icon={<ShowChart />} />
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
         {renderMarketOverview()}
-      </TabPanel>
+      </div>
 
-      <TabPanel value={activeTab} index={1}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
         {renderCOTAnalysis()}
-      </TabPanel>
+      </div>
 
-      <TabPanel value={activeTab} index={2}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
         {renderSeasonalAnalysis()}
-      </TabPanel>
+      </div>
 
-      <TabPanel value={activeTab} index={3}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
         {renderTechnicalAnalysis()}
-      </TabPanel>
-    </Container>
+      </div>
+    </div>
   );
 };
 

@@ -332,25 +332,25 @@ const SettingsManager = () => {
   };
 
   const renderAPIKeysTab = () => (
-    <Grid container spacing={3}>
+    <div className="grid" container spacing={3}>
       {/* Alpaca */}
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <AccountBalance sx={{ mr: 1 }} />
-              <Typography variant="h6">Alpaca Trading</Typography>
-              <Chip 
+              <div  variant="h6">Alpaca Trading</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={settings.apiKeys.alpaca.enabled ? 'Connected' : 'Disconnected'} 
                 color={settings.apiKeys.alpaca.enabled ? 'success' : 'default'}
                 size="small"
                 sx={{ ml: 2 }}
               />
-            </Box>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12} md={6}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="API Key ID"
                   type={showPasswords.alpacaKey ? 'text' : 'password'}
@@ -362,21 +362,21 @@ const SettingsManager = () => {
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           onClick={() => setShowPasswords(prev => ({
                             ...prev,
                             alpacaKey: !prev.alpacaKey
                           }))}
                         >
                           {showPasswords.alpacaKey ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                        </button>
                       </InputAdornment>
                     )
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
+              </div>
+              <div className="grid" item xs={12} md={6}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Secret Key"
                   type={showPasswords.alpacaSecret ? 'text' : 'password'}
@@ -388,24 +388,24 @@ const SettingsManager = () => {
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           onClick={() => setShowPasswords(prev => ({
                             ...prev,
                             alpacaSecret: !prev.alpacaSecret
                           }))}
                         >
                           {showPasswords.alpacaSecret ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                        </button>
                       </InputAdornment>
                     )
                   }}
                 />
-              </Grid>
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                  <FormControlLabel
+              </div>
+              <div className="grid" item xs={12}>
+                <div  sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={settings.apiKeys.alpaca.paperTrading}
                         onChange={(e) => updateSettings('apiKeys', 'alpaca', {
                           ...settings.apiKeys.alpaca,
@@ -415,9 +415,9 @@ const SettingsManager = () => {
                     }
                     label="Paper Trading"
                   />
-                  <FormControlLabel
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={settings.apiKeys.alpaca.enabled}
                         onChange={(e) => updateSettings('apiKeys', 'alpaca', {
                           ...settings.apiKeys.alpaca,
@@ -427,52 +427,52 @@ const SettingsManager = () => {
                     }
                     label="Enabled"
                   />
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="contained"
                     onClick={() => saveApiKeyLocal('alpaca', settings.apiKeys.alpaca)}
                     disabled={!settings.apiKeys.alpaca.keyId || !settings.apiKeys.alpaca.secretKey}
                     sx={{ mr: 1 }}
                   >
                     Save API Key
-                  </Button>
-                  <Button
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     onClick={() => testConnection('alpaca')}
                     disabled={testingConnection || !settings.apiKeys.alpaca.id}
                   >
                     Test Connection
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
+                  </button>
+                </div>
+              </div>
+            </div>
             
             {connectionResults.alpaca && (
-              <Alert severity={connectionResults.alpaca.status} sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity={connectionResults.alpaca.status} sx={{ mt: 2 }}>
                 {connectionResults.alpaca.message}
-              </Alert>
+              </div>
             )}
-          </CardContent>
-        </Card>
-      </Grid>
+          </div>
+        </div>
+      </div>
 
       {/* Polygon */}
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Assessment sx={{ mr: 1 }} />
-              <Typography variant="h6">Polygon Market Data</Typography>
-              <Chip 
+              <div  variant="h6">Polygon Market Data</div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={settings.apiKeys.polygon.enabled ? 'Connected' : 'Disconnected'} 
                 color={settings.apiKeys.polygon.enabled ? 'success' : 'default'}
                 size="small"
                 sx={{ ml: 2 }}
               />
-            </Box>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={8}>
-                <TextField
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12} md={8}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="API Key"
                   type={showPasswords.polygonKey ? 'text' : 'password'}
@@ -484,24 +484,24 @@ const SettingsManager = () => {
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
+                        <button className="p-2 rounded-full hover:bg-gray-100"
                           onClick={() => setShowPasswords(prev => ({
                             ...prev,
                             polygonKey: !prev.polygonKey
                           }))}
                         >
                           {showPasswords.polygonKey ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                        </button>
                       </InputAdornment>
                     )
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                  <FormControlLabel
+              </div>
+              <div className="grid" item xs={12} md={4}>
+                <div  sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={settings.apiKeys.polygon.enabled}
                         onChange={(e) => updateSettings('apiKeys', 'polygon', {
                           ...settings.apiKeys.polygon,
@@ -511,104 +511,104 @@ const SettingsManager = () => {
                     }
                     label="Enabled"
                   />
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="contained"
                     onClick={() => saveApiKeyLocal('polygon', settings.apiKeys.polygon)}
                     disabled={!settings.apiKeys.polygon.apiKey}
                     sx={{ mr: 1 }}
                   >
                     Save API Key
-                  </Button>
-                  <Button
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     onClick={() => testConnection('polygon')}
                     disabled={testingConnection || !settings.apiKeys.polygon.id}
                   >
                     Test Connection
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
+                  </button>
+                </div>
+              </div>
+            </div>
             
             {connectionResults.polygon && (
-              <Alert severity={connectionResults.polygon.status} sx={{ mt: 2 }}>
+              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity={connectionResults.polygon.status} sx={{ mt: 2 }}>
                 {connectionResults.polygon.message}
-              </Alert>
+              </div>
             )}
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderTradingTab = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
               Order Defaults
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Default Order Type</InputLabel>
-                  <Select
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Default Order Type</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.trading.defaultOrderType}
                     onChange={(e) => updateSettings('trading', 'defaultOrderType', e.target.value)}
                   >
-                    <MenuItem value="market">Market</MenuItem>
-                    <MenuItem value="limit">Limit</MenuItem>
-                    <MenuItem value="stop">Stop</MenuItem>
-                    <MenuItem value="stop_limit">Stop Limit</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="market">Market</option>
+                    <option  value="limit">Limit</option>
+                    <option  value="stop">Stop</option>
+                    <option  value="stop_limit">Stop Limit</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Time in Force</InputLabel>
-                  <Select
+              <div className="grid" item xs={12}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time in Force</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.trading.defaultTimeInForce}
                     onChange={(e) => updateSettings('trading', 'defaultTimeInForce', e.target.value)}
                   >
-                    <MenuItem value="day">Day</MenuItem>
-                    <MenuItem value="gtc">Good Till Canceled</MenuItem>
-                    <MenuItem value="ioc">Immediate or Cancel</MenuItem>
-                    <MenuItem value="fok">Fill or Kill</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="day">Day</option>
+                    <option  value="gtc">Good Till Canceled</option>
+                    <option  value="ioc">Immediate or Cancel</option>
+                    <option  value="fok">Fill or Kill</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={12}>
-                <FormControlLabel
+              <div className="grid" item xs={12}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.trading.enableAfterHours}
                       onChange={(e) => updateSettings('trading', 'enableAfterHours', e.target.checked)}
                     />
                   }
                   label="Enable After Hours Trading"
                 />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
               Risk Management
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Max Position Size (%)"
                   type="number"
@@ -618,10 +618,10 @@ const SettingsManager = () => {
                     endAdornment: <InputAdornment position="end">%</InputAdornment>
                   }}
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12}>
-                <TextField
+              <div className="grid" item xs={12}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Max Daily Loss (%)"
                   type="number"
@@ -631,10 +631,10 @@ const SettingsManager = () => {
                     endAdornment: <InputAdornment position="end">%</InputAdornment>
                   }}
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12}>
-                <TextField
+              <div className="grid" item xs={12}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Risk Per Trade (%)"
                   type="number"
@@ -644,34 +644,34 @@ const SettingsManager = () => {
                     endAdornment: <InputAdornment position="end">%</InputAdornment>
                   }}
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12}>
-                <TextField
+              <div className="grid" item xs={12}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   fullWidth
                   label="Max Open Positions"
                   type="number"
                   value={settings.trading.maxOpenPositions}
                   onChange={(e) => updateSettings('trading', 'maxOpenPositions', parseInt(e.target.value))}
                 />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Automatic Stop Loss & Take Profit
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <FormControlLabel
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12} md={6}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.trading.autoStopLoss}
                       onChange={(e) => updateSettings('trading', 'autoStopLoss', e.target.checked)}
                     />
@@ -679,7 +679,7 @@ const SettingsManager = () => {
                   label="Auto Stop Loss"
                 />
                 {settings.trading.autoStopLoss && (
-                  <TextField
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     fullWidth
                     label="Default Stop Loss (%)"
                     type="number"
@@ -691,12 +691,12 @@ const SettingsManager = () => {
                     sx={{ mt: 1 }}
                   />
                 )}
-              </Grid>
+              </div>
               
-              <Grid item xs={12} md={6}>
-                <FormControlLabel
+              <div className="grid" item xs={12} md={6}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.trading.autoTakeProfit}
                       onChange={(e) => updateSettings('trading', 'autoTakeProfit', e.target.checked)}
                     />
@@ -704,7 +704,7 @@ const SettingsManager = () => {
                   label="Auto Take Profit"
                 />
                 {settings.trading.autoTakeProfit && (
-                  <TextField
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     fullWidth
                     label="Default Take Profit (%)"
                     type="number"
@@ -716,281 +716,281 @@ const SettingsManager = () => {
                     sx={{ mt: 1 }}
                   />
                 )}
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderNotificationsTab = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               <Notifications sx={{ mr: 1, verticalAlign: 'middle' }} />
               Notification Preferences
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Typography variant="subtitle1" gutterBottom>Methods</Typography>
-                <FormControlLabel
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12} md={4}>
+                <div  variant="subtitle1" gutterBottom>Methods</div>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.notifications.browser}
                       onChange={(e) => updateSettings('notifications', 'browser', e.target.checked)}
                     />
                   }
                   label="Browser Notifications"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.notifications.email}
                       onChange={(e) => updateSettings('notifications', 'email', e.target.checked)}
                     />
                   }
                   label="Email Notifications"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.notifications.sms}
                       onChange={(e) => updateSettings('notifications', 'sms', e.target.checked)}
                     />
                   }
                   label="SMS Notifications"
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12} md={8}>
-                <Typography variant="subtitle1" gutterBottom>Alert Types</Typography>
-                <Grid container spacing={1}>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
+              <div className="grid" item xs={12} md={8}>
+                <div  variant="subtitle1" gutterBottom>Alert Types</div>
+                <div className="grid" container spacing={1}>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={settings.notifications.priceAlerts}
                           onChange={(e) => updateSettings('notifications', 'priceAlerts', e.target.checked)}
                         />
                       }
                       label="Price Alerts"
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
+                  </div>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={settings.notifications.tradeExecutions}
                           onChange={(e) => updateSettings('notifications', 'tradeExecutions', e.target.checked)}
                         />
                       }
                       label="Trade Executions"
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
+                  </div>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={settings.notifications.portfolioUpdates}
                           onChange={(e) => updateSettings('notifications', 'portfolioUpdates', e.target.checked)}
                         />
                       }
                       label="Portfolio Updates"
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
+                  </div>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={settings.notifications.riskAlerts}
                           onChange={(e) => updateSettings('notifications', 'riskAlerts', e.target.checked)}
                         />
                       }
                       label="Risk Alerts"
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
+                  </div>
+                  <div className="grid" item xs={12} sm={6}>
+                    <div className="mb-4"Label
                       control={
-                        <Switch
+                        <input type="checkbox" className="toggle"
                           checked={settings.notifications.systemUpdates}
                           onChange={(e) => updateSettings('notifications', 'systemUpdates', e.target.checked)}
                         />
                       }
                       label="System Updates"
                     />
-                  </Grid>
-                </Grid>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderDisplayTab = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               <ColorLens sx={{ mr: 1, verticalAlign: 'middle' }} />
               Display Preferences
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Theme</InputLabel>
-                  <Select
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Theme</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.display.theme}
                     onChange={(e) => updateSettings('display', 'theme', e.target.value)}
                   >
-                    <MenuItem value="light">Light</MenuItem>
-                    <MenuItem value="dark">Dark</MenuItem>
-                    <MenuItem value="auto">Auto</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="light">Light</option>
+                    <option  value="dark">Dark</option>
+                    <option  value="auto">Auto</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Currency</InputLabel>
-                  <Select
+              <div className="grid" item xs={12}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.display.currency}
                     onChange={(e) => updateSettings('display', 'currency', e.target.value)}
                   >
-                    <MenuItem value="USD">USD</MenuItem>
-                    <MenuItem value="EUR">EUR</MenuItem>
-                    <MenuItem value="GBP">GBP</MenuItem>
-                    <MenuItem value="JPY">JPY</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="USD">USD</option>
+                    <option  value="EUR">EUR</option>
+                    <option  value="GBP">GBP</option>
+                    <option  value="JPY">JPY</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Date Format</InputLabel>
-                  <Select
+              <div className="grid" item xs={6}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date Format</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.display.dateFormat}
                     onChange={(e) => updateSettings('display', 'dateFormat', e.target.value)}
                   >
-                    <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
-                    <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
-                    <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option  value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    <option  value="YYYY-MM-DD">YYYY-MM-DD</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Time Format</InputLabel>
-                  <Select
+              <div className="grid" item xs={6}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time Format</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.display.timeFormat}
                     onChange={(e) => updateSettings('display', 'timeFormat', e.target.value)}
                   >
-                    <MenuItem value="12h">12 Hour</MenuItem>
-                    <MenuItem value="24h">24 Hour</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
+                    <option  value="12h">12 Hour</option>
+                    <option  value="24h">24 Hour</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+      <div className="grid" item xs={12} md={6}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
               Interface Settings
-            </Typography>
+            </div>
             
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <FormControlLabel
+            <div className="grid" container spacing={2}>
+              <div className="grid" item xs={12}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.display.compactMode}
                       onChange={(e) => updateSettings('display', 'compactMode', e.target.checked)}
                     />
                   }
                   label="Compact Mode"
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12}>
-                <FormControlLabel
+              <div className="grid" item xs={12}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.display.showAdvancedMetrics}
                       onChange={(e) => updateSettings('display', 'showAdvancedMetrics', e.target.checked)}
                     />
                   }
                   label="Show Advanced Metrics"
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12}>
-                <FormControlLabel
+              <div className="grid" item xs={12}>
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={settings.display.autoRefresh}
                       onChange={(e) => updateSettings('display', 'autoRefresh', e.target.checked)}
                     />
                   }
                   label="Auto Refresh"
                 />
-              </Grid>
+              </div>
               
               {settings.display.autoRefresh && (
-                <Grid item xs={12}>
-                  <TextField
+                <div className="grid" item xs={12}>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     fullWidth
                     label="Refresh Interval (seconds)"
                     type="number"
                     value={settings.display.refreshInterval}
                     onChange={(e) => updateSettings('display', 'refreshInterval', parseInt(e.target.value))}
                   />
-                </Grid>
+                </div>
               )}
               
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Default Chart Type</InputLabel>
-                  <Select
+              <div className="grid" item xs={12}>
+                <div className="mb-4" fullWidth>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Default Chart Type</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={settings.display.defaultChartType}
                     onChange={(e) => updateSettings('display', 'defaultChartType', e.target.value)}
                   >
-                    <MenuItem value="candlestick">Candlestick</MenuItem>
-                    <MenuItem value="line">Line</MenuItem>
-                    <MenuItem value="bar">Bar</MenuItem>
-                    <MenuItem value="area">Area</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+                    <option  value="candlestick">Candlestick</option>
+                    <option  value="line">Line</option>
+                    <option  value="bar">Bar</option>
+                    <option  value="area">Area</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h5">
+    <div>
+      <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <div  variant="h5">
           <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
           Settings
-        </Typography>
+        </div>
         
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <div  sx={{ display: 'flex', gap: 1 }}>
           <input
             accept=".json"
             style={{ display: 'none' }}
@@ -999,20 +999,20 @@ const SettingsManager = () => {
             onChange={importSettings}
           />
           <label htmlFor="import-settings">
-            <Button variant="outlined" component="span" size="small">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" component="span" size="small">
               Import
-            </Button>
+            </button>
           </label>
           
-          <Button variant="outlined" onClick={exportSettings} size="small">
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" onClick={exportSettings} size="small">
             Export
-          </Button>
+          </button>
           
-          <Button variant="outlined" onClick={resetSettings} size="small" color="error">
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" onClick={resetSettings} size="small" color="error">
             Reset
-          </Button>
+          </button>
           
-          <Button 
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={() => {
               // Save API keys to backend
@@ -1027,41 +1027,41 @@ const SettingsManager = () => {
             startIcon={<Save />}
           >
             Save Changes
-          </Button>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
       {unsavedChanges && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mb: 2 }}>
           You have unsaved changes. Don't forget to save your settings.
-        </Alert>
+        </div>
       )}
 
-      <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
-        <Tab label="API Keys" icon={<VpnKey />} />
-        <Tab label="Trading" icon={<ShowChart />} />
-        <Tab label="Notifications" icon={<Notifications />} />
-        <Tab label="Display" icon={<ColorLens />} />
-      </Tabs>
+      <div className="border-b border-gray-200" value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="API Keys" icon={<VpnKey />} />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Trading" icon={<ShowChart />} />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Notifications" icon={<Notifications />} />
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Display" icon={<ColorLens />} />
+      </div>
 
       {activeTab === 0 && renderAPIKeysTab()}
       {activeTab === 1 && renderTradingTab()}
       {activeTab === 2 && renderNotificationsTab()}
       {activeTab === 3 && renderDisplayTab()}
 
-      <Snackbar
+      <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

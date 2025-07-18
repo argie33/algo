@@ -127,9 +127,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <div  sx={{ p: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -460,37 +460,37 @@ const EconomicModeling = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={3}>
-        <Box>
-          <Typography variant="h3" component="h1" gutterBottom>
+      <div  display="flex" alignItems="center" justifyContent="between" mb={3}>
+        <div>
+          <div  variant="h3" component="h1" gutterBottom>
             Economic Modeling & Forecasting
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </div>
+          <div  variant="body1" color="text.secondary">
             Advanced econometric models and real-time recession probability analysis
-          </Typography>
-        </Box>
+          </div>
+        </div>
         
-        <Box display="flex" alignItems="center" gap={2}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Timeframe</InputLabel>
-            <Select
+        <div  display="flex" alignItems="center" gap={2}>
+          <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedTimeframe}
               onChange={(e) => setSelectedTimeframe(e.target.value)}
               label="Timeframe"
             >
-              <MenuItem value="3M">3 Months</MenuItem>
-              <MenuItem value="6M">6 Months</MenuItem>
-              <MenuItem value="1Y">1 Year</MenuItem>
-              <MenuItem value="2Y">2 Years</MenuItem>
-              <MenuItem value="5Y">5 Years</MenuItem>
-            </Select>
-          </FormControl>
+              <option  value="3M">3 Months</option>
+              <option  value="6M">6 Months</option>
+              <option  value="1Y">1 Year</option>
+              <option  value="2Y">2 Years</option>
+              <option  value="5Y">5 Years</option>
+            </select>
+          </div>
           
-          <FormControlLabel
+          <div className="mb-4"Label
             control={
-              <Switch
+              <input type="checkbox" className="toggle"
                 checked={liveUpdates}
                 onChange={(e) => setLiveUpdates(e.target.checked)}
                 color="primary"
@@ -499,7 +499,7 @@ const EconomicModeling = () => {
             label="Live Updates"
           />
           
-          <Button
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             size="small"
             onClick={handleRefreshData}
@@ -507,10 +507,10 @@ const EconomicModeling = () => {
             disabled={loading}
           >
             Refresh
-          </Button>
+          </button>
           
           {dataSource === 'fred_api' && (
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="outlined"
               size="small"
               onClick={handleUpdateFredData}
@@ -518,20 +518,20 @@ const EconomicModeling = () => {
               color="secondary"
             >
               Update FRED Data
-            </Button>
+            </button>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Data Source Information */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ py: 2 }}>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={2}>
-              <Typography variant="body2" color="text.secondary">
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content sx={{ py: 2 }}>
+          <div  display="flex" alignItems="center" justifyContent="space-between">
+            <div  display="flex" alignItems="center" gap={2}>
+              <div  variant="body2" color="text.secondary">
                 Data Source:
-              </Typography>
-              <Chip 
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={
                   dataSource === 'fred_api' ? 'Federal Reserve Economic Data (FRED)' : 
                   dataSource === 'mock_data' ? 'Mock Data' : 'Loading...'
@@ -540,359 +540,359 @@ const EconomicModeling = () => {
                 size="small"
               />
               {lastUpdated && (
-                <Typography variant="caption" color="text.secondary">
+                <div  variant="caption" color="text.secondary">
                   Last Updated: {new Date(lastUpdated).toLocaleString()}
-                </Typography>
+                </div>
               )}
-            </Box>
+            </div>
             
-            {loading && <CircularProgress size={20} />}
-          </Box>
+            {loading && <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} />}
+          </div>
           
           {dataSource === 'mock_data' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
               Using mock data. To get real-time FRED data, set the FRED_API_KEY environment variable.
-            </Alert>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Critical Alerts */}
       {alertsEnabled && compositeRecessionProbability > 40 && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="warning" 
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small">
               View Details
-            </Button>
+            </button>
           }
         >
           <strong>Elevated Recession Risk:</strong> Composite model indicates {compositeRecessionProbability}% 
           probability of recession within {selectedTimeframe}. Monitor key indicators closely.
-        </Alert>
+        </div>
       )}
 
       {economicData.yieldCurve?.isInverted && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="error" 
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small">
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small">
               Learn More
-            </Button>
+            </button>
           }
         >
           <strong>Yield Curve Inverted:</strong> {yieldCurveSignal} detected. 
           Historical accuracy: {economicData.yieldCurve.historicalAccuracy}% in predicting recessions.
-        </Alert>
+        </div>
       )}
 
       {/* Key Economic Indicators */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+      <div className="grid" container spacing={3} mb={4}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Recession Probability
-                  </Typography>
-                  <Typography variant="h4" color={getRecessionProbabilityColor(compositeRecessionProbability) + '.main'}>
+                  </div>
+                  <div  variant="h4" color={getRecessionProbabilityColor(compositeRecessionProbability) + '.main'}>
                     {compositeRecessionProbability}%
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Composite model ({selectedTimeframe})
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Assessment color={getRiskColor(economicData.riskLevel)} fontSize="large" />
-              </Box>
-              <LinearProgress 
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={compositeRecessionProbability} 
                 color={getRecessionProbabilityColor(compositeRecessionProbability)}
                 sx={{ mt: 2 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Economic Stress
-                  </Typography>
-                  <Typography variant="h4" color="primary">
+                  </div>
+                  <div  variant="h4" color="primary">
                     {economicStressIndex}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Stress Index (0-100)
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Speed color="primary" fontSize="large" />
-              </Box>
-              <LinearProgress 
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={economicStressIndex} 
                 color={economicStressIndex > 60 ? 'error' : economicStressIndex > 30 ? 'warning' : 'success'}
                 sx={{ mt: 2 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     GDP Growth
-                  </Typography>
-                  <Typography variant="h4" color="secondary">
+                  </div>
+                  <div  variant="h4" color="secondary">
                     {economicData.gdpGrowth}%
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Annualized Q/Q
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <ShowChart color="secondary" fontSize="large" />
-              </Box>
-              <Box display="flex" alignItems="center" mt={1}>
+              </div>
+              <div  display="flex" alignItems="center" mt={1}>
                 {economicData.gdpGrowth > 0 ? (
                   <TrendingUp color="success" fontSize="small" />
                 ) : (
                   <TrendingDown color="error" fontSize="small" />
                 )}
-                <Typography variant="body2" color="text.secondary" ml={1}>
+                <div  variant="body2" color="text.secondary" ml={1}>
                   vs previous quarter
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Unemployment
-                  </Typography>
-                  <Typography variant="h4" color="info.main">
+                  </div>
+                  <div  variant="h4" color="info.main">
                     {economicData.unemployment}%
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Current rate
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Work color="info" fontSize="large" />
-              </Box>
-              <Box display="flex" alignItems="center" mt={1}>
-                <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  display="flex" alignItems="center" mt={1}>
+                <div  variant="body2" color="text.secondary">
                   Sahm Rule: {economicData.employment?.sahmRule?.value || 'N/A'}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="economic modeling tabs">
-          <Tab label="Leading Indicators" icon={<Analytics />} />
-          <Tab label="Yield Curve" icon={<ShowChart />} />
-          <Tab label="Forecast Models" icon={<Assessment />} />
-          <Tab label="Sectoral Analysis" icon={<BarChartIcon />} />
-          <Tab label="Scenario Planning" icon={<Flag />} />
-          <Tab label="AI Insights" icon={<Psychology />} />
-        </Tabs>
-      </Box>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={tabValue} onChange={handleTabChange} aria-label="economic modeling tabs">
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Leading Indicators" icon={<Analytics />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Yield Curve" icon={<ShowChart />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Forecast Models" icon={<Assessment />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sectoral Analysis" icon={<BarChartIcon />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Scenario Planning" icon={<Flag />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="AI Insights" icon={<Psychology />} />
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={0}>
         {/* Leading Indicators */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header
                 title="Leading Economic Indicators"
                 subheader="Real-time economic momentum analysis"
                 action={
-                  <Chip 
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`${economicData.leadingIndicators?.length || 0} indicators`} 
                     color="primary" 
                     variant="outlined" 
                   />
                 }
               />
-              <CardContent>
-                <Grid container spacing={3}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={3}>
                   {economicData.leadingIndicators?.map((indicator, index) => (
-                    <Grid item xs={12} md={6} key={index}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
-                            <Box display="flex" alignItems="center" gap={1}>
+                    <div className="grid" item xs={12} md={6} key={index}>
+                      <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <div  display="flex" alignItems="center" gap={1}>
                               {getIndicatorIcon(indicator.trend)}
-                              <Typography variant="h6">
+                              <div  variant="h6">
                                 {indicator.name}
-                              </Typography>
-                            </Box>
-                            <Chip 
+                              </div>
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={indicator.signal} 
                               color={indicator.signal === 'Positive' ? 'success' : indicator.signal === 'Negative' ? 'error' : 'default'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                           
-                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
-                            <Typography variant="h4" color="primary">
+                          <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <div  variant="h4" color="primary">
                               {indicator.value}
-                            </Typography>
-                            <Typography 
+                            </div>
+                            <div  
                               variant="body2" 
                               color={indicator.change > 0 ? 'success.main' : 'error.main'}
                             >
                               {indicator.change > 0 ? '+' : ''}{indicator.change}%
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Typography variant="body2" color="text.secondary" mb={2}>
+                          <div  variant="body2" color="text.secondary" mb={2}>
                             {indicator.description}
-                          </Typography>
+                          </div>
                           
-                          <Box>
-                            <Box display="flex" alignItems="center" justifyContent="between" mb={1}>
-                              <Typography variant="body2" color="text.secondary">
+                          <div>
+                            <div  display="flex" alignItems="center" justifyContent="between" mb={1}>
+                              <div  variant="body2" color="text.secondary">
                                 Signal Strength
-                              </Typography>
-                              <Typography variant="body2" fontWeight="bold">
+                              </div>
+                              <div  variant="body2" fontWeight="bold">
                                 {indicator.strength}%
-                              </Typography>
-                            </Box>
-                            <LinearProgress 
+                              </div>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2" 
                               variant="determinate" 
                               value={indicator.strength} 
                               color={indicator.strength > 70 ? 'success' : indicator.strength > 40 ? 'warning' : 'error'}
                             />
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* Signal Summary */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Signal Summary" />
-                  <CardContent>
-                    <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-                      <Box textAlign="center">
-                        <Typography variant="h3" color="primary">
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Signal Summary" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
+                      <div  textAlign="center">
+                        <div  variant="h3" color="primary">
                           {economicStressIndex}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        </div>
+                        <div  variant="body2" color="text.secondary">
                           Stress Index
-                        </Typography>
-                      </Box>
-                    </Box>
+                        </div>
+                      </div>
+                    </div>
                     
-                    <Box mb={3}>
-                      <Typography variant="body2" color="text.secondary" mb={1}>
+                    <div  mb={3}>
+                      <div  variant="body2" color="text.secondary" mb={1}>
                         Risk Level
-                      </Typography>
-                      <Chip 
+                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                         label={economicData.riskLevel} 
                         color={getRiskColor(economicData.riskLevel)}
                         size="large"
                       />
-                    </Box>
+                    </div>
                     
-                    <Divider sx={{ mb: 2 }} />
+                    <hr className="border-gray-200" sx={{ mb: 2 }} />
                     
-                    <Box display="flex" justifyContent="between" mb={1}>
-                      <Typography variant="body2">Positive Signals</Typography>
-                      <Typography variant="body2" fontWeight="bold">
+                    <div  display="flex" justifyContent="between" mb={1}>
+                      <div  variant="body2">Positive Signals</div>
+                      <div  variant="body2" fontWeight="bold">
                         {economicData.leadingIndicators?.filter(i => i.signal === 'Positive').length || 0}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="between" mb={1}>
-                      <Typography variant="body2">Negative Signals</Typography>
-                      <Typography variant="body2" fontWeight="bold">
+                      </div>
+                    </div>
+                    <div  display="flex" justifyContent="between" mb={1}>
+                      <div  variant="body2">Negative Signals</div>
+                      <div  variant="body2" fontWeight="bold">
                         {economicData.leadingIndicators?.filter(i => i.signal === 'Negative').length || 0}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="between">
-                      <Typography variant="body2">Neutral Signals</Typography>
-                      <Typography variant="body2" fontWeight="bold">
+                      </div>
+                    </div>
+                    <div  display="flex" justifyContent="between">
+                      <div  variant="body2">Neutral Signals</div>
+                      <div  variant="body2" fontWeight="bold">
                         {economicData.leadingIndicators?.filter(i => i.signal === 'Neutral').length || 0}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Upcoming Economic Events */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader 
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header 
                     title="Upcoming Events" 
                     subheader="Next 30 days"
                   />
-                  <CardContent>
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <List>
                       {economicData.upcomingEvents?.map((event, index) => (
                         <ListItem key={index} alignItems="flex-start">
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: getRiskColor(event.importance) + '.main' }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getRiskColor(event.importance) + '.main' }}>
                               <Schedule />
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary={event.event}
                             secondary={
-                              <Box>
-                                <Typography variant="body2" color="text.secondary">
+                              <div>
+                                <div  variant="body2" color="text.secondary">
                                   {event.date} • {event.time}
-                                </Typography>
-                                <Typography variant="body2" color="text.primary">
+                                </div>
+                                <div  variant="body2" color="text.primary">
                                   {event.forecast}
-                                </Typography>
-                              </Box>
+                                </div>
+                              </div>
                             }
                           />
                         </ListItem>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={1}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={1}>
         {/* Yield Curve */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header
                 title="Yield Curve Analysis"
                 subheader="Treasury yield curve and inversion analysis"
               />
-              <CardContent>
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={economicData.yieldCurveData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -910,219 +910,219 @@ const EconomicModeling = () => {
                   </LineChart>
                 </ResponsiveContainer>
                 
-                <Box mt={3}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
+                <div  mt={3}>
+                  <div className="grid" container spacing={2}>
+                    <div className="grid" item xs={6}>
+                      <div  variant="body2" color="text.secondary">
                         2Y-10Y Spread
-                      </Typography>
-                      <Typography 
+                      </div>
+                      <div  
                         variant="h6" 
                         color={economicData.yieldCurve?.spread2y10y < 0 ? 'error.main' : 'success.main'}
                       >
                         {economicData.yieldCurve?.spread2y10y} bps
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
+                      </div>
+                    </div>
+                    <div className="grid" item xs={6}>
+                      <div  variant="body2" color="text.secondary">
                         3M-10Y Spread
-                      </Typography>
-                      <Typography 
+                      </div>
+                      <div  
                         variant="h6" 
                         color={economicData.yieldCurve?.spread3m10y < 0 ? 'error.main' : 'success.main'}
                       >
                         {economicData.yieldCurve?.spread3m10y} bps
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="Inversion Analysis" />
-              <CardContent>
-                <Alert 
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Inversion Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                   severity={economicData.yieldCurve?.isInverted ? 'error' : 'success'}
                   sx={{ mb: 3 }}
                 >
-                  <Typography variant="h6">
+                  <div  variant="h6">
                     {economicData.yieldCurve?.isInverted ? 'Yield Curve Inverted' : 'Normal Yield Curve'}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     {economicData.yieldCurve?.interpretation}
-                  </Typography>
-                </Alert>
+                  </div>
+                </div>
                 
-                <Box mb={3}>
-                  <Typography variant="body2" color="text.secondary" mb={1}>
+                <div  mb={3}>
+                  <div  variant="body2" color="text.secondary" mb={1}>
                     Signal Strength
-                  </Typography>
-                  <Chip 
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={yieldCurveSignal} 
                     color={yieldCurveSignal.includes('Strong') ? 'error' : yieldCurveSignal.includes('Recession') ? 'warning' : 'success'}
                     size="large"
                   />
-                </Box>
+                </div>
                 
-                <Divider sx={{ mb: 2 }} />
+                <hr className="border-gray-200" sx={{ mb: 2 }} />
                 
-                <Typography variant="h6" mb={2}>Historical Context</Typography>
-                <Box display="flex" justifyContent="between" mb={1}>
-                  <Typography variant="body2">Historical Accuracy</Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                <div  variant="h6" mb={2}>Historical Context</div>
+                <div  display="flex" justifyContent="between" mb={1}>
+                  <div  variant="body2">Historical Accuracy</div>
+                  <div  variant="body2" fontWeight="bold">
                     {economicData.yieldCurve?.historicalAccuracy}%
-                  </Typography>
-                </Box>
-                <Box display="flex" justifyContent="between" mb={1}>
-                  <Typography variant="body2">Average Lead Time</Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                </div>
+                <div  display="flex" justifyContent="between" mb={1}>
+                  <div  variant="body2">Average Lead Time</div>
+                  <div  variant="body2" fontWeight="bold">
                     {economicData.yieldCurve?.averageLeadTime} months
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Box mt={3}>
-                  <Typography variant="body2" color="text.secondary">
+                <div  mt={3}>
+                  <div  variant="body2" color="text.secondary">
                     The yield curve has inverted before {economicData.yieldCurve?.historicalAccuracy}% of recessions 
                     since 1970, with an average lead time of {economicData.yieldCurve?.averageLeadTime} months.
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={2}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={2}>
         {/* Forecast Models */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header
                 title="Recession Probability Models"
                 subheader="Institutional forecasting models and ensemble predictions"
               />
-              <CardContent>
-                <Grid container spacing={3}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={3}>
                   {economicData.forecastModels?.map((model, index) => (
-                    <Grid item xs={12} md={6} key={index}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
-                            <Typography variant="h6">
+                    <div className="grid" item xs={12} md={6} key={index}>
+                      <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <div  variant="h6">
                               {model.name}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${model.confidence}% confidence`} 
                               color={model.confidence > 80 ? 'success' : model.confidence > 60 ? 'warning' : 'error'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                           
-                          <Box textAlign="center" mb={3}>
-                            <Typography variant="h3" color="primary">
+                          <div  textAlign="center" mb={3}>
+                            <div  variant="h3" color="primary">
                               {model.probability}%
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            </div>
+                            <div  variant="body2" color="text.secondary">
                               Recession Probability
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <LinearProgress 
+                          <div className="w-full bg-gray-200 rounded-full h-2" 
                             variant="determinate" 
                             value={model.probability} 
                             color={getRecessionProbabilityColor(model.probability)}
                             sx={{ mb: 2 }}
                           />
                           
-                          <Box display="flex" justifyContent="between" mb={1}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" justifyContent="between" mb={1}>
+                            <div  variant="body2" color="text.secondary">
                               Time Horizon
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold">
+                            </div>
+                            <div  variant="body2" fontWeight="bold">
                               {model.timeHorizon}
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Typography variant="body2" color="text.secondary">
+                          <div  variant="body2" color="text.secondary">
                             {model.methodology}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="Ensemble Prediction" />
-              <CardContent>
-                <Box textAlign="center" mb={3}>
-                  <Typography variant="h2" color="primary">
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Ensemble Prediction" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  textAlign="center" mb={3}>
+                  <div  variant="h2" color="primary">
                     {compositeRecessionProbability}%
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary">
+                  </div>
+                  <div  variant="body1" color="text.secondary">
                     Composite Probability
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <LinearProgress 
+                <div className="w-full bg-gray-200 rounded-full h-2" 
                   variant="determinate" 
                   value={compositeRecessionProbability} 
                   color={getRecessionProbabilityColor(compositeRecessionProbability)}
                   sx={{ mb: 3, height: 8 }}
                 />
                 
-                <Alert 
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                   severity={compositeRecessionProbability > 50 ? 'error' : compositeRecessionProbability > 30 ? 'warning' : 'info'}
                   sx={{ mb: 3 }}
                 >
-                  <Typography variant="body2">
+                  <div  variant="body2">
                     {compositeRecessionProbability > 50 
                       ? 'High probability of recession. Consider defensive positioning.'
                       : compositeRecessionProbability > 30 
                       ? 'Elevated recession risk. Monitor indicators closely.'
                       : 'Low recession probability. Economic conditions appear stable.'}
-                  </Typography>
-                </Alert>
+                  </div>
+                </div>
                 
-                <Typography variant="h6" mb={2}>Model Weights</Typography>
-                <Box>
-                  <Box display="flex" justifyContent="between" mb={1}>
-                    <Typography variant="body2">NY Fed Model</Typography>
-                    <Typography variant="body2" fontWeight="bold">35%</Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="between" mb={1}>
-                    <Typography variant="body2">Goldman Sachs</Typography>
-                    <Typography variant="body2" fontWeight="bold">25%</Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="between" mb={1}>
-                    <Typography variant="body2">JP Morgan</Typography>
-                    <Typography variant="body2" fontWeight="bold">25%</Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="between">
-                    <Typography variant="body2">AI Ensemble</Typography>
-                    <Typography variant="body2" fontWeight="bold">15%</Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                <div  variant="h6" mb={2}>Model Weights</div>
+                <div>
+                  <div  display="flex" justifyContent="between" mb={1}>
+                    <div  variant="body2">NY Fed Model</div>
+                    <div  variant="body2" fontWeight="bold">35%</div>
+                  </div>
+                  <div  display="flex" justifyContent="between" mb={1}>
+                    <div  variant="body2">Goldman Sachs</div>
+                    <div  variant="body2" fontWeight="bold">25%</div>
+                  </div>
+                  <div  display="flex" justifyContent="between" mb={1}>
+                    <div  variant="body2">JP Morgan</div>
+                    <div  variant="body2" fontWeight="bold">25%</div>
+                  </div>
+                  <div  display="flex" justifyContent="between">
+                    <div  variant="body2">AI Ensemble</div>
+                    <div  variant="body2" fontWeight="bold">15%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={3}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={3}>
         {/* Sectoral Analysis */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader title="Sectoral Economic Performance" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Sectoral Economic Performance" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={economicData.sectoralData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1136,232 +1136,232 @@ const EconomicModeling = () => {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="Sector Leaders" />
-              <CardContent>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Sector Leaders" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <List>
                   {economicData.sectoralData?.sort((a, b) => b.growth - a.growth).map((sector, index) => (
                     <ListItem key={index}>
                       <ListItemAvatar>
-                        <Avatar>
+                        <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
                           {getSectorIcon(sector.sector)}
-                        </Avatar>
+                        </div>
                       </ListItemAvatar>
                       <ListItemText
                         primary={sector.sector}
                         secondary={
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" alignItems="center" gap={1}>
+                            <div  variant="body2" color="text.secondary">
                               {sector.description}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${sector.growth >= 0 ? '+' : ''}${sector.growth}%`}
                               color={sector.growth >= 0 ? 'success' : 'error'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                         }
                       />
                     </ListItem>
                   ))}
                 </List>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={4}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={4}>
         {/* Scenario Planning */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardHeader title="Economic Scenario Analysis" />
-              <CardContent>
-                <Grid container spacing={3}>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Economic Scenario Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={3}>
                   {economicData.scenarios?.map((scenario, index) => (
-                    <Grid item xs={12} md={4} key={index}>
-                      <Card 
+                    <div className="grid" item xs={12} md={4} key={index}>
+                      <div className="bg-white shadow-md rounded-lg" 
                         variant="outlined" 
                         sx={{ 
                           border: selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 2 : 1,
                           borderColor: selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 'primary.main' : 'divider'
                         }}
                       >
-                        <CardContent>
-                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
-                            <Typography variant="h6">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <div  variant="h6">
                               {scenario.name}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${scenario.probability}% probability`} 
                               color={scenario.name === 'Base Case' ? 'primary' : scenario.name === 'Bull Case' ? 'success' : 'error'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                           
-                          <Box mb={3}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  mb={3}>
+                            <div  variant="body2" color="text.secondary">
                               {scenario.description}
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Box display="flex" justifyContent="between" mb={1}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" justifyContent="between" mb={1}>
+                            <div  variant="body2" color="text.secondary">
                               GDP Growth
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold">
+                            </div>
+                            <div  variant="body2" fontWeight="bold">
                               {scenario.gdpGrowth}%
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Box display="flex" justifyContent="between" mb={1}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" justifyContent="between" mb={1}>
+                            <div  variant="body2" color="text.secondary">
                               Unemployment
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold">
+                            </div>
+                            <div  variant="body2" fontWeight="bold">
                               {scenario.unemployment}%
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Box display="flex" justifyContent="between" mb={2}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" justifyContent="between" mb={2}>
+                            <div  variant="body2" color="text.secondary">
                               Fed Funds Rate
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold">
+                            </div>
+                            <div  variant="body2" fontWeight="bold">
                               {scenario.fedRate}%
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                           
-                          <Button 
+                          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                             variant={selectedScenario === scenario.name.toLowerCase().replace(' ', '') ? 'contained' : 'outlined'}
                             fullWidth
                             onClick={() => setSelectedScenario(scenario.name.toLowerCase().replace(' ', ''))}
                           >
                             Analyze Scenario
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={tabValue} index={5}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={5}>
         {/* AI Insights */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader 
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="AI-Powered Economic Insights"
                 subheader="Machine learning analysis of economic patterns and trends"
               />
-              <CardContent>
-                <Grid container spacing={3}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={3}>
                   {economicData.aiInsights?.map((insight, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box display="flex" alignItems="center" gap={2} mb={2}>
+                    <div className="grid" item xs={12} key={index}>
+                      <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                        <div className="bg-white shadow-md rounded-lg"Content>
+                          <div  display="flex" alignItems="center" gap={2} mb={2}>
                             <Lightbulb color="primary" />
-                            <Typography variant="h6">
+                            <div  variant="h6">
                               {insight.title}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${insight.confidence}% confidence`} 
                               color={insight.confidence > 80 ? 'success' : insight.confidence > 60 ? 'warning' : 'error'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                           
-                          <Typography variant="body1" mb={2}>
+                          <div  variant="body1" mb={2}>
                             {insight.description}
-                          </Typography>
+                          </div>
                           
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <Typography variant="body2" color="text.secondary">
+                          <div  display="flex" alignItems="center" gap={2}>
+                            <div  variant="body2" color="text.secondary">
                               Impact: {insight.impact}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            </div>
+                            <div  variant="body2" color="text.secondary">
                               Timeframe: {insight.timeframe}
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="AI Model Performance" />
-              <CardContent>
-                <Box textAlign="center" mb={3}>
-                  <Typography variant="h3" color="primary">
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="AI Model Performance" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  textAlign="center" mb={3}>
+                  <div  variant="h3" color="primary">
                     87%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  </div>
+                  <div  variant="body2" color="text.secondary">
                     Prediction Accuracy
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <LinearProgress 
+                <div className="w-full bg-gray-200 rounded-full h-2" 
                   variant="determinate" 
                   value={87} 
                   color="success"
                   sx={{ mb: 3, height: 8 }}
                 />
                 
-                <Box display="flex" justifyContent="between" mb={1}>
-                  <Typography variant="body2" color="text.secondary">
+                <div  display="flex" justifyContent="between" mb={1}>
+                  <div  variant="body2" color="text.secondary">
                     Data Points Analyzed
-                  </Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                  <div  variant="body2" fontWeight="bold">
                     15,000+
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Box display="flex" justifyContent="between" mb={1}>
-                  <Typography variant="body2" color="text.secondary">
+                <div  display="flex" justifyContent="between" mb={1}>
+                  <div  variant="body2" color="text.secondary">
                     Last Model Update
-                  </Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                  <div  variant="body2" fontWeight="bold">
                     2 hours ago
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Box display="flex" justifyContent="between" mb={3}>
-                  <Typography variant="body2" color="text.secondary">
+                <div  display="flex" justifyContent="between" mb={3}>
+                  <div  variant="body2" color="text.secondary">
                     Next Update
-                  </Typography>
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                  <div  variant="body2" fontWeight="bold">
                     In 4 hours
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 
-                <Alert severity="info">
-                  <Typography variant="body2">
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+                  <div  variant="body2">
                     AI models are continuously learning from new economic data to improve prediction accuracy.
-                  </Typography>
-                </Alert>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
-    </Container>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

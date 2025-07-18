@@ -123,7 +123,7 @@ const CHART_COLORS = {
 const AnimatedCard = ({ children, delay = 0, ...props }) => {
   return (
     <Zoom in={true} timeout={300 + delay * 100}>
-      <Card
+      <div className="bg-white shadow-md rounded-lg"
         {...props}
         sx={{
           background: '#ffffff',
@@ -139,14 +139,14 @@ const AnimatedCard = ({ children, delay = 0, ...props }) => {
         }}
       >
         {children}
-      </Card>
+      </div>
     </Zoom>
   )
 }
 
 const GradientCard = ({ children, gradient, ...props }) => {
   return (
-    <Card
+    <div className="bg-white shadow-md rounded-lg"
       {...props}
       sx={{
         background: gradient || 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
@@ -171,7 +171,7 @@ const GradientCard = ({ children, gradient, ...props }) => {
       }}
     >
       {children}
-    </Card>
+    </div>
   )
 }
 
@@ -180,31 +180,31 @@ const MetricCard = ({ title, value, subtitle, icon, trend, color = 'primary', gr
   
   return (
     <GradientCard gradient={gradient}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" sx={{ opacity: 0.9, fontWeight: 500 }}>
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div  sx={{ flex: 1 }}>
+            <div  variant="subtitle2" sx={{ opacity: 0.9, fontWeight: 500 }}>
               {title}
-            </Typography>
-            <Typography variant="h3" sx={{ my: 1, fontWeight: 700 }}>
+            </div>
+            <div  variant="h3" sx={{ my: 1, fontWeight: 700 }}>
               {value}
-            </Typography>
+            </div>
             {subtitle && (
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              <div  variant="body2" sx={{ opacity: 0.8 }}>
                 {subtitle}
-              </Typography>
+              </div>
             )}
             {trend !== undefined && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+              <div  sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                 {isPositive ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
-                <Typography variant="body2" sx={{ ml: 0.5, fontWeight: 600 }}>
+                <div  variant="body2" sx={{ ml: 0.5, fontWeight: 600 }}>
                   {Math.abs(trend)}%
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
-          </Box>
+          </div>
           {icon && (
-            <Box
+            <div 
               sx={{
                 width: 48,
                 height: 48,
@@ -217,10 +217,10 @@ const MetricCard = ({ title, value, subtitle, icon, trend, color = 'primary', gr
               }}
             >
               {icon}
-            </Box>
+            </div>
           )}
-        </Box>
-      </CardContent>
+        </div>
+      </div>
     </GradientCard>
   )
 }
@@ -238,7 +238,7 @@ const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
   }
   
   return (
-    <Box sx={{ position: 'relative', width: size, height: size }}>
+    <div  sx={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
         <circle
           cx={size / 2}
@@ -259,7 +259,7 @@ const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
           style={{ transition: 'stroke-dasharray 0.5s ease' }}
         />
       </svg>
-      <Box
+      <div 
         sx={{
           position: 'absolute',
           top: '50%',
@@ -268,14 +268,14 @@ const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
           textAlign: 'center'
         }}
       >
-        <Typography variant="h4" sx={{ fontWeight: 700, color: getColor() }}>
+        <div  variant="h4" sx={{ fontWeight: 700, color: getColor() }}>
           {value}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
+        </div>
+        <div  variant="caption" color="text.secondary">
           {label}
-        </Typography>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -288,45 +288,45 @@ const TabPanel = ({ children, value, index, ...other }) => (
     {...other}
   >
     {value === index && (
-      <Box sx={{ pt: 3 }}>
+      <div  sx={{ pt: 3 }}>
         {children}
-      </Box>
+      </div>
     )}
   </div>
 )
 
 const MetricTable = ({ data, columns, title }) => (
-  <Card>
-    <CardContent>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+  <div className="bg-white shadow-md rounded-lg">
+    <div className="bg-white shadow-md rounded-lg"Content>
+      <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
         {title}
-      </Typography>
-      <TableContainer component={Paper} elevation={0}>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ backgroundColor: 'grey.50' }}>
+      </div>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} elevation={0}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
               {columns.map((col) => (
-                <TableCell key={col.key} sx={{ fontWeight: 600 }}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={col.key} sx={{ fontWeight: 600 }}>
                   {col.label}
-                </TableCell>
+                </td>
               ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
+            </tr>
+          </thead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
             {data?.slice(0, 10).map((item, index) => (
-              <TableRow key={item.ticker || index} hover>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={item.ticker || index} hover>
                 {columns.map((col) => (
-                  <TableCell key={col.key}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={col.key}>
                     {col.render ? col.render(item[col.key], item) : item[col.key] || 'N/A'}
-                  </TableCell>
+                  </td>
                 ))}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </CardContent>
-  </Card>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 )
 
 // Create component-specific logger
@@ -479,16 +479,16 @@ function MarketOverview() {
   }
   if (marketError) {
     return (
-      <Box>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
+      <div>
+        <div  variant="h4" sx={{ mb: 3, fontWeight: 600 }}>
           Market Overview
-        </Typography>
-        <Alert severity="error" sx={{ mb: 3 }}>
+        </div>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
           Failed to load market data. Please check your data sources and try again.
           <br /><small>Technical details: {marketError?.message || 'Unknown error'}</small>
                       <br /><small>Debug endpoint: <code>API service endpoint</code></small>
-        </Alert>
-      </Box>
+        </div>
+      </div>
     )
   }
 
@@ -552,45 +552,45 @@ function MarketOverview() {
 
   // --- Sentiment History Tab ---
   const SentimentHistoryPanel = () => (
-    <Box>
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">Fear & Greed Index</Typography>
-              <Typography variant="h5" fontWeight={700} color={getChangeColor(latestFG.value)}>
+    <div>
+      <div className="grid" container spacing={2} mb={2}>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="subtitle2" color="text.secondary">Fear & Greed Index</div>
+              <div  variant="h5" fontWeight={700} color={getChangeColor(latestFG.value)}>
                 {latestFG.value ?? 'N/A'}
-              </Typography>
-              <Typography variant="body2">{latestFG.value_text || ''}</Typography>
-              <Typography variant="caption" color="text.secondary">Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">NAAIM Exposure</Typography>
-              <Typography variant="h5" fontWeight={700} color={getChangeColor(latestNAAIM.mean_exposure)}>
+              </div>
+              <div  variant="body2">{latestFG.value_text || ''}</div>
+              <div  variant="caption" color="text.secondary">Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="subtitle2" color="text.secondary">NAAIM Exposure</div>
+              <div  variant="h5" fontWeight={700} color={getChangeColor(latestNAAIM.mean_exposure)}>
                 {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? 'N/A'}
-              </Typography>
-              <Typography variant="body2">Active manager equity exposure</Typography>
-              <Typography variant="caption" color="text.secondary">0 = fully out, 100 = fully in</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">AAII Sentiment</Typography>
-              <Typography variant="body2">Bullish: <b style={{color:'#10B981'}}>{latestAAII.bullish ?? 'N/A'}%</b> | Neutral: <b style={{color:'#8884d8'}}>{latestAAII.neutral ?? 'N/A'}%</b> | Bearish: <b style={{color:'#DC2626'}}>{latestAAII.bearish ?? 'N/A'}%</b></Typography>
-              <Typography variant="caption" color="text.secondary">% of retail investors bullish, neutral, or bearish</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      <Card>
-        <CardContent>
-          <Typography variant="h6" mb={2}>Sentiment History (Last 30 Days)</Typography>
+              </div>
+              <div  variant="body2">Active manager equity exposure</div>
+              <div  variant="caption" color="text.secondary">0 = fully out, 100 = fully in</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid" item xs={12} md={4}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="subtitle2" color="text.secondary">AAII Sentiment</div>
+              <div  variant="body2">Bullish: <b style={{color:'#10B981'}}>{latestAAII.bullish ?? 'N/A'}%</b> | Neutral: <b style={{color:'#8884d8'}}>{latestAAII.neutral ?? 'N/A'}%</b> | Bearish: <b style={{color:'#DC2626'}}>{latestAAII.bearish ?? 'N/A'}%</b></div>
+              <div  variant="caption" color="text.secondary">% of retail investors bullish, neutral, or bearish</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  variant="h6" mb={2}>Sentiment History (Last 30 Days)</div>
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={sentimentChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -606,18 +606,18 @@ function MarketOverview() {
               <Line yAxisId="right" type="monotone" dataKey="aaii_neutral" name="AAII Neutral" stroke="#8884d8" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+    <div  sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Enhanced Header Section */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
-            <Typography variant="h3" component="h1" gutterBottom sx={{ 
+      <div  sx={{ mb: 4 }}>
+        <div className="grid" container spacing={2} alignItems="center">
+          <div className="grid" item xs={12} md={6}>
+            <div  variant="h3" component="h1" gutterBottom sx={{ 
               fontWeight: 800, 
               background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
               WebkitBackgroundClip: 'text',
@@ -625,13 +625,13 @@ function MarketOverview() {
               mb: 1
             }}>
               Market Overview
-            </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
+            </div>
+            <div  variant="subtitle1" color="text.secondary">
               Real-time market analysis, sentiment indicators, and institutional-grade research insights
-            </Typography>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+            </div>
+          </div>
+          <div className="grid" item xs={12} md={6}>
+            <div className="flex flex-col space-y-2" direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
               <ToggleButtonGroup
                 value={timeframe}
                 exclusive
@@ -645,7 +645,7 @@ function MarketOverview() {
                 <ToggleButton value="3M">3M</ToggleButton>
                 <ToggleButton value="1Y">1Y</ToggleButton>
               </ToggleButtonGroup>
-              <IconButton 
+              <button className="p-2 rounded-full hover:bg-gray-100" 
                 onClick={() => window.location.reload()}
                 sx={{ 
                   bgcolor: 'background.paper',
@@ -653,8 +653,8 @@ function MarketOverview() {
                 }}
               >
                 <Refresh />
-              </IconButton>
-              <IconButton 
+              </button>
+              <button className="p-2 rounded-full hover:bg-gray-100" 
                 onClick={() => setFullscreen(!fullscreen)}
                 sx={{ 
                   bgcolor: 'background.paper',
@@ -662,13 +662,13 @@ function MarketOverview() {
                 }}
               >
                 {fullscreen ? <FullscreenExit /> : <Fullscreen />}
-              </IconButton>
-            </Stack>
-          </Grid>
-        </Grid>
+              </button>
+            </div>
+          </div>
+        </div>
         {marketLoading && (
-          <Box sx={{ mt: 2 }}>
-            <LinearProgress 
+          <div  sx={{ mt: 2 }}>
+            <div className="w-full bg-gray-200 rounded-full h-2" 
               sx={{ 
                 borderRadius: 1,
                 height: 6,
@@ -679,282 +679,282 @@ function MarketOverview() {
                 }
               }} 
             />
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            <div  variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               Fetching real-time market data...
-            </Typography>
-          </Box>
+            </div>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Enhanced Market Sentiment Indicators */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={4}>
           <AnimatedCard delay={0}>
             <GradientCard gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <div>
+                    <div  variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                       Fear & Greed Index
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    </div>
+                    <div  variant="caption" sx={{ opacity: 0.8 }}>
                       Market Sentiment Indicator
-                    </Typography>
-                  </Box>
-                  <Avatar sx={{ 
+                    </div>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                     width: 48, 
                     height: 48, 
                     bgcolor: 'rgba(255,255,255,0.2)',
                     backdropFilter: 'blur(10px)'
                   }}>
                     <Psychology />
-                  </Avatar>
-                </Box>
+                  </div>
+                </div>
                 {sentimentIndicators.fear_greed ? (
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+                  <div>
+                    <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
                       <SentimentGauge 
                         value={sentimentIndicators.fear_greed.value || 0} 
                         label={sentimentIndicators.fear_greed.value_text || 'Unknown'}
                       />
-                    </Box>
-                    <Box sx={{ 
+                    </div>
+                    <div  sx={{ 
                       p: 2, 
                       bgcolor: 'rgba(255,255,255,0.1)', 
                       borderRadius: 2,
                       backdropFilter: 'blur(10px)'
                     }}>
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>Previous</Typography>
-                          <Typography variant="body2" fontWeight={600}>
+                      <div className="grid" container spacing={2}>
+                        <div className="grid" item xs={6}>
+                          <div  variant="caption" sx={{ opacity: 0.8 }}>Previous</div>
+                          <div  variant="body2" fontWeight={600}>
                             {sentimentIndicators.fear_greed.previous || 'N/A'}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>Change</Typography>
-                          <Typography variant="body2" fontWeight={600}>
+                          </div>
+                        </div>
+                        <div className="grid" item xs={6}>
+                          <div  variant="caption" sx={{ opacity: 0.8 }}>Change</div>
+                          <div  variant="body2" fontWeight={600}>
                             {sentimentIndicators.fear_greed.change || '0'}%
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 2, opacity: 0.7, textAlign: 'center' }}>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div  variant="caption" sx={{ display: 'block', mt: 2, opacity: 0.7, textAlign: 'center' }}>
                       Updated: {sentimentIndicators.fear_greed.timestamp ? new Date(sentimentIndicators.fear_greed.timestamp).toLocaleString() : 'N/A'}
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                 ) : (
-                  <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <CircularProgress sx={{ color: 'rgba(255,255,255,0.5)' }} />
-                    <Typography variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
+                  <div  sx={{ textAlign: 'center', py: 4 }}>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" sx={{ color: 'rgba(255,255,255,0.5)' }} />
+                    <div  variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
                       Loading sentiment data...
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                 )}
-              </CardContent>
+              </div>
             </GradientCard>
           </AnimatedCard>
-        </Grid>
-        <Grid item xs={12} md={4}>
+        </div>
+        <div className="grid" item xs={12} md={4}>
           <AnimatedCard delay={1}>
             <GradientCard gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <div>
+                    <div  variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                       AAII Investor Sentiment
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    </div>
+                    <div  variant="caption" sx={{ opacity: 0.8 }}>
                       Retail Investor Survey
-                    </Typography>
-                  </Box>
-                  <Avatar sx={{ 
+                    </div>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                     width: 48, 
                     height: 48, 
                     bgcolor: 'rgba(255,255,255,0.2)',
                     backdropFilter: 'blur(10px)'
                   }}>
                     <Assessment />
-                  </Avatar>
-                </Box>
+                  </div>
+                </div>
               {sentimentIndicators.aaii ? (
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bullish:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                <div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <div  variant="body2" sx={{ fontWeight: 600 }}>Bullish:</div>
+                    <div  variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bullish !== undefined ? 
                         (typeof sentimentIndicators.aaii.bullish === 'number' && sentimentIndicators.aaii.bullish <= 1 ? 
                           (sentimentIndicators.aaii.bullish * 100).toFixed(1) + '%' : 
                           sentimentIndicators.aaii.bullish.toFixed(1) + '%'
                         ) : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Neutral:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <div  variant="body2" sx={{ fontWeight: 600 }}>Neutral:</div>
+                    <div  variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.neutral !== undefined ? 
                         (typeof sentimentIndicators.aaii.neutral === 'number' && sentimentIndicators.aaii.neutral <= 1 ? 
                           (sentimentIndicators.aaii.neutral * 100).toFixed(1) + '%' : 
                           sentimentIndicators.aaii.neutral.toFixed(1) + '%'
                         ) : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bearish:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <div  variant="body2" sx={{ fontWeight: 600 }}>Bearish:</div>
+                    <div  variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.aaii.bearish !== undefined ? 
                         (typeof sentimentIndicators.aaii.bearish === 'number' && sentimentIndicators.aaii.bearish <= 1 ? 
                           (sentimentIndicators.aaii.bearish * 100).toFixed(1) + '%' : 
                           sentimentIndicators.aaii.bearish.toFixed(1) + '%'
                         ) : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    </div>
+                  </div>
+                  <div  variant="body2" sx={{ opacity: 0.9 }}>
                     Week ending: {sentimentIndicators.aaii.date ? new Date(sentimentIndicators.aaii.date).toLocaleDateString() : 'N/A'}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
               ) : (
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No AAII data available</Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.6 }}>Sentiment indicators are loading...</Typography>
-                </Box>
+                <div>
+                  <div  variant="body2" sx={{ opacity: 0.7 }}>No AAII data available</div>
+                  <div  variant="caption" sx={{ opacity: 0.6 }}>Sentiment indicators are loading...</div>
+                </div>
               )}
-            </CardContent>
+            </div>
             </GradientCard>
           </AnimatedCard>
-        </Grid>
-        <Grid item xs={12} md={4}>
+        </div>
+        <div className="grid" item xs={12} md={4}>
           <AnimatedCard delay={2}>
             <GradientCard gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <div>
+                    <div  variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                       NAAIM Exposure Index
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    </div>
+                    <div  variant="caption" sx={{ opacity: 0.8 }}>
                       Professional Manager Positioning
-                    </Typography>
-                  </Box>
-                  <Avatar sx={{ 
+                    </div>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                     width: 48, 
                     height: 48, 
                     bgcolor: 'rgba(255,255,255,0.2)',
                     backdropFilter: 'blur(10px)'
                   }}>
                     <AccountBalance />
-                  </Avatar>
-                </Box>
+                  </div>
+                </div>
               {sentimentIndicators.naaim ? (
-                <Box>
-                  <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
+                <div>
+                  <div  variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
                     {sentimentIndicators.naaim.average !== undefined ? sentimentIndicators.naaim.average.toFixed(1) + '%' : 'N/A'}
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bullish:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <div  variant="body2" sx={{ fontWeight: 600 }}>Bullish:</div>
+                    <div  variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bullish_8100 !== undefined ? sentimentIndicators.naaim.bullish_8100.toFixed(1) + '%' : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Bearish:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                    <div  variant="body2" sx={{ fontWeight: 600 }}>Bearish:</div>
+                    <div  variant="body2" sx={{ fontWeight: 700 }}>
                       {sentimentIndicators.naaim.bearish !== undefined ? sentimentIndicators.naaim.bearish.toFixed(1) + '%' : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    </div>
+                  </div>
+                  <div  variant="body2" sx={{ opacity: 0.9 }}>
                     Week ending: {sentimentIndicators.naaim.week_ending ? new Date(sentimentIndicators.naaim.week_ending).toLocaleDateString() : 'N/A'}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
               ) : (
-                <Box>
-                  <Typography variant="h2" sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}>
+                <div>
+                  <div  variant="h2" sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}>
                     --
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>No NAAIM data available</Typography>
-                </Box>
+                  </div>
+                  <div  variant="body2" sx={{ opacity: 0.7 }}>No NAAIM data available</div>
+                </div>
               )}
-            </CardContent>
+            </div>
             </GradientCard>
           </AnimatedCard>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Enhanced Market Breadth Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={6}>
           <AnimatedCard delay={3}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Market Breadth
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
-                    <Typography variant="h4" color="success.contrastText">
+              </div>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={6}>
+                  <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
+                    <div  variant="h4" color="success.contrastText">
                       {marketBreadth.advancing !== undefined && marketBreadth.advancing !== null ? parseInt(marketBreadth.advancing).toLocaleString() : 'N/A'}
-                    </Typography>
-                    <Typography variant="body2" color="success.contrastText">
+                    </div>
+                    <div  variant="body2" color="success.contrastText">
                       Advancing
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6}>
-                  <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
-                    <Typography variant="h4" color="error.contrastText">
+                    </div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6}>
+                  <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
+                    <div  variant="h4" color="error.contrastText">
                       {marketBreadth.declining !== undefined && marketBreadth.declining !== null ? parseInt(marketBreadth.declining).toLocaleString() : 'N/A'}
-                    </Typography>
-                    <Typography variant="body2" color="error.contrastText">
+                    </div>
+                    <div  variant="body2" color="error.contrastText">
                       Declining
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12}>
-                  <Box sx={{ textAlign: 'center', mt: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                  </div>
+                </div>
+                <div className="grid" item xs={12}>
+                  <div  sx={{ textAlign: 'center', mt: 2 }}>
+                    <div  variant="body2" color="text.secondary">
                       Advance/Decline Ratio: {marketBreadth.advance_decline_ratio !== undefined ? marketBreadth.advance_decline_ratio : 'N/A'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    </div>
+                    <div  variant="body2" color="text.secondary">
                       Average Change: {marketBreadth.average_change_percent !== undefined ? parseFloat(marketBreadth.average_change_percent).toFixed(2) : 'N/A'}%
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </AnimatedCard>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        </div>
+        <div className="grid" item xs={12} md={6}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Market Statistics
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="body2">Total Stocks:</Typography>
-                <Typography variant="body2" fontWeight="600">
+              </div>
+              <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <div  variant="body2">Total Stocks:</div>
+                <div  variant="body2" fontWeight="600">
                   {marketBreadth.total_stocks !== undefined ? parseInt(marketBreadth.total_stocks).toLocaleString() : 'N/A'}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="body2">Total Market Cap:</Typography>
-                <Typography variant="body2" fontWeight="600">
+                </div>
+              </div>
+              <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <div  variant="body2">Total Market Cap:</div>
+                <div  variant="body2" fontWeight="600">
                   {marketCap.total !== undefined ? formatCurrency(marketCap.total) : 'N/A'}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="body2">Unchanged:</Typography>
-                <Typography variant="body2" fontWeight="600">
+                </div>
+              </div>
+              <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <div  variant="body2">Unchanged:</div>
+                <div  variant="body2" fontWeight="600">
                   {marketBreadth.unchanged !== undefined ? parseInt(marketBreadth.unchanged).toLocaleString() : 'N/A'}
-                </Typography>
-              </Box>            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                </div>
+              </div>            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Enhanced Tabs Section */}
       <AnimatedCard delay={5}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-          <Tabs 
+        <div  sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <div className="border-b border-gray-200" 
             value={tabValue} 
             onChange={handleTabChange} 
             aria-label="market data tabs"
@@ -977,96 +977,96 @@ function MarketOverview() {
               }
             }}
           >
-            <Tab label="Market Overview" icon={<ShowChart />} iconPosition="start" />
-            <Tab label="Sentiment History" icon={<Timeline />} iconPosition="start" />
-            <Tab label="Sector Performance" icon={<Business />} iconPosition="start" />
-            <Tab label="Market Breadth" icon={<Equalizer />} iconPosition="start" />
-            <Tab label="Economic Indicators" icon={<Public />} iconPosition="start" />
-            <Tab label="Seasonality" icon={<CalendarToday />} iconPosition="start" />
-            <Tab label="Research Indicators" icon={<Analytics />} iconPosition="start" />
-          </Tabs>
-        </Box>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Overview" icon={<ShowChart />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sentiment History" icon={<Timeline />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sector Performance" icon={<Business />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Breadth" icon={<Equalizer />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Economic Indicators" icon={<Public />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Seasonality" icon={<CalendarToday />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Research Indicators" icon={<Analytics />} iconPosition="start" />
+          </div>
+        </div>
 
-        <TabPanel value={tabValue} index={0}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={0}>
+          <div className="grid" container spacing={3}>
+            <div className="grid" item xs={12} md={6}>
+              <div className="bg-white shadow-md rounded-lg">
+                <div className="bg-white shadow-md rounded-lg"Content>
+                  <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Market Cap Distribution
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Large Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <div  variant="body2">Large Cap:</div>
+                    <div  variant="body2" fontWeight="600">
                       {formatCurrency(marketCap.large_cap)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Mid Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <div  variant="body2">Mid Cap:</div>
+                    <div  variant="body2" fontWeight="600">
                       {formatCurrency(marketCap.mid_cap)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Small Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <div  variant="body2">Small Cap:</div>
+                    <div  variant="body2" fontWeight="600">
                       {formatCurrency(marketCap.small_cap)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Total:</Typography>
-                    <Typography variant="body2" fontWeight="600">
+                    </div>
+                  </div>
+                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <div  variant="body2">Total:</div>
+                    <div  variant="body2" fontWeight="600">
                       {formatCurrency(marketCap.total)}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={6}>
+              <div className="bg-white shadow-md rounded-lg">
+                <div className="bg-white shadow-md rounded-lg"Content>
+                  <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Latest Economic Indicators
-                  </Typography>
+                  </div>
                   {economicIndicators.slice(0, 5).map((indicator, index) => (
-                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{indicator.name}:</Typography>
-                      <Typography variant="body2" fontWeight="600">
+                    <div  key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <div  variant="body2">{indicator.name}:</div>
+                      <div  variant="body2" fontWeight="600">
                         {indicator.value} {indicator.unit}
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
                   ))}
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <TabPanel value={tabValue} index={1}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={1}>
           {sentimentLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Box>
+            <div>
               {sentimentLoading ? (
-                <LinearProgress />
+                <div className="w-full bg-gray-200 rounded-full h-2" />
               ) : (
                 <SentimentHistoryPanel />
               )}
-            </Box>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={tabValue} index={2}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={2}>
           {sectorLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12} md={8}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Sector Performance
-                    </Typography>
+                    </div>
                     <ResponsiveContainer width="100%" height={400}>
                       <BarChart data={sectorChartData}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -1086,31 +1086,31 @@ function MarketOverview() {
                         <Bar dataKey="performance" fill="#8884d8" />
                       </BarChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  </div>
+                </div>
+              </div>
+              <div className="grid" item xs={12} md={4}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Sector Details
-                    </Typography>
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Sector</TableCell>
-                            <TableCell align="right">Change %</TableCell>
-                            <TableCell align="right">Stocks</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                    </div>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sector</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change %</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Stocks</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                           {sectors.slice(0, 8).map((sector, index) => {
                             const changePercent = parseFloat(sector.avg_change_percent || sector.avg_change || sector.performance) || 0
                             return (
-                              <TableRow key={index}>
-                                <TableCell>{sector.sector?.substring(0, 12) || 'N/A'}</TableCell>
-                                <TableCell 
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{sector.sector?.substring(0, 12) || 'N/A'}</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
                                   align="right"
                                   sx={{ 
                                     color: getChangeColor(changePercent),
@@ -1118,77 +1118,77 @@ function MarketOverview() {
                                   }}
                                 >
                                   {formatPercentage(changePercent)}
-                                </TableCell>
-                                <TableCell align="right">
+                                </td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                                   {sector.stock_count || sector.count || 0}
-                                </TableCell>
-                              </TableRow>
+                                </td>
+                              </tr>
                             )
                           })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={tabValue} index={3}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={3}>
           {breadthLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12} md={6}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Market Breadth Details
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                      <Typography variant="body2">Advancing Stocks:</Typography>
-                      <Typography variant="body2" color="success.main" fontWeight="600">
+                    </div>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <div  variant="body2">Advancing Stocks:</div>
+                      <div  variant="body2" color="success.main" fontWeight="600">
                         {breadthInfo.advancing || 0}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                      <Typography variant="body2">Declining Stocks:</Typography>
-                      <Typography variant="body2" color="error.main" fontWeight="600">
+                      </div>
+                    </div>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <div  variant="body2">Declining Stocks:</div>
+                      <div  variant="body2" color="error.main" fontWeight="600">
                         {breadthInfo.declining || 0}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                      <Typography variant="body2">Unchanged:</Typography>
-                      <Typography variant="body2" fontWeight="600">
+                      </div>
+                    </div>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <div  variant="body2">Unchanged:</div>
+                      <div  variant="body2" fontWeight="600">
                         {breadthInfo.unchanged || 0}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                      <Typography variant="body2">A/D Ratio:</Typography>
-                      <Typography variant="body2" fontWeight="600">
+                      </div>
+                    </div>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <div  variant="body2">A/D Ratio:</div>
+                      <div  variant="body2" fontWeight="600">
                         {breadthInfo.advance_decline_ratio || 'N/A'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                      <Typography variant="body2">Average Change:</Typography>
-                      <Typography 
+                      </div>
+                    </div>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <div  variant="body2">Average Change:</div>
+                      <div  
                         variant="body2" 
                         fontWeight="600"
                         sx={{ color: getChangeColor(parseFloat(breadthInfo.average_change_percent) || 0) }}
                       >
                         {formatPercentage(parseFloat(breadthInfo.average_change_percent) || 0)}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid" item xs={12} md={6}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Breadth Visualization
-                    </Typography>
+                    </div>
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
@@ -1210,36 +1210,36 @@ function MarketOverview() {
                         <RechartsTooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={tabValue} index={4}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={4}>
           {economicLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Economic Indicators (Last 90 Days)
-                    </Typography>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Indicator</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Current Value</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Previous Value</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Date</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                    </div>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 600 }}>Indicator</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 600 }}>Current Value</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 600 }}>Previous Value</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 600 }}>Change</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 600 }}>Date</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                           {(() => {
                             // Handle different data structures for economic indicators
                             let indicators = []
@@ -1255,15 +1255,15 @@ function MarketOverview() {
                             }
                             
                             return indicators.map((indicator, index) => (
-                              <TableRow key={index} hover>
-                                <TableCell>{indicator.name || indicator.indicator_name || 'N/A'}</TableCell>
-                                <TableCell align="right">
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{indicator.name || indicator.indicator_name || 'N/A'}</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                                   {indicator.value} {indicator.unit}
-                                </TableCell>
-                                <TableCell align="right">
+                                </td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                                   {indicator.previous_value || 'N/A'} {indicator.unit}
-                                </TableCell>
-                                <TableCell 
+                                </td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
                                   align="right"
                                   sx={{ 
                                     color: getChangeColor(parseFloat(indicator.change_percent) || 0),
@@ -1271,91 +1271,91 @@ function MarketOverview() {
                                   }}
                                 >
                                   {indicator.change_percent ? formatPercentage(parseFloat(indicator.change_percent)) : 'N/A'}
-                                </TableCell>
-                                <TableCell align="right">
+                                </td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                                   {indicator.timestamp || indicator.date ? new Date(indicator.timestamp || indicator.date).toLocaleDateString() : 'N/A'}
-                                </TableCell>
-                              </TableRow>
+                                </td>
+                              </tr>
                             ))
                           })()}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={tabValue} index={5}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={5}>
           {seasonalityLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Grid container spacing={3}>
+            <div className="grid" container spacing={3}>
               {seasonalityData?.data && (
                 <>
                   {/* Current Seasonal Position Summary */}
-                  <Grid item xs={12}>
-                    <Card sx={{ border: '2px solid', borderColor: 'primary.main' }}>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12}>
+                    <div className="bg-white shadow-md rounded-lg" sx={{ border: '2px solid', borderColor: 'primary.main' }}>
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Current Seasonal Position
-                        </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
-                              <Typography variant="h4" color="info.contrastText">
+                        </div>
+                        <div className="grid" container spacing={3}>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+                              <div  variant="h4" color="info.contrastText">
                                 {seasonalityData.data.currentPosition.seasonalScore}/100
-                              </Typography>
-                              <Typography variant="body2" color="info.contrastText">
+                              </div>
+                              <div  variant="body2" color="info.contrastText">
                                 Seasonal Score
-                              </Typography>
-                              <Typography variant="caption" color="info.contrastText">
+                              </div>
+                              <div  variant="caption" color="info.contrastText">
                                 {seasonalityData.data.summary.overallSeasonalBias}
-                              </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
-                              <Typography variant="h6" color="secondary.contrastText">
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
+                              <div  variant="h6" color="secondary.contrastText">
                                 {seasonalityData.data.currentPosition.presidentialCycle}
-                              </Typography>
-                              <Typography variant="body2" color="secondary.contrastText">
+                              </div>
+                              <div  variant="body2" color="secondary.contrastText">
                                 Presidential Cycle
-                              </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
-                              <Typography variant="h6" color="warning.contrastText">
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
+                              <div  variant="h6" color="warning.contrastText">
                                 {seasonalityData.data.currentPosition.nextMajorEvent?.name}
-                              </Typography>
-                              <Typography variant="body2" color="warning.contrastText">
+                              </div>
+                              <div  variant="body2" color="warning.contrastText">
                                 Next Event ({seasonalityData.data.currentPosition.nextMajorEvent?.daysAway} days)
-                              </Typography>
-                            </Box>
-                          </Grid>
-                        </Grid>
-                        <Box sx={{ mt: 3 }}>
-                          <Typography variant="body1" sx={{ mb: 1 }}>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div  sx={{ mt: 3 }}>
+                          <div  variant="body1" sx={{ mb: 1 }}>
                             <strong>Recommendation:</strong> {seasonalityData.data.summary.recommendation}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </div>
+                          <div  variant="body2" color="text.secondary">
                             Active Periods: {seasonalityData.data.currentPosition.activePeriods?.join(', ')}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Monthly Seasonality */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Monthly Seasonality Pattern
-                        </Typography>
+                        </div>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart data={seasonalityData.data.monthlySeasonality}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -1369,17 +1369,17 @@ function MarketOverview() {
                             />
                           </BarChart>
                         </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Quarterly Patterns */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Quarterly Performance
-                        </Typography>
+                        </div>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart data={seasonalityData.data.quarterlySeasonality}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -1399,54 +1399,54 @@ function MarketOverview() {
                             />
                           </BarChart>
                         </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Presidential Cycle Details */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Presidential Cycle (4-Year Pattern)
-                        </Typography>
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Year</TableCell>
-                                <TableCell>Phase</TableCell>
-                                <TableCell align="right">Avg Return</TableCell>
-                                <TableCell align="center">Status</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
+                        </div>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Year</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Phase</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg Return</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Status</td>
+                              </tr>
+                            </thead>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                               {seasonalityData.data.presidentialCycle.data.map((cycle) => (
-                                <TableRow key={cycle.year} sx={{ backgroundColor: cycle.isCurrent ? 'primary.light' : 'inherit' }}>
-                                  <TableCell>Year {cycle.year}</TableCell>
-                                  <TableCell>{cycle.label}</TableCell>
-                                  <TableCell align="right">{formatPercentage(cycle.avgReturn)}</TableCell>
-                                  <TableCell align="center">
-                                    {cycle.isCurrent && <Chip label="CURRENT" color="primary" size="small" />}
-                                  </TableCell>
-                                </TableRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={cycle.year} sx={{ backgroundColor: cycle.isCurrent ? 'primary.light' : 'inherit' }}>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Year {cycle.year}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{cycle.label}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPercentage(cycle.avgReturn)}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                                    {cycle.isCurrent && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="CURRENT" color="primary" size="small" />}
+                                  </td>
+                                </tr>
                               ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Day of Week Effects */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Day of Week Effects
-                        </Typography>
+                        </div>
                         {seasonalityData.data.dayOfWeekEffects.map((day) => (
-                          <Box key={day.day} sx={{ 
+                          <div  key={day.day} sx={{ 
                             display: 'flex', 
                             justifyContent: 'space-between', 
                             mb: 1,
@@ -1454,49 +1454,49 @@ function MarketOverview() {
                             backgroundColor: day.isCurrent ? 'primary.light' : 'inherit',
                             borderRadius: 1
                           }}>
-                            <Typography variant="body2" fontWeight={day.isCurrent ? 600 : 400}>
+                            <div  variant="body2" fontWeight={day.isCurrent ? 600 : 400}>
                               {day.day}
-                            </Typography>
-                            <Typography 
+                            </div>
+                            <div  
                               variant="body2" 
                               sx={{ color: getChangeColor(day.avgReturn * 100) }}
                               fontWeight={600}
                             >
                               {formatPercentage(day.avgReturn)}
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                         ))}
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Seasonal Anomalies */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Seasonal Anomalies & Effects
-                        </Typography>
-                        <Grid container spacing={2}>
+                        </div>
+                        <div className="grid" container spacing={2}>
                           {seasonalityData.data.seasonalAnomalies.map((anomaly, index) => (
-                            <Grid item xs={12} sm={6} md={3} key={index}>
-                              <Box sx={{ 
+                            <div className="grid" item xs={12} sm={6} md={3} key={index}>
+                              <div  sx={{ 
                                 p: 2, 
                                 border: 1, 
                                 borderColor: 'divider', 
                                 borderRadius: 1,
                                 height: '100%'
                               }}>
-                                <Typography variant="subtitle2" fontWeight={600}>
+                                <div  variant="subtitle2" fontWeight={600}>
                                   {anomaly.name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" display="block">
+                                </div>
+                                <div  variant="caption" color="text.secondary" display="block">
                                   {anomaly.period}
-                                </Typography>
-                                <Typography variant="body2" sx={{ mt: 1, mb: 1 }}>
+                                </div>
+                                <div  variant="body2" sx={{ mt: 1, mb: 1 }}>
                                   {anomaly.description}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={anomaly.strength}
                                   size="small"
                                   color={
@@ -1504,287 +1504,287 @@ function MarketOverview() {
                                     anomaly.strength === 'Moderate' ? 'warning' : 'default'
                                   }
                                 />
-                              </Box>
-                            </Grid>
+                              </div>
+                            </div>
                           ))}
-                        </Grid>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Holiday Effects */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Holiday Effects
-                        </Typography>
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Holiday</TableCell>
-                                <TableCell>Dates</TableCell>
-                                <TableCell align="right">Effect</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
+                        </div>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Holiday</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Dates</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Effect</td>
+                              </tr>
+                            </thead>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                               {seasonalityData.data.holidayEffects.map((holiday, index) => (
-                                <TableRow key={index}>
-                                  <TableCell>{holiday.holiday}</TableCell>
-                                  <TableCell>{holiday.dates}</TableCell>
-                                  <TableCell align="right" sx={{ 
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{holiday.holiday}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{holiday.dates}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ 
                                     color: getChangeColor(parseFloat(holiday.effect.replace('%', ''))),
                                     fontWeight: 600
                                   }}>
                                     {holiday.effect}
-                                  </TableCell>
-                                </TableRow>
+                                  </td>
+                                </tr>
                               ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Sector Seasonality */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Sector Seasonality
-                        </Typography>
+                        </div>
                         {seasonalityData.data.sectorSeasonality.map((sector, index) => (
-                          <Box key={index} sx={{ mb: 2 }}>
-                            <Typography variant="subtitle2" fontWeight={600}>
+                          <div  key={index} sx={{ mb: 2 }}>
+                            <div  variant="subtitle2" fontWeight={600}>
                               {sector.sector}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            </div>
+                            <div  variant="caption" color="text.secondary">
                               Best: {sector.bestMonths.map(m => new Date(0, m-1).toLocaleString('default', {month:'short'})).join(', ')}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" display="block">
+                            </div>
+                            <div  variant="caption" color="text.secondary" display="block">
                               Worst: {sector.worstMonths.map(m => new Date(0, m-1).toLocaleString('default', {month:'short'})).join(', ')}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                            </div>
+                            <div  variant="body2" sx={{ mt: 0.5 }}>
                               {sector.rationale}
-                            </Typography>
-                          </Box>
+                            </div>
+                          </div>
                         ))}
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Summary & Outlook */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Seasonal Outlook Summary
-                        </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
+                        </div>
+                        <div className="grid" container spacing={3}>
+                          <div className="grid" item xs={12} md={6}>
+                            <div  variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
                               Favorable Factors:
-                            </Typography>
+                            </div>
                             {seasonalityData.data.summary.favorableFactors?.map((factor, index) => (
-                              <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                              <div  key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
                                 • {factor}
-                              </Typography>
+                              </div>
                             ))}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
+                          </div>
+                          <div className="grid" item xs={12} md={6}>
+                            <div  variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
                               Unfavorable Factors:
-                            </Typography>
+                            </div>
                             {seasonalityData.data.summary.unfavorableFactors?.map((factor, index) => (
-                              <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                              <div  key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
                                 • {factor}
-                              </Typography>
+                              </div>
                             ))}
-                          </Grid>
-                        </Grid>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
-            </Grid>
+            </div>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={tabValue} index={6}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={6}>
           {researchLoading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
-            <Grid container spacing={3}>
+            <div className="grid" container spacing={3}>
               {researchData?.data && (
                 <>
                   {/* Market Summary */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Market Research Summary
-                        </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
-                              <Typography variant="h6" color="info.contrastText">
+                        </div>
+                        <div className="grid" container spacing={3}>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+                              <div  variant="h6" color="info.contrastText">
                                 {researchData.data.summary.overallSentiment}
-                              </Typography>
-                              <Typography variant="body2" color="info.contrastText">
+                              </div>
+                              <div  variant="body2" color="info.contrastText">
                                 Overall Market Sentiment
-                              </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
-                              <Typography variant="h6" color="secondary.contrastText">
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'secondary.light', borderRadius: 1 }}>
+                              <div  variant="h6" color="secondary.contrastText">
                                 {researchData.data.summary.marketRegime}
-                              </Typography>
-                              <Typography variant="body2" color="secondary.contrastText">
+                              </div>
+                              <div  variant="body2" color="secondary.contrastText">
                                 Market Regime
-                              </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
-                              <Typography variant="h6" color="warning.contrastText">
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid" item xs={12} md={4}>
+                            <div  sx={{ textAlign: 'center', p: 2, backgroundColor: 'warning.light', borderRadius: 1 }}>
+                              <div  variant="h6" color="warning.contrastText">
                                 {researchData.data.summary.timeHorizon}
-                              </Typography>
-                              <Typography variant="body2" color="warning.contrastText">
+                              </div>
+                              <div  variant="body2" color="warning.contrastText">
                                 Investment Time Horizon
-                              </Typography>
-                            </Box>
-                          </Grid>
-                        </Grid>
-                        <Box sx={{ mt: 3 }}>
-                          <Typography variant="body1" sx={{ mb: 1 }}>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div  sx={{ mt: 3 }}>
+                          <div  variant="body1" sx={{ mb: 1 }}>
                             <strong>Recommendation:</strong> {researchData.data.summary.recommendation}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Volatility & Sentiment Indicators */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Volatility & Sentiment
-                        </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="body2">VIX (Fear Index):</Typography>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600} display="inline">
+                        </div>
+                        <div className="grid" container spacing={2}>
+                          <div className="grid" item xs={12}>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <div  variant="body2">VIX (Fear Index):</div>
+                              <div>
+                                <div  variant="body2" fontWeight={600} display="inline">
                                   {researchData.data.volatility.vix.toFixed(1)}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={researchData.data.volatility.vixInterpretation.level}
                                   color={researchData.data.volatility.vixInterpretation.color}
                                   size="small"
                                   sx={{ ml: 1 }}
                                 />
-                              </Box>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary">
+                              </div>
+                            </div>
+                            <div  variant="caption" color="text.secondary">
                               30-day avg: {researchData.data.volatility.vixAverage.toFixed(1)} | {researchData.data.volatility.vixInterpretation.sentiment}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="body2">Put/Call Ratio:</Typography>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600} display="inline">
+                            </div>
+                          </div>
+                          <div className="grid" item xs={12}>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <div  variant="body2">Put/Call Ratio:</div>
+                              <div>
+                                <div  variant="body2" fontWeight={600} display="inline">
                                   {researchData.data.sentiment.putCallRatio.toFixed(2)}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={researchData.data.sentiment.putCallInterpretation.sentiment}
                                   color={researchData.data.sentiment.putCallInterpretation.color}
                                   size="small"
                                   sx={{ ml: 1 }}
                                 />
-                              </Box>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary">
+                              </div>
+                            </div>
+                            <div  variant="caption" color="text.secondary">
                               10-day avg: {researchData.data.sentiment.putCallAverage.toFixed(2)} | {researchData.data.sentiment.putCallInterpretation.signal}
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Technical Levels */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Major Index Technical Levels
-                        </Typography>
+                        </div>
                         {Object.entries(researchData.data.technicalLevels).map(([index, data]) => (
-                          <Box key={index} sx={{ mb: 2 }}>
-                            <Typography variant="body2" fontWeight={600}>{index}</Typography>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="caption">Current:</Typography>
-                              <Typography variant="caption">{data.current.toFixed(0)}</Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="caption">Trend:</Typography>
-                              <Typography variant="caption" sx={{ color: getChangeColor(data.trend === 'Bullish' ? 1 : data.trend === 'Bearish' ? -1 : 0) }}>
+                          <div  key={index} sx={{ mb: 2 }}>
+                            <div  variant="body2" fontWeight={600}>{index}</div>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <div  variant="caption">Current:</div>
+                              <div  variant="caption">{data.current.toFixed(0)}</div>
+                            </div>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <div  variant="caption">Trend:</div>
+                              <div  variant="caption" sx={{ color: getChangeColor(data.trend === 'Bullish' ? 1 : data.trend === 'Bearish' ? -1 : 0) }}>
                                 {data.trend}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography variant="caption">RSI:</Typography>
-                              <Typography variant="caption">{data.rsi.toFixed(1)}</Typography>
-                            </Box>
-                          </Box>
+                              </div>
+                            </div>
+                            <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <div  variant="caption">RSI:</div>
+                              <div  variant="caption">{data.rsi.toFixed(1)}</div>
+                            </div>
+                          </div>
                         ))}
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Sector Rotation */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Sector Rotation Analysis
-                        </Typography>
-                        <TableContainer>
-                          <Table>
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                                <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Momentum</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Money Flow</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 600 }}>Performance</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
+                        </div>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 600 }}>Sector</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 600 }}>Momentum</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 600 }}>Money Flow</td>
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 600 }}>Performance</td>
+                              </tr>
+                            </thead>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                               {researchData.data.sectorRotation.map((sector, index) => (
-                                <TableRow key={index} hover>
-                                  <TableCell>{sector.sector}</TableCell>
-                                  <TableCell>
-                                    <Chip 
+                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{sector.sector}</td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                       label={sector.momentum}
                                       color={sector.momentum === 'Strong' ? 'success' : sector.momentum === 'Moderate' ? 'info' : 'warning'}
                                       size="small"
                                     />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Chip 
+                                  </td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                       label={sector.flow}
                                       color={sector.flow === 'Inflow' ? 'success' : sector.flow === 'Outflow' ? 'error' : 'default'}
                                       size="small"
                                     />
-                                  </TableCell>
-                                  <TableCell 
+                                  </td>
+                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
                                     align="right"
                                     sx={{ 
                                       color: getChangeColor(sector.performance),
@@ -1792,85 +1792,85 @@ function MarketOverview() {
                                     }}
                                   >
                                     {formatPercentage(sector.performance)}
-                                  </TableCell>
-                                </TableRow>
+                                  </td>
+                                </tr>
                               ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Economic Calendar */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Upcoming Economic Events
-                        </Typography>
+                        </div>
                         {researchData.data.economicCalendar.map((event, index) => (
-                          <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                            <Typography variant="body2" fontWeight={600}>{event.event}</Typography>
-                            <Typography variant="caption" color="text.secondary">
+                          <div  key={index} sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                            <div  variant="body2" fontWeight={600}>{event.event}</div>
+                            <div  variant="caption" color="text.secondary">
                               {new Date(event.date).toLocaleDateString()} | Expected: {event.expected}
-                            </Typography>
-                            <Box sx={{ mt: 0.5 }}>
-                              <Chip 
+                            </div>
+                            <div  sx={{ mt: 0.5 }}>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={event.importance}
                                 color={event.importance === 'High' ? 'error' : 'warning'}
                                 size="small"
                               />
-                              <Chip 
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={event.impact}
                                 color="info"
                                 size="small"
                                 sx={{ ml: 1 }}
                               />
-                            </Box>
-                          </Box>
+                            </div>
+                          </div>
                         ))}
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Key Risks & Opportunities */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg">
+                      <div className="bg-white shadow-md rounded-lg"Content>
+                        <div  variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                           Key Risks & Opportunities
-                        </Typography>
-                        <Box sx={{ mb: 3 }}>
-                          <Typography variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
+                        </div>
+                        <div  sx={{ mb: 3 }}>
+                          <div  variant="body2" fontWeight={600} color="error.main" sx={{ mb: 1 }}>
                             Key Risks:
-                          </Typography>
+                          </div>
                           {researchData.data.summary.keyRisks.map((risk, index) => (
-                            <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                            <div  key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
                               • {risk}
-                            </Typography>
+                            </div>
                           ))}
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
+                        </div>
+                        <div>
+                          <div  variant="body2" fontWeight={600} color="success.main" sx={{ mb: 1 }}>
                             Key Opportunities:
-                          </Typography>
+                          </div>
                           {researchData.data.summary.keyOpportunities.map((opportunity, index) => (
-                            <Typography key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                            <div  key={index} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
                               • {opportunity}
-                            </Typography>
+                            </div>
                           ))}
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
-            </Grid>
+            </div>
           )}
-        </TabPanel>
+        </div>
       </AnimatedCard>
-    </Box>
+    </div>
   )
 }
 

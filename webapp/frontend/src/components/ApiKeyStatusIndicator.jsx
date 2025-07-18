@@ -130,54 +130,54 @@ const ApiKeyStatusIndicator = ({
 
   if (compact) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Tooltip title={statusInfo.message}>
-          <Chip
+      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div  title={statusInfo.message}>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
             icon={statusInfo.icon}
             label={apiKeys.length > 0 ? `${apiKeys.length} connected` : 'No API keys'}
             color={statusInfo.color}
             size="small"
             variant="outlined"
           />
-        </Tooltip>
+        </div>
         {statusInfo.status === 'missing' && (
-          <Tooltip title="Configure API keys">
-            <IconButton size="small" onClick={handleSetupClick}>
+          <div  title="Configure API keys">
+            <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleSetupClick}>
               <Settings fontSize="small" />
-            </IconButton>
-          </Tooltip>
+            </button>
+          </div>
         )}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box>
-      <Alert 
+    <div>
+      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
         severity={statusInfo.severity}
         action={
           statusInfo.status === 'missing' ? (
-            <Button 
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               color="inherit" 
               size="small" 
               onClick={handleSetupClick}
               startIcon={<Settings />}
             >
               Setup API Keys
-            </Button>
+            </button>
           ) : statusInfo.status === 'error' ? (
-            <Button 
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               color="inherit" 
               size="small" 
               onClick={checkApiKeyStatus}
               startIcon={<Refresh />}
             >
               Retry
-            </Button>
+            </button>
           ) : null
         }
       >
-        <Typography variant="body2">
+        <div  variant="body2">
           {statusInfo.message}
           {statusInfo.status === 'missing' && (
             <span>
@@ -189,52 +189,52 @@ const ApiKeyStatusIndicator = ({
               . Live data from: {apiKeys.map(k => k.provider).join(', ')}
             </span>
           )}
-        </Typography>
-      </Alert>
+        </div>
+      </div>
 
       {/* Setup Dialog */}
-      <Dialog open={setupDialogOpen} onClose={() => setSetupDialogOpen(false)}>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={setupDialogOpen} onClose={() => setSetupDialogOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Info color="primary" />
             Setup Broker API Keys
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Typography paragraph>
+          </div>
+        </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  paragraph>
             To access live portfolio data, trading history, and real-time market feeds, 
             you'll need to configure your broker API keys.
-          </Typography>
-          <Typography paragraph>
+          </div>
+          <div  paragraph>
             <strong>Supported Brokers:</strong>
-          </Typography>
-          <Box sx={{ ml: 2, mb: 2 }}>
-            <Typography variant="body2">• Alpaca (Paper & Live Trading)</Typography>
-            <Typography variant="body2">• TD Ameritrade (Coming Soon)</Typography>
-            <Typography variant="body2">• Interactive Brokers (Coming Soon)</Typography>
-          </Box>
-          <Typography paragraph>
+          </div>
+          <div  sx={{ ml: 2, mb: 2 }}>
+            <div  variant="body2">• Alpaca (Paper & Live Trading)</div>
+            <div  variant="body2">• TD Ameritrade (Coming Soon)</div>
+            <div  variant="body2">• Interactive Brokers (Coming Soon)</div>
+          </div>
+          <div  paragraph>
             <strong>Security:</strong> Your API keys are encrypted with AES-256-GCM 
             and stored securely. We never store your credentials in plaintext.
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
+          </div>
+          <div  variant="body2" color="textSecondary">
             Don't have API keys? You can still use the demo data to explore the platform.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSetupDialogOpen(false)}>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSetupDialogOpen(false)}>
             Use Demo Data
-          </Button>
-          <Button 
+          </button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
             variant="contained" 
             onClick={handleNavigateToSettings}
             startIcon={<Settings />}
           >
             Configure API Keys
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

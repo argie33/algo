@@ -3,7 +3,6 @@ import {
   Box, Card, CardContent, Typography, Button, Alert, 
   TextField, Stack, Divider, Chip
 } from '@mui/material';
-import { Warning, Login, Person, Email } from '@mui/icons-material';
 
 const AuthFallback = ({ onLogin }) => {
   const [email, setEmail] = useState('demo@example.com');
@@ -48,7 +47,7 @@ const AuthFallback = ({ onLogin }) => {
   };
 
   return (
-    <Box sx={{ 
+    <div  sx={{ 
       minHeight: '100vh', 
       display: 'flex', 
       alignItems: 'center', 
@@ -56,41 +55,41 @@ const AuthFallback = ({ onLogin }) => {
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       p: 2
     }}>
-      <Card sx={{ maxWidth: 500, width: '100%' }}>
-        <CardContent sx={{ p: 4 }}>
-          <Stack spacing={3} alignItems="center">
+      <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 500, width: '100%' }}>
+        <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
+          <div className="flex flex-col space-y-2" spacing={3} alignItems="center">
             <Warning sx={{ fontSize: 60, color: 'warning.main' }} />
             
-            <Typography variant="h4" textAlign="center" gutterBottom>
+            <div  variant="h4" textAlign="center" gutterBottom>
               Authentication Unavailable
-            </Typography>
+            </div>
             
-            <Alert severity="warning" sx={{ width: '100%' }}>
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ width: '100%' }}>
+              <div  variant="body2">
                 <strong>Production Issue:</strong> Cognito configuration is using fallback values. 
                 Real authentication is not available.
-              </Typography>
-            </Alert>
+              </div>
+            </div>
 
-            <Stack spacing={1} sx={{ width: '100%' }}>
-              <Typography variant="body2" color="text.secondary">
+            <div className="flex flex-col space-y-2" spacing={1} sx={{ width: '100%' }}>
+              <div  variant="body2" color="text.secondary">
                 <strong>Technical Details:</strong>
-              </Typography>
-              <Chip label="USER_POOL_ID: us-east-1_MISSING" size="small" color="error" />
-              <Chip label="CLIENT_ID: missing-client-id" size="small" color="error" />
-              <Typography variant="caption" color="text.secondary">
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="USER_POOL_ID: us-east-1_MISSING" size="small" color="error" />
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="CLIENT_ID: missing-client-id" size="small" color="error" />
+              <div  variant="caption" color="text.secondary">
                 CloudFormation deployment must extract real Cognito values
-              </Typography>
-            </Stack>
+              </div>
+            </div>
 
-            <Divider sx={{ width: '100%' }} />
+            <hr className="border-gray-200" sx={{ width: '100%' }} />
 
-            <Typography variant="h6" color="primary.main">
+            <div  variant="h6" color="primary.main">
               Development Mode Access
-            </Typography>
+            </div>
 
-            <Stack spacing={2} sx={{ width: '100%' }}>
-              <TextField
+            <div className="flex flex-col space-y-2" spacing={2} sx={{ width: '100%' }}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 label="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -100,7 +99,7 @@ const AuthFallback = ({ onLogin }) => {
                   startAdornment: <Email sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
-              <TextField
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 label="Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -110,9 +109,9 @@ const AuthFallback = ({ onLogin }) => {
                   startAdornment: <Person sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
-            </Stack>
+            </div>
 
-            <Button
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               onClick={handleDemoLogin}
               startIcon={<Login />}
@@ -121,18 +120,18 @@ const AuthFallback = ({ onLogin }) => {
               sx={{ py: 1.5 }}
             >
               Continue with Demo Mode
-            </Button>
+            </button>
 
-            <Alert severity="info" sx={{ width: '100%' }}>
-              <Typography variant="caption">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ width: '100%' }}>
+              <div  variant="caption">
                 This creates a temporary demo session. No real authentication is performed.
                 All data will be mock/demo data until the backend database is connected.
-              </Typography>
-            </Alert>
-          </Stack>
-        </CardContent>
-      </Card>
-    </Box>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

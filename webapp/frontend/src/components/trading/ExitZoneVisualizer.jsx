@@ -105,7 +105,7 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
   const progressToNext = getProgressToNextZone();
 
   return (
-    <Paper 
+    <div className="bg-white shadow-md rounded-lg p-4" 
       elevation={2} 
       sx={{ 
         p: 3, 
@@ -113,12 +113,12 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
         border: `1px solid ${'#e0e0e01A'}`
       }}
     >
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" gutterBottom>
+      <div  sx={{ mb: 2 }}>
+        <div  variant="h6" gutterBottom>
           Exit Zone Management
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Chip 
+        </div>
+        <div  sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
             label={`Current Zone: ${currentZone.zone}`}
             sx={{ 
               backgroundColor: currentZone.color + '33',
@@ -126,15 +126,15 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               fontWeight: 600
             }}
           />
-          <Typography variant="body2" color="text.secondary">
+          <div  variant="body2" color="text.secondary">
             Gain: {currentGain >= 0 ? '+' : ''}{currentGain.toFixed(2)}%
-          </Typography>
-        </Box>
-      </Box>
+          </div>
+        </div>
+      </div>
 
       {/* Visual Zone Representation */}
-      <Box sx={{ position: 'relative', mb: 3 }}>
-        <Box sx={{ 
+      <div  sx={{ position: 'relative', mb: 3 }}>
+        <div  sx={{ 
           display: 'flex', 
           height: 60, 
           borderRadius: 1,
@@ -142,8 +142,8 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
           border: `1px solid #e0e0e0`
         }}>
           {/* Stop Loss Zone */}
-          <Tooltip title="Stop Loss: 7% below entry">
-            <Box sx={{ 
+          <div  title="Stop Loss: 7% below entry">
+            <div  sx={{ 
               width: '10%', 
               backgroundColor: '#d32f2f',
               display: 'flex',
@@ -153,12 +153,12 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               cursor: 'pointer'
             }}>
               <Warning fontSize="small" />
-            </Box>
-          </Tooltip>
+            </div>
+          </div>
 
           {/* Entry Zone */}
-          <Tooltip title="Entry Zone">
-            <Box sx={{ 
+          <div  title="Entry Zone">
+            <div  sx={{ 
               width: '15%', 
               backgroundColor: '#e0e0e0',
               display: 'flex',
@@ -166,13 +166,13 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
               justifyContent: 'center'
             }}>
               <Flag fontSize="small" />
-            </Box>
-          </Tooltip>
+            </div>
+          </div>
 
           {/* Exit Zones */}
           {exitZones.map((zone, index) => (
-            <Tooltip key={zone.level} title={zone.description}>
-              <Box sx={{ 
+            <div  key={zone.level} title={zone.description}>
+              <div  sx={{ 
                 flex: 1,
                 backgroundColor: zone.color,
                 opacity: currentPrice >= zone.target ? 1 : 0.3,
@@ -184,29 +184,29 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
                 cursor: 'pointer',
                 transition: 'all 0.3s ease'
               }}>
-                <Typography variant="caption" fontWeight={600}>
+                <div  variant="caption" fontWeight={600}>
                   {zone.trigger || `${zone.percentage}%`}
-                </Typography>
-              </Box>
-            </Tooltip>
+                </div>
+              </div>
+            </div>
           ))}
-        </Box>
+        </div>
 
         {/* Current Price Indicator */}
-        <Box sx={{ 
+        <div  sx={{ 
           position: 'absolute',
           top: -10,
           left: `${Math.min(95, Math.max(5, (currentPrice - stopLoss) / (exitZones[3].target - stopLoss) * 100))}%`,
           transform: 'translateX(-50%)'
         }}>
-          <Box sx={{ 
+          <div  sx={{ 
             width: 0,
             height: 0,
             borderLeft: '8px solid transparent',
             borderRight: '8px solid transparent',
             borderTop: `12px solid #1976d2`
           }} />
-          <Typography 
+          <div  
             variant="caption" 
             sx={{ 
               position: 'absolute',
@@ -223,21 +223,21 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
             }}
           >
             {formatCurrency(currentPrice)}
-          </Typography>
-        </Box>
-      </Box>
+          </div>
+        </div>
+      </div>
 
       {/* Progress to Next Zone */}
-      <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+      <div  sx={{ mb: 3 }}>
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <div  variant="body2" color="text.secondary">
             Progress to Next Zone
-          </Typography>
-          <Typography variant="body2" fontWeight={600}>
+          </div>
+          <div  variant="body2" fontWeight={600}>
             {progressToNext.toFixed(1)}%
-          </Typography>
-        </Box>
-        <LinearProgress 
+          </div>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2" 
           variant="determinate" 
           value={progressToNext} 
           sx={{ 
@@ -249,13 +249,13 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
             }
           }}
         />
-      </Box>
+      </div>
 
       {/* Exit Zone Details */}
-      <Grid container spacing={2}>
+      <div className="grid" container spacing={2}>
         {exitZones.map((zone) => (
-          <Grid item xs={6} key={zone.level}>
-            <Paper 
+          <div className="grid" item xs={6} key={zone.level}>
+            <div className="bg-white shadow-md rounded-lg p-4" 
               variant="outlined" 
               sx={{ 
                 p: 2,
@@ -267,52 +267,52 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
                   : '#e0e0e0'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 {currentPrice >= zone.target ? (
                   <CheckCircle sx={{ color: zone.color, fontSize: 20 }} />
                 ) : (
                   <Timeline sx={{ color: '#666666', fontSize: 20 }} />
                 )}
-                <Typography variant="subtitle2" fontWeight={600}>
+                <div  variant="subtitle2" fontWeight={600}>
                   {zone.name}
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+                </div>
+              </div>
+              <div  variant="body2" color="text.secondary" gutterBottom>
                 {zone.isDynamic ? zone.trigger : `Target: ${formatCurrency(zone.target)}`}
-              </Typography>
-              <Chip 
+              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={`Sell ${zone.sellPercent}%`}
                 size="small"
                 variant={currentPrice >= zone.target ? 'filled' : 'outlined'}
                 color={currentPrice >= zone.target ? 'success' : 'default'}
               />
-            </Paper>
-          </Grid>
+            </div>
+          </div>
         ))}
-      </Grid>
+      </div>
 
       {/* Stop Loss Warning */}
       {currentPrice < entryPrice && currentPrice > stopLoss && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="warning" 
           sx={{ mt: 2 }}
           icon={<Warning />}
         >
-          <Typography variant="body2">
+          <div  variant="body2">
             Price is {((stopLoss - currentPrice) / currentPrice * 100).toFixed(1)}% above stop loss ({formatCurrency(stopLoss)})
-          </Typography>
-        </Alert>
+          </div>
+        </div>
       )}
 
       {/* Buy Zone Indicator (for new entries) */}
       {!entryPrice && signal?.pivot_price && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="subtitle2" gutterBottom>
+        <div  sx={{ mt: 3 }}>
+          <div  variant="subtitle2" gutterBottom>
             5% Buy Zone (O'Neill Method)
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ flex: 1 }}>
-              <LinearProgress 
+          </div>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <div  sx={{ flex: 1 }}>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={currentPrice <= signal.pivot_price * 1.05 ? 
                   ((currentPrice - signal.pivot_price) / (signal.pivot_price * 0.05)) * 100 : 100
@@ -320,14 +320,14 @@ const ExitZoneVisualizer = ({ signal, currentPrice, entryPrice }) => {
                 color={currentPrice <= signal.pivot_price * 1.05 ? 'success' : 'error'}
                 sx={{ height: 8, borderRadius: 4 }}
               />
-            </Box>
-            <Typography variant="caption" color="text.secondary">
+            </div>
+            <div  variant="caption" color="text.secondary">
               {formatCurrency(signal.pivot_price)} - {formatCurrency(signal.pivot_price * 1.05)}
-            </Typography>
-          </Box>
-        </Box>
+            </div>
+          </div>
+        </div>
       )}
-    </Paper>
+    </div>
   );
 };
 

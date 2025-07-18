@@ -122,69 +122,69 @@ const NewsWidget = ({
   ];
 
   return (
-    <Card sx={{ height }}>
-      <CardHeader
+    <div className="bg-white shadow-md rounded-lg" sx={{ height }}>
+      <div className="bg-white shadow-md rounded-lg"Header
         title={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Language color="primary" />
-            <Typography variant="h6" fontWeight="bold">
+            <div  variant="h6" fontWeight="bold">
               Market News
-            </Typography>
-            <Chip 
+            </div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
               label={categories.find(c => c.value === selectedCategory)?.label || 'Market'} 
               size="small" 
               color="primary"
             />
-          </Box>
+          </div>
         }
         action={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton onClick={handleRefresh} disabled={isLoading}>
+          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh} disabled={isLoading}>
               <Refresh />
-            </IconButton>
-            <IconButton onClick={handleMenuOpen}>
+            </button>
+            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleMenuOpen}>
               <MoreVert />
-            </IconButton>
-          </Box>
+            </button>
+          </div>
         }
         sx={{ pb: 1 }}
       />
       
-      <Menu
+      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10"
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
-        <MenuItem disabled>
-          <Typography variant="caption">Categories</Typography>
-        </MenuItem>
-        <Divider />
+        <option  disabled>
+          <div  variant="caption">Categories</div>
+        </option>
+        <hr className="border-gray-200" />
         {categories.map(cat => (
-          <MenuItem 
+          <option  
             key={cat.value} 
             onClick={() => handleCategoryChange(cat.value)}
             selected={selectedCategory === cat.value}
           >
             {cat.label}
-          </MenuItem>
+          </option>
         ))}
-      </Menu>
+      </div>
 
-      <CardContent sx={{ pt: 0, height: 'calc(100% - 64px)', overflow: 'hidden' }}>
-        {isLoading && <LinearProgress sx={{ mb: 2 }} />}
+      <div className="bg-white shadow-md rounded-lg"Content sx={{ pt: 0, height: 'calc(100% - 64px)', overflow: 'hidden' }}>
+        {isLoading && <div className="w-full bg-gray-200 rounded-full h-2" sx={{ mb: 2 }} />}
         
         {error && (
-          <Box sx={{ textAlign: 'center', py: 2 }}>
-            <Typography color="error" variant="body2">
+          <div  sx={{ textAlign: 'center', py: 2 }}>
+            <div  color="error" variant="body2">
               Failed to load news. Using sample data.
-            </Typography>
-            <Button onClick={handleRefresh} size="small" sx={{ mt: 1 }}>
+            </div>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleRefresh} size="small" sx={{ mt: 1 }}>
               Retry
-            </Button>
-          </Box>
+            </button>
+          </div>
         )}
 
-        <Box sx={{ height: '100%', overflow: 'auto' }}>
+        <div  sx={{ height: '100%', overflow: 'auto' }}>
           <List dense>
             {(newsData || []).map((article, index) => (
               <React.Fragment key={article.id || index}>
@@ -199,8 +199,8 @@ const NewsWidget = ({
                 >
                   <ListItemText
                     primary={
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                        <Box sx={{ flex: 1 }}>
+                      <div  sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <div  sx={{ flex: 1 }}>
                           <Link
                             href={article.url}
                             target="_blank"
@@ -219,18 +219,18 @@ const NewsWidget = ({
                           >
                             {article.headline}
                           </Link>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        </div>
+                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           {getSentimentIcon(article.sentiment)}
-                          <IconButton size="small" href={article.url} target="_blank">
+                          <button className="p-2 rounded-full hover:bg-gray-100" size="small" href={article.url} target="_blank">
                             <OpenInNew fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      </Box>
+                          </button>
+                        </div>
+                      </div>
                     }
                     secondary={
-                      <Box sx={{ mt: 1 }}>
-                        <Typography
+                      <div  sx={{ mt: 1 }}>
+                        <div 
                           variant="body2"
                           color="text.secondary"
                           sx={{
@@ -244,38 +244,38 @@ const NewsWidget = ({
                           }}
                         >
                           {article.summary}
-                        </Typography>
+                        </div>
                         
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip
+                        <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                               label={article.source || 'News'}
                               size="small"
                               variant="outlined"
                               sx={{ fontSize: '0.7rem', height: 20 }}
                             />
                             {showSentiment && article.sentiment && (
-                              <Chip
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 label={article.sentiment.label}
                                 size="small"
                                 color={getSentimentColor(article.sentiment)}
                                 sx={{ fontSize: '0.7rem', height: 20 }}
                               />
                             )}
-                          </Box>
+                          </div>
                           
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Schedule fontSize="small" color="action" />
-                            <Typography variant="caption" color="text.secondary">
+                            <div  variant="caption" color="text.secondary">
                               {formatTimeAgo(article.createdAt || article.publishedAt)}
-                            </Typography>
-                          </Box>
-                        </Box>
+                            </div>
+                          </div>
+                        </div>
 
                         {article.symbols && article.symbols.length > 0 && (
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+                          <div  sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
                             {article.symbols.slice(0, 3).map(symbol => (
-                              <Chip
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 key={symbol}
                                 label={symbol}
                                 size="small"
@@ -285,34 +285,34 @@ const NewsWidget = ({
                               />
                             ))}
                             {article.symbols.length > 3 && (
-                              <Chip
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 label={`+${article.symbols.length - 3}`}
                                 size="small"
                                 variant="outlined"
                                 sx={{ fontSize: '0.65rem', height: 18 }}
                               />
                             )}
-                          </Box>
+                          </div>
                         )}
-                      </Box>
+                      </div>
                     }
                   />
                 </ListItem>
-                {index < (newsData?.length || 0) - 1 && <Divider variant="inset" />}
+                {index < (newsData?.length || 0) - 1 && <hr className="border-gray-200" variant="inset" />}
               </React.Fragment>
             ))}
             
             {(!newsData || newsData.length === 0) && !isLoading && (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography color="text.secondary">
+              <div  sx={{ textAlign: 'center', py: 4 }}>
+                <div  color="text.secondary">
                   No news available at the moment
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
           </List>
-        </Box>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 };
 

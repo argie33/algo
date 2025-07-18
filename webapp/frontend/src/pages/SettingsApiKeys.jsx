@@ -264,177 +264,177 @@ const SettingsApiKeys = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <CircularProgress />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="lg">
+        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+    <div className="container mx-auto" maxWidth="lg">
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" gutterBottom>
           API Keys & Credentials
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </div>
+        <div  variant="body1" color="text.secondary">
           Manage your broker connections and data provider credentials
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {String(error)}
-        </Alert>
+        </div>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
           {success}
-        </Alert>
+        </div>
       )}
 
       {/* Security Notice */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div  sx={{ display: 'flex', alignItems: 'flex-start' }}>
             <Security sx={{ mr: 2, mt: 0.5, color: 'primary.main' }} />
-            <Box>
-              <Typography variant="h6" gutterBottom>
+            <div>
+              <div  variant="h6" gutterBottom>
                 Security & Encryption
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              </div>
+              <div  variant="body2" color="text.secondary">
                 Your API keys are encrypted using AES-256-GCM encryption before storage. 
                 We never store your credentials in plain text and they are only decrypted 
                 when needed for API calls. Your data is secure and isolated from other users.
-              </Typography>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Add API Key Button */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
+      <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <div  variant="h6">
           Your API Keys ({apiKeys.length})
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
+        </div>
+        <div  sx={{ display: 'flex', gap: 2 }}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Refresh />}
             onClick={fetchApiKeys}
             disabled={loading}
           >
             Refresh
-          </Button>
-          <Button
+          </button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="contained"
             startIcon={<Add />}
             onClick={() => setAddDialogOpen(true)}
           >
             Add API Key
-          </Button>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
       {/* API Keys Table */}
       {apiKeys.length > 0 ? (
-        <Card>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Provider</TableCell>
-                  <TableCell>Description</TableCell>
-                  <TableCell>API Key</TableCell>
-                  <TableCell>Environment</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Last Used</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+        <div className="bg-white shadow-md rounded-lg">
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Provider</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Description</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>API Key</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Environment</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Used</td>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
+                </tr>
+              </thead>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                 {apiKeys.map((key) => {
                   const provider = getProviderInfo(key.provider);
                   return (
-                    <TableRow key={key.id}>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Box sx={{ color: provider.color, mr: 1 }}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key.id}>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                          <div  sx={{ color: provider.color, mr: 1 }}>
                             {provider.icon}
-                          </Box>
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">
+                          </div>
+                          <div>
+                            <div  variant="body2" fontWeight="bold">
                               {provider.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            </div>
+                            <div  variant="caption" color="text.secondary">
                               {provider.description}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  variant="body2">
                           {key.description || 'No description'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="body2" fontFamily="monospace">
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                          <div  variant="body2" fontFamily="monospace">
                             {showSecrets[key.id] ? key.apiKey : maskApiKey(key.apiKey)}
-                          </Typography>
-                          <IconButton
+                          </div>
+                          <button className="p-2 rounded-full hover:bg-gray-100"
                             size="small"
                             onClick={() => toggleShowSecret(key.id)}
                           >
                             {showSecrets[key.id] ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
+                          </button>
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={key.isSandbox ? 'Paper' : 'Live'} 
                           color={key.isSandbox ? 'warning' : 'success'}
                           size="small"
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={key.isActive ? 'Active' : 'Inactive'} 
                           color={key.isActive ? 'success' : 'default'}
                           size="small"
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                        <div  variant="body2" color="text.secondary">
                           {key.lastUsed ? new Date(key.lastUsed).toLocaleDateString() : 'Never'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="Test Connection">
-                            <IconButton
+                        </div>
+                      </td>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                        <div  sx={{ display: 'flex', gap: 1 }}>
+                          <div  title="Test Connection">
+                            <button className="p-2 rounded-full hover:bg-gray-100"
                               size="small"
                               onClick={() => handleTestConnection(key.id, provider.name)}
                               disabled={testing[key.id]}
                             >
-                              {testing[key.id] ? <CircularProgress size={16} /> : <TestIcon />}
-                            </IconButton>
-                          </Tooltip>
+                              {testing[key.id] ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <TestIcon />}
+                            </button>
+                          </div>
                           {provider.features.includes('Portfolio Import') && (
-                            <Tooltip title="Import Portfolio">
-                              <IconButton
+                            <div  title="Import Portfolio">
+                              <button className="p-2 rounded-full hover:bg-gray-100"
                                 size="small"
                                 onClick={() => handleImportPortfolio(key.id, key.provider)}
                                 disabled={importing[key.id]}
                               >
-                                {importing[key.id] ? <CircularProgress size={16} /> : <ImportIcon />}
-                              </IconButton>
-                            </Tooltip>
+                                {importing[key.id] ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <ImportIcon />}
+                              </button>
+                            </div>
                           )}
-                          <Tooltip title="Edit">
-                            <IconButton
+                          <div  title="Edit">
+                            <button className="p-2 rounded-full hover:bg-gray-100"
                               size="small"
                               onClick={() => {
                                 setSelectedKey(key);
@@ -447,108 +447,108 @@ const SettingsApiKeys = () => {
                               }}
                             >
                               <Edit />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton
+                            </button>
+                          </div>
+                          <div  title="Delete">
+                            <button className="p-2 rounded-full hover:bg-gray-100"
                               size="small"
                               color="error"
                               onClick={() => handleDeleteApiKey(key.id)}
                             >
                               <Delete />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Card>
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
-        <Card>
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 6 }}>
             <Key sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
+            <div  variant="h6" gutterBottom>
               No API Keys Added
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            </div>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Add your first API key to start importing portfolio data and accessing real-time market information.
-            </Typography>
-            <Button
+            </div>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               startIcon={<Add />}
               onClick={() => setAddDialogOpen(true)}
             >
               Add Your First API Key
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Supported Providers */}
-      <Card sx={{ mt: 4 }}>
-        <CardHeader title="Supported Providers" />
-        <CardContent>
-          <Grid container spacing={2}>
+      <div className="bg-white shadow-md rounded-lg" sx={{ mt: 4 }}>
+        <div className="bg-white shadow-md rounded-lg"Header title="Supported Providers" />
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2}>
             {supportedProviders.map((provider) => (
-              <Grid item xs={12} md={6} key={provider.id}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
-                      <Box sx={{ color: provider.color, mr: 2 }}>
+              <div className="grid" item xs={12} md={6} key={provider.id}>
+                <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                      <div  sx={{ color: provider.color, mr: 2 }}>
                         {provider.icon}
-                      </Box>
-                      <Box>
-                        <Typography variant="h6" gutterBottom>
+                      </div>
+                      <div>
+                        <div  variant="h6" gutterBottom>
                           {provider.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                        </div>
+                        <div  variant="body2" color="text.secondary" gutterBottom>
                           {provider.description}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        </div>
+                      </div>
+                    </div>
+                    <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {provider.features.map((feature) => (
-                        <Chip key={feature} label={feature} size="small" />
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={feature} label={feature} size="small" />
                       ))}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ))}
-          </Grid>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
       {/* Add API Key Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add API Key</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <FormControl fullWidth>
-              <InputLabel>Provider</InputLabel>
-              <Select
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Add API Key</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.provider}
                 label="Provider"
                 onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
               >
                 {supportedProviders.map((provider) => (
-                  <MenuItem key={provider.id} value={provider.id}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Box sx={{ color: provider.color, mr: 1 }}>
+                  <option  key={provider.id} value={provider.id}>
+                    <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                      <div  sx={{ color: provider.color, mr: 1 }}>
                         {provider.icon}
-                      </Box>
+                      </div>
                       {provider.name}
-                    </Box>
-                  </MenuItem>
+                    </div>
+                  </option>
                 ))}
-              </Select>
-            </FormControl>
+              </select>
+            </div>
 
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="API Key"
               value={formData.apiKey}
@@ -557,7 +557,7 @@ const SettingsApiKeys = () => {
               type="password"
             />
 
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="API Secret (if required)"
               value={formData.apiSecret}
@@ -565,7 +565,7 @@ const SettingsApiKeys = () => {
               type="password"
             />
 
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="Description"
               value={formData.description}
@@ -573,9 +573,9 @@ const SettingsApiKeys = () => {
               placeholder="e.g., Main trading account"
             />
 
-            <FormControlLabel
+            <div className="mb-4"Label
               control={
-                <Switch
+                <input type="checkbox" className="toggle"
                   checked={formData.isSandbox}
                   onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
                 />
@@ -583,33 +583,33 @@ const SettingsApiKeys = () => {
               label="Paper Trading Environment"
             />
 
-            <Alert severity="info">
-              <Typography variant="body2">
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+              <div  variant="body2">
                 Start with paper trading to test the connection safely. 
                 Your API keys will be encrypted before storage.
-              </Typography>
-            </Alert>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddApiKey} variant="contained">Add API Key</Button>
-        </DialogActions>
-      </Dialog>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAddDialogOpen(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleAddApiKey} variant="contained">Add API Key</button>
+        </div>
+      </div>
 
       {/* Edit API Key Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit API Key</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Edit API Key</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="Provider"
               value={getProviderInfo(formData.provider).name}
               disabled
             />
 
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="Description"
               value={formData.description}
@@ -617,23 +617,23 @@ const SettingsApiKeys = () => {
               placeholder="e.g., Main trading account"
             />
 
-            <FormControlLabel
+            <div className="mb-4"Label
               control={
-                <Switch
+                <input type="checkbox" className="toggle"
                   checked={formData.isSandbox}
                   onChange={(e) => setFormData({ ...formData, isSandbox: e.target.checked })}
                 />
               }
               label="Paper Trading Environment"
             />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditApiKey} variant="contained">Save Changes</Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setEditDialogOpen(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleEditApiKey} variant="contained">Save Changes</button>
+        </div>
+      </div>
+    </div>
   );
 };
 

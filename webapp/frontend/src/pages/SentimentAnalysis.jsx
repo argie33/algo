@@ -111,9 +111,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -176,194 +176,194 @@ const SentimentAnalysis = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
-        <Box>
-          <Typography variant="h3" component="h1" gutterBottom>
+      <div  display="flex" alignItems="center" justifyContent="between" mb={4}>
+        <div>
+          <div  variant="h3" component="h1" gutterBottom>
             Advanced Sentiment Analysis
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
+          </div>
+          <div  variant="subtitle1" color="text.secondary">
             AI-powered multi-source sentiment tracking and contrarian analysis
-          </Typography>
-        </Box>
+          </div>
+        </div>
         
-        <Box display="flex" alignItems="center" gap={2}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Symbol</InputLabel>
-            <Select
+        <div  display="flex" alignItems="center" gap={2}>
+          <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedSymbol}
               label="Symbol"
               onChange={(e) => setSelectedSymbol(e.target.value)}
             >
-              <MenuItem value="SPY">SPY (Market)</MenuItem>
-              <MenuItem value="QQQ">QQQ (Tech)</MenuItem>
-              <MenuItem value="AAPL">AAPL</MenuItem>
-              <MenuItem value="TSLA">TSLA</MenuItem>
-              <MenuItem value="NVDA">NVDA</MenuItem>
-            </Select>
-          </FormControl>
+              <option  value="SPY">SPY (Market)</option>
+              <option  value="QQQ">QQQ (Tech)</option>
+              <option  value="AAPL">AAPL</option>
+              <option  value="TSLA">TSLA</option>
+              <option  value="NVDA">NVDA</option>
+            </select>
+          </div>
           
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Timeframe</InputLabel>
-            <Select
+          <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedTimeframe}
               label="Timeframe"
               onChange={(e) => setSelectedTimeframe(e.target.value)}
             >
-              <MenuItem value="1D">1 Day</MenuItem>
-              <MenuItem value="1W">1 Week</MenuItem>
-              <MenuItem value="1M">1 Month</MenuItem>
-              <MenuItem value="3M">3 Months</MenuItem>
-            </Select>
-          </FormControl>
+              <option  value="1D">1 Day</option>
+              <option  value="1W">1 Week</option>
+              <option  value="1M">1 Month</option>
+              <option  value="3M">3 Months</option>
+            </select>
+          </div>
           
-          <Button variant="outlined" startIcon={<Download />}>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<Download />}>
             Export
-          </Button>
-          <Button variant="contained" startIcon={<Refresh />}>
+          </button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" startIcon={<Refresh />}>
             Refresh
-          </Button>
-        </Box>
-      </Box>
+          </button>
+        </div>
+      </div>
 
       {/* Sentiment Alert */}
       {sentimentMetrics.extremeReadings.length > 0 && (
-        <Alert 
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
           severity="warning" 
           sx={{ mb: 3 }}
           icon={<Warning />}
         >
           <strong>Extreme Sentiment Alert:</strong> {sentimentMetrics.extremeReadings[0].message}
           {sentimentMetrics.contrarian > 75 && " - Strong contrarian signal detected."}
-        </Alert>
+        </div>
       )}
 
       {/* Key Metrics Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+      <div className="grid" container spacing={3} mb={4}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Overall Sentiment
-                  </Typography>
-                  <Typography variant="h3" color="primary">
+                  </div>
+                  <div  variant="h3" color="primary">
                     {sentimentMetrics.overall}
-                  </Typography>
-                  <Box display="flex" alignItems="center" mt={1}>
+                  </div>
+                  <div  display="flex" alignItems="center" mt={1}>
                     {getSentimentIcon(sentimentMetrics.overall)}
-                    <Typography variant="body2" color="text.secondary" ml={1}>
+                    <div  variant="body2" color="text.secondary" ml={1}>
                       {sentimentMetrics.overall >= 70 ? 'Extremely Bullish' :
                        sentimentMetrics.overall >= 60 ? 'Bullish' :
                        sentimentMetrics.overall >= 40 ? 'Neutral' :
                        sentimentMetrics.overall >= 30 ? 'Bearish' : 'Extremely Bearish'}
-                    </Typography>
-                  </Box>
-                </Box>
+                    </div>
+                  </div>
+                </div>
                 <Psychology color="primary" fontSize="large" />
-              </Box>
-              <LinearProgress 
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2" 
                 variant="determinate" 
                 value={sentimentMetrics.overall} 
                 color={getSentimentColor(sentimentMetrics.overall)}
                 sx={{ mt: 2 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Sentiment Momentum
-                  </Typography>
-                  <Typography variant="h3" color="secondary">
+                  </div>
+                  <div  variant="h3" color="secondary">
                     {formatNumber(sentimentMetrics.momentum, 1)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  </div>
+                  <div  variant="body2" color="text.secondary">
                     {sentimentMetrics.momentum > 0 ? 'Improving' : 'Deteriorating'}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Speed color="secondary" fontSize="large" />
-              </Box>
+              </div>
               <Rating 
                 value={Math.min(5, Math.max(0, (sentimentMetrics.momentum + 50) / 20))} 
                 readOnly 
                 size="small"
                 sx={{ mt: 1 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     Contrarian Signal
-                  </Typography>
-                  <Typography variant="h3" color="warning.main">
+                  </div>
+                  <div  variant="h3" color="warning.main">
                     {sentimentMetrics.contrarian}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  </div>
+                  <div  variant="body2" color="text.secondary">
                     {sentimentMetrics.contrarian > 75 ? 'Strong Signal' :
                      sentimentMetrics.contrarian > 50 ? 'Moderate Signal' : 'Weak Signal'}
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Analytics color="warning" fontSize="large" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="between">
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" alignItems="center" justifyContent="between">
+                <div>
+                  <div  variant="h6" color="text.secondary">
                     AI Confidence
-                  </Typography>
-                  <Typography variant="h3" color="info.main">
+                  </div>
+                  <div  variant="h3" color="info.main">
                     {sentimentMetrics.confidence}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  </div>
+                  <div  variant="body2" color="text.secondary">
                     Analysis reliability
-                  </Typography>
-                </Box>
+                  </div>
+                </div>
                 <Assessment color="info" fontSize="large" />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange} aria-label="sentiment analysis tabs" variant="scrollable" scrollButtons="auto">
-          <Tab label="Multi-Source Analysis" icon={<Analytics />} />
-          <Tab label="Sentiment Trends" icon={<Timeline />} />
-          <Tab label="Contrarian Signals" icon={<Psychology />} />
-          <Tab label="News Impact" icon={<Newspaper />} />
-          <Tab label="Social Sentiment" icon={<Reddit />} />
-          <Tab label="AI Insights" icon={<Lightbulb />} />
-        </Tabs>
-      </Box>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={activeTab} onChange={handleTabChange} aria-label="sentiment analysis tabs" variant="scrollable" scrollButtons="auto">
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Multi-Source Analysis" icon={<Analytics />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sentiment Trends" icon={<Timeline />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Contrarian Signals" icon={<Psychology />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="News Impact" icon={<Newspaper />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Social Sentiment" icon={<Reddit />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="AI Insights" icon={<Lightbulb />} />
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
         {/* Multi-Source Analysis */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader title="Sentiment Source Breakdown" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Sentiment Source Breakdown" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={400}>
                   <RadarChart data={sentimentData.sources}>
                     <PolarGrid />
@@ -392,93 +392,93 @@ const SentimentAnalysis = () => {
                     <RechartsTooltip />
                   </RadarChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* Source Rankings */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Source Rankings" />
-                  <CardContent>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Source Rankings" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <List>
                       {sentimentData.sources
                         .sort((a, b) => b.score - a.score)
                         .map((source, index) => (
                         <ListItem key={source.source} disablePadding>
                           <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: getSentimentColor(source.score) + '.main' }}>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getSentimentColor(source.score) + '.main' }}>
                               {index + 1}
-                            </Avatar>
+                            </div>
                           </ListItemAvatar>
                           <ListItemText
                             primary={source.source}
                             secondary={
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <Typography variant="body2">
+                              <div  display="flex" alignItems="center" gap={1}>
+                                <div  variant="body2">
                                   Score: {source.score}
-                                </Typography>
-                                <Chip 
+                                </div>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                   label={`${source.change >= 0 ? '+' : ''}${source.change}`}
                                   color={source.change >= 0 ? 'success' : 'error'}
                                   size="small"
                                   variant="outlined"
                                 />
-                              </Box>
+                              </div>
                             }
                           />
                         </ListItem>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  </div>
+                </div>
+              </div>
 
               {/* Sentiment Divergence */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Sentiment Divergence" />
-                  <CardContent>
-                    <Box mb={2}>
-                      <Typography variant="body2" color="text.secondary">
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Sentiment Divergence" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  mb={2}>
+                      <div  variant="body2" color="text.secondary">
                         Cross-Source Divergence
-                      </Typography>
-                      <LinearProgress 
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2" 
                         variant="determinate" 
                         value={sentimentMetrics.divergence} 
                         color={sentimentMetrics.divergence > 30 ? 'warning' : 'success'}
                         sx={{ mt: 1 }}
                       />
-                      <Typography variant="caption" color="text.secondary">
+                      <div  variant="caption" color="text.secondary">
                         {sentimentMetrics.divergence}% divergence
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
                     
-                    <Alert 
+                    <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
                       severity={sentimentMetrics.divergence > 30 ? 'warning' : 'info'}
                       size="small"
                     >
                       {sentimentMetrics.divergence > 30 
                         ? 'High divergence may indicate uncertain market conditions'
                         : 'Low divergence suggests consensus across sources'}
-                    </Alert>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={1}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
         {/* Sentiment Trends */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader title="Sentiment Historical Trends" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Sentiment Historical Trends" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={400}>
                   <ComposedChart data={sentimentData.historicalData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -516,93 +516,93 @@ const SentimentAnalysis = () => {
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* Trend Analysis */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Trend Indicators" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">5-Day Trend</Typography>
-                        <Chip 
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Trend Indicators" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  display="flex" flexDirection="column" gap={2}>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">5-Day Trend</div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={sentimentData.trends.short >= 0 ? 'Bullish' : 'Bearish'}
                           color={sentimentData.trends.short >= 0 ? 'success' : 'error'}
                           size="small"
                         />
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">20-Day Trend</Typography>
-                        <Chip 
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">20-Day Trend</div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={sentimentData.trends.medium >= 0 ? 'Bullish' : 'Bearish'}
                           color={sentimentData.trends.medium >= 0 ? 'success' : 'error'}
                           size="small"
                         />
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">60-Day Trend</Typography>
-                        <Chip 
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">60-Day Trend</div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                           label={sentimentData.trends.long >= 0 ? 'Bullish' : 'Bearish'}
                           color={sentimentData.trends.long >= 0 ? 'success' : 'error'}
                           size="small"
                         />
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">Momentum Score</Typography>
-                        <Typography variant="body2" fontWeight="bold">
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">Momentum Score</div>
+                        <div  variant="body2" fontWeight="bold">
                           {formatNumber(sentimentMetrics.momentum, 1)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Volatility Analysis */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Sentiment Volatility" />
-                  <CardContent>
-                    <Box textAlign="center" mb={2}>
-                      <Typography variant="h4" color="warning.main">
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Sentiment Volatility" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  textAlign="center" mb={2}>
+                      <div  variant="h4" color="warning.main">
                         {formatNumber(sentimentMetrics.volatility, 1)}%
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      </div>
+                      <div  variant="body2" color="text.secondary">
                         30-Day Volatility
-                      </Typography>
-                    </Box>
+                      </div>
+                    </div>
                     
-                    <LinearProgress 
+                    <div className="w-full bg-gray-200 rounded-full h-2" 
                       variant="determinate" 
                       value={Math.min(100, sentimentMetrics.volatility * 5)} 
                       color="warning"
                       sx={{ mb: 2 }}
                     />
                     
-                    <Typography variant="caption" color="text.secondary">
+                    <div  variant="caption" color="text.secondary">
                       {sentimentMetrics.volatility > 20 ? 'High volatility indicates uncertain sentiment' :
                        sentimentMetrics.volatility > 10 ? 'Moderate volatility' : 'Low volatility - stable sentiment'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={2}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
         {/* Contrarian Signals */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader title="Contrarian Signal Analysis" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Contrarian Signal Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={400}>
                   <ScatterChart data={sentimentData.contrarianData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -626,115 +626,115 @@ const SentimentAnalysis = () => {
                     <Scatter dataKey="priceChange" fill="#8884d8" />
                   </ScatterChart>
                 </ResponsiveContainer>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                <div  variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                   Scatter plot showing relationship between sentiment extremes and future price movements
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardHeader title="Contrarian Opportunities" />
-              <CardContent>
+          <div className="grid" item xs={12} md={4}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Contrarian Opportunities" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <List>
                   {sentimentData.contrarianOpportunities.map((opportunity, index) => (
                     <ListItem key={index} divider={index < sentimentData.contrarianOpportunities.length - 1}>
                       <ListItemText
                         primary={
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="subtitle2" fontWeight="bold">
+                          <div  display="flex" alignItems="center" gap={1}>
+                            <div  variant="subtitle2" fontWeight="bold">
                               {opportunity.symbol}
-                            </Typography>
-                            <Chip 
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${opportunity.probability}%`}
                               color={opportunity.probability > 70 ? 'success' : 'warning'}
                               size="small"
                             />
-                          </Box>
+                          </div>
                         }
                         secondary={
-                          <Box>
-                            <Typography variant="body2" gutterBottom>
+                          <div>
+                            <div  variant="body2" gutterBottom>
                               {opportunity.reason}
-                            </Typography>
-                            <Box display="flex" gap={1}>
-                              <Chip 
+                            </div>
+                            <div  display="flex" gap={1}>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={`Sentiment: ${opportunity.currentSentiment}`}
                                 size="small"
                                 variant="outlined"
                               />
-                              <Chip 
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={opportunity.signal}
                                 color={opportunity.signal === 'Buy' ? 'success' : 'error'}
                                 size="small"
                               />
-                            </Box>
-                          </Box>
+                            </div>
+                          </div>
                         }
                       />
                     </ListItem>
                   ))}
                 </List>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={3}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
         {/* News Impact */}
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <CardHeader 
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="News Sentiment Impact Analysis" 
                 action={
-                  <Chip 
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                     label={`${sentimentData.newsImpact.length} articles analyzed`} 
                     color="primary" 
                     variant="outlined" 
                   />
                 }
               />
-              <CardContent>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>
-                          <TableSortLabel
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
                             active={orderBy === 'timestamp'}
                             direction={orderBy === 'timestamp' ? order : 'asc'}
                             onClick={() => handleSort('timestamp')}
                           >
                             Time
                           </TableSortLabel>
-                        </TableCell>
-                        <TableCell>Headline</TableCell>
-                        <TableCell align="center">
-                          <TableSortLabel
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Headline</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
                             active={orderBy === 'sentiment'}
                             direction={orderBy === 'sentiment' ? order : 'asc'}
                             onClick={() => handleSort('sentiment')}
                           >
                             Sentiment
                           </TableSortLabel>
-                        </TableCell>
-                        <TableCell align="center">
-                          <TableSortLabel
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
                             active={orderBy === 'impact'}
                             direction={orderBy === 'impact' ? order : 'asc'}
                             onClick={() => handleSort('impact')}
                           >
                             Market Impact
                           </TableSortLabel>
-                        </TableCell>
-                        <TableCell align="center">Confidence</TableCell>
-                        <TableCell align="center">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                        </td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Confidence</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {sentimentData.newsImpact
                         .sort((a, b) => {
                           const aValue = a[orderBy];
@@ -747,75 +747,75 @@ const SentimentAnalysis = () => {
                         })
                         .slice(0, 10)
                         .map((news, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Typography variant="caption">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="caption">
                               {new Date(news.timestamp).toLocaleTimeString()}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Box>
-                              <Typography variant="body2" fontWeight="bold" gutterBottom>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div>
+                              <div  variant="body2" fontWeight="bold" gutterBottom>
                                 {news.headline}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              </div>
+                              <div  variant="caption" color="text.secondary">
                                 {news.source}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip 
+                              </div>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={news.sentiment}
                               color={getSentimentColor(news.sentimentScore)}
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box>
-                              <Typography variant="body2" fontWeight="bold">
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                            <div>
+                              <div  variant="body2" fontWeight="bold">
                                 {formatPercentage(news.impact)}
-                              </Typography>
-                              <LinearProgress 
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2" 
                                 variant="determinate" 
                                 value={Math.abs(news.impact) * 10} 
                                 color={news.impact >= 0 ? 'success' : 'error'}
                                 sx={{ width: 60, mt: 0.5 }}
                               />
-                            </Box>
-                          </TableCell>
-                          <TableCell align="center">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
                             <Rating 
                               value={news.confidence / 20} 
                               readOnly 
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton size="small">
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                            <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                               <BookmarkBorder />
-                            </IconButton>
-                            <IconButton size="small">
+                            </button>
+                            <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                               <Share />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
+                            </button>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={4}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={4}>
         {/* Social Sentiment */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardHeader title="Platform Sentiment Breakdown" />
-              <CardContent>
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={6}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Platform Sentiment Breakdown" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -834,84 +834,84 @@ const SentimentAnalysis = () => {
                     <RechartsTooltip />
                   </PieChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardHeader title="Viral Content Analysis" />
-              <CardContent>
+          <div className="grid" item xs={12} md={6}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Viral Content Analysis" />
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <List>
                   {sentimentData.viralContent.map((content, index) => (
                     <ListItem key={index} divider={index < sentimentData.viralContent.length - 1}>
                       <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: content.platform === 'Twitter' ? '#1DA1F2' : '#FF4500' }}>
+                        <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: content.platform === 'Twitter' ? '#1DA1F2' : '#FF4500' }}>
                           {content.platform === 'Twitter' ? <Twitter /> : <Reddit />}
-                        </Avatar>
+                        </div>
                       </ListItemAvatar>
                       <ListItemText
                         primary={content.content}
                         secondary={
-                          <Box display="flex" alignItems="center" gap={1} mt={1}>
-                            <Chip 
+                          <div  display="flex" alignItems="center" gap={1} mt={1}>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={`${content.engagement} engagements`}
                               size="small"
                               variant="outlined"
                             />
-                            <Chip 
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={content.sentiment}
                               color={getSentimentColor(content.sentimentScore)}
                               size="small"
                             />
-                          </Box>
+                          </div>
                         }
                       />
                     </ListItem>
                   ))}
                 </List>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </TabPanel>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <TabPanel value={activeTab} index={5}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={5}>
         {/* AI Insights */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardHeader 
+        <div className="grid" container spacing={3}>
+          <div className="grid" item xs={12} md={8}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header 
                 title="AI-Powered Sentiment Insights" 
                 avatar={<Psychology color="primary" />}
               />
-              <CardContent>
+              <div className="bg-white shadow-md rounded-lg"Content>
                 <Stepper orientation="vertical">
                   <Step expanded>
                     <StepLabel>
-                      <Typography variant="h6" color="primary">
+                      <div  variant="h6" color="primary">
                         Current Market Sentiment
-                      </Typography>
+                      </div>
                     </StepLabel>
                     <StepContent>
-                      <Alert severity="info" sx={{ mb: 2 }}>
+                      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
                         {aiInsights.marketSummary}
-                      </Alert>
+                      </div>
                     </StepContent>
                   </Step>
 
                   <Step expanded>
                     <StepLabel>
-                      <Typography variant="h6" color="success.main">
+                      <div  variant="h6" color="success.main">
                         Key Opportunities
-                      </Typography>
+                      </div>
                     </StepLabel>
                     <StepContent>
                       <List>
                         {aiInsights.opportunities.map((opportunity, index) => (
                           <ListItem key={index}>
                             <CheckCircle color="success" sx={{ mr: 2 }} />
-                            <Typography variant="body2">{opportunity}</Typography>
+                            <div  variant="body2">{opportunity}</div>
                           </ListItem>
                         ))}
                       </List>
@@ -920,16 +920,16 @@ const SentimentAnalysis = () => {
 
                   <Step expanded>
                     <StepLabel>
-                      <Typography variant="h6" color="warning.main">
+                      <div  variant="h6" color="warning.main">
                         Risk Factors
-                      </Typography>
+                      </div>
                     </StepLabel>
                     <StepContent>
                       <List>
                         {aiInsights.risks.map((risk, index) => (
                           <ListItem key={index}>
                             <Warning color="warning" sx={{ mr: 2 }} />
-                            <Typography variant="body2">{risk}</Typography>
+                            <div  variant="body2">{risk}</div>
                           </ListItem>
                         ))}
                       </List>
@@ -938,95 +938,95 @@ const SentimentAnalysis = () => {
 
                   <Step expanded>
                     <StepLabel>
-                      <Typography variant="h6" color="info.main">
+                      <div  variant="h6" color="info.main">
                         Forecast
-                      </Typography>
+                      </div>
                     </StepLabel>
                     <StepContent>
-                      <Typography variant="body2" paragraph>
+                      <div  variant="body2" paragraph>
                         {aiInsights.forecast}
-                      </Typography>
+                      </div>
                       
                       <Accordion>
                         <AccordionSummary expandIcon={<ExpandMore />}>
-                          <Typography variant="subtitle2">Technical Details</Typography>
+                          <div  variant="subtitle2">Technical Details</div>
                         </AccordionSummary>
                         <AccordionDetails>
-                          <Typography variant="body2" color="text.secondary">
+                          <div  variant="body2" color="text.secondary">
                             {aiInsights.technicalDetails}
-                          </Typography>
+                          </div>
                         </AccordionDetails>
                       </Accordion>
                     </StepContent>
                   </Step>
                 </Stepper>
-              </CardContent>
-            </Card>
-          </Grid>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={3}>
+          <div className="grid" item xs={12} md={4}>
+            <div className="grid" container spacing={3}>
               {/* AI Confidence */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="AI Analysis Confidence" />
-                  <CardContent>
-                    <Box textAlign="center" mb={3}>
-                      <Typography variant="h2" color="primary">
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="AI Analysis Confidence" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  textAlign="center" mb={3}>
+                      <div  variant="h2" color="primary">
                         {sentimentMetrics.confidence}%
-                      </Typography>
+                      </div>
                       <Rating 
                         value={sentimentMetrics.confidence / 20} 
                         readOnly 
                         size="large"
                       />
-                      <Typography variant="body2" color="text.secondary">
+                      <div  variant="body2" color="text.secondary">
                         Model Confidence
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Model Performance */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Model Performance" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">Accuracy (30d)</Typography>
-                        <Typography variant="body2" fontWeight="bold">
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Model Performance" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div  display="flex" flexDirection="column" gap={2}>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">Accuracy (30d)</div>
+                        <div  variant="body2" fontWeight="bold">
                           {aiInsights.modelStats.accuracy}%
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">Precision</Typography>
-                        <Typography variant="body2" fontWeight="bold">
+                        </div>
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">Precision</div>
+                        <div  variant="body2" fontWeight="bold">
                           {aiInsights.modelStats.precision}%
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">Recall</Typography>
-                        <Typography variant="body2" fontWeight="bold">
+                        </div>
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">Recall</div>
+                        <div  variant="body2" fontWeight="bold">
                           {aiInsights.modelStats.recall}%
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="between">
-                        <Typography variant="body2">Data Sources</Typography>
-                        <Typography variant="body2" fontWeight="bold">
+                        </div>
+                      </div>
+                      <div  display="flex" justifyContent="between">
+                        <div  variant="body2">Data Sources</div>
+                        <div  variant="body2" fontWeight="bold">
                           {aiInsights.modelStats.dataSources}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </TabPanel>
-    </Container>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

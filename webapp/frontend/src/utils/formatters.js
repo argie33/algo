@@ -1,5 +1,5 @@
+import React from 'react';
 import numeral from 'numeral'
-import { TrendingUp, TrendingDown, ShowChart, InfoOutlined, TrendingFlat } from '@mui/icons-material';
 
 // Format currency values
 export const formatCurrency = (value, decimals = 2) => {

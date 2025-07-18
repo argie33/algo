@@ -101,16 +101,16 @@ const ApiUnavailableFallback = ({
   const message = customMessage || statusInfo.description;
 
   return (
-    <Box sx={{ p: 2 }}>
+    <div  sx={{ p: 2 }}>
       {/* Main Status Alert */}
-      <Alert 
+      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
         severity={statusInfo.color} 
         sx={{ mb: 3 }}
         icon={statusInfo.icon}
         action={
           showRetry && (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button 
+            <div  sx={{ display: 'flex', gap: 1 }}>
+              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 color="inherit" 
                 size="small" 
                 onClick={handleRetry}
@@ -118,43 +118,43 @@ const ApiUnavailableFallback = ({
                 startIcon={retrying ? null : <Refresh />}
               >
                 {retrying ? 'Retrying...' : 'Retry'}
-              </Button>
-              <IconButton
+              </button>
+              <button className="p-2 rounded-full hover:bg-gray-100"
                 color="inherit"
                 size="small"
                 onClick={() => setShowDetails(!showDetails)}
               >
                 {showDetails ? <ExpandLess /> : <ExpandMore />}
-              </IconButton>
-            </Box>
+              </button>
+            </div>
           )
         }
       >
-        <Typography variant="h6" gutterBottom>
+        <div  variant="h6" gutterBottom>
           {statusInfo.title}
-        </Typography>
-        <Typography variant="body2">
+        </div>
+        <div  variant="body2">
           {message}
-        </Typography>
-      </Alert>
+        </div>
+      </div>
 
       {/* Progress indicator for retry */}
       {retrying && (
-        <Box sx={{ mb: 2 }}>
-          <LinearProgress />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <div  sx={{ mb: 2 }}>
+          <div className="w-full bg-gray-200 rounded-full h-2" />
+          <div  variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Attempting to reconnect to services...
-          </Typography>
-        </Box>
+          </div>
+        </div>
       )}
 
       {/* Detailed Status Information */}
       <Collapse in={showDetails}>
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  variant="h6" gutterBottom>
               Service Status Details
-            </Typography>
+            </div>
             <List dense>
               {requiredApis.map((api, index) => (
                 <ListItem key={index}>
@@ -175,80 +175,80 @@ const ApiUnavailableFallback = ({
               ))}
             </List>
             
-            <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Chip 
+            <div  sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={`Status: ${apiStatus.toUpperCase()}`} 
                 color={statusInfo.color} 
                 size="small" 
               />
-              <Chip 
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={`Page: ${pageName}`} 
                 variant="outlined" 
                 size="small" 
               />
-              <Chip 
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                 label={`Demo Mode: ${showDemoData ? 'Available' : 'Unavailable'}`} 
                 color={showDemoData ? 'success' : 'default'}
                 variant="outlined" 
                 size="small" 
               />
-            </Box>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
       </Collapse>
 
       {/* Demo Data Notice */}
       {showDemoData && (
-        <Alert severity="info" sx={{ mb: 3 }} icon={<Storage />}>
-          <Typography variant="subtitle2" gutterBottom>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }} icon={<Storage />}>
+          <div  variant="subtitle2" gutterBottom>
             Demo Mode Active
-          </Typography>
-          <Typography variant="body2">
+          </div>
+          <div  variant="body2">
             {pageName} is displaying sample data while API services are unavailable. 
             This data is for demonstration purposes only and does not reflect real market conditions.
-          </Typography>
-        </Alert>
+          </div>
+        </div>
       )}
 
       {/* Action Buttons */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item>
-          <Button
+      <div className="grid" container spacing={2} sx={{ mb: 3 }}>
+        <div className="grid" item>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Settings />}
             href="/settings"
           >
             Check Settings
-          </Button>
-        </Grid>
-        <Grid item>
-          <Button
+          </button>
+        </div>
+        <div className="grid" item>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             variant="outlined"
             startIcon={<Info />}
             onClick={() => setShowDetails(!showDetails)}
           >
             {showDetails ? 'Hide' : 'Show'} Details
-          </Button>
-        </Grid>
+          </button>
+        </div>
         {onRetry && (
-          <Grid item>
-            <Button
+          <div className="grid" item>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="contained"
               startIcon={<Refresh />}
               onClick={handleRetry}
               disabled={retrying}
             >
               Try Again
-            </Button>
-          </Grid>
+            </button>
+          </div>
         )}
-      </Grid>
+      </div>
 
       {/* Content with Demo Data Banner */}
       {showDemoData && children && (
-        <Box sx={{ position: 'relative' }}>
+        <div  sx={{ position: 'relative' }}>
           {/* Demo Data Overlay */}
-          <Box
+          <div 
             sx={{
               position: 'absolute',
               top: 0,
@@ -265,31 +265,31 @@ const ApiUnavailableFallback = ({
           >
             <Storage fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
             DEMO DATA
-          </Box>
+          </div>
           
           {/* Faded content to indicate demo mode */}
-          <Box sx={{ opacity: 0.8, pointerEvents: 'none' }}>
+          <div  sx={{ opacity: 0.8, pointerEvents: 'none' }}>
             {children}
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
 
       {/* No Demo Data Available */}
       {!showDemoData && !children && (
-        <Card>
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center', py: 6 }}>
             <CloudOff sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+            <div  variant="h6" color="text.secondary" gutterBottom>
               Content Unavailable
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               {pageName} requires API connectivity to display content. 
               Please check your connection and try again.
-            </Typography>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

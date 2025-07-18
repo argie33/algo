@@ -172,7 +172,7 @@ function EarningsCalendar() {
     const config = typeConfig[eventType?.toLowerCase()] || typeConfig['earnings'];
     
     return (
-      <Chip
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
         label={config.label}
         size="small"
         icon={config.icon}
@@ -203,216 +203,216 @@ function EarningsCalendar() {
   };
 
   const CalendarEventsTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Event Type</TableCell>
-            <TableCell>Date</TableCell>
-            <TableCell>Title</TableCell>
-            <TableCell>Time to Event</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} elevation={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Event Type</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Date</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Title</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Time to Event</td>
+          </tr>
+        </thead>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
           {calendarData?.data?.map((event, index) => (
-            <TableRow key={`${event.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={`${event.symbol}-${index}`} hover>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  variant="body2" fontWeight="bold">
                   {event.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                 {getEventTypeChip(event.event_type)}
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  variant="body2">
                   {new Date(event.start_date).toLocaleDateString()}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" noWrap>
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  variant="body2" noWrap>
                   {event.title}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  variant="body2" color="text.secondary">
                   {Math.ceil((new Date(event.start_date) - new Date()) / (1000 * 60 * 60 * 24))} days
-                </Typography>
-              </TableCell>
-            </TableRow>
+                </div>
+              </td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+        </tbody>
+      </table>
+    </div>
   );
 
   const EarningsEstimatesTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Period</TableCell>
-            <TableCell align="right">Avg Estimate</TableCell>
-            <TableCell align="right">Low</TableCell>
-            <TableCell align="right">High</TableCell>
-            <TableCell align="right">Analysts</TableCell>
-            <TableCell align="right">Growth</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} elevation={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Period</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg Estimate</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Low</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">High</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Analysts</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Growth</td>
+          </tr>
+        </thead>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
           {Object.entries(estimatesData?.data || {}).map(([symbol, group]) => (
             group.estimates.map((estimate, index) => (
-              <TableRow key={`${symbol}-${estimate.period}-${index}`} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{group.company_name}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip label={estimate.period} size="small" variant="outlined" />
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" fontWeight="bold">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={`${symbol}-${estimate.period}-${index}`} hover>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2" fontWeight="bold">{symbol}</div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">{group.company_name}</div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={estimate.period} size="small" variant="outlined" />
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  variant="body2" fontWeight="bold">
                     {formatCurrency(estimate.avg_estimate)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">{formatCurrency(estimate.low_estimate)}</TableCell>
-                <TableCell align="right">{formatCurrency(estimate.high_estimate)}</TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">{estimate.number_of_analysts}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                    <Avatar sx={{ bgcolor: getSurpriseColor(estimate.growth), width: 24, height: 24 }}>
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(estimate.low_estimate)}</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(estimate.high_estimate)}</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  variant="body2">{estimate.number_of_analysts}</div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getSurpriseColor(estimate.growth), width: 24, height: 24 }}>
                       {getSurpriseIcon(estimate.growth)}
-                    </Avatar>
-                    <Typography variant="body2" sx={{ color: getSurpriseColor(estimate.growth) }}>
+                    </div>
+                    <div  variant="body2" sx={{ color: getSurpriseColor(estimate.growth) }}>
                       {formatPercentage(estimate.growth / 100)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             ))
           ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+        </tbody>
+      </table>
+    </div>
   );
 
   const EarningsHistoryTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Quarter</TableCell>
-            <TableCell align="right">Actual EPS</TableCell>
-            <TableCell align="right">Estimated EPS</TableCell>
-            <TableCell align="right">Difference</TableCell>
-            <TableCell align="right">Surprise %</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} elevation={0}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow sx={{ backgroundColor: 'grey.50' }}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Quarter</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Actual EPS</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Estimated EPS</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Difference</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Surprise %</td>
+          </tr>
+        </thead>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
           {Object.entries(historyData?.data || {}).map(([symbol, group]) => (
             group.history.map((history, index) => (
-              <TableRow key={`${symbol}-${history.quarter}-${index}`} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={`${symbol}-${history.quarter}-${index}`} hover>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2" fontWeight="bold">
                     {symbol}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{group.company_name}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">{group.company_name}</div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">
                     {new Date(history.quarter).toLocaleDateString()}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" fontWeight="bold">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  variant="body2" fontWeight="bold">
                     {formatCurrency(history.eps_actual)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                   {formatCurrency(history.eps_estimate)}
-                </TableCell>
-                <TableCell align="right">
-                  <Typography 
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  
                     variant="body2"
                     sx={{ color: history.eps_difference >= 0 ? 'success.main' : 'error.main' }}
                   >
                     {formatCurrency(history.eps_difference)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                    <Avatar sx={{ 
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  <div  display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ 
                       bgcolor: getSurpriseColor(history.surprise_percent), 
                       width: 24, 
                       height: 24 
                     }}>
                       {getSurpriseIcon(history.surprise_percent)}
-                    </Avatar>
-                    <Typography 
+                    </div>
+                    <div  
                       variant="body2" 
                       sx={{ color: getSurpriseColor(history.surprise_percent) }}
                     >
                       {formatPercentage(history.surprise_percent / 100)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             ))
           ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+        </tbody>
+      </table>
+    </div>
   );
 
   const SummaryCard = ({ title, value, subtitle, icon, color }) => (
-    <Card>
-      <CardContent>
-        <Box display="flex" alignItems="center" mb={1}>
+    <div className="bg-white shadow-md rounded-lg">
+      <div className="bg-white shadow-md rounded-lg"Content>
+        <div  display="flex" alignItems="center" mb={1}>
           {icon}
-          <Typography variant="h6" ml={1}>{title}</Typography>
-        </Box>
-        <Typography variant="h4" sx={{ color, fontWeight: 'bold' }}>
+          <div  variant="h6" ml={1}>{title}</div>
+        </div>
+        <div  variant="h4" sx={{ color, fontWeight: 'bold' }}>
           {value}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+        </div>
+        <div  variant="body2" color="text.secondary">
           {subtitle}
-        </Typography>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 
   const isLoading = calendarLoading || (activeTab === 1 && estimatesLoading) || (activeTab === 2 && historyLoading) || (activeTab === 3 && epsRevisionsLoading) || (activeTab === 4 && epsTrendLoading) || (activeTab === 5 && earningsMetricsLoading);
 
   if (isLoading && !calendarData && !estimatesData && !historyData) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
+        <div  display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
+    <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
+      <div  variant="h4" gutterBottom>
         Earnings Calendar & Estimates
-      </Typography>
+      </div>
 
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
+      <div className="grid" container spacing={3} mb={4}>
+        <div className="grid" item xs={12} md={3}>
           <SummaryCard
             title="Upcoming Events"
             value={calendarData?.summary?.upcoming_events || 0}
@@ -420,8 +420,8 @@ function EarningsCalendar() {
             icon={<Schedule />}
             color="#3B82F6"
           />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <SummaryCard
             title="Earnings This Week"
             value={calendarData?.summary?.this_week || 0}
@@ -429,8 +429,8 @@ function EarningsCalendar() {
             icon={<ShowChart />}
             color="#10B981"
           />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <SummaryCard
             title="Positive Surprises"
             value={historyData?.summary?.positive_surprises || 0}
@@ -438,8 +438,8 @@ function EarningsCalendar() {
             icon={<TrendingUp />}
             color="#059669"
           />
-        </Grid>
-        <Grid item xs={12} md={3}>
+        </div>
+        <div className="grid" item xs={12} md={3}>
           <SummaryCard
             title="Estimates Updated"
             value={estimatesData?.summary?.recent_updates || 0}
@@ -447,89 +447,89 @@ function EarningsCalendar() {
             icon={<Analytics />}
             color="#8B5CF6"
           />
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Error Handling */}
       {calendarError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
           Failed to load calendar data. Please try again later.
-        </Alert>
+        </div>
       )}
 
       {/* Tabs */}
-      <Box mb={3}>
-        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <Tab label="Calendar Events" icon={<Schedule />} />
-          <Tab label="Earnings Estimates" icon={<ShowChart />} />
-          <Tab label="Earnings History" icon={<Analytics />} />
-          <Tab label="EPS Revisions" icon={<TrendingUp />} />
-          <Tab label="EPS Trend" icon={<TrendingDown />} />
-          <Tab label="Earnings Metrics" icon={<HorizontalRule />} />
-        </Tabs>
-      </Box>
+      <div  mb={3}>
+        <div className="border-b border-gray-200" value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Calendar Events" icon={<Schedule />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Earnings Estimates" icon={<ShowChart />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Earnings History" icon={<Analytics />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="EPS Revisions" icon={<TrendingUp />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="EPS Trend" icon={<TrendingDown />} />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Earnings Metrics" icon={<HorizontalRule />} />
+        </div>
+      </div>
 
       {/* Filters for Calendar Tab */}
       {activeTab === 0 && (
-        <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Time Filter</InputLabel>
-              <Select
+        <div className="grid" container spacing={2} mb={3}>
+          <div className="grid" item xs={12} sm={4}>
+            <div className="mb-4" fullWidth>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Time Filter</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={timeFilter}
                 label="Time Filter"
                 onChange={(e) => setTimeFilter(e.target.value)}
               >
-                <MenuItem value="upcoming">Upcoming Events</MenuItem>
-                <MenuItem value="this_week">This Week</MenuItem>
-                <MenuItem value="next_week">Next Week</MenuItem>
-                <MenuItem value="this_month">This Month</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+                <option  value="upcoming">Upcoming Events</option>
+                <option  value="this_week">This Week</option>
+                <option  value="next_week">Next Week</option>
+                <option  value="this_month">This Month</option>
+              </select>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Loading indicator */}
-      {isLoading && <LinearProgress sx={{ mb: 2 }} />}
+      {isLoading && <div className="w-full bg-gray-200 rounded-full h-2" sx={{ mb: 2 }} />}
 
       {/* Content */}
-      <Card>
-        <CardContent>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content>
           {activeTab === 0 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 Earnings Calendar - {timeFilter.replace('_', ' ').toUpperCase()}
-              </Typography>
+              </div>
               <CalendarEventsTable />
             </>
           )}
           
           {activeTab === 1 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 Earnings Estimates
-              </Typography>
+              </div>
               <EarningsEstimatesTable />
             </>
           )}
 
           {activeTab === 2 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 Earnings History & Surprises
-              </Typography>
+              </div>
               <EarningsHistoryTable />
             </>
           )}
 
           {activeTab === 3 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 EPS Revisions Lookup
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
+              </div>
+              <div  display="flex" alignItems="center" gap={2} mb={2}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   label="Symbol"
                   value={epsInput}
                   onChange={e => setEpsInput(e.target.value.toUpperCase())}
@@ -537,7 +537,7 @@ function EarningsCalendar() {
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
                 />
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   onClick={() => {
                     setEpsSymbol(epsInput);
@@ -546,53 +546,53 @@ function EarningsCalendar() {
                   disabled={epsRevisionsLoading || !epsInput}
                 >
                   Lookup
-                </Button>
-              </Box>
+                </button>
+              </div>
               {epsRevisionsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <div  display="flex" justifyContent="center" my={3}><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={28} /></div>
               ) : epsRevisionsError ? (
-                <Alert severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load EPS revisions: {epsRevisionsError.message}</div>
               ) : epsRevisionsData?.data?.length ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Up Last 7d</TableCell>
-                        <TableCell align="right">Up Last 30d</TableCell>
-                        <TableCell align="right">Down Last 7d</TableCell>
-                        <TableCell align="right">Down Last 30d</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ mt: 2 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Period</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Up Last 7d</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Up Last 30d</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Down Last 7d</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Down Last 30d</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Fetched At</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {epsRevisionsData.data.map((row, idx) => (
-                        <TableRow key={row.period + idx}>
-                          <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">{row.up_last7days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.up_last30days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.down_last7days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.down_last30days ?? '-'}</TableCell>
-                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
-                        </TableRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={row.period + idx}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{row.period}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.up_last7days ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.up_last30days ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.down_last7days ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.down_last30days ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
+                <div  variant="body2" color="text.secondary" mt={2}>
                   No EPS revisions data found for <b>{epsSymbol}</b>.
-                </Typography>
+                </div>
               )}
             </>
           )}
           {activeTab === 4 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 EPS Trend Lookup
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
+              </div>
+              <div  display="flex" alignItems="center" gap={2} mb={2}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   label="Symbol"
                   value={epsInput}
                   onChange={e => setEpsInput(e.target.value.toUpperCase())}
@@ -600,7 +600,7 @@ function EarningsCalendar() {
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
                 />
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   onClick={() => {
                     setEpsSymbol(epsInput);
@@ -609,55 +609,55 @@ function EarningsCalendar() {
                   disabled={epsTrendLoading || !epsInput}
                 >
                   Lookup
-                </Button>
-              </Box>
+                </button>
+              </div>
               {epsTrendLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <div  display="flex" justifyContent="center" my={3}><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={28} /></div>
               ) : epsTrendError ? (
-                <Alert severity="error">Failed to load EPS trend: {epsTrendError.message}</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load EPS trend: {epsTrendError.message}</div>
               ) : epsTrendData?.data?.length ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Current</TableCell>
-                        <TableCell align="right">7 Days Ago</TableCell>
-                        <TableCell align="right">30 Days Ago</TableCell>
-                        <TableCell align="right">60 Days Ago</TableCell>
-                        <TableCell align="right">90 Days Ago</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ mt: 2 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Period</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">7 Days Ago</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">30 Days Ago</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">60 Days Ago</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">90 Days Ago</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Fetched At</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {epsTrendData.data.map((row, idx) => (
-                        <TableRow key={row.period + idx}>
-                          <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">{row.current ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days7ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days30ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days60ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.days90ago ?? '-'}</TableCell>
-                          <TableCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</TableCell>
-                        </TableRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={row.period + idx}>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{row.period}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.current ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.days7ago ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.days30ago ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.days60ago ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.days90ago ?? '-'}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.fetched_at ? new Date(row.fetched_at).toLocaleString() : '-'}</td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
+                <div  variant="body2" color="text.secondary" mt={2}>
                   No EPS trend data found for <b>{epsSymbol}</b>.
-                </Typography>
+                </div>
               )}
             </>
           )}
           {activeTab === 5 && (
             <>
-              <Typography variant="h6" gutterBottom>
+              <div  variant="h6" gutterBottom>
                 Earnings Metrics Lookup
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
+              </div>
+              <div  display="flex" alignItems="center" gap={2} mb={2}>
+                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   label="Symbol"
                   value={epsInput}
                   onChange={e => setEpsInput(e.target.value.toUpperCase())}
@@ -665,7 +665,7 @@ function EarningsCalendar() {
                   sx={{ width: 120 }}
                   inputProps={{ maxLength: 8 }}
                 />
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   onClick={() => {
                     setEpsSymbol(epsInput);
@@ -674,72 +674,72 @@ function EarningsCalendar() {
                   disabled={earningsMetricsLoading || !epsInput}
                 >
                   Lookup
-                </Button>
-              </Box>
+                </button>
+              </div>
               {earningsMetricsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}><CircularProgress size={28} /></Box>
+                <div  display="flex" justifyContent="center" my={3}><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={28} /></div>
               ) : earningsMetricsError ? (
-                <Alert severity="error">Failed to load earnings metrics: {earningsMetricsError.message}</Alert>
+                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load earnings metrics: {earningsMetricsError.message}</div>
               ) : (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Report Date</TableCell>
-                        <TableCell align="right">EPS Growth 1Q</TableCell>
-                        <TableCell align="right">EPS Growth 2Q</TableCell>
-                        <TableCell align="right">EPS Growth 4Q</TableCell>
-                        <TableCell align="right">EPS Growth 8Q</TableCell>
-                        <TableCell align="right">EPS Accel Qtrs</TableCell>
-                        <TableCell align="right">Surprise Last Q</TableCell>
-                        <TableCell align="right">Est Rev 1M</TableCell>
-                        <TableCell align="right">Est Rev 3M</TableCell>
-                        <TableCell align="right">Est Rev 6M</TableCell>
-                        <TableCell align="right">Annual EPS 1Y</TableCell>
-                        <TableCell align="right">Annual EPS 3Y</TableCell>
-                        <TableCell align="right">Annual EPS 5Y</TableCell>
-                        <TableCell align="right">Consec EPS Yrs</TableCell>
-                        <TableCell align="right">Est Change This Yr</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ mt: 2 }}>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Report Date</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">EPS Growth 1Q</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">EPS Growth 2Q</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">EPS Growth 4Q</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">EPS Growth 8Q</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">EPS Accel Qtrs</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Surprise Last Q</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Est Rev 1M</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Est Rev 3M</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Est Rev 6M</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Annual EPS 1Y</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Annual EPS 3Y</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Annual EPS 5Y</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Consec EPS Yrs</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Est Change This Yr</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {Array.isArray(earningsMetricsData?.data?.[epsSymbol]?.metrics) && earningsMetricsData.data[epsSymbol].metrics.length > 0 ? (
                         earningsMetricsData.data[epsSymbol].metrics.map((row, idx) => (
-                          <TableRow key={row.report_date + idx}>
-                            <TableCell>{row.report_date}</TableCell>
-                            <TableCell align="right">{row.eps_growth_1q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_2q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_4q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_growth_8q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_acceleration_qtrs ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_surprise_last_q ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_1m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_3m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimate_revision_6m ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_1y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_3y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.annual_eps_growth_5y ?? '-'}</TableCell>
-                            <TableCell align="right">{row.consecutive_eps_growth_years ?? '-'}</TableCell>
-                            <TableCell align="right">{row.eps_estimated_change_this_year ?? '-'}</TableCell>
-                          </TableRow>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={row.report_date + idx}>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{row.report_date}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_growth_1q ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_growth_2q ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_growth_4q ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_growth_8q ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_acceleration_qtrs ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_surprise_last_q ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_estimate_revision_1m ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_estimate_revision_3m ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_estimate_revision_6m ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.annual_eps_growth_1y ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.annual_eps_growth_3y ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.annual_eps_growth_5y ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.consecutive_eps_growth_years ?? '-'}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.eps_estimated_change_this_year ?? '-'}</td>
+                          </tr>
                         ))
                       ) : (
-                        <TableRow>
-                          <TableCell colSpan={15} align="center">
-                            <Typography variant="body2" color="text.secondary" mt={2}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell colSpan={15} align="center">
+                            <div  variant="body2" color="text.secondary" mt={2}>
                               No earnings metrics data found for <b>{epsSymbol}</b>.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                    </tbody>
+                  </table>
+                </div>
               )}
             </>
           )}
           
-          <TablePagination
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
             component="div"
             count={
               activeTab === 0 ? (calendarData?.pagination?.total || 0) :
@@ -758,9 +758,9 @@ function EarningsCalendar() {
             }}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
-        </CardContent>
-      </Card>
-    </Container>
+        </div>
+      </div>
+    </div>
   );
 }
 

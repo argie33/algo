@@ -64,7 +64,7 @@ const WelcomeOverlay = ({ onClose }) => {
 
   return (
     <Fade in={show} timeout={500}>
-      <Box
+      <div 
         sx={{
           position: 'fixed',
           top: 0,
@@ -80,7 +80,7 @@ const WelcomeOverlay = ({ onClose }) => {
         }}
       >
         <Slide direction="up" in={show} timeout={600}>
-          <Card
+          <div className="bg-white shadow-md rounded-lg"
             sx={{
               maxWidth: 600,
               width: '90%',
@@ -91,32 +91,32 @@ const WelcomeOverlay = ({ onClose }) => {
               boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
             }}
           >
-            <IconButton
+            <button className="p-2 rounded-full hover:bg-gray-100"
               sx={{ position: 'absolute', top: 8, right: 8, color: 'white' }}
               onClick={handleClose}
             >
               <Close />
-            </IconButton>
+            </button>
 
-            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-              <Box sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4, textAlign: 'center' }}>
+              <div  sx={{ mb: 3 }}>
                 {currentStepData.icon}
-              </Box>
+              </div>
 
-              <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, mb: 1 }}>
+              <div  variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, mb: 1 }}>
                 {currentStepData.title}
-              </Typography>
+              </div>
 
-              <Typography variant="h6" sx={{ mb: 4, opacity: 0.9 }}>
+              <div  variant="h6" sx={{ mb: 4, opacity: 0.9 }}>
                 {currentStepData.subtitle}
-              </Typography>
+              </div>
 
-              <Grid container spacing={2} sx={{ mb: 4 }}>
+              <div className="grid" container spacing={2} sx={{ mb: 4 }}>
                 {currentStepData.features.map((feature, index) => (
-                  <Grid item xs={12} key={index}>
+                  <div className="grid" item xs={12} key={index}>
                     <Fade in={true} timeout={800 + index * 200}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ 
+                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <div  sx={{ 
                           backgroundColor: 'rgba(255,255,255,0.2)', 
                           borderRadius: '50%', 
                           p: 1,
@@ -125,18 +125,18 @@ const WelcomeOverlay = ({ onClose }) => {
                           justifyContent: 'center'
                         }}>
                           {feature.icon}
-                        </Box>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        </div>
+                        <div  variant="body1" sx={{ fontWeight: 500 }}>
                           {feature.text}
-                        </Typography>
-                      </Box>
+                        </div>
+                      </div>
                     </Fade>
-                  </Grid>
+                  </div>
                 ))}
-              </Grid>
+              </div>
 
-              <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-                <LinearProgress
+              <div className="flex flex-col space-y-2" direction="row" spacing={2} justifyContent="center" alignItems="center">
+                <div className="w-full bg-gray-200 rounded-full h-2"
                   variant="determinate"
                   value={(currentStep + 1) / steps.length * 100}
                   sx={{
@@ -150,7 +150,7 @@ const WelcomeOverlay = ({ onClose }) => {
                     }
                   }}
                 />
-                <Button
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   onClick={handleNext}
                   endIcon={<ArrowForward />}
@@ -166,16 +166,16 @@ const WelcomeOverlay = ({ onClose }) => {
                   }}
                 >
                   {currentStep === steps.length - 1 ? 'Get Started' : 'Next'}
-                </Button>
-              </Stack>
+                </button>
+              </div>
 
-              <Typography variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.7 }}>
+              <div  variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.7 }}>
                 This overlay will close automatically in a few seconds
-              </Typography>
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </div>
         </Slide>
-      </Box>
+      </div>
     </Fade>
   );
 };

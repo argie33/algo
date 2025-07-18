@@ -369,9 +369,9 @@ const EnhancedLiveDataMonitor = () => {
     const color = percent >= 0 ? 'success.main' : 'error.main';
     const sign = percent >= 0 ? '+' : '';
     return (
-      <Typography component="span" sx={{ color }}>
+      <div  component="span" sx={{ color }}>
         {sign}{percent.toFixed(2)}%
-      </Typography>
+      </div>
     );
   };
 
@@ -405,51 +405,51 @@ const EnhancedLiveDataMonitor = () => {
   };
 
   const renderMarketDataTable = () => (
-    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-      <Table stickyHeader size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Symbol</TableCell>
-            <TableCell align="right">Price</TableCell>
-            <TableCell align="right">Change</TableCell>
-            <TableCell align="right">Bid/Ask</TableCell>
-            <TableCell align="right">Volume</TableCell>
-            <TableCell>Trend</TableCell>
-            <TableCell>Signal</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Bid/Ask</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Trend</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Signal</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+          </tr>
+        </thead>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
           {getFilteredData().map(([symbol, data]) => (
-            <TableRow key={symbol} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={symbol} hover>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  variant="body2" fontWeight="bold">
                   {symbol}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2" fontWeight="bold">
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                <div  variant="body2" fontWeight="bold">
                   {formatPrice(data.price)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                 {formatPercent(data.change_percent)}
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="caption">
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                <div  variant="caption">
                   {formatPrice(data.bid)} / {formatPrice(data.ask)}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">{formatNumber(data.volume)}</TableCell>
-              <TableCell>
-                <Tooltip title={`Trend: ${data.trend || 'neutral'}`}>
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatNumber(data.volume)}</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  title={`Trend: ${data.trend || 'neutral'}`}>
                   {getTrendIcon(data.trend)}
-                </Tooltip>
-              </TableCell>
-              <TableCell>
+                </div>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                 {advancedSignals[symbol] && (
-                  <Chip
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     label={advancedSignals[symbol].recommendation?.action || 'HOLD'}
                     color={
                       advancedSignals[symbol].recommendation?.action === 'buy' ? 'success' :
@@ -458,71 +458,71 @@ const EnhancedLiveDataMonitor = () => {
                     size="small"
                   />
                 )}
-              </TableCell>
-              <TableCell>
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                 {isDataStale(symbol) ? (
-                  <Chip label="Stale" color="warning" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Stale" color="warning" size="small" />
                 ) : (
-                  <Chip label="Live" color="success" size="small" />
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live" color="success" size="small" />
                 )}
-              </TableCell>
-              <TableCell>
-                <Tooltip title="Generate Advanced Signal">
-                  <IconButton 
+              </td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                <div  title="Generate Advanced Signal">
+                  <button className="p-2 rounded-full hover:bg-gray-100" 
                     size="small" 
                     onClick={() => handleGenerateAdvancedSignal(symbol)}
                     disabled={!hasValidProvider('alpaca')}
                   >
                     <Assessment />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Remove Symbol">
-                  <IconButton 
+                  </button>
+                </div>
+                <div  title="Remove Symbol">
+                  <button className="p-2 rounded-full hover:bg-gray-100" 
                     size="small" 
                     onClick={() => handleUnsubscribeSymbol(symbol)}
                   >
                     <Remove />
-                  </IconButton>
-                </Tooltip>
-              </TableCell>
-            </TableRow>
+                  </button>
+                </div>
+              </td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+        </tbody>
+      </table>
+    </div>
   );
 
   const renderMarketDataCards = () => (
-    <Grid container spacing={2}>
+    <div className="grid" container spacing={2}>
       {getFilteredData().map(([symbol, data]) => (
-        <Grid item xs={12} sm={6} md={4} key={symbol}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Typography variant="h6" fontWeight="bold">
+        <div className="grid" item xs={12} sm={6} md={4} key={symbol}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div  display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <div  variant="h6" fontWeight="bold">
                   {symbol}
-                </Typography>
+                </div>
                 {getTrendIcon(data.trend)}
-              </Box>
-              <Typography variant="h4" fontWeight="bold" gutterBottom>
+              </div>
+              <div  variant="h4" fontWeight="bold" gutterBottom>
                 {formatPrice(data.price)}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
+              </div>
+              <div  variant="body2" gutterBottom>
                 {formatPercent(data.change_percent)}
-              </Typography>
-              <Box display="flex" justifyContent="space-between" mt={2}>
-                <Typography variant="caption">
+              </div>
+              <div  display="flex" justifyContent="space-between" mt={2}>
+                <div  variant="caption">
                   Vol: {formatNumber(data.volume)}
-                </Typography>
-                <Chip 
+                </div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                   label={isDataStale(symbol) ? 'Stale' : 'Live'} 
                   color={isDataStale(symbol) ? 'warning' : 'success'} 
                   size="small" 
                 />
-              </Box>
+              </div>
               {advancedSignals[symbol] && (
-                <Box mt={1}>
-                  <Chip
+                <div  mt={1}>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     label={`${advancedSignals[symbol].recommendation?.action || 'HOLD'} (${((advancedSignals[symbol].recommendation?.confidence || 0) * 100).toFixed(0)}%)`}
                     color={
                       advancedSignals[symbol].recommendation?.action === 'buy' ? 'success' :
@@ -530,22 +530,22 @@ const EnhancedLiveDataMonitor = () => {
                     }
                     size="small"
                   />
-                </Box>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
       ))}
-    </Grid>
+    </div>
   );
 
   const renderChartView = () => (
-    <Grid container spacing={3}>
+    <div className="grid" container spacing={3}>
       {selectedSymbols.slice(0, 4).map(symbol => (
-        <Grid item xs={12} md={6} key={symbol}>
-          <Card>
-            <CardHeader title={`${symbol} Price Movement`} />
-            <CardContent>
+        <div className="grid" item xs={12} md={6} key={symbol}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title={`${symbol} Price Movement`} />
+            <div className="bg-white shadow-md rounded-lg"Content>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={priceHistory[symbol] || []}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -564,11 +564,11 @@ const EnhancedLiveDataMonitor = () => {
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            </div>
+          </div>
+        </div>
       ))}
-    </Grid>
+    </div>
   );
 
   const renderTabContent = () => {
@@ -579,26 +579,26 @@ const EnhancedLiveDataMonitor = () => {
         return renderChartView();
       case 2:
         return (
-          <Card>
-            <CardHeader title="Advanced Signals" />
-            <CardContent>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Advanced Signals" />
+            <div className="bg-white shadow-md rounded-lg"Content>
               {Object.entries(advancedSignals).map(([symbol, signals]) => (
-                <Box key={symbol} mb={2}>
-                  <Typography variant="h6">{symbol}</Typography>
-                  <Typography variant="body2">
+                <div  key={symbol} mb={2}>
+                  <div  variant="h6">{symbol}</div>
+                  <div  variant="body2">
                     Action: {signals.recommendation?.action || 'HOLD'}
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Confidence: {((signals.recommendation?.confidence || 0) * 100).toFixed(1)}%
-                  </Typography>
-                  <Typography variant="body2">
+                  </div>
+                  <div  variant="body2">
                     Rationale: {signals.recommendation?.rationale || 'N/A'}
-                  </Typography>
-                  <Divider sx={{ my: 1 }} />
-                </Box>
+                  </div>
+                  <hr className="border-gray-200" sx={{ my: 1 }} />
+                </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         );
       default:
         return null;
@@ -611,192 +611,192 @@ const EnhancedLiveDataMonitor = () => {
       allowSkip={true}
       message="Live data monitoring requires Alpaca API keys for real-time market data access."
     >
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
         {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
-              <Typography variant="h4" fontWeight={700} gutterBottom>
+        <div  sx={{ mb: 4 }}>
+          <div  display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <div>
+              <div  variant="h4" fontWeight={700} gutterBottom>
                 🚀 Enhanced Live Data Monitor
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
+              </div>
+              <div  variant="body1" color="text.secondary">
                 Real-time market data with advanced signal processing and portfolio integration
-              </Typography>
-            </Box>
-            <Box>
-              <IconButton onClick={() => setFullscreen(!fullscreen)}>
+              </div>
+            </div>
+            <div>
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setFullscreen(!fullscreen)}>
                 {fullscreen ? <FullscreenExit /> : <Fullscreen />}
-              </IconButton>
-            </Box>
-          </Box>
-          <Box display="flex" gap={1} flexWrap="wrap">
-            <Chip label="Real-time Feed" color="primary" size="small" variant="outlined" />
-            <Chip label="Advanced Signals" color="success" size="small" variant="outlined" />
-            <Chip label="Portfolio Integration" color="info" size="small" variant="outlined" />
-            <Chip label="Risk Alerts" color="warning" size="small" variant="outlined" />
-          </Box>
-        </Box>
+              </button>
+            </div>
+          </div>
+          <div  display="flex" gap={1} flexWrap="wrap">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Feed" color="primary" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Advanced Signals" color="success" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Portfolio Integration" color="info" size="small" variant="outlined" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Risk Alerts" color="warning" size="small" variant="outlined" />
+          </div>
+        </div>
 
         {connectionError && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setConnectionError(null)}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setConnectionError(null)}>
             {connectionError}
-          </Alert>
+          </div>
         )}
 
         {/* Connection Status */}
-        <Card sx={{ mb: 3 }}>
-          <CardHeader
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Header
             title="Enhanced Connection Status"
             action={
-              <Box display="flex" gap={1} alignItems="center">
-                <FormControlLabel
+              <div  display="flex" gap={1} alignItems="center">
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={enableAdvancedSignals}
                       onChange={(e) => setEnableAdvancedSignals(e.target.checked)}
                     />
                   }
                   label="Advanced Signals"
                 />
-                <FormControlLabel
+                <div className="mb-4"Label
                   control={
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={autoReconnect}
                       onChange={(e) => setAutoReconnect(e.target.checked)}
                     />
                   }
                   label="Auto Reconnect"
                 />
-                <IconButton onClick={() => setSettingsOpen(true)}>
+                <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSettingsOpen(true)}>
                   <Settings />
-                </IconButton>
-              </Box>
+                </button>
+              </div>
             }
           />
-          <CardContent>
-            <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} sm={3}>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Badge 
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div className="grid" container spacing={3} alignItems="center">
+              <div className="grid" item xs={12} sm={3}>
+                <div  display="flex" alignItems="center" gap={2}>
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" 
                     color={getConnectionColor()} 
                     variant="dot" 
                     sx={{ '& .MuiBadge-dot': { width: 12, height: 12 } }}
                   >
                     <NetworkCheck fontSize="large" />
-                  </Badge>
-                  <Box>
-                    <Typography variant="h6" fontWeight="bold">
+                  </span>
+                  <div>
+                    <div  variant="h6" fontWeight="bold">
                       {connectionStatus}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    </div>
+                    <div  variant="caption" color="text.secondary">
                       WebSocket Status
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
-              <Grid item xs={12} sm={6}>
-                <Box display="flex" gap={2} flexWrap="wrap">
+              <div className="grid" item xs={12} sm={6}>
+                <div  display="flex" gap={2} flexWrap="wrap">
                   {!isConnected ? (
-                    <Button
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       variant="contained"
                       startIcon={<PlayArrow />}
                       onClick={handleConnect}
                       disabled={connectionStatus === 'CONNECTING'}
                     >
                       {connectionStatus === 'CONNECTING' ? 'Connecting...' : 'Connect'}
-                    </Button>
+                    </button>
                   ) : (
-                    <Button
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       variant="outlined"
                       startIcon={<Stop />}
                       onClick={handleDisconnect}
                     >
                       Disconnect
-                    </Button>
+                    </button>
                   )}
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<Refresh />}
                     onClick={() => window.location.reload()}
                   >
                     Refresh
-                  </Button>
+                  </button>
                   
-                  <Button
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<Analytics />}
                     onClick={() => setShowStats(!showStats)}
                   >
                     {showStats ? 'Hide' : 'Show'} Stats
-                  </Button>
-                </Box>
-              </Grid>
+                  </button>
+                </div>
+              </div>
               
-              <Grid item xs={12} sm={3}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Active Subscriptions</Typography>
-                  <Typography variant="h6" fontWeight="bold">
+              <div className="grid" item xs={12} sm={3}>
+                <div>
+                  <div  variant="caption" color="text.secondary">Active Subscriptions</div>
+                  <div  variant="h6" fontWeight="bold">
                     {subscriptions.size}
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Enhanced Statistics */}
         {showStats && (
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Enhanced Statistics" />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="primary">{statistics.messagesReceived || 0}</Typography>
-                    <Typography variant="caption">Messages Received</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="secondary">{statistics.messagesSent || 0}</Typography>
-                    <Typography variant="caption">Messages Sent</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="success.main">{Object.keys(advancedSignals).length}</Typography>
-                    <Typography variant="caption">Advanced Signals</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box textAlign="center">
-                    <Typography variant="h4" color="warning.main">{statistics.reconnectCount || 0}</Typography>
-                    <Typography variant="caption">Reconnections</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header title="Enhanced Statistics" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={3}>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" color="primary">{statistics.messagesReceived || 0}</div>
+                    <div  variant="caption">Messages Received</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" color="secondary">{statistics.messagesSent || 0}</div>
+                    <div  variant="caption">Messages Sent</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" color="success.main">{Object.keys(advancedSignals).length}</div>
+                    <div  variant="caption">Advanced Signals</div>
+                  </div>
+                </div>
+                <div className="grid" item xs={6} sm={3}>
+                  <div  textAlign="center">
+                    <div  variant="h4" color="warning.main">{statistics.reconnectCount || 0}</div>
+                    <div  variant="caption">Reconnections</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Controls */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} md={4}>
+        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div className="grid" container spacing={3} alignItems="center">
+              <div className="grid" item xs={12} md={4}>
                 <Autocomplete
                   multiple
                   options={availableSymbols}
                   value={selectedSymbols}
                   onChange={(_, newValue) => setSelectedSymbols(newValue)}
                   renderInput={(params) => (
-                    <TextField {...params} label="Subscribed Symbols" size="small" />
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Subscribed Symbols" size="small" />
                   )}
                   renderTags={(value, getTagProps) =>
                     value.map((option, index) => (
-                      <Chip
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                         variant="outlined"
                         label={option}
                         size="small"
@@ -805,41 +805,41 @@ const EnhancedLiveDataMonitor = () => {
                     ))
                   }
                 />
-              </Grid>
+              </div>
               
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Filter</InputLabel>
-                  <Select
+              <div className="grid" item xs={12} md={2}>
+                <div className="mb-4" fullWidth size="small">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Filter</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={filterCriteria}
                     onChange={(e) => setFilterCriteria(e.target.value)}
                     label="Filter"
                   >
-                    <MenuItem value="all">All Symbols</MenuItem>
-                    <MenuItem value="gainers">Gainers</MenuItem>
-                    <MenuItem value="losers">Losers</MenuItem>
-                    <MenuItem value="volume">High Volume</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value="all">All Symbols</option>
+                    <option  value="gainers">Gainers</option>
+                    <option  value="losers">Losers</option>
+                    <option  value="volume">High Volume</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Refresh</InputLabel>
-                  <Select
+              <div className="grid" item xs={12} md={2}>
+                <div className="mb-4" fullWidth size="small">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Refresh</label>
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={refreshInterval}
                     onChange={(e) => setRefreshInterval(e.target.value)}
                     label="Refresh"
                   >
-                    <MenuItem value={1000}>1 Second</MenuItem>
-                    <MenuItem value={5000}>5 Seconds</MenuItem>
-                    <MenuItem value={10000}>10 Seconds</MenuItem>
-                    <MenuItem value={30000}>30 Seconds</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <option  value={1000}>1 Second</option>
+                    <option  value={5000}>5 Seconds</option>
+                    <option  value={10000}>10 Seconds</option>
+                    <option  value={30000}>30 Seconds</option>
+                  </select>
+                </div>
+              </div>
               
-              <Grid item xs={12} md={2}>
+              <div className="grid" item xs={12} md={2}>
                 <ToggleButtonGroup
                   value={viewMode}
                   exclusive
@@ -853,10 +853,10 @@ const EnhancedLiveDataMonitor = () => {
                     <ViewModule />
                   </ToggleButton>
                 </ToggleButtonGroup>
-              </Grid>
+              </div>
               
-              <Grid item xs={12} md={2}>
-                <Button
+              <div className="grid" item xs={12} md={2}>
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   variant="contained"
                   startIcon={<CloudSync />}
                   onClick={() => {
@@ -870,24 +870,24 @@ const EnhancedLiveDataMonitor = () => {
                   fullWidth
                 >
                   Sync Signals
-                </Button>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Tabs */}
-        <Card>
-          <CardHeader
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Header
             title={
-              <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-                <Tab label="Market Data" />
-                <Tab label="Charts" />
-                <Tab label="Advanced Signals" />
-              </Tabs>
+              <div className="border-b border-gray-200" value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Data" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Charts" />
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Advanced Signals" />
+              </div>
             }
             action={
-              <Chip
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 label={isConnected ? 'LIVE' : 'OFFLINE'}
                 color={isConnected ? 'success' : 'error'}
                 icon={isConnected ? <NotificationsActive /> : <Notifications />}
@@ -895,31 +895,31 @@ const EnhancedLiveDataMonitor = () => {
               />
             }
           />
-          <CardContent>
+          <div className="bg-white shadow-md rounded-lg"Content>
             {renderTabContent()}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Settings Dialog */}
-        <Dialog 
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
           open={settingsOpen} 
           onClose={() => setSettingsOpen(false)}
           maxWidth="md"
           fullWidth
         >
-          <DialogTitle>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
             Enhanced Settings
-            <IconButton
+            <button className="p-2 rounded-full hover:bg-gray-100"
               sx={{ position: 'absolute', right: 8, top: 8 }}
               onClick={() => setSettingsOpen(false)}
             >
               <Close />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent dividers>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Connection Settings</Typography>
+            </button>
+          </h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content dividers>
+            <div className="grid" container spacing={3}>
+              <div className="grid" item xs={12} md={6}>
+                <div  variant="h6" gutterBottom>Connection Settings</div>
                 <List>
                   <ListItem>
                     <ListItemIcon><Speed /></ListItemIcon>
@@ -936,10 +936,10 @@ const EnhancedLiveDataMonitor = () => {
                     />
                   </ListItem>
                 </List>
-              </Grid>
+              </div>
               
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>Advanced Features</Typography>
+              <div className="grid" item xs={12} md={6}>
+                <div  variant="h6" gutterBottom>Advanced Features</div>
                 <List>
                   <ListItem>
                     <ListItemIcon><Assessment /></ListItemIcon>
@@ -947,7 +947,7 @@ const EnhancedLiveDataMonitor = () => {
                       primary="Advanced Signals" 
                       secondary={enableAdvancedSignals ? 'Enabled' : 'Disabled'}
                     />
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={enableAdvancedSignals}
                       onChange={(e) => setEnableAdvancedSignals(e.target.checked)}
                     />
@@ -958,20 +958,20 @@ const EnhancedLiveDataMonitor = () => {
                       primary="Risk Alerts" 
                       secondary={enableRiskAlerts ? 'Enabled' : 'Disabled'}
                     />
-                    <Switch
+                    <input type="checkbox" className="toggle"
                       checked={enableRiskAlerts}
                       onChange={(e) => setEnableRiskAlerts(e.target.checked)}
                     />
                   </ListItem>
                 </List>
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
+              </div>
+            </div>
+          </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSettingsOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
     </RequiresApiKeys>
   );
 };

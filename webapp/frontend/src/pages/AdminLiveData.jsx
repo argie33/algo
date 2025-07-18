@@ -234,315 +234,315 @@ const AdminLiveData = () => {
   };
   
   const renderSystemMetrics = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+    <div className="grid" container spacing={3}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <SignalWifi4Bar color="primary" />
-              <Typography variant="h6" ml={1}>Active Connections</Typography>
-            </Box>
-            <Typography variant="h3" color="primary">
+              <div  variant="h6" ml={1}>Active Connections</div>
+            </div>
+            <div  variant="h3" color="primary">
               {systemMetrics.totalConnections}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               {systemMetrics.activeSymbols} symbols
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <Group color="primary" />
-              <Typography variant="h6" ml={1}>Active Users</Typography>
-            </Box>
-            <Typography variant="h3" color="primary">
+              <div  variant="h6" ml={1}>Active Users</div>
+            </div>
+            <div  variant="h3" color="primary">
               {systemMetrics.totalUsers}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               subscribers
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <AttachMoney color="success" />
-              <Typography variant="h6" ml={1}>Cost Savings</Typography>
-            </Box>
-            <Typography variant="h3" color="success.main">
+              <div  variant="h6" ml={1}>Cost Savings</div>
+            </div>
+            <div  variant="h3" color="success.main">
               ${systemMetrics.costSavings}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               vs individual feeds
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <Speed color="primary" />
-              <Typography variant="h6" ml={1}>Data Throughput</Typography>
-            </Box>
-            <Typography variant="h3" color="primary">
+              <div  variant="h6" ml={1}>Data Throughput</div>
+            </div>
+            <div  variant="h3" color="primary">
               {systemMetrics.messagesPerSecond}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               messages/second
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <Timeline color="primary" />
-              <Typography variant="h6" ml={1}>Latency</Typography>
-            </Box>
-            <Typography variant="h3" color="primary">
+              <div  variant="h6" ml={1}>Latency</div>
+            </div>
+            <div  variant="h3" color="primary">
               {systemMetrics.dataLatency}ms
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               average
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <Grid item xs={12} md={6} lg={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
+      <div className="grid" item xs={12} md={6} lg={4}>
+        <div className="bg-white shadow-md rounded-lg">
+          <div className="bg-white shadow-md rounded-lg"Content>
+            <div  display="flex" alignItems="center" mb={2}>
               <CheckCircle color="success" />
-              <Typography variant="h6" ml={1}>Uptime</Typography>
-            </Box>
-            <Typography variant="h3" color="success.main">
+              <div  variant="h6" ml={1}>Uptime</div>
+            </div>
+            <div  variant="h3" color="success.main">
               {systemMetrics.uptime}%
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </div>
+            <div  variant="body2" color="text.secondary">
               last 30 days
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
   
   const renderActiveFeeds = () => (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">Active Data Feeds</Typography>
-        <Button
+    <div>
+      <div  display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <div  variant="h6">Active Data Feeds</div>
+        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           variant="contained"
           startIcon={<Add />}
           onClick={() => setShowAddFeedDialog(true)}
         >
           Add Feed
-        </Button>
-      </Box>
+        </button>
+      </div>
       
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Asset Type</TableCell>
-              <TableCell>Data Types</TableCell>
-              <TableCell>Symbols</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Subscribers</TableCell>
-              <TableCell>Messages/sec</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Asset Type</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Data Types</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbols</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Subscribers</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Messages/sec</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
+            </tr>
+          </thead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
             {activeFeeds.map((feed) => (
-              <TableRow key={feed.id}>
-                <TableCell>
-                  <Box display="flex" alignItems="center">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={feed.id}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  display="flex" alignItems="center">
                     <span style={{ marginRight: 8 }}>
                       {ASSET_TYPES.find(t => t.value === feed.assetType)?.icon}
                     </span>
                     {feed.assetType}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box display="flex" gap={1}>
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  display="flex" gap={1}>
                     {feed.dataTypes.map(type => (
-                      <Chip key={type} label={type} size="small" />
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={type} label={type} size="small" />
                     ))}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">
                     {feed.symbols.length} symbols
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     {feed.symbols.slice(0, 3).join(', ')}
                     {feed.symbols.length > 3 && '...'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     label={feed.status}
                     color={feed.status === 'running' ? 'success' : 'default'}
                     size="small"
                   />
-                </TableCell>
-                <TableCell>{feed.subscriberCount}</TableCell>
-                <TableCell>{feed.messagesPerSecond}</TableCell>
-                <TableCell>
-                  <ButtonGroup size="small">
-                    <Tooltip title="Stop Feed">
-                      <IconButton
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{feed.subscriberCount}</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{feed.messagesPerSecond}</td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group size="small">
+                    <div  title="Stop Feed">
+                      <button className="p-2 rounded-full hover:bg-gray-100"
                         onClick={() => stopFeed(feed.id)}
                         color="error"
                         size="small"
                       >
                         <Stop />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Settings">
-                      <IconButton size="small">
+                      </button>
+                    </div>
+                    <div  title="Settings">
+                      <button className="p-2 rounded-full hover:bg-gray-100" size="small">
                         <Settings />
-                      </IconButton>
-                    </Tooltip>
+                      </button>
+                    </div>
                   </ButtonGroup>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
   
   const renderSubscribers = () => (
-    <Box>
-      <Typography variant="h6" mb={3}>Active Subscribers</Typography>
+    <div>
+      <div  variant="h6" mb={3}>Active Subscribers</div>
       
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Subscribed Symbols</TableCell>
-              <TableCell>Connected Since</TableCell>
-              <TableCell>Data Usage</TableCell>
-              <TableCell>Status</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>User</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Subscribed Symbols</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Connected Since</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Data Usage</td>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
+            </tr>
+          </thead>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
             {subscribers.map((subscriber) => (
-              <TableRow key={subscriber.userId}>
-                <TableCell>
-                  <Typography variant="body2">{subscriber.userId}</Typography>
-                  <Typography variant="caption" color="text.secondary">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={subscriber.userId}>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">{subscriber.userId}</div>
+                  <div  variant="caption" color="text.secondary">
                     {subscriber.userEmail}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">
                     {subscriber.subscribedSymbols.length} symbols
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  </div>
+                  <div  variant="caption" color="text.secondary">
                     {subscriber.subscribedSymbols.slice(0, 3).join(', ')}
                     {subscriber.subscribedSymbols.length > 3 && '...'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">
                     {new Date(subscriber.connectedSince).toLocaleString()}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <div  variant="body2">
                     {subscriber.messagesReceived} messages
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
+                  </div>
+                </td>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                     label={subscriber.status}
                     color={subscriber.status === 'active' ? 'success' : 'default'}
                     size="small"
                   />
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
   
   return (
-    <Box>
-      <Box display="flex" alignItems="center" mb={3}>
+    <div>
+      <div  display="flex" alignItems="center" mb={3}>
         <AdminPanelSettings sx={{ mr: 2, fontSize: 40 }} color="primary" />
-        <Box>
-          <Typography variant="h4" gutterBottom>
+        <div>
+          <div  variant="h4" gutterBottom>
             Live Data Administration
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </div>
+          <div  variant="body1" color="text.secondary">
             Centralized management of real-time data feeds for all users
-          </Typography>
-        </Box>
-      </Box>
+          </div>
+        </div>
+      </div>
       
       {/* Status Banner */}
-      <Alert 
+      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
         severity={connectionStatus === 'connected' ? 'success' : 'warning'}
         sx={{ mb: 3 }}
       >
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography variant="body2">
+        <div  display="flex" alignItems="center" justifyContent="space-between">
+          <div>
+            <div  variant="body2">
               System Status: {connectionStatus === 'connected' ? 'Active' : 'Disconnected'}
-            </Typography>
+            </div>
             {lastUpdate && (
-              <Typography variant="caption">
+              <div  variant="caption">
                 Last update: {new Date(lastUpdate).toLocaleTimeString()}
-              </Typography>
+              </div>
             )}
-          </Box>
-          <Box display="flex" gap={1}>
-            <Chip
+          </div>
+          <div  display="flex" gap={1}>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={`${systemMetrics.totalUsers} users`}
               size="small"
               color="primary"
             />
-            <Chip
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={`${systemMetrics.activeSymbols} symbols`}
               size="small"
               color="primary"
             />
-            <Chip
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               label={`$${systemMetrics.costSavings} saved`}
               size="small"
               color="success"
             />
-          </Box>
-        </Box>
-      </Alert>
+          </div>
+        </div>
+      </div>
       
       {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={selectedTab} onChange={(e, v) => setSelectedTab(v)}>
-          <Tab label="System Metrics" />
-          <Tab label="Active Feeds" />
-          <Tab label="Subscribers" />
-        </Tabs>
-      </Box>
+      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <div className="border-b border-gray-200" value={selectedTab} onChange={(e, v) => setSelectedTab(v)}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="System Metrics" />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Active Feeds" />
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Subscribers" />
+        </div>
+      </div>
       
       {/* Tab Content */}
       {selectedTab === 0 && renderSystemMetrics()}
@@ -550,57 +550,57 @@ const AdminLiveData = () => {
       {selectedTab === 2 && renderSubscribers()}
       
       {/* Add Feed Dialog */}
-      <Dialog
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
         open={showAddFeedDialog}
         onClose={() => setShowAddFeedDialog(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Add New Data Feed</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <FormControl fullWidth sx={{ mb: 3 }}>
-              <InputLabel>Asset Type</InputLabel>
-              <Select
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Add New Data Feed</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <div  sx={{ mt: 2 }}>
+            <div className="mb-4" fullWidth sx={{ mb: 3 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Asset Type</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedAssetType}
                 onChange={(e) => setSelectedAssetType(e.target.value)}
               >
                 {ASSET_TYPES.map(type => (
-                  <MenuItem key={type.value} value={type.value}>
+                  <option  key={type.value} value={type.value}>
                     {type.icon} {type.label}
-                  </MenuItem>
+                  </option>
                 ))}
-              </Select>
-            </FormControl>
+              </select>
+            </div>
             
-            <FormControl fullWidth sx={{ mb: 3 }}>
-              <InputLabel>Data Types</InputLabel>
-              <Select
+            <div className="mb-4" fullWidth sx={{ mb: 3 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Data Types</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 multiple
                 value={selectedDataTypes}
                 onChange={(e) => setSelectedDataTypes(e.target.value)}
                 renderValue={(selected) => (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {selected.map((value) => (
-                      <Chip key={value} label={value} size="small" />
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={value} label={value} size="small" />
                     ))}
-                  </Box>
+                  </div>
                 )}
               >
                 {DATA_TYPES.map(type => (
-                  <MenuItem key={type.value} value={type.value}>
-                    <Box>
-                      <Typography variant="body2">{type.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                  <option  key={type.value} value={type.value}>
+                    <div>
+                      <div  variant="body2">{type.label}</div>
+                      <div  variant="caption" color="text.secondary">
                         {type.description}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
+                      </div>
+                    </div>
+                  </option>
                 ))}
-              </Select>
-            </FormControl>
+              </select>
+            </div>
             
-            <TextField
+            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               fullWidth
               label="Symbols (comma-separated)"
               value={symbolInput}
@@ -609,12 +609,12 @@ const AdminLiveData = () => {
               sx={{ mb: 2 }}
             />
             
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Popular symbols:
-            </Typography>
-            <Box display="flex" flexWrap="wrap" gap={1}>
+            </div>
+            <div  display="flex" flexWrap="wrap" gap={1}>
               {POPULAR_SYMBOLS[selectedAssetType]?.map(symbol => (
-                <Chip
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                   key={symbol}
                   label={symbol}
                   size="small"
@@ -627,21 +627,21 @@ const AdminLiveData = () => {
                   }}
                 />
               ))}
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAddFeedDialog(false)}>Cancel</Button>
-          <Button
+            </div>
+          </div>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowAddFeedDialog(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             onClick={handleAddFeed}
             variant="contained"
             disabled={!symbolInput.trim()}
           >
             Start Feed
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

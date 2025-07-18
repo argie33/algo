@@ -1,9 +1,8 @@
 import React from 'react';
-import { Select as MuiSelect, MenuItem, FormControl, InputLabel } from '@mui/material';
 
 export const Select = React.forwardRef(({ className, children, value, onValueChange, ...props }, ref) => {
   return (
-    <FormControl className={className} size="small">
+    <div className="mb-4" className={className} size="small">
       <MuiSelect 
         ref={ref} 
         value={value || ''}
@@ -12,7 +11,7 @@ export const Select = React.forwardRef(({ className, children, value, onValueCha
       >
         {children}
       </MuiSelect>
-    </FormControl>
+    </div>
   );
 });
 Select.displayName = "Select";
@@ -25,9 +24,9 @@ export const SelectContent = React.forwardRef(({ className, children, ...props }
 SelectContent.displayName = "SelectContent";
 
 export const SelectItem = React.forwardRef(({ className, value, children, ...props }, ref) => (
-  <MenuItem ref={ref} className={className} value={value} {...props}>
+  <option  ref={ref} className={className} value={value} {...props}>
     {children}
-  </MenuItem>
+  </option>
 ));
 SelectItem.displayName = "SelectItem";
 

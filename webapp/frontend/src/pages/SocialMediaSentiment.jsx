@@ -232,170 +232,170 @@ const SocialMediaSentiment = () => {
       aria-labelledby={`sentiment-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+      {value === index && <div  sx={{ pt: 3 }}>{children}</div>}
     </div>
   );
 
   if (loading) {
     return (
-      <Container maxWidth="xl">
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
+      <div className="container mx-auto" maxWidth="xl">
+        <div  sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+    <div className="container mx-auto" maxWidth="xl">
+      <div  sx={{ mb: 4 }}>
+        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <div  variant="h4" component="h1" sx={{ fontWeight: 700 }}>
             Social Media Sentiment Analysis
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Symbol</InputLabel>
-              <Select
+          </div>
+          <div  sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedSymbol}
                 label="Symbol"
                 onChange={(e) => setSelectedSymbol(e.target.value)}
               >
-                <MenuItem value="AAPL">AAPL</MenuItem>
-                <MenuItem value="TSLA">TSLA</MenuItem>
-                <MenuItem value="NVDA">NVDA</MenuItem>
-                <MenuItem value="MSFT">MSFT</MenuItem>
-                <MenuItem value="GOOGL">GOOGL</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Timeframe</InputLabel>
-              <Select
+                <option  value="AAPL">AAPL</option>
+                <option  value="TSLA">TSLA</option>
+                <option  value="NVDA">NVDA</option>
+                <option  value="MSFT">MSFT</option>
+                <option  value="GOOGL">GOOGL</option>
+              </select>
+            </div>
+            <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={timeframe}
                 label="Timeframe"
                 onChange={(e) => setTimeframe(e.target.value)}
               >
-                <MenuItem value="1d">1 Day</MenuItem>
-                <MenuItem value="7d">7 Days</MenuItem>
-                <MenuItem value="30d">30 Days</MenuItem>
-                <MenuItem value="90d">90 Days</MenuItem>
-              </Select>
-            </FormControl>
-            <Button
+                <option  value="1d">1 Day</option>
+                <option  value="7d">7 Days</option>
+                <option  value="30d">30 Days</option>
+                <option  value="90d">90 Days</option>
+              </select>
+            </div>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               variant="outlined"
-              startIcon={refreshing ? <CircularProgress size={16} /> : <Refresh />}
+              startIcon={refreshing ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <Refresh />}
               onClick={handleRefresh}
               disabled={refreshing}
             >
               Refresh
-            </Button>
-          </Box>
-        </Box>
+            </button>
+          </div>
+        </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
             {error}
-          </Alert>
+          </div>
         )}
 
         {/* Overview Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
+        <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+          <div className="grid" item xs={12} sm={6} md={3}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div  color="textSecondary" gutterBottom variant="body2">
                       Total Mentions
-                    </Typography>
-                    <Typography variant="h4" component="div">
+                    </div>
+                    <div  variant="h4" component="div">
                       {formatNumber(socialMetrics.overall.totalMentions)}
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                   <Forum color="primary" sx={{ fontSize: 40 }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid" item xs={12} sm={6} md={3}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div  color="textSecondary" gutterBottom variant="body2">
                       Sentiment Score
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Typography variant="h4" component="div" sx={{ mr: 1 }}>
+                    </div>
+                    <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                      <div  variant="h4" component="div" sx={{ mr: 1 }}>
                         {socialMetrics.overall.sentimentScore.toFixed(2)}
-                      </Typography>
-                      <Chip
+                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                         label={getSentimentLabel(socialMetrics.overall.sentimentScore)}
                         color={socialMetrics.overall.sentimentScore >= 0.7 ? 'success' : socialMetrics.overall.sentimentScore >= 0.5 ? 'warning' : 'error'}
                         size="small"
                       />
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                   <Psychology color="primary" sx={{ fontSize: 40 }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid" item xs={12} sm={6} md={3}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div  color="textSecondary" gutterBottom variant="body2">
                       Engagement Rate
-                    </Typography>
-                    <Typography variant="h4" component="div">
+                    </div>
+                    <div  variant="h4" component="div">
                       {(socialMetrics.overall.engagementRate * 100).toFixed(1)}%
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                   <Analytics color="primary" sx={{ fontSize: 40 }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid" item xs={12} sm={6} md={3}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div  color="textSecondary" gutterBottom variant="body2">
                       Virality Index
-                    </Typography>
-                    <Typography variant="h4" component="div">
+                    </div>
+                    <div  variant="h4" component="div">
                       {(socialMetrics.overall.viralityIndex * 100).toFixed(0)}
-                    </Typography>
-                  </Box>
+                    </div>
+                  </div>
                   <Speed color="primary" sx={{ fontSize: 40 }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Main Content Tabs */}
-        <Paper sx={{ width: '100%' }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={selectedTab} onChange={(e, newValue) => setSelectedTab(newValue)}>
-              <Tab label="Reddit Analysis" icon={<Reddit />} iconPosition="start" />
-              <Tab label="Google Trends" icon={<Public />} iconPosition="start" />
-              <Tab label="Platform Overview" icon={<Analytics />} iconPosition="start" />
-              <Tab label="Trending Stocks" icon={<TrendingUp />} iconPosition="start" />
-            </Tabs>
-          </Box>
+        <div className="bg-white shadow-md rounded-lg p-4" sx={{ width: '100%' }}>
+          <div  sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <div className="border-b border-gray-200" value={selectedTab} onChange={(e, newValue) => setSelectedTab(newValue)}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Reddit Analysis" icon={<Reddit />} iconPosition="start" />
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Google Trends" icon={<Public />} iconPosition="start" />
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Platform Overview" icon={<Analytics />} iconPosition="start" />
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Trending Stocks" icon={<TrendingUp />} iconPosition="start" />
+            </div>
+          </div>
 
           {/* Reddit Analysis Tab */}
-          <TabPanel value={selectedTab} index={0}>
-            <Grid container spacing={3}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={selectedTab} index={0}>
+            <div className="grid" container spacing={3}>
               {/* Reddit Mentions Timeline */}
-              <Grid item xs={12} lg={8}>
-                <Card>
-                  <CardHeader title="Reddit Mentions & Sentiment Over Time" />
-                  <CardContent>
+              <div className="grid" item xs={12} lg={8}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Reddit Mentions & Sentiment Over Time" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <ResponsiveContainer width="100%" height={300}>
                       <ComposedChart data={redditData.mentions}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -408,15 +408,15 @@ const SocialMediaSentiment = () => {
                         <Line yAxisId="sentiment" type="monotone" dataKey="sentiment" stroke="#4caf50" strokeWidth={2} name="Sentiment Score" />
                       </ComposedChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  </div>
+                </div>
+              </div>
 
               {/* Subreddit Breakdown */}
-              <Grid item xs={12} lg={4}>
-                <Card>
-                  <CardHeader title="Subreddit Distribution" />
-                  <CardContent>
+              <div className="grid" item xs={12} lg={4}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Subreddit Distribution" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
@@ -436,72 +436,72 @@ const SocialMediaSentiment = () => {
                         <RechartsTooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  </div>
+                </div>
+              </div>
 
               {/* Top Reddit Posts */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Top Reddit Posts" />
-                  <CardContent>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Top Reddit Posts" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <List>
                       {redditData.topPosts.map((post, index) => (
                         <React.Fragment key={post.id}>
                           <ListItem alignItems="flex-start">
                             <ListItemAvatar>
-                              <Avatar sx={{ bgcolor: getSentimentColor(post.sentiment) }}>
+                              <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getSentimentColor(post.sentiment) }}>
                                 {index + 1}
-                              </Avatar>
+                              </div>
                             </ListItemAvatar>
                             <ListItemText
                               primary={
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Typography variant="h6">{post.title}</Typography>
-                                  <Chip
+                                <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div  variant="h6">{post.title}</div>
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                     label={getSentimentLabel(post.sentiment)}
                                     color={post.sentiment >= 0.7 ? 'success' : post.sentiment >= 0.5 ? 'warning' : 'error'}
                                     size="small"
                                   />
-                                </Box>
+                                </div>
                               }
                               secondary={
-                                <Box sx={{ mt: 1 }}>
-                                  <Typography variant="body2" color="text.secondary">
+                                <div  sx={{ mt: 1 }}>
+                                  <div  variant="body2" color="text.secondary">
                                     {post.subreddit} • by {post.author} • {post.timestamp}
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  </div>
+                                  <div  sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                                    <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                       <ThumbUp fontSize="small" />
-                                      <Typography variant="body2">{post.score}</Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <div  variant="body2">{post.score}</div>
+                                    </div>
+                                    <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                       <Comment fontSize="small" />
-                                      <Typography variant="body2">{post.comments}</Typography>
-                                    </Box>
-                                  </Box>
-                                </Box>
+                                      <div  variant="body2">{post.comments}</div>
+                                    </div>
+                                  </div>
+                                </div>
                               }
                             />
                           </ListItem>
-                          {index < redditData.topPosts.length - 1 && <Divider />}
+                          {index < redditData.topPosts.length - 1 && <hr className="border-gray-200" />}
                         </React.Fragment>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Google Trends Tab */}
-          <TabPanel value={selectedTab} index={1}>
-            <Grid container spacing={3}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={selectedTab} index={1}>
+            <div className="grid" container spacing={3}>
               {/* Search Volume Timeline */}
-              <Grid item xs={12} lg={8}>
-                <Card>
-                  <CardHeader title="Google Search Volume Trends" />
-                  <CardContent>
+              <div className="grid" item xs={12} lg={8}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Google Search Volume Trends" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={trendsData.searchVolume}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -511,66 +511,66 @@ const SocialMediaSentiment = () => {
                         <Area type="monotone" dataKey="volume" stroke="#1976d2" fill="#1976d2" fillOpacity={0.3} />
                       </AreaChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  </div>
+                </div>
+              </div>
 
               {/* Geographic Distribution */}
-              <Grid item xs={12} lg={4}>
-                <Card>
-                  <CardHeader title="Geographic Interest" />
-                  <CardContent>
+              <div className="grid" item xs={12} lg={4}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Geographic Interest" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <List>
                       {trendsData.geographicDistribution.map((region, index) => (
                         <ListItem key={region.region}>
                           <ListItemText
                             primary={region.region}
                             secondary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <LinearProgress
+                              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <div className="w-full bg-gray-200 rounded-full h-2"
                                   variant="determinate"
                                   value={region.interest}
                                   sx={{ flexGrow: 1, height: 8, borderRadius: 4 }}
                                 />
-                                <Typography variant="body2">{region.interest}%</Typography>
-                              </Box>
+                                <div  variant="body2">{region.interest}%</div>
+                              </div>
                             }
                           />
                         </ListItem>
                       ))}
                     </List>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  </div>
+                </div>
+              </div>
 
               {/* Related Queries */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Related Search Queries" />
-                  <CardContent>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Query</TableCell>
-                            <TableCell align="right">Search Volume</TableCell>
-                            <TableCell align="center">Trend</TableCell>
-                            <TableCell align="right">Interest Score</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Related Search Queries" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Query</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Search Volume</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Trend</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Interest Score</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                           {trendsData.relatedQueries.map((query, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{query.query}</TableCell>
-                              <TableCell align="right">
-                                <LinearProgress
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{query.query}</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                <div className="w-full bg-gray-200 rounded-full h-2"
                                   variant="determinate"
                                   value={query.volume}
                                   sx={{ width: 100, height: 8, borderRadius: 4 }}
                                 />
-                              </TableCell>
-                              <TableCell align="center">
-                                <Chip
+                              </td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                   label={query.trend}
                                   color={query.trend === 'rising' ? 'success' : query.trend === 'falling' ? 'error' : 'default'}
                                   size="small"
@@ -579,48 +579,48 @@ const SocialMediaSentiment = () => {
                                     query.trend === 'falling' ? <TrendingDown /> : <TrendingFlat />
                                   }
                                 />
-                              </TableCell>
-                              <TableCell align="right">{query.volume}</TableCell>
-                            </TableRow>
+                              </td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{query.volume}</td>
+                            </tr>
                           ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Platform Overview Tab */}
-          <TabPanel value={selectedTab} index={2}>
-            <Grid container spacing={3}>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={selectedTab} index={2}>
+            <div className="grid" container spacing={3}>
               {/* Platform Metrics */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Social Media Platform Analytics" />
-                  <CardContent>
-                    <Grid container spacing={3}>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Social Media Platform Analytics" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
+                    <div className="grid" container spacing={3}>
                       {socialMetrics.platforms.map((platform, index) => (
-                        <Grid item xs={12} sm={6} md={3} key={platform.name}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Box sx={{ textAlign: 'center' }}>
-                                <Typography variant="h6" gutterBottom>
+                        <div className="grid" item xs={12} sm={6} md={3} key={platform.name}>
+                          <div className="bg-white shadow-md rounded-lg" variant="outlined">
+                            <div className="bg-white shadow-md rounded-lg"Content>
+                              <div  sx={{ textAlign: 'center' }}>
+                                <div  variant="h6" gutterBottom>
                                   {platform.name}
-                                </Typography>
-                                <Typography variant="h4" color="primary" gutterBottom>
+                                </div>
+                                <div  variant="h4" color="primary" gutterBottom>
                                   {formatNumber(platform.mentions)}
-                                </Typography>
-                                <Typography variant="body2" color="textSecondary" gutterBottom>
+                                </div>
+                                <div  variant="body2" color="textSecondary" gutterBottom>
                                   Mentions
-                                </Typography>
-                                <Box sx={{ mt: 2 }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                    <Typography variant="body2">Sentiment</Typography>
-                                    <Typography variant="body2">{platform.sentiment.toFixed(2)}</Typography>
-                                  </Box>
-                                  <LinearProgress
+                                </div>
+                                <div  sx={{ mt: 2 }}>
+                                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                    <div  variant="body2">Sentiment</div>
+                                    <div  variant="body2">{platform.sentiment.toFixed(2)}</div>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2"
                                     variant="determinate"
                                     value={platform.sentiment * 100}
                                     sx={{
@@ -631,33 +631,33 @@ const SocialMediaSentiment = () => {
                                       }
                                     }}
                                   />
-                                </Box>
-                                <Box sx={{ mt: 2 }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                    <Typography variant="body2">Engagement</Typography>
-                                    <Typography variant="body2">{(platform.engagement * 100).toFixed(1)}%</Typography>
-                                  </Box>
-                                  <LinearProgress
+                                </div>
+                                <div  sx={{ mt: 2 }}>
+                                  <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                    <div  variant="body2">Engagement</div>
+                                    <div  variant="body2">{(platform.engagement * 100).toFixed(1)}%</div>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2"
                                     variant="determinate"
                                     value={platform.engagement * 100}
                                     sx={{ height: 8, borderRadius: 4 }}
                                   />
-                                </Box>
-                              </Box>
-                            </CardContent>
-                          </Card>
-                        </Grid>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       ))}
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Platform Comparison Chart */}
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Platform Sentiment Comparison" />
-                  <CardContent>
+              <div className="grid" item xs={12}>
+                <div className="bg-white shadow-md rounded-lg">
+                  <div className="bg-white shadow-md rounded-lg"Header title="Platform Sentiment Comparison" />
+                  <div className="bg-white shadow-md rounded-lg"Content>
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={socialMetrics.platforms}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -669,48 +669,48 @@ const SocialMediaSentiment = () => {
                         <Bar dataKey="sentiment" fill="#4caf50" name="Sentiment Score" />
                       </BarChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Trending Stocks Tab */}
-          <TabPanel value={selectedTab} index={3}>
-            <Card>
-              <CardHeader title="Most Mentioned Stocks" />
-              <CardContent>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Rank</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell align="right">Mentions</TableCell>
-                        <TableCell align="center">Sentiment</TableCell>
-                        <TableCell align="right">24h Change</TableCell>
-                        <TableCell align="center">Trend</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={selectedTab} index={3}>
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header title="Most Mentioned Stocks" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Rank</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Mentions</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Sentiment</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">24h Change</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Trend</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {socialMetrics.trendingStocks.map((stock, index) => (
-                        <TableRow key={stock.symbol} hover>
-                          <TableCell>
-                            <Avatar sx={{ bgcolor: index < 3 ? '#ffd700' : 'primary.main', width: 32, height: 32 }}>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={stock.symbol} hover>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: index < 3 ? '#ffd700' : 'primary.main', width: 32, height: 32 }}>
                               {index + 1}
-                            </Avatar>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="h6">{stock.symbol}</Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body1" fontWeight="bold">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <div  variant="h6">{stock.symbol}</div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  variant="body1" fontWeight="bold">
                               {formatNumber(stock.mentions)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                              <Box
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
+                            <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                              <div 
                                 sx={{
                                   width: 12,
                                   height: 12,
@@ -718,35 +718,35 @@ const SocialMediaSentiment = () => {
                                   backgroundColor: getSentimentColor(stock.sentiment)
                                 }}
                               />
-                              <Typography>{stock.sentiment.toFixed(2)}</Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
+                              <div>{stock.sentiment.toFixed(2)}</div>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div 
                               color={stock.change >= 0 ? 'success.main' : 'error.main'}
                               fontWeight="bold"
                             >
                               {stock.change >= 0 ? '+' : ''}{(stock.change * 100).toFixed(1)}%
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
                             {stock.change >= 0 ? (
                               <TrendingUp color="success" />
                             ) : (
                               <TrendingDown color="error" />
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </TabPanel>
-        </Paper>
-      </Box>
-    </Container>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -521,9 +521,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ py: 3 }}>
+        <div  sx={{ py: 3 }}>
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
@@ -684,68 +684,68 @@ export default function Backtest() {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
           <Science sx={{ mr: 2, color: 'primary.main' }} />
           Advanced Backtesting Engine
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </div>
+        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Professional strategy testing with optimization, walk-forward analysis, and Monte Carlo simulation
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Chip label="Strategy Optimization" color="primary" size="small" variant="outlined" />
-          <Chip label="Walk-Forward Analysis" color="success" size="small" variant="outlined" />
-          <Chip label="Monte Carlo" color="info" size="small" variant="outlined" />
-          <Chip label="Risk Analysis" color="warning" size="small" variant="outlined" />
-        </Box>
-      </Box>
+        </div>
+        <div  display="flex" gap={1} flexWrap="wrap">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Strategy Optimization" color="primary" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Walk-Forward Analysis" color="success" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Monte Carlo" color="info" size="small" variant="outlined" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Risk Analysis" color="warning" size="small" variant="outlined" />
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid" container spacing={3}>
         {/* Strategy Configuration */}
-        <Grid item xs={12} lg={4}>
-          <Card sx={{ mb: 3 }}>
-            <CardHeader 
+        <div className="grid" item xs={12} lg={4}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Header 
               title="Strategy Configuration"
               action={
-                <IconButton onClick={() => setSettingsOpen(true)}>
+                <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSettingsOpen(true)}>
                   <Settings />
-                </IconButton>
+                </button>
               }
             />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={12}>
                   <Autocomplete
                     options={['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'SPY', 'QQQ']}
                     value={params.symbol}
                     onChange={(_, value) => setParams(prev => ({ ...prev, symbol: value || 'AAPL' }))}
                     renderInput={(params) => (
-                      <TextField {...params} label="Symbol" size="small" />
+                      <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Symbol" size="small" />
                     )}
                   />
-                </Grid>
+                </div>
                 
-                <Grid item xs={12}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Strategy</InputLabel>
-                    <Select
+                <div className="grid" item xs={12}>
+                  <div className="mb-4" fullWidth size="small">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={selectedStrategy}
                       label="Strategy"
                       onChange={(e) => setSelectedStrategy(e.target.value)}
                     >
                       {Object.entries(strategyTemplates).map(([key, strategy]) => (
-                        <MenuItem key={key} value={key}>
+                        <option  key={key} value={key}>
                           {strategy.name}
-                        </MenuItem>
+                        </option>
                       ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+                    </select>
+                  </div>
+                </div>
 
-                <Grid item xs={6}>
-                  <TextField
+                <div className="grid" item xs={6}>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     label="Start Date"
                     type="date"
                     value={params.startDate}
@@ -754,10 +754,10 @@ export default function Backtest() {
                     fullWidth
                     InputLabelProps={{ shrink: true }}
                   />
-                </Grid>
+                </div>
 
-                <Grid item xs={6}>
-                  <TextField
+                <div className="grid" item xs={6}>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     label="End Date"
                     type="date"
                     value={params.endDate}
@@ -766,10 +766,10 @@ export default function Backtest() {
                     fullWidth
                     InputLabelProps={{ shrink: true }}
                   />
-                </Grid>
+                </div>
 
-                <Grid item xs={6}>
-                  <TextField
+                <div className="grid" item xs={6}>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     label="Initial Capital"
                     type="number"
                     value={params.initialCapital}
@@ -777,10 +777,10 @@ export default function Backtest() {
                     size="small"
                     fullWidth
                   />
-                </Grid>
+                </div>
 
-                <Grid item xs={6}>
-                  <TextField
+                <div className="grid" item xs={6}>
+                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     label="Commission"
                     type="number"
                     value={params.commission}
@@ -789,22 +789,22 @@ export default function Backtest() {
                     fullWidth
                     inputProps={{ step: 0.01 }}
                   />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Strategy Parameters */}
           {strategyTemplates[selectedStrategy] && (
-            <Card sx={{ mb: 3 }}>
-              <CardHeader title="Strategy Parameters" />
-              <CardContent>
-                <Grid container spacing={2}>
+            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+              <div className="bg-white shadow-md rounded-lg"Header title="Strategy Parameters" />
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div className="grid" container spacing={2}>
                   {Object.entries(strategyTemplates[selectedStrategy].parameters).map(([paramName, param]) => (
-                    <Grid item xs={12} key={paramName}>
-                      <Typography variant="subtitle2" gutterBottom>
+                    <div className="grid" item xs={12} key={paramName}>
+                      <div  variant="subtitle2" gutterBottom>
                         {paramName.replace('_', ' ').toUpperCase()}: {strategyParams[paramName] || param.value}
-                      </Typography>
+                      </div>
                       <Slider
                         value={strategyParams[paramName] || param.value}
                         onChange={(_, value) => setStrategyParams(prev => ({ ...prev, [paramName]: value }))}
@@ -817,54 +817,54 @@ export default function Backtest() {
                           { value: param.max, label: param.max }
                         ]}
                       />
-                    </Grid>
+                    </div>
                   ))}
-                </Grid>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Advanced Options */}
-          <Card>
-            <CardHeader title="Advanced Options" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <FormControlLabel
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Header title="Advanced Options" />
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2}>
+                <div className="grid" item xs={12}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={walkForwardEnabled}
                         onChange={(e) => setWalkForwardEnabled(e.target.checked)}
                       />
                     }
                     label="Walk-Forward Analysis"
                   />
-                </Grid>
-                <Grid item xs={12}>
-                  <FormControlLabel
+                </div>
+                <div className="grid" item xs={12}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={monteCarloEnabled}
                         onChange={(e) => setMonteCarloEnabled(e.target.checked)}
                       />
                     }
                     label="Monte Carlo Simulation"
                   />
-                </Grid>
-                <Grid item xs={12}>
-                  <FormControlLabel
+                </div>
+                <div className="grid" item xs={12}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={useCustomStrategy}
                         onChange={(e) => setUseCustomStrategy(e.target.checked)}
                       />
                     }
                     label="Use Custom Strategy Code"
                   />
-                </Grid>
+                </div>
                 {useCustomStrategy && (
-                  <Grid item xs={12}>
-                    <TextField
+                  <div className="grid" item xs={12}>
+                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       label="Custom Strategy Code"
                       multiline
                       rows={12}
@@ -879,137 +879,137 @@ export default function Backtest() {
                         }
                       }}
                     />
-                  </Grid>
+                  </div>
                 )}
-                <Grid item xs={12}>
-                  <FormControlLabel
+                <div className="grid" item xs={12}>
+                  <div className="mb-4"Label
                     control={
-                      <Switch
+                      <input type="checkbox" className="toggle"
                         checked={compareMode}
                         onChange={(e) => setCompareMode(e.target.checked)}
                       />
                     }
                     label="Compare Mode"
                   />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Main Results Area */}
-        <Grid item xs={12} lg={8}>
+        <div className="grid" item xs={12} lg={8}>
           {/* Action Buttons */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item>
-                  <Button
+          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="grid" container spacing={2} alignItems="center">
+                <div className="grid" item>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="contained"
-                    startIcon={loading ? <CircularProgress size={16} /> : <PlayArrow />}
+                    startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <PlayArrow />}
                     onClick={runBacktest}
                     disabled={loading}
                     size="large"
                   >
                     Run Backtest
-                  </Button>
-                </Grid>
-                <Grid item>
-                  <Button
+                  </button>
+                </div>
+                <div className="grid" item>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<AutoAwesome />}
                     onClick={runOptimization}
                     disabled={loading || optimizationMode}
                   >
                     Optimize
-                  </Button>
-                </Grid>
-                <Grid item>
-                  <Button
+                  </button>
+                </div>
+                <div className="grid" item>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
                     startIcon={<SaveIcon />}
                     onClick={() => setSaveDialogOpen(true)}
                     disabled={!result}
                   >
                     Save Result
-                  </Button>
-                </Grid>
-                <Grid item>
-                  <Button
+                  </button>
+                </div>
+                <div className="grid" item>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     variant="outlined"
-                    startIcon={<DownloadIcon />}
+                    startIcon={<⬇  />}
                     disabled={!result}
                   >
                     Export
-                  </Button>
-                </Grid>
-                <Grid item xs />
-                <Grid item>
+                  </button>
+                </div>
+                <div className="grid" item xs />
+                <div className="grid" item>
                   {result && (
-                    <Box display="flex" gap={2}>
-                      <Box textAlign="center">
-                        <Typography variant="caption" color="text.secondary">Total Return</Typography>
-                        <Typography variant="h6" fontWeight="bold" color="success.main">
+                    <div  display="flex" gap={2}>
+                      <div  textAlign="center">
+                        <div  variant="caption" color="text.secondary">Total Return</div>
+                        <div  variant="h6" fontWeight="bold" color="success.main">
                           {formatPercent(result.metrics.totalReturn)}
-                        </Typography>
-                      </Box>
-                      <Box textAlign="center">
-                        <Typography variant="caption" color="text.secondary">Sharpe Ratio</Typography>
-                        <Typography 
+                        </div>
+                      </div>
+                      <div  textAlign="center">
+                        <div  variant="caption" color="text.secondary">Sharpe Ratio</div>
+                        <div  
                           variant="h6" 
                           fontWeight="bold" 
                           color={getMetricColor('sharpeRatio', result.metrics.sharpeRatio)}
                         >
                           {result.metrics.sharpeRatio.toFixed(2)}
-                        </Typography>
-                      </Box>
-                    </Box>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Error Display */}
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
               {String(error)}
-            </Alert>
+            </div>
           )}
 
           {/* Loading State */}
           {loading && (
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <CircularProgress />
-                  <Typography>Running backtest simulation...</Typography>
-                </Box>
-                <LinearProgress sx={{ mt: 2 }} />
-              </CardContent>
-            </Card>
+            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+              <div className="bg-white shadow-md rounded-lg"Content>
+                <div  display="flex" alignItems="center" gap={2}>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+                  <div>Running backtest simulation...</div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2" sx={{ mt: 2 }} />
+              </div>
+            </div>
           )}
 
           {/* Results Tabs */}
           {result && (
-            <Card>
-              <CardHeader
+            <div className="bg-white shadow-md rounded-lg">
+              <div className="bg-white shadow-md rounded-lg"Header
                 title={
-                  <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable">
-                    <Tab label="Performance" />
-                    <Tab label="Trades" />
-                    <Tab label="Risk Analysis" />
-                    <Tab label="Optimization" />
-                    <Tab label="Monte Carlo" />
-                  </Tabs>
+                  <div className="border-b border-gray-200" value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Performance" />
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Trades" />
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Risk Analysis" />
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Optimization" />
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Monte Carlo" />
+                  </div>
                 }
               />
 
-              <TabPanel value={activeTab} index={0}>
-                <Grid container spacing={3}>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
+                <div className="grid" container spacing={3}>
                   {/* Equity Curve */}
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom>Equity Curve</Typography>
+                  <div className="grid" item xs={12}>
+                    <div  variant="h6" gutterBottom>Equity Curve</div>
                     <ResponsiveContainer width="100%" height={400}>
                       <LineChart data={result.equity}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -1033,50 +1033,50 @@ export default function Backtest() {
                         />
                       </LineChart>
                     </ResponsiveContainer>
-                  </Grid>
+                  </div>
 
                   {/* Key Metrics */}
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom>Performance Metrics</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6} md={3}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="success.main">
+                  <div className="grid" item xs={12}>
+                    <div  variant="h6" gutterBottom>Performance Metrics</div>
+                    <div className="grid" container spacing={2}>
+                      <div className="grid" item xs={6} md={3}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  variant="h4" color="success.main">
                             {formatPercent(result.metrics.totalReturn)}
-                          </Typography>
-                          <Typography variant="caption">Total Return</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color={getMetricColor('sharpeRatio', result.metrics.sharpeRatio)}>
+                          </div>
+                          <div  variant="caption">Total Return</div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6} md={3}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  variant="h4" color={getMetricColor('sharpeRatio', result.metrics.sharpeRatio)}>
                             {result.metrics.sharpeRatio.toFixed(2)}
-                          </Typography>
-                          <Typography variant="caption">Sharpe Ratio</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color={getMetricColor('maxDrawdown', result.metrics.maxDrawdown)}>
+                          </div>
+                          <div  variant="caption">Sharpe Ratio</div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6} md={3}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  variant="h4" color={getMetricColor('maxDrawdown', result.metrics.maxDrawdown)}>
                             {formatPercent(result.metrics.maxDrawdown)}
-                          </Typography>
-                          <Typography variant="caption">Max Drawdown</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color={getMetricColor('winRate', result.metrics.winRate)}>
+                          </div>
+                          <div  variant="caption">Max Drawdown</div>
+                        </div>
+                      </div>
+                      <div className="grid" item xs={6} md={3}>
+                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
+                          <div  variant="h4" color={getMetricColor('winRate', result.metrics.winRate)}>
                             {result.metrics.winRate.toFixed(1)}%
-                          </Typography>
-                          <Typography variant="caption">Win Rate</Typography>
-                        </Paper>
-                      </Grid>
-                    </Grid>
-                  </Grid>
+                          </div>
+                          <div  variant="caption">Win Rate</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Drawdown Chart */}
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom>Drawdown Analysis</Typography>
+                  <div className="grid" item xs={12}>
+                    <div  variant="h6" gutterBottom>Drawdown Analysis</div>
                     <ResponsiveContainer width="100%" height={200}>
                       <AreaChart data={result.equity}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -1092,186 +1092,186 @@ export default function Backtest() {
                         />
                       </AreaChart>
                     </ResponsiveContainer>
-                  </Grid>
-                </Grid>
-              </TabPanel>
+                  </div>
+                </div>
+              </div>
 
-              <TabPanel value={activeTab} index={1}>
-                <Typography variant="h6" gutterBottom>Trade Analysis</Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Side</TableCell>
-                        <TableCell align="right">Quantity</TableCell>
-                        <TableCell align="right">Price</TableCell>
-                        <TableCell align="right">P&L</TableCell>
-                        <TableCell align="right">Duration</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+                <div  variant="h6" gutterBottom>Trade Analysis</div>
+                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Date</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Side</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Quantity</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">P&L</td>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Duration</td>
+                      </tr>
+                    </thead>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                       {result.trades.slice(0, 50).map((trade) => (
-                        <TableRow key={trade.id} hover>
-                          <TableCell>{trade.date}</TableCell>
-                          <TableCell>{trade.symbol}</TableCell>
-                          <TableCell>
-                            <Chip 
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={trade.id} hover>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{trade.date}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{trade.symbol}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                               label={trade.side} 
                               color={trade.side === 'BUY' ? 'success' : 'error'}
                               size="small"
                             />
-                          </TableCell>
-                          <TableCell align="right">{trade.quantity}</TableCell>
-                          <TableCell align="right">${trade.price.toFixed(2)}</TableCell>
-                          <TableCell align="right">
-                            <Typography color={trade.pnl >= 0 ? 'success.main' : 'error.main'}>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{trade.quantity}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${trade.price.toFixed(2)}</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            <div  color={trade.pnl >= 0 ? 'success.main' : 'error.main'}>
                               {formatCurrency(trade.pnl)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">{trade.duration}d</TableCell>
-                        </TableRow>
+                            </div>
+                          </td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{trade.duration}d</td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </TabPanel>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-              <TabPanel value={activeTab} index={2}>
-                <Typography variant="h6" gutterBottom>Risk Analysis</Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3 }}>
-                      <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+                <div  variant="h6" gutterBottom>Risk Analysis</div>
+                <div className="grid" container spacing={3}>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                      <div  variant="subtitle1" gutterBottom fontWeight="bold">
                         Value at Risk (VaR)
-                      </Typography>
-                      <Typography variant="h4" color="error.main">
+                      </div>
+                      <div  variant="h4" color="error.main">
                         {result.riskAnalysis.var95.toFixed(2)}%
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <div  variant="caption" color="text.secondary">
                         95% confidence daily VaR
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3 }}>
-                      <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12} md={6}>
+                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
+                      <div  variant="subtitle1" gutterBottom fontWeight="bold">
                         Expected Shortfall
-                      </Typography>
-                      <Typography variant="h4" color="warning.main">
+                      </div>
+                      <div  variant="h4" color="warning.main">
                         {result.riskAnalysis.expectedShortfall.toFixed(2)}%
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <div  variant="caption" color="text.secondary">
                         Average loss beyond VaR
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Risk Metric</TableCell>
-                            <TableCell align="right">Value</TableCell>
-                            <TableCell>Assessment</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell>Ulcer Index</TableCell>
-                            <TableCell align="right">{result.riskAnalysis.ulcerIndex.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Chip 
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid" item xs={12}>
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Risk Metric</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Value</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Assessment</td>
+                          </tr>
+                        </thead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Ulcer Index</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{result.riskAnalysis.ulcerIndex.toFixed(2)}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={result.riskAnalysis.ulcerIndex < 5 ? 'Low' : 'High'} 
                                 color={result.riskAnalysis.ulcerIndex < 5 ? 'success' : 'warning'}
                                 size="small"
                               />
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell>Beta</TableCell>
-                            <TableCell align="right">{result.metrics.beta.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Chip 
+                            </td>
+                          </tr>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Beta</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{result.metrics.beta.toFixed(2)}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={Math.abs(result.metrics.beta - 1) < 0.2 ? 'Market Neutral' : 'Market Sensitive'} 
                                 color={Math.abs(result.metrics.beta - 1) < 0.2 ? 'success' : 'warning'}
                                 size="small"
                               />
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell>Alpha</TableCell>
-                            <TableCell align="right">{formatPercent(result.metrics.alpha)}</TableCell>
-                            <TableCell>
-                              <Chip 
+                            </td>
+                          </tr>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Alpha</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPercent(result.metrics.alpha)}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
                                 label={result.metrics.alpha > 0 ? 'Positive' : 'Negative'} 
                                 color={result.metrics.alpha > 0 ? 'success' : 'error'}
                                 size="small"
                               />
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Grid>
-                </Grid>
-              </TabPanel>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-              <TabPanel value={activeTab} index={3}>
-                <Typography variant="h6" gutterBottom>Parameter Optimization</Typography>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
+                <div  variant="h6" gutterBottom>Parameter Optimization</div>
                 {optimizationResults.length > 0 ? (
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Rank</TableCell>
-                          <TableCell>Parameters</TableCell>
-                          <TableCell align="right">Sharpe Ratio</TableCell>
-                          <TableCell align="right">Total Return</TableCell>
-                          <TableCell align="right">Max Drawdown</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
+                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Rank</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Parameters</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Sharpe Ratio</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Total Return</td>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Max Drawdown</td>
+                        </tr>
+                      </thead>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
                         {optimizationResults.slice(0, 20).map((result, index) => (
-                          <TableRow key={index} hover>
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{index + 1}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
                               {Object.entries(result.parameters).map(([key, value]) => (
-                                <Chip key={key} label={`${key}: ${value}`} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={key} label={`${key}: ${value}`} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
                               ))}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography color={getMetricColor('sharpeRatio', result.sharpeRatio)}>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  color={getMetricColor('sharpeRatio', result.sharpeRatio)}>
                                 {result.sharpeRatio.toFixed(2)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">{formatPercent(result.totalReturn)}</TableCell>
-                            <TableCell align="right">
-                              <Typography color={getMetricColor('maxDrawdown', result.maxDrawdown)}>
+                              </div>
+                            </td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPercent(result.totalReturn)}</td>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                              <div  color={getMetricColor('maxDrawdown', result.maxDrawdown)}>
                                 {formatPercent(result.maxDrawdown)}
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
+                              </div>
+                            </td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
-                  <Alert severity="info">
+                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
                     Click "Optimize" to run parameter optimization analysis
-                  </Alert>
+                  </div>
                 )}
-              </TabPanel>
+              </div>
 
-              <TabPanel value={activeTab} index={4}>
-                <Typography variant="h6" gutterBottom>Monte Carlo Analysis</Typography>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={4}>
+                <div  variant="h6" gutterBottom>Monte Carlo Analysis</div>
                 {result.monteCarlo && (
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle1" gutterBottom>
+                  <div className="grid" container spacing={3}>
+                    <div className="grid" item xs={12} md={6}>
+                      <div  variant="subtitle1" gutterBottom>
                         Return Distribution (1000 simulations)
-                      </Typography>
+                      </div>
                       <ResponsiveContainer width="100%" height={300}>
                         <BarChart 
                           data={result.monteCarlo.simulations
@@ -1295,74 +1295,74 @@ export default function Backtest() {
                           <Bar dataKey="count" fill="#2196f3" />
                         </BarChart>
                       </ResponsiveContainer>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle1" gutterBottom>
+                    </div>
+                    <div className="grid" item xs={12} md={6}>
+                      <div  variant="subtitle1" gutterBottom>
                         Percentile Analysis
-                      </Typography>
-                      <TableContainer component={Paper} variant="outlined">
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Percentile</TableCell>
-                              <TableCell align="right">Return</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell>5th Percentile</TableCell>
-                              <TableCell align="right" sx={{ color: 'error.main' }}>
+                      </div>
+                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
+                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Percentile</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Return</td>
+                            </tr>
+                          </thead>
+                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>5th Percentile</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'error.main' }}>
                                 {formatPercent(result.monteCarlo.percentiles.p5)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell>25th Percentile</TableCell>
-                              <TableCell align="right" sx={{ color: 'warning.main' }}>
+                              </td>
+                            </tr>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>25th Percentile</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'warning.main' }}>
                                 {formatPercent(result.monteCarlo.percentiles.p25)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell>50th Percentile (Median)</TableCell>
-                              <TableCell align="right">
+                              </td>
+                            </tr>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>50th Percentile (Median)</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
                                 {formatPercent(result.monteCarlo.percentiles.p50)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell>75th Percentile</TableCell>
-                              <TableCell align="right" sx={{ color: 'success.main' }}>
+                              </td>
+                            </tr>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>75th Percentile</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>
                                 {formatPercent(result.monteCarlo.percentiles.p75)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell>95th Percentile</TableCell>
-                              <TableCell align="right" sx={{ color: 'success.main' }}>
+                              </td>
+                            </tr>
+                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>95th Percentile</td>
+                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>
                                 {formatPercent(result.monteCarlo.percentiles.p95)}
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Grid>
-                  </Grid>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </TabPanel>
-            </Card>
+              </div>
+            </div>
           )}
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Save Strategy Dialog */}
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Save Backtest Result</DialogTitle>
-        <DialogContent>
-          <TextField
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Save Backtest Result</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
             margin="dense"
             label="Result Name"
             fullWidth
             variant="outlined"
           />
-          <TextField
+          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             margin="dense"
             label="Description"
             fullWidth
@@ -1370,12 +1370,12 @@ export default function Backtest() {
             rows={3}
             variant="outlined"
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
-          <Button onClick={() => setSaveDialogOpen(false)} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSaveDialogOpen(false)}>Cancel</button>
+          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSaveDialogOpen(false)} variant="contained">Save</button>
+        </div>
+      </div>
+    </div>
   );
 }

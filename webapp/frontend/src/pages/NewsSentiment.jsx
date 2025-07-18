@@ -64,7 +64,7 @@ import { formatDistanceToNow } from 'date-fns';
 function TabPanel({ children, value, index }) {
   return (
     <div hidden={value !== index}>
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
+      {value === index && <div  sx={{ py: 2 }}>{children}</div>}
     </div>
   );
 }
@@ -286,108 +286,108 @@ const NewsSentiment = () => {
     });
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <div className="container mx-auto" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
+      <div  sx={{ mb: 4 }}>
+        <div  variant="h4" fontWeight={700} gutterBottom>
           News Sentiment Analysis
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </div>
+        <div  variant="body1" color="text.secondary">
           AI-powered analysis of financial news sentiment and market impact predictions
-        </Typography>
-      </Box>
+        </div>
+      </div>
 
       {/* Sentiment Overview Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
+      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={1}>
+                <div  variant="subtitle2" color="text.secondary">
                   Overall Sentiment
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                </div>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {getSentimentIcon(sentimentStats?.overall.score || 0)}
-                  <Typography variant="h4" fontWeight={600} color={getSentimentColor(sentimentStats?.overall.score || 0)}>
+                  <div  variant="h4" fontWeight={600} color={getSentimentColor(sentimentStats?.overall.score || 0)}>
                     {sentimentStats?.overall.label || 'Loading...'}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  </div>
+                </div>
+                <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {sentimentStats?.overall.change24h > 0 ? (
                     <TrendingUp sx={{ fontSize: 16, color: '#4caf50' }} />
                   ) : (
                     <TrendingDown sx={{ fontSize: 16, color: '#f44336' }} />
                   )}
-                  <Typography variant="body2" color={sentimentStats?.overall.change24h > 0 ? 'success.main' : 'error.main'}>
+                  <div  variant="body2" color={sentimentStats?.overall.change24h > 0 ? 'success.main' : 'error.main'}>
                     {Math.abs(sentimentStats?.overall.change24h || 0).toFixed(2)} vs 24h ago
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg">
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={1}>
+                <div  variant="subtitle2" color="text.secondary">
                   Articles Analyzed
-                </Typography>
-                <Typography variant="h4" fontWeight={600}>
+                </div>
+                <div  variant="h4" fontWeight={600}>
                   {sentimentStats?.overall.articleCount || 0}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   Last {timeframe}
-                </Typography>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: '#4caf500D' }}>
-            <CardContent>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ background: '#4caf500D' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={1}>
+                <div  variant="subtitle2" color="text.secondary">
                   Positive Articles
-                </Typography>
-                <Typography variant="h4" fontWeight={600} color="success.main">
+                </div>
+                <div  variant="h4" fontWeight={600} color="success.main">
                   {sentimentStats?.overall.positiveCount || 0}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   {((sentimentStats?.overall.positiveCount / sentimentStats?.overall.articleCount) * 100 || 0).toFixed(1)}% of total
-                </Typography>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Grid item xs={12} md={3}>
-          <Card sx={{ background: '#f443360D' }}>
-            <CardContent>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
+        <div className="grid" item xs={12} md={3}>
+          <div className="bg-white shadow-md rounded-lg" sx={{ background: '#f443360D' }}>
+            <div className="bg-white shadow-md rounded-lg"Content>
+              <div className="flex flex-col space-y-2" spacing={1}>
+                <div  variant="subtitle2" color="text.secondary">
                   Negative Articles
-                </Typography>
-                <Typography variant="h4" fontWeight={600} color="error.main">
+                </div>
+                <div  variant="h4" fontWeight={600} color="error.main">
                   {sentimentStats?.overall.negativeCount || 0}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+                </div>
+                <div  variant="body2" color="text.secondary">
                   {((sentimentStats?.overall.negativeCount / sentimentStats?.overall.articleCount) * 100 || 0).toFixed(1)}% of total
-                </Typography>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Filters and Controls */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={3}>
-              <TextField
+      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
+        <div className="bg-white shadow-md rounded-lg"Content>
+          <div className="grid" container spacing={2} alignItems="center">
+            <div className="grid" item xs={12} md={3}>
+              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 fullWidth
                 size="small"
                 placeholder="Search news, tickers..."
@@ -401,58 +401,58 @@ const NewsSentiment = () => {
                   )
                 }}
               />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Timeframe</InputLabel>
-                <Select
+            </div>
+            <div className="grid" item xs={12} md={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={timeframe}
                   label="Timeframe"
                   onChange={(e) => setTimeframe(e.target.value)}
                 >
-                  <MenuItem value="1h">Last Hour</MenuItem>
-                  <MenuItem value="6h">Last 6 Hours</MenuItem>
-                  <MenuItem value="24h">Last 24 Hours</MenuItem>
-                  <MenuItem value="7d">Last 7 Days</MenuItem>
-                  <MenuItem value="30d">Last 30 Days</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Category</InputLabel>
-                <Select
+                  <option  value="1h">Last Hour</option>
+                  <option  value="6h">Last 6 Hours</option>
+                  <option  value="24h">Last 24 Hours</option>
+                  <option  value="7d">Last 7 Days</option>
+                  <option  value="30d">Last 30 Days</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={category}
                   label="Category"
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  <MenuItem value="all">All Categories</MenuItem>
-                  <MenuItem value="earnings">Earnings</MenuItem>
-                  <MenuItem value="monetary-policy">Monetary Policy</MenuItem>
-                  <MenuItem value="economic-data">Economic Data</MenuItem>
-                  <MenuItem value="commodities">Commodities</MenuItem>
-                  <MenuItem value="healthcare">Healthcare</MenuItem>
-                  <MenuItem value="technology">Technology</MenuItem>
-                  <MenuItem value="geopolitics">Geopolitics</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Impact Level</InputLabel>
-                <Select
+                  <option  value="all">All Categories</option>
+                  <option  value="earnings">Earnings</option>
+                  <option  value="monetary-policy">Monetary Policy</option>
+                  <option  value="economic-data">Economic Data</option>
+                  <option  value="commodities">Commodities</option>
+                  <option  value="healthcare">Healthcare</option>
+                  <option  value="technology">Technology</option>
+                  <option  value="geopolitics">Geopolitics</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={2}>
+              <div className="mb-4" fullWidth size="small">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Impact Level</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={impactLevel}
                   label="Impact Level"
                   onChange={(e) => setImpactLevel(e.target.value)}
                 >
-                  <MenuItem value="all">All Levels</MenuItem>
-                  <MenuItem value="high">High Impact</MenuItem>
-                  <MenuItem value="medium">Medium Impact</MenuItem>
-                  <MenuItem value="low">Low Impact</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
+                  <option  value="all">All Levels</option>
+                  <option  value="high">High Impact</option>
+                  <option  value="medium">Medium Impact</option>
+                  <option  value="low">Low Impact</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid" item xs={12} md={2}>
               <ToggleButtonGroup
                 value={sortBy}
                 exclusive
@@ -464,50 +464,50 @@ const NewsSentiment = () => {
                 <ToggleButton value="sentiment">Sentiment</ToggleButton>
                 <ToggleButton value="impact">Impact</ToggleButton>
               </ToggleButtonGroup>
-            </Grid>
-            <Grid item xs={12} md={1}>
-              <Tooltip title="Refresh data">
-                <IconButton onClick={() => { loadNewsData(); loadSentimentStats(); }}>
+            </div>
+            <div className="grid" item xs={12} md={1}>
+              <div  title="Refresh data">
+                <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => { loadNewsData(); loadSentimentStats(); }}>
                   <Refresh />
-                </IconButton>
-              </Tooltip>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Tabs */}
-      <Card>
-        <CardContent sx={{ pb: 0 }}>
-          <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)}>
-            <Tab label="Latest News" icon={<Article />} iconPosition="start" />
-            <Tab label="Sentiment by Sector" icon={<Business />} iconPosition="start" />
-            <Tab label="Sentiment Trends" icon={<Timeline />} iconPosition="start" />
-            <Tab label="Impact Analysis" icon={<Assessment />} iconPosition="start" />
-          </Tabs>
-        </CardContent>
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="bg-white shadow-md rounded-lg"Content sx={{ pb: 0 }}>
+          <div className="border-b border-gray-200" value={activeTab} onChange={(e, val) => setActiveTab(val)}>
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Latest News" icon={<Article />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sentiment by Sector" icon={<Business />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Sentiment Trends" icon={<Timeline />} iconPosition="start" />
+            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Impact Analysis" icon={<Assessment />} iconPosition="start" />
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={0}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
           {loading ? (
-            <LinearProgress />
+            <div className="w-full bg-gray-200 rounded-full h-2" />
           ) : (
             <List>
               {filteredNews.map((article, index) => (
                 <React.Fragment key={article.id}>
                   <ListItem alignItems="flex-start" sx={{ px: 3, py: 2 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: getSentimentColor(article.sentiment) + '1A' }}>
+                      <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: getSentimentColor(article.sentiment) + '1A' }}>
                         {getSentimentIcon(article.sentiment)}
-                      </Avatar>
+                      </div>
                     </ListItemAvatar>
                     <ListItemText
                       primary={
-                        <Box sx={{ mb: 1 }}>
-                          <Typography variant="h6" component="div" gutterBottom>
+                        <div  sx={{ mb: 1 }}>
+                          <div  variant="h6" component="div" gutterBottom>
                             {article.title}
-                          </Typography>
-                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                            <Chip
+                          </div>
+                          <div className="flex flex-col space-y-2" direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                               label={article.sentimentLabel}
                               size="small"
                               sx={{
@@ -516,7 +516,7 @@ const NewsSentiment = () => {
                                 fontWeight: 600
                               }}
                             />
-                            <Chip
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                               label={article.impact.toUpperCase()}
                               size="small"
                               variant="outlined"
@@ -525,31 +525,31 @@ const NewsSentiment = () => {
                                 color: getImpactColor(article.impact)
                               }}
                             />
-                            <Typography variant="caption" color="text.secondary">
+                            <div  variant="caption" color="text.secondary">
                               {article.source} • {formatDistanceToNow(article.timestamp)} ago • {article.readTime} min read
-                            </Typography>
-                          </Stack>
-                        </Box>
+                            </div>
+                          </div>
+                        </div>
                       }
                       secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <div>
+                          <div  variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                             {article.summary}
-                          </Typography>
-                          <Stack direction="row" spacing={2} flexWrap="wrap">
+                          </div>
+                          <div className="flex flex-col space-y-2" direction="row" spacing={2} flexWrap="wrap">
                             {article.sectors.length > 0 && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">Sectors: </Typography>
+                              <div>
+                                <div  variant="caption" color="text.secondary">Sectors: </div>
                                 {article.sectors.map(sector => (
-                                  <Chip key={sector} label={sector} size="small" sx={{ ml: 0.5 }} />
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={sector} label={sector} size="small" sx={{ ml: 0.5 }} />
                                 ))}
-                              </Box>
+                              </div>
                             )}
                             {article.tickers.length > 0 && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">Mentioned: </Typography>
+                              <div>
+                                <div  variant="caption" color="text.secondary">Mentioned: </div>
                                 {article.tickers.map(ticker => (
-                                  <Chip
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                     key={ticker}
                                     label={ticker}
                                     size="small"
@@ -557,42 +557,42 @@ const NewsSentiment = () => {
                                     onClick={() => window.location.href = `/stocks/${ticker}`}
                                   />
                                 ))}
-                              </Box>
+                              </div>
                             )}
-                          </Stack>
-                        </Box>
+                          </div>
+                        </div>
                       }
                     />
                   </ListItem>
-                  {index < filteredNews.length - 1 && <Divider />}
+                  {index < filteredNews.length - 1 && <hr className="border-gray-200" />}
                 </React.Fragment>
               ))}
             </List>
           )}
-        </TabPanel>
+        </div>
 
-        <TabPanel value={activeTab} index={1}>
-          <Grid container spacing={3}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+          <div className="grid" container spacing={3}>
             {Object.entries(sentimentStats?.bySector || {}).map(([sector, data]) => (
-              <Grid item xs={12} md={6} key={sector}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="h6" gutterBottom>{sector}</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    <Typography variant="h4" color={getSentimentColor(data.score)}>
+              <div className="grid" item xs={12} md={6} key={sector}>
+                <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2 }}>
+                  <div  variant="h6" gutterBottom>{sector}</div>
+                  <div  sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                    <div  variant="h4" color={getSentimentColor(data.score)}>
                       {data.score > 0 ? '+' : ''}{(data.score * 100).toFixed(0)}%
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    </div>
+                    <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       {data.change > 0 ? (
                         <TrendingUp sx={{ fontSize: 16, color: '#4caf50' }} />
                       ) : (
                         <TrendingDown sx={{ fontSize: 16, color: '#f44336' }} />
                       )}
-                      <Typography variant="body2" color={data.change > 0 ? 'success.main' : 'error.main'}>
+                      <div  variant="body2" color={data.change > 0 ? 'success.main' : 'error.main'}>
                         {Math.abs(data.change * 100).toFixed(0)}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <LinearProgress
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2"
                     variant="determinate"
                     value={50 + (data.score * 50)}
                     sx={{
@@ -604,26 +604,26 @@ const NewsSentiment = () => {
                       }
                     }}
                   />
-                </Paper>
-              </Grid>
+                </div>
+              </div>
             ))}
-          </Grid>
-        </TabPanel>
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={2}>
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Sentiment Momentum (Hourly)</Typography>
-            <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-              <Stack spacing={2}>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+          <div  sx={{ p: 3 }}>
+            <div  variant="h6" gutterBottom>Sentiment Momentum (Hourly)</div>
+            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, bgcolor: 'background.default' }}>
+              <div className="flex flex-col space-y-2" spacing={2}>
                 {sentimentStats?.momentum.hourly.map((value, index) => (
-                  <Box key={index}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2">{sentimentStats.momentum.labels[index]}</Typography>
-                      <Typography variant="body2" fontWeight={600} color={getSentimentColor(value)}>
+                  <div  key={index}>
+                    <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <div  variant="body2">{sentimentStats.momentum.labels[index]}</div>
+                      <div  variant="body2" fontWeight={600} color={getSentimentColor(value)}>
                         {value > 0 ? '+' : ''}{(value * 100).toFixed(0)}%
-                      </Typography>
-                    </Box>
-                    <LinearProgress
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2"
                       variant="determinate"
                       value={50 + (value * 50)}
                       sx={{
@@ -635,71 +635,71 @@ const NewsSentiment = () => {
                         }
                       }}
                     />
-                  </Box>
+                  </div>
                 ))}
-              </Stack>
-            </Paper>
-          </Box>
-        </TabPanel>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <TabPanel value={activeTab} index={3}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" gutterBottom>Top Bullish Mentions</Typography>
+        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
+          <div className="grid" container spacing={3}>
+            <div className="grid" item xs={12} md={6}>
+              <div  variant="h6" gutterBottom>Top Bullish Mentions</div>
               <List>
                 {sentimentStats?.topBullish.map(ticker => (
                   <ListItem key={ticker} sx={{ py: 1 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: '#4caf501A' }}>
+                      <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#4caf501A' }}>
                         <TrendingUp sx={{ color: '#4caf50' }} />
-                      </Avatar>
+                      </div>
                     </ListItemAvatar>
                     <ListItemText
                       primary={ticker}
                       secondary="Strong positive sentiment"
                     />
-                    <Button
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       size="small"
                       onClick={() => window.location.href = `/stocks/${ticker}`}
                     >
                       View Details
-                    </Button>
+                    </button>
                   </ListItem>
                 ))}
               </List>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" gutterBottom>Top Bearish Mentions</Typography>
+            </div>
+            <div className="grid" item xs={12} md={6}>
+              <div  variant="h6" gutterBottom>Top Bearish Mentions</div>
               <List>
                 {sentimentStats?.topBearish.map(ticker => (
                   <ListItem key={ticker} sx={{ py: 1 }}>
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: '#f443361A' }}>
+                      <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: '#f443361A' }}>
                         <TrendingDown sx={{ color: '#f44336' }} />
-                      </Avatar>
+                      </div>
                     </ListItemAvatar>
                     <ListItemText
                       primary={ticker}
                       secondary="Strong negative sentiment"
                     />
-                    <Button
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       size="small"
                       onClick={() => window.location.href = `/stocks/${ticker}`}
                     >
                       View Details
-                    </Button>
+                    </button>
                   </ListItem>
                 ))}
               </List>
-            </Grid>
-          </Grid>
-        </TabPanel>
-      </Card>
-    </Container>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
 // Add missing import
-const Remove = () => <Box sx={{ width: 20, height: 2, bgcolor: 'currentColor' }} />;
+const Remove = () => <div  sx={{ width: 20, height: 2, bgcolor: 'currentColor' }} />;
 
 export default NewsSentiment;

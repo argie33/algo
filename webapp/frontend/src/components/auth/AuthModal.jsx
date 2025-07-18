@@ -7,7 +7,6 @@ import {
   Typography,
   Alert
 } from '@mui/material';
-import { Close } from '@mui/icons-material';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
 import ConfirmationForm from './ConfirmationForm';
@@ -74,7 +73,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
   };
 
   return (
-    <Dialog
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
       open={open}
       onClose={handleClose}
       maxWidth="sm"
@@ -83,7 +82,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         sx: { borderRadius: 2 }
       }}
     >
-      <Box
+      <div 
         display="flex"
         justifyContent="space-between"
         alignItems="center"
@@ -91,23 +90,23 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         borderBottom={1}
         borderColor="divider"
       >
-        <Typography variant="h6" component="h2">
+        <div  variant="h6" component="h2">
           {getTitle()}
-        </Typography>
-        <IconButton
+        </div>
+        <button className="p-2 rounded-full hover:bg-gray-100"
           onClick={handleClose}
           size="small"
           aria-label="close"
         >
           <Close />
-        </IconButton>
-      </Box>
+        </button>
+      </div>
 
-      <DialogContent sx={{ p: 0 }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content sx={{ p: 0 }}>
         {successMessage && (
-          <Alert severity="success" sx={{ m: 2, mb: 0 }}>
+          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ m: 2, mb: 0 }}>
             {successMessage}
-          </Alert>
+          </div>
         )}
 
         {mode === AUTH_MODES.LOGIN && (
@@ -164,8 +163,8 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
             }}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 
