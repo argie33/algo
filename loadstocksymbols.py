@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 2025-07-16 - PHASE 2: Database connection diagnostic deployed - Core symbols loading v47
+# Trigger rebuild: 2025-07-18 - PHASE 3: SSL configuration fixed across all data loaders - Core symbols loading v48
 # Updated database schema to match webapp portfolio table requirements v44 - test ECR race
 import os
 import re
