@@ -1,499 +1,430 @@
-// Security Routes
-// API endpoints for security monitoring, validation, and administration
+/**
+ * Security Management Routes
+ * Security dashboard, event monitoring, and threat management
+ */
 
 const express = require('express');
+const { success, error } = require('../utils/responseFormatter');
+
 const router = express.Router();
-const SecurityService = require('../services/securityService');
 
-// Initialize security service
-const securityService = new SecurityService();
-
-// Security metrics endpoint
-router.get('/metrics', async (req, res) => {
-  try {
-    const timeWindow = parseInt(req.query.window) || 3600000; // 1 hour default
-    const metrics = securityService.getSecurityMetrics(timeWindow);
+/**
+ * GET /api/security/dashboard
+ * Security dashboard with real-time threat monitoring
+ */
+router.get('/dashboard', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
     
-    res.json({
-      success: true,
-      data: metrics,
-      timestamp: new Date().toISOString()
-    });
+    console.log(`🛡️ [${diagnosticId}] Security dashboard requested...`);
     
-  } catch (error) {
-    console.error('Security metrics failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get security metrics',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Rate limit status
-router.get('/rate-limits', async (req, res) => {
-  try {
-    const identifier = req.query.identifier || req.ip;
-    const category = req.query.category || 'api';
-    
-    const status = securityService.checkRateLimit(identifier, category, req);
-    
-    res.json({
-      success: true,
-      data: {
-        identifier,
-        category,
-        status,
-        isBlocked: !status.allowed,
-        remaining: status.allowed ? status.limit - status.requests : 0
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Rate limit check failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check rate limit status',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Input validation test
-router.post('/validate', async (req, res) => {
-  try {
-    const { input, schema, options = {} } = req.body;
-    
-    if (!input) {
-      return res.status(400).json({
-        success: false,
-        error: 'Input required',
-        message: 'Input field is required for validation'
-      });
-    }
-    
-    const validation = securityService.validateInput(input, schema, options);
-    
-    res.json({
-      success: true,
-      data: {
-        input: typeof input === 'string' ? input.substring(0, 100) : input,
-        schema,
-        validation,
-        options
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Input validation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to validate input',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Object validation test
-router.post('/validate-object', async (req, res) => {
-  try {
-    const { object, schema } = req.body;
-    
-    if (!object || !schema) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields',
-        message: 'Both object and schema are required'
-      });
-    }
-    
-    const validation = securityService.validateObject(object, schema);
-    
-    res.json({
-      success: true,
-      data: {
-        validation,
-        schema,
-        fieldCount: Object.keys(object).length
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Object validation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to validate object',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Password strength validation
-router.post('/validate-password', async (req, res) => {
-  try {
-    const { password } = req.body;
-    
-    if (!password) {
-      return res.status(400).json({
-        success: false,
-        error: 'Password required',
-        message: 'Password field is required'
-      });
-    }
-    
-    const validation = securityService.validatePassword(password);
-    
-    res.json({
-      success: true,
-      data: {
-        ...validation,
-        password: '[REDACTED]' // Never return the actual password
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Password validation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to validate password',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Generate CSRF token
-router.post('/csrf-token', async (req, res) => {
-  try {
-    const sessionId = req.body.sessionId || req.sessionID || 'default-session';
-    const token = securityService.generateCSRFToken(sessionId);
-    
-    res.json({
-      success: true,
-      data: {
-        token,
-        sessionId: sessionId !== 'default-session' ? sessionId : '[GENERATED]',
-        expiresIn: 3600000 // 1 hour
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('CSRF token generation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate CSRF token',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Validate CSRF token
-router.post('/validate-csrf', async (req, res) => {
-  try {
-    const { token, sessionId } = req.body;
-    
-    if (!token || !sessionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields',
-        message: 'Both token and sessionId are required'
-      });
-    }
-    
-    const isValid = securityService.validateCSRFToken(token, sessionId);
-    
-    res.json({
-      success: true,
-      data: {
-        valid: isValid,
-        sessionId: '[REDACTED]',
-        token: '[REDACTED]'
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('CSRF validation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to validate CSRF token',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Security events (admin only)
-router.get('/events', async (req, res) => {
-  try {
-    // In production, this would require admin authentication
-    const limit = parseInt(req.query.limit) || 50;
-    const severity = req.query.severity;
-    const type = req.query.type;
-    
-    let events = [...securityService.securityEvents];
-    
-    // Filter by severity
-    if (severity) {
-      events = events.filter(event => event.severity === severity.toUpperCase());
-    }
-    
-    // Filter by type
-    if (type) {
-      events = events.filter(event => event.type === type.toUpperCase());
-    }
-    
-    // Sort by most recent and limit
-    events = events
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, limit);
-    
-    res.json({
-      success: true,
-      data: {
-        events,
-        count: events.length,
-        totalEvents: securityService.securityEvents.length,
-        filters: { severity, type, limit }
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Security events retrieval failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve security events',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Activity monitoring
-router.post('/monitor-activity', async (req, res) => {
-  try {
-    const { userId, activity } = req.body;
-    
-    if (!userId || !activity) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields',
-        message: 'userId and activity are required'
-      });
-    }
-    
-    // Enhance activity with request data
-    const enhancedActivity = {
-      ...activity,
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      timestamp: Date.now()
-    };
-    
-    const patterns = securityService.detectUnusualActivity(userId, enhancedActivity);
-    
-    res.json({
-      success: true,
-      data: {
-        userId: '[REDACTED]',
-        activityMonitored: true,
-        patterns,
-        alert: patterns.unusual
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Activity monitoring failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to monitor activity',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Security headers test
-router.get('/headers', async (req, res) => {
-  try {
-    const headers = securityService.getSecurityHeaders();
-    
-    res.json({
-      success: true,
-      data: {
-        securityHeaders: headers,
-        currentHeaders: Object.fromEntries(
-          Object.entries(res.getHeaders()).filter(([key]) => 
-            key.toLowerCase().startsWith('x-') || 
-            key.toLowerCase().includes('security') ||
-            key.toLowerCase().includes('content-security-policy')
-          )
-        )
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Security headers test failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get security headers',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Blocked IPs management (admin only)
-router.get('/blocked-ips', async (req, res) => {
-  try {
-    const blockedIPs = Array.from(securityService.blockedIPs);
-    
-    res.json({
-      success: true,
-      data: {
-        blockedIPs: blockedIPs.map(ip => ip.substring(0, ip.lastIndexOf('.')) + '.***'), // Partial masking
-        count: blockedIPs.length
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Blocked IPs retrieval failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve blocked IPs',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Unblock IP (admin only)
-router.post('/unblock-ip', async (req, res) => {
-  try {
-    const { ip } = req.body;
-    
-    if (!ip) {
-      return res.status(400).json({
-        success: false,
-        error: 'IP address required',
-        message: 'IP field is required'
-      });
-    }
-    
-    const wasBlocked = securityService.blockedIPs.has(ip);
-    securityService.blockedIPs.delete(ip);
-    
-    // Log the unblock event
-    securityService.logSecurityEvent('IP_UNBLOCKED', {
-      ip: ip.substring(0, ip.lastIndexOf('.')) + '.***',
-      wasBlocked,
-      timestamp: new Date().toISOString()
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        ip: ip.substring(0, ip.lastIndexOf('.')) + '.***',
-        wasBlocked,
-        currentlyBlocked: false
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('IP unblock failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to unblock IP',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Cleanup security data
-router.post('/cleanup', async (req, res) => {
-  try {
-    securityService.cleanup();
-    
-    res.json({
-      success: true,
-      data: {
-        message: 'Security service cleanup completed',
-        activeRateLimiters: securityService.rateLimiters.size,
-        securityEvents: securityService.securityEvents.length,
-        blockedIPs: securityService.blockedIPs.size
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Security cleanup failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to cleanup security data',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Health check
-router.get('/health', async (req, res) => {
-  try {
-    // Test core security functions
-    const testValidation = securityService.validateInput('TEST123', 'symbol');
-    const testPassword = securityService.validatePassword('TestPass123!');
-    const testRateLimit = securityService.checkRateLimit('test-ip', 'api');
-    
-    res.json({
-      success: true,
-      message: 'Security services operational',
-      services: {
-        inputValidation: {
-          status: testValidation.valid ? 'operational' : 'error',
-          test: testValidation.valid
-        },
-        passwordValidation: {
-          status: testPassword.valid ? 'operational' : 'error',
-          strength: testPassword.strength
-        },
-        rateLimiting: {
-          status: 'operational',
-          allowed: testRateLimit.allowed
-        },
-        securityMonitoring: {
-          status: 'operational',
-          activeEvents: securityService.securityEvents.length,
-          blockedIPs: securityService.blockedIPs.size
+    try {
+        // Get security service instance (lazy loaded from main app)
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId,
+                message: 'Security monitoring service is not initialized'
+            }));
         }
-      },
-      timestamp: new Date().toISOString()
-    });
+
+        const dashboard = securityService.getSecurityDashboard();
+        
+        console.log(`🛡️ [${diagnosticId}] Security dashboard generated: ${dashboard.threatLevel} threat level`);
+        
+        res.json(success({
+            ...dashboard,
+            diagnosticId,
+            message: 'Security dashboard retrieved successfully'
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security dashboard failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'security-dashboard' }));
+    }
+});
+
+/**
+ * GET /api/security/metrics
+ * Security metrics and statistics
+ */
+router.get('/metrics', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
     
-  } catch (error) {
-    console.error('Security health check failed:', error);
-    res.status(503).json({
-      success: false,
-      error: 'Security services unhealthy',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
+    console.log(`📊 [${diagnosticId}] Security metrics requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId,
+                message: 'Security monitoring service is not initialized'
+            }));
+        }
+
+        const metrics = securityService.getMetrics();
+        
+        console.log(`📊 [${diagnosticId}] Security metrics retrieved: ${metrics.recentEventCount} recent events`);
+        
+        res.json(success({
+            ...metrics,
+            diagnosticId,
+            message: 'Security metrics retrieved successfully'
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security metrics failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'security-metrics' }));
+    }
+});
+
+/**
+ * GET /api/security/events
+ * Security events with filtering and pagination
+ */
+router.get('/events', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`📋 [${diagnosticId}] Security events requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId
+            }));
+        }
+
+        // Parse query parameters
+        const {
+            startTime = Date.now() - (24 * 60 * 60 * 1000), // Last 24 hours default
+            endTime = Date.now(),
+            eventType,
+            severity,
+            sourceIP,
+            limit = 100,
+            offset = 0
+        } = req.query;
+
+        // Get all events in time range
+        const allEvents = securityService.securityEvents.filter(event => {
+            if (event.timestamp < parseInt(startTime) || event.timestamp > parseInt(endTime)) {
+                return false;
+            }
+            if (eventType && event.eventType !== eventType) {
+                return false;
+            }
+            if (severity && event.severity !== severity) {
+                return false;
+            }
+            if (sourceIP && event.sourceIP !== sourceIP) {
+                return false;
+            }
+            return true;
+        });
+
+        // Sort by timestamp (newest first)
+        allEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Apply pagination
+        const paginatedEvents = allEvents.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+
+        const response = {
+            diagnosticId,
+            timeRange: { startTime: parseInt(startTime), endTime: parseInt(endTime) },
+            filters: { eventType, severity, sourceIP },
+            pagination: {
+                total: allEvents.length,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                hasMore: parseInt(offset) + parseInt(limit) < allEvents.length
+            },
+            events: paginatedEvents.map(event => ({
+                id: event.id,
+                timestamp: event.timestamp,
+                eventType: event.eventType,
+                severity: event.severity,
+                sourceIP: event.sourceIP,
+                userAgent: event.userAgent,
+                userId: event.userId,
+                details: event.details
+            }))
+        };
+
+        console.log(`📋 [${diagnosticId}] Security events retrieved: ${paginatedEvents.length}/${allEvents.length} events`);
+        
+        res.json(success(response));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security events failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'security-events' }));
+    }
+});
+
+/**
+ * POST /api/security/event
+ * Log a security event
+ */
+router.post('/event', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`📝 [${diagnosticId}] Security event logging requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId
+            }));
+        }
+
+        const { eventType, severity, details } = req.body;
+
+        // Validate required fields
+        if (!eventType || !severity) {
+            return res.json(error('Missing required fields: eventType, severity', {
+                diagnosticId,
+                provided: { eventType: !!eventType, severity: !!severity }
+            }));
+        }
+
+        // Validate severity
+        if (!['info', 'warning', 'critical'].includes(severity)) {
+            return res.json(error('Invalid severity level', {
+                diagnosticId,
+                validSeverities: ['info', 'warning', 'critical'],
+                provided: severity
+            }));
+        }
+
+        const eventId = securityService.logSecurityEvent(eventType, severity, details, req);
+        
+        console.log(`📝 [${diagnosticId}] Security event logged: ${eventId}`);
+        
+        res.json(success({
+            eventId,
+            diagnosticId,
+            message: 'Security event logged successfully'
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security event logging failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'log-security-event' }));
+    }
+});
+
+/**
+ * GET /api/security/export
+ * Export security events for analysis
+ */
+router.get('/export', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`📤 [${diagnosticId}] Security events export requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId
+            }));
+        }
+
+        const {
+            startTime = Date.now() - (7 * 24 * 60 * 60 * 1000), // Last 7 days default
+            endTime = Date.now(),
+            format = 'json'
+        } = req.query;
+
+        if (!['json', 'csv'].includes(format)) {
+            return res.json(error('Invalid export format', {
+                diagnosticId,
+                validFormats: ['json', 'csv'],
+                provided: format
+            }));
+        }
+
+        const exportData = securityService.exportSecurityEvents(
+            parseInt(startTime),
+            parseInt(endTime),
+            format
+        );
+
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="security-events-${Date.now()}.csv"`);
+            res.send(exportData);
+        } else {
+            res.json(success({
+                ...exportData,
+                diagnosticId,
+                message: 'Security events exported successfully'
+            }));
+        }
+        
+        console.log(`📤 [${diagnosticId}] Security events exported: ${format} format`);
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security events export failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'export-security-events' }));
+    }
+});
+
+/**
+ * DELETE /api/security/events/cleanup
+ * Clean up old security events
+ */
+router.delete('/events/cleanup', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`🧹 [${diagnosticId}] Security events cleanup requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId
+            }));
+        }
+
+        const { olderThan = 7 * 24 * 60 * 60 * 1000 } = req.body; // 7 days default
+
+        const removedCount = securityService.clearOldEvents(parseInt(olderThan));
+        
+        console.log(`🧹 [${diagnosticId}] Security events cleanup completed: ${removedCount} events removed`);
+        
+        res.json(success({
+            removedCount,
+            olderThan: parseInt(olderThan),
+            diagnosticId,
+            message: `Cleaned up ${removedCount} old security events`
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security events cleanup failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'cleanup-security-events' }));
+    }
+});
+
+/**
+ * GET /api/security/threat-level
+ * Current threat level assessment
+ */
+router.get('/threat-level', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`🎯 [${diagnosticId}] Threat level assessment requested...`);
+    
+    try {
+        const securityService = req.app.locals.securityService;
+        
+        if (!securityService) {
+            return res.json(error('Security service not available', {
+                diagnosticId
+            }));
+        }
+
+        const currentTime = Date.now();
+        const lastHour = currentTime - (60 * 60 * 1000);
+        
+        const recentEvents = securityService.securityEvents.filter(
+            event => event.timestamp > lastHour
+        );
+
+        const threatAssessment = {
+            currentLevel: securityService.threatLevel,
+            lastAssessment: securityService.metrics.lastThreatAssessment,
+            recentActivity: {
+                totalEvents: recentEvents.length,
+                criticalEvents: recentEvents.filter(e => e.severity === 'critical').length,
+                warningEvents: recentEvents.filter(e => e.severity === 'warning').length,
+                uniqueIPs: new Set(recentEvents.map(e => e.sourceIP)).size
+            },
+            trends: {
+                increasing: recentEvents.length > 20,
+                stable: recentEvents.length >= 5 && recentEvents.length <= 20,
+                decreasing: recentEvents.length < 5
+            }
+        };
+
+        console.log(`🎯 [${diagnosticId}] Threat level assessment: ${threatAssessment.currentLevel}`);
+        
+        res.json(success({
+            ...threatAssessment,
+            diagnosticId,
+            message: 'Threat level assessment retrieved successfully'
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Threat level assessment failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'threat-level-assessment' }));
+    }
+});
+
+/**
+ * GET /api/security/status
+ * Overall security system status
+ */
+router.get('/status', async (req, res) => {
+    const diagnosticId = Math.random().toString(36).substr(2, 9);
+    
+    console.log(`🔍 [${diagnosticId}] Security system status requested...`);
+    
+    try {
+        // Check for security middleware availability
+        const securityService = req.app.locals.securityService;
+        const rateLimitingMiddleware = req.app.locals.rateLimitingMiddleware;
+        const authMiddleware = req.app.locals.authMiddleware;
+
+        const status = {
+            timestamp: Date.now(),
+            diagnosticId,
+            services: {
+                securityService: {
+                    status: securityService ? 'active' : 'inactive',
+                    threatLevel: securityService?.threatLevel || 'unknown',
+                    eventCount: securityService?.securityEvents?.length || 0
+                },
+                rateLimiting: {
+                    status: rateLimitingMiddleware ? 'active' : 'inactive',
+                    stats: rateLimitingMiddleware?.getStats() || null
+                },
+                authentication: {
+                    status: authMiddleware ? 'active' : 'inactive',
+                    stats: authMiddleware?.getStats() || null
+                }
+            },
+            overall: 'unknown'
+        };
+
+        // Calculate overall status
+        const activeServices = Object.values(status.services).filter(s => s.status === 'active').length;
+        const totalServices = Object.keys(status.services).length;
+        
+        if (activeServices === totalServices) {
+            status.overall = 'healthy';
+        } else if (activeServices > totalServices / 2) {
+            status.overall = 'degraded';
+        } else {
+            status.overall = 'critical';
+        }
+
+        console.log(`🔍 [${diagnosticId}] Security system status: ${status.overall}`);
+        
+        res.json(success({
+            ...status,
+            message: 'Security system status retrieved successfully'
+        }));
+        
+    } catch (error) {
+        console.error(`❌ [${diagnosticId}] Security system status failed:`, error.message);
+        res.json(error(error.message, { diagnosticId, operation: 'security-system-status' }));
+    }
 });
 
 module.exports = router;

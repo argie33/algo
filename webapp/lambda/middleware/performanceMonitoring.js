@@ -1,95 +1,185 @@
-/**
- * Performance Monitoring Middleware
- * Integrates with the performance monitor to track all API requests
- */
+// Performance Monitoring Middleware
+// Automatic metrics collection for response times, throughput, and system health
 
-const { performanceMonitor } = require('../utils/performanceMonitor');
+const PerformanceMonitoringService = require('../services/performanceMonitoringService');
 
-/**
- * Performance monitoring middleware
- */
-function performanceMonitoringMiddleware(req, res, next) {
-  // Start tracking this request
-  const requestData = performanceMonitor.trackApiRequestStart(
-    req.method, 
-    req.path, 
-    req.logger ? req.logger.requestId : null
-  );
-  
-  // Store request data for completion tracking
-  req.performanceData = requestData;
-  
-  // Override res.json to track completion
-  const originalJson = res.json;
-  res.json = function(body) {
-    // Track request completion
-    const responseSize = Buffer.byteLength(JSON.stringify(body), 'utf8');
-    performanceMonitor.trackApiRequestComplete(
-      req.performanceData, 
-      res.statusCode, 
-      responseSize
+class PerformanceMonitoringMiddleware {
+  constructor() {
+    this.performanceService = new PerformanceMonitoringService();
+    this.activeRequests = new Map();
+  }
+
+  // Request performance tracking middleware
+  requestTrackingMiddleware() {
+    return (req, res, next) => {
+      const startTime = Date.now();
+      const requestId = `req_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Store request start time
+      this.activeRequests.set(requestId, {
+        startTime,
+        method: req.method,
+        path: req.path,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+      
+      // Override res.end to capture response time
+      const originalEnd = res.end;
+      res.end = (...args) => {
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        // Record performance metrics
+        this.recordRequestMetrics(req, res, responseTime, requestId);
+        
+        // Clean up active request tracking
+        this.activeRequests.delete(requestId);
+        
+        // Call original end
+        originalEnd.apply(res, args);
+      };
+      
+      // Add request ID to response headers for tracking
+      res.setHeader('X-Request-ID', requestId);
+      
+      next();
+    };
+  }
+
+  // Record metrics for completed requests
+  recordRequestMetrics(req, res, responseTime, requestId) {
+    const endpoint = this.normalizeEndpoint(req.path);
+    const statusCode = res.statusCode;
+    const isError = statusCode >= 400;
+    
+    // Record response time metric
+    this.performanceService.recordMetric(
+      `api_response_time_${endpoint}`,
+      responseTime,
+      'api',
+      {
+        method: req.method,
+        endpoint: req.path,
+        statusCode,
+        userAgent: req.get('User-Agent'),
+        contentLength: res.getHeader('content-length') || 0,
+        requestId
+      }
     );
     
-    return originalJson.call(this, body);
-  };
-  
-  // Override res.send to track completion
-  const originalSend = res.send;
-  res.send = function(body) {
-    // Track request completion
-    const responseSize = Buffer.byteLength(body || '', 'utf8');
-    performanceMonitor.trackApiRequestComplete(
-      req.performanceData, 
-      res.statusCode, 
-      responseSize
+    // Record throughput metric
+    this.performanceService.recordMetric(
+      'api_throughput',
+      1,
+      'api',
+      {
+        endpoint,
+        method: req.method,
+        timestamp: Date.now()
+      }
     );
     
-    return originalSend.call(this, body);
-  };
-  
-  next();
+    // Record error rate if applicable
+    if (isError) {
+      this.performanceService.recordMetric(
+        `api_error_rate_${endpoint}`,
+        1,
+        'api',
+        {
+          statusCode,
+          method: req.method,
+          endpoint: req.path,
+          errorType: this.classifyError(statusCode)
+        }
+      );
+    }
+  }
+
+  // Normalize endpoint for consistent metrics
+  normalizeEndpoint(path) {
+    let normalized = path.split('?')[0];
+    normalized = normalized.replace(/\/[0-9a-f-]{36}/gi, '/:id');
+    normalized = normalized.replace(/\/\d+/g, '/:id');
+    normalized = normalized.replace(/^\/|\/$/g, '').replace(/\/+/g, '/');
+    return normalized || 'root';
+  }
+
+  // Classify error types
+  classifyError(statusCode) {
+    if (statusCode >= 500) return 'server_error';
+    if (statusCode >= 400 && statusCode < 500) return 'client_error';
+    return 'unknown_error';
+  }
+
+  // System health monitoring middleware
+  systemHealthMiddleware() {
+    return (req, res, next) => {
+      if (Math.random() < 0.05) {
+        process.nextTick(() => {
+          this.collectSystemHealthMetrics();
+        });
+      }
+      next();
+    };
+  }
+
+  // Collect system health metrics
+  collectSystemHealthMetrics() {
+    try {
+      const memoryUsage = process.memoryUsage();
+      const memoryUtilization = memoryUsage.heapUsed / memoryUsage.heapTotal;
+      
+      this.performanceService.recordMetric(
+        'system_memory_utilization',
+        memoryUtilization,
+        'memory',
+        memoryUsage
+      );
+      
+      this.performanceService.recordMetric(
+        'system_active_requests',
+        this.activeRequests.size,
+        'api',
+        { type: 'concurrent_requests' }
+      );
+      
+      this.performanceService.recordMetric(
+        'system_uptime',
+        process.uptime(),
+        'system',
+        { type: 'process_uptime' }
+      );
+    } catch (error) {
+      console.error('System health metrics collection failed:', error);
+    }
+  }
+
+  // Error tracking middleware
+  errorTrackingMiddleware() {
+    return (error, req, res, next) => {
+      this.performanceService.recordMetric(
+        'application_error_rate',
+        1,
+        'api',
+        {
+          error: error.message,
+          endpoint: req.path,
+          method: req.method,
+          statusCode: res.statusCode || 500
+        }
+      );
+      next(error);
+    };
+  }
+
+  getPerformanceService() {
+    return this.performanceService;
+  }
+
+  getActiveRequestsCount() {
+    return this.activeRequests.size;
+  }
 }
 
-/**
- * Database performance tracking wrapper
- */
-function trackDbQuery(operation, table, queryFunction, requestId = null) {
-  const startTime = Date.now();
-  
-  return queryFunction()
-    .then(result => {
-      const duration = Date.now() - startTime;
-      performanceMonitor.trackDbOperation(operation, table, duration, true, requestId);
-      return result;
-    })
-    .catch(error => {
-      const duration = Date.now() - startTime;
-      performanceMonitor.trackDbOperation(operation, table, duration, false, requestId);
-      throw error;
-    });
-}
-
-/**
- * External API call tracking wrapper
- */
-function trackExternalApiCall(service, endpoint, apiFunction, requestId = null) {
-  const startTime = Date.now();
-  
-  return apiFunction()
-    .then(result => {
-      const duration = Date.now() - startTime;
-      performanceMonitor.trackExternalApiCall(service, endpoint, duration, true, requestId);
-      return result;
-    })
-    .catch(error => {
-      const duration = Date.now() - startTime;
-      performanceMonitor.trackExternalApiCall(service, endpoint, duration, false, requestId);
-      throw error;
-    });
-}
-
-module.exports = {
-  performanceMonitoringMiddleware,
-  trackDbQuery,
-  trackExternalApiCall
-};
+module.exports = PerformanceMonitoringMiddleware;

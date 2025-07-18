@@ -14,8 +14,6 @@ import {
   ListItemIcon,
   ListItemText,
   IconButton,
-  useTheme,
-  useMediaQuery,
   Alert,
   Button,
   Menu,
@@ -181,8 +179,14 @@ function App() {
     research: false,
     tools: false
   })
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  // Use CSS media query instead of MUI theme
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 960);
+  
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 960);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -276,12 +280,12 @@ function App() {
                     sx={{
                       borderRadius: 1,
                       '&.Mui-selected': {
-                        backgroundColor: theme.palette.primary.main + '20',
+                        backgroundColor: '#1976d220',
                         '& .MuiListItemIcon-root': {
-                          color: theme.palette.primary.main,
+                          color: '#1976d2',
                         },
                         '& .MuiListItemText-primary': {
-                          color: theme.palette.primary.main,
+                          color: '#1976d2',
                           fontWeight: 600,
                         },
                       },
@@ -328,12 +332,12 @@ function App() {
                         borderRadius: 1,
                         py: 0.5,
                         '&.Mui-selected': {
-                          backgroundColor: theme.palette.primary.main + '20',
+                          backgroundColor: '#1976d220',
                           '& .MuiListItemIcon-root': {
-                            color: theme.palette.primary.main,
+                            color: '#1976d2',
                           },
                           '& .MuiListItemText-primary': {
-                            color: theme.palette.primary.main,
+                            color: '#1976d2',
                             fontWeight: 600,
                           },
                         },
@@ -484,7 +488,7 @@ function App() {
           flexGrow: 1,
           p: 3,
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: theme.palette.background.default,
+          backgroundColor: '#ffffff',
           minHeight: '100vh',
         }}
       >

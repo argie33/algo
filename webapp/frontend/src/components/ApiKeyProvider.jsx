@@ -27,7 +27,7 @@ export const ApiKeyProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [hasPerformedMigration, setHasPerformedMigration] = useState(false);
 
-  // Enhanced API key validation rules for all supported providers
+  // Enhanced API key validation rules for Alpaca and TD Ameritrade
   const validationRules = {
     alpaca: {
       keyId: /^[A-Z0-9]{20}$/,
@@ -37,54 +37,31 @@ export const ApiKeyProvider = ({ children }) => {
       keyIdFormat: '20 uppercase letters and numbers',
       secretKeyFormat: '40-character base64 encoded secret',
       setupUrl: 'https://app.alpaca.markets/paper/dashboard/overview',
-      testEndpoint: '/account'
-    },
-    polygon: {
-      keyId: /^[A-Za-z0-9_]{32}$/,
-      name: 'Polygon.io Market Data',
-      description: 'Real-time and historical market data',
-      keyIdFormat: '32-character alphanumeric API key',
-      setupUrl: 'https://polygon.io/dashboard/api-keys',
-      testEndpoint: '/v1/meta/symbols',
-      requiresSubscription: true
-    },
-    finnhub: {
-      keyId: /^[a-z0-9]{20}$/,
-      name: 'Finnhub Financial Data',
-      description: 'Financial news, earnings, and alternative data',
-      keyIdFormat: '20-character lowercase alphanumeric',
-      setupUrl: 'https://finnhub.io/dashboard',
-      testEndpoint: '/api/v1/stock/profile2',
-      freeTier: true
-    },
-    iex: {
-      keyId: /^pk_[a-z0-9]{32}$/,
-      secretKey: /^sk_[a-z0-9]{32}$/,
-      name: 'IEX Cloud',
-      description: 'Reliable financial data API',
-      keyIdFormat: 'pk_ prefix + 32 lowercase alphanumeric',
-      secretKeyFormat: 'sk_ prefix + 32 lowercase alphanumeric',
-      setupUrl: 'https://iexcloud.io/console/tokens',
-      testEndpoint: '/stable/stock/aapl/quote'
-    },
-    alpha_vantage: {
-      keyId: /^[A-Z0-9]{16}$/,
-      name: 'Alpha Vantage',
-      description: 'Financial data and technical indicators',
-      keyIdFormat: '16-character uppercase alphanumeric',
-      setupUrl: 'https://www.alphavantage.co/support/#api-key',
-      testEndpoint: '/query',
-      freeTier: true,
-      rateLimited: true
+      testEndpoint: '/account',
+      errors: {
+        invalidFormat: 'API Key must be exactly 20 uppercase letters and numbers',
+        invalidSecretFormat: 'Secret Key must be 40 characters (base64 encoded)',
+        connectionFailed: 'Unable to connect to Alpaca. Check your API keys and permissions.',
+        rateLimited: 'Too many requests. Please wait a moment and try again.',
+        unauthorized: 'API key is invalid or lacks required permissions',
+        forbidden: 'Account may be restricted or API access disabled'
+      }
     },
     td_ameritrade: {
       keyId: /^[A-Z0-9@]{20,50}$/,
       name: 'TD Ameritrade API',
-      description: 'Trading and account management (Legacy)',
-      keyIdFormat: '20-50 character client ID with possible @ symbol',
+      description: 'Trading and account management',
+      keyIdFormat: '20-50 character client ID (may include @ symbol)',
       setupUrl: 'https://developer.tdameritrade.com/',
-      deprecated: true,
-      migrationNote: 'TD Ameritrade APIs will be discontinued. Consider migrating to Schwab.'
+      testEndpoint: '/v1/accounts',
+      requiresOAuth: true,
+      errors: {
+        invalidFormat: 'Client ID must be 20-50 characters (letters, numbers, @ symbol allowed)',
+        connectionFailed: 'Unable to connect to TD Ameritrade. Check your client ID.',
+        unauthorized: 'Client ID is invalid or not authorized',
+        oauthRequired: 'TD Ameritrade requires OAuth authentication setup',
+        accountRestricted: 'Account may have API access restrictions'
+      }
     }
   };
 

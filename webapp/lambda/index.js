@@ -36,15 +36,79 @@ app.use((req, res, next) => {
   next();
 });
 
-// Enhanced middleware
+// Enhanced middleware with security
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// Initialize security middleware early
+let inputValidation = null;
+let rateLimiting = null;
+let enhancedAuth = null;
+
+const getInputValidation = () => {
+  if (!inputValidation) {
+    try {
+      const InputValidationMiddleware = require('./middleware/inputValidation');
+      inputValidation = new InputValidationMiddleware();
+      console.log('✅ Input validation middleware initialized');
+    } catch (error) {
+      console.error('⚠️ Input validation middleware initialization failed:', error.message);
+      inputValidation = {
+        getSecurityMiddleware: () => [(req, res, next) => next()],
+        sanitizeInput: () => (req, res, next) => next(),
+        validateRateLimit: () => (req, res, next) => next(),
+        preventSqlInjection: () => (req, res, next) => next()
+      };
+    }
+  }
+  return inputValidation;
+};
+
+const getRateLimiting = () => {
+  if (!rateLimiting) {
+    try {
+      const RateLimitingMiddleware = require('./middleware/rateLimiting');
+      rateLimiting = new RateLimitingMiddleware();
+      console.log('✅ Rate limiting middleware initialized');
+    } catch (error) {
+      console.error('⚠️ Rate limiting middleware initialization failed:', error.message);
+      rateLimiting = {
+        adaptiveRateLimit: () => (req, res, next) => next(),
+        abuseDetection: () => (req, res, next) => next(),
+        rateLimit: () => (req, res, next) => next(),
+        getStats: () => ({ totalRecords: 0, blacklistedIPs: 0 })
+      };
+    }
+  }
+  return rateLimiting;
+};
+
+const getEnhancedAuth = () => {
+  if (!enhancedAuth) {
+    try {
+      const EnhancedAuthMiddleware = require('./middleware/enhancedAuth');
+      enhancedAuth = new EnhancedAuthMiddleware();
+      console.log('✅ Enhanced auth middleware initialized');
+    } catch (error) {
+      console.error('⚠️ Enhanced auth middleware initialization failed:', error.message);
+      enhancedAuth = {
+        requireAuth: () => (req, res, next) => next(),
+        requireRole: () => (req, res, next) => next(),
+        requirePermission: () => (req, res, next) => next(),
+        getStats: () => ({ activeSessions: 0, failedAttempts: 0 })
+      };
+    }
+  }
+  return enhancedAuth;
+};
 
 // Global services - lazy loaded to avoid initialization crashes
 let logger = null;
 let databaseManager = null;
 let responseFormatter = null;
 let securityService = null;
+let complianceMiddleware = null;
+let performanceMiddleware = null;
 
 // Lazy load logger with fallback
 const getLogger = () => {
@@ -117,6 +181,20 @@ const getSecurityService = () => {
       const SecurityService = require('./services/securityService');
       securityService = new SecurityService();
       console.log('✅ Security service initialized');
+      
+      // Set up security event listeners
+      securityService.on('securityEvent', (event) => {
+        console.log(`🔒 Security event: ${event.eventType} [${event.severity}] from ${event.sourceIP}`);
+      });
+      
+      securityService.on('securityAlert', (alert) => {
+        console.warn(`🚨 Security alert: ${alert.alertType}`, alert.details);
+      });
+      
+      securityService.on('threatLevelChanged', (change) => {
+        console.warn(`🎯 Threat level changed: ${change.from} → ${change.to}`);
+      });
+      
     } catch (error) {
       console.error('⚠️ Security service initialization failed:', error.message);
       // Fallback security service
@@ -129,11 +207,57 @@ const getSecurityService = () => {
           rateLimit: () => (req, res, next) => next(),
           securityHeaders: (req, res, next) => next(),
           validateInput: () => (req, res, next) => next()
-        })
+        }),
+        getSecurityDashboard: () => ({ threatLevel: 'unknown' }),
+        getMetrics: () => ({ totalEvents: 0 })
       };
     }
   }
   return securityService;
+};
+
+// Lazy load compliance middleware with fallback
+const getComplianceMiddleware = () => {
+  if (!complianceMiddleware) {
+    try {
+      const ComplianceMiddleware = require('./middleware/compliance');
+      complianceMiddleware = new ComplianceMiddleware();
+      console.log('✅ Compliance middleware initialized');
+    } catch (error) {
+      console.error('⚠️ Compliance middleware initialization failed:', error.message);
+      // Fallback compliance middleware
+      complianceMiddleware = {
+        auditMiddleware: () => (req, res, next) => next(),
+        dataProcessingMiddleware: () => (req, res, next) => next(),
+        consentValidationMiddleware: () => (req, res, next) => next(),
+        retentionCleanupMiddleware: () => (req, res, next) => next(),
+        getComplianceService: () => null
+      };
+    }
+  }
+  return complianceMiddleware;
+};
+
+// Lazy load performance monitoring middleware with fallback
+const getPerformanceMiddleware = () => {
+  if (!performanceMiddleware) {
+    try {
+      const PerformanceMonitoringMiddleware = require('./middleware/performanceMonitoring');
+      performanceMiddleware = new PerformanceMonitoringMiddleware();
+      console.log('✅ Performance monitoring middleware initialized');
+    } catch (error) {
+      console.error('⚠️ Performance monitoring middleware initialization failed:', error.message);
+      // Fallback performance middleware
+      performanceMiddleware = {
+        requestTrackingMiddleware: () => (req, res, next) => next(),
+        systemHealthMiddleware: () => (req, res, next) => next(),
+        errorTrackingMiddleware: () => (req, res, next) => next(),
+        getPerformanceService: () => null,
+        getActiveRequestsCount: () => 0
+      };
+    }
+  }
+  return performanceMiddleware;
 };
 
 // Apply response formatter middleware
@@ -150,20 +274,92 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply security middleware
+// Apply comprehensive security middleware stack
 app.use((req, res, next) => {
-  const security = getSecurityService();
-  const middleware = security.createSecurityMiddleware();
+  // Store security services in app locals for route access
+  app.locals.securityService = getSecurityService();
+  app.locals.rateLimitingMiddleware = getRateLimiting();
+  app.locals.authMiddleware = getEnhancedAuth();
+  app.locals.inputValidationMiddleware = getInputValidation();
+  next();
+});
+
+// Apply input validation and sanitization first
+app.use((req, res, next) => {
+  const inputValidation = getInputValidation();
+  const securityMiddleware = inputValidation.getSecurityMiddleware();
   
-  // Apply security headers
-  middleware.securityHeaders(req, res, () => {
-    // Apply rate limiting for API routes
-    if (req.path.startsWith('/api/')) {
-      const category = req.path.includes('/auth') ? 'auth' : 'api';
-      middleware.rateLimit(category)(req, res, next);
+  // Apply all security middleware in sequence
+  let middlewareIndex = 0;
+  
+  function runNextMiddleware() {
+    if (middlewareIndex < securityMiddleware.length) {
+      const middleware = securityMiddleware[middlewareIndex++];
+      middleware(req, res, runNextMiddleware);
     } else {
       next();
     }
+  }
+  
+  runNextMiddleware();
+});
+
+// Apply rate limiting and abuse detection
+app.use((req, res, next) => {
+  const rateLimiting = getRateLimiting();
+  
+  // Apply abuse detection first
+  rateLimiting.abuseDetection()(req, res, () => {
+    // Then apply adaptive rate limiting
+    rateLimiting.adaptiveRateLimit()(req, res, next);
+  });
+});
+
+// Apply security headers
+app.use((req, res, next) => {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;");
+  
+  // Remove potentially revealing headers
+  res.removeHeader('X-Powered-By');
+  res.removeHeader('Server');
+  
+  next();
+});
+
+// Apply performance monitoring middleware
+app.use((req, res, next) => {
+  const performance = getPerformanceMiddleware();
+  
+  // Apply request tracking
+  performance.requestTrackingMiddleware()(req, res, () => {
+    // Apply system health monitoring
+    performance.systemHealthMiddleware()(req, res, next);
+  });
+});
+
+// Apply compliance middleware
+app.use((req, res, next) => {
+  const compliance = getComplianceMiddleware();
+  
+  // Apply audit logging
+  compliance.auditMiddleware()(req, res, () => {
+    // Apply data processing monitoring
+    compliance.dataProcessingMiddleware()(req, res, () => {
+      // Apply consent validation for sensitive endpoints
+      if (req.path.startsWith('/api/')) {
+        compliance.consentValidationMiddleware()(req, res, () => {
+          // Apply retention cleanup
+          compliance.retentionCleanupMiddleware()(req, res, next);
+        });
+      } else {
+        next();
+      }
+    });
   });
 });
 
@@ -216,6 +412,7 @@ const routes = [
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
   { path: './routes/security', name: 'Security', mount: '/api/security' },
+  { path: './routes/compliance', name: 'Compliance', mount: '/api/compliance' },
   
   // Analysis & Trading Routes
   { path: './routes/technical', name: 'Technical Analysis', mount: '/api/technical' },
@@ -721,9 +918,15 @@ app.use('*', (req, res) => {
   });
 });
 
-// Error handler with CORS
+// Error handler with CORS and performance tracking
 app.use((error, req, res, next) => {
   console.error('Error:', error);
+  
+  // Track error in performance monitoring
+  const performance = getPerformanceMiddleware();
+  if (performance && performance.errorTrackingMiddleware) {
+    performance.errorTrackingMiddleware()(error, req, res, () => {});
+  }
   
   // Ensure CORS headers even on error
   const origin = req.headers.origin;

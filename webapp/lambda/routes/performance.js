@@ -1,337 +1,273 @@
-/**
- * Performance Monitoring API Routes
- * Provides real-time performance metrics and system health information
- */
+// Performance Monitoring Routes
+// API endpoints for performance metrics, alerts, and optimization recommendations
 
 const express = require('express');
 const router = express.Router();
-const { performanceMonitor } = require('../utils/performanceMonitor');
-const { authenticateToken } = require('../middleware/auth');
+const PerformanceMonitoringService = require('../services/performanceMonitoringService');
 
-// Health endpoint (no auth required)
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'operational',
-    service: 'performance-analytics',
-    timestamp: new Date().toISOString(),
-    message: 'Performance Analytics service is running'
-  });
-});
+// Initialize service
+const performanceService = new PerformanceMonitoringService();
 
-// Basic root endpoint (public)
-router.get('/', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Performance Analytics API - Ready',
-    timestamp: new Date().toISOString(),
-    status: 'operational'
-  });
-});
-
-/**
- * Get current performance metrics
- */
-router.get('/metrics', authenticateToken, async (req, res) => {
+// Get performance dashboard
+router.get('/dashboard', async (req, res) => {
   try {
-    const metrics = performanceMonitor.getMetrics();
-    
-    req.logger?.info('Performance metrics requested', {
-      requestedBy: req.user?.sub,
-      metricsSize: JSON.stringify(metrics).length
-    });
+    const dashboard = performanceService.getPerformanceDashboard();
     
     res.json({
       success: true,
-      data: metrics,
+      data: dashboard,
       timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
-    req.logger?.error('Error retrieving performance metrics', { error });
+    console.error('Performance dashboard failed:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to retrieve performance metrics',
+      error: 'Failed to get performance dashboard',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-/**
- * Get performance summary (lightweight)
- */
-router.get('/summary', authenticateToken, async (req, res) => {
+// Record performance metric
+router.post('/metrics', async (req, res) => {
   try {
-    const summary = performanceMonitor.getPerformanceSummary();
+    const { name, value, category = 'general', metadata = {} } = req.body;
     
-    req.logger?.info('Performance summary requested', {
-      requestedBy: req.user?.sub,
-      status: summary.status,
-      activeRequests: summary.activeRequests
-    });
-    
-    res.json({
-      success: true,
-      data: summary,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving performance summary', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve performance summary',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Get system health status
- */
-router.get('/health', async (req, res) => {
-  try {
-    const summary = performanceMonitor.getPerformanceSummary();
-    const memUsage = process.memoryUsage();
-    
-    // Health check doesn't require auth for monitoring systems
-    const healthStatus = {
-      status: summary.status,
-      uptime: summary.uptime,
-      timestamp: new Date().toISOString(),
-      memory: {
-        used: memUsage.heapUsed,
-        total: memUsage.heapTotal,
-        utilization: (memUsage.heapUsed / memUsage.heapTotal) * 100
-      },
-      requests: {
-        active: summary.activeRequests,
-        total: summary.totalRequests,
-        errorRate: summary.errorRate
-      },
-      alerts: summary.alerts
-    };
-    
-    const statusCode = summary.status === 'critical' ? 503 : 
-                      summary.status === 'warning' ? 200 : 200;
-    
-    res.status(statusCode).json({
-      success: true,
-      data: healthStatus
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving system health', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve system health',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Get API endpoint performance statistics
- */
-router.get('/api-stats', authenticateToken, async (req, res) => {
-  try {
-    const metrics = performanceMonitor.getMetrics();
-    
-    // Transform API metrics into a more readable format
-    const apiStats = Object.entries(metrics.api.requests).map(([endpoint, stats]) => ({
-      endpoint,
-      count: stats.count,
-      errors: stats.errors,
-      errorRate: stats.count > 0 ? (stats.errors / stats.count) * 100 : 0,
-      avgResponseTime: stats.avgResponseTime,
-      minResponseTime: stats.minResponseTime === Infinity ? 0 : stats.minResponseTime,
-      maxResponseTime: stats.maxResponseTime,
-      recentRequests: stats.recentRequests.length
-    }));
-    
-    // Sort by request count (most used endpoints first)
-    apiStats.sort((a, b) => b.count - a.count);
-    
-    req.logger?.info('API statistics requested', {
-      requestedBy: req.user?.sub,
-      endpointCount: apiStats.length
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        endpoints: apiStats,
-        responseTimeHistogram: Object.fromEntries(metrics.api.responseTimeHistogram),
-        totalRequests: metrics.system.totalRequests,
-        totalErrors: metrics.system.totalErrors,
-        overallErrorRate: metrics.system.errorRate * 100
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving API statistics', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve API statistics',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Get database performance statistics
- */
-router.get('/database-stats', authenticateToken, async (req, res) => {
-  try {
-    const metrics = performanceMonitor.getMetrics();
-    
-    // Transform database metrics into a more readable format
-    const dbStats = Object.entries(metrics.database.queries).map(([operation, stats]) => ({
-      operation,
-      count: stats.count,
-      errors: stats.errors,
-      errorRate: stats.count > 0 ? (stats.errors / stats.count) * 100 : 0,
-      avgTime: stats.avgTime,
-      minTime: stats.minTime === Infinity ? 0 : stats.minTime,
-      maxTime: stats.maxTime,
-      recentQueries: stats.recentQueries.length
-    }));
-    
-    // Sort by average time (slowest first)
-    dbStats.sort((a, b) => b.avgTime - a.avgTime);
-    
-    req.logger?.info('Database statistics requested', {
-      requestedBy: req.user?.sub,
-      operationCount: dbStats.length
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        operations: dbStats,
-        slowestQueries: dbStats.slice(0, 10) // Top 10 slowest
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving database statistics', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve database statistics',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Get external API performance statistics
- */
-router.get('/external-api-stats', authenticateToken, async (req, res) => {
-  try {
-    const metrics = performanceMonitor.getMetrics();
-    
-    // Transform external API metrics into a more readable format
-    const externalStats = Object.entries(metrics.external.apis).map(([service, stats]) => ({
-      service,
-      count: stats.count,
-      errors: stats.errors,
-      errorRate: stats.count > 0 ? (stats.errors / stats.count) * 100 : 0,
-      avgTime: stats.avgTime,
-      minTime: stats.minTime === Infinity ? 0 : stats.minTime,
-      maxTime: stats.maxTime,
-      recentCalls: stats.recentCalls.length
-    }));
-    
-    // Sort by error rate (most problematic first)
-    externalStats.sort((a, b) => b.errorRate - a.errorRate);
-    
-    req.logger?.info('External API statistics requested', {
-      requestedBy: req.user?.sub,
-      serviceCount: externalStats.length
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        services: externalStats,
-        mostProblematic: externalStats.slice(0, 5) // Top 5 most problematic
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving external API statistics', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve external API statistics',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Get performance alerts
- */
-router.get('/alerts', authenticateToken, async (req, res) => {
-  try {
-    const summary = performanceMonitor.getPerformanceSummary();
-    
-    req.logger?.info('Performance alerts requested', {
-      requestedBy: req.user?.sub,
-      alertCount: summary.alerts.length
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        alerts: summary.alerts,
-        systemStatus: summary.status,
-        alertCount: summary.alerts.length
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    req.logger?.error('Error retrieving performance alerts', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve performance alerts',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Clear performance metrics (admin only)
- */
-router.post('/clear-metrics', authenticateToken, async (req, res) => {
-  try {
-    // Only allow admin users to clear metrics
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({
+    if (!name || value === undefined) {
+      return res.status(400).json({
         success: false,
-        error: 'Admin access required',
-        timestamp: new Date().toISOString()
+        error: 'Missing required fields',
+        message: 'name and value are required'
       });
     }
     
-    // Reset metrics
-    performanceMonitor.metrics.apiRequests.clear();
-    performanceMonitor.metrics.dbQueryTimes.clear();
-    performanceMonitor.metrics.externalApiCalls.clear();
-    performanceMonitor.metrics.responseTimeHistogram.clear();
-    performanceMonitor.metrics.totalRequests = 0;
-    performanceMonitor.metrics.totalErrors = 0;
+    if (typeof value !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid value type',
+        message: 'value must be a number'
+      });
+    }
     
-    req.logger?.warn('Performance metrics cleared', {
-      clearedBy: req.user?.sub
+    const metric = performanceService.recordMetric(name, value, category, {
+      ...metadata,
+      source: 'api',
+      userAgent: req.get('User-Agent'),
+      endpoint: req.originalUrl
     });
     
     res.json({
       success: true,
-      message: 'Performance metrics cleared successfully',
+      data: {
+        metricId: metric.id,
+        name: metric.name,
+        value: metric.value,
+        category: metric.category,
+        timestamp: metric.timestamp
+      },
+      message: 'Performance metric recorded successfully',
       timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
-    req.logger?.error('Error clearing performance metrics', { error });
+    console.error('Metric recording failed:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to clear performance metrics',
+      error: 'Failed to record performance metric',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get all alerts
+router.get('/alerts', async (req, res) => {
+  try {
+    const { 
+      severity, 
+      status = 'all', 
+      limit = 50, 
+      acknowledged 
+    } = req.query;
+    
+    let alerts = [...performanceService.alerts];
+    
+    // Filter by severity
+    if (severity) {
+      alerts = alerts.filter(alert => 
+        alert.severity.toLowerCase() === severity.toLowerCase()
+      );
+    }
+    
+    // Filter by status
+    if (status !== 'all') {
+      alerts = alerts.filter(alert => 
+        alert.status.toLowerCase() === status.toLowerCase()
+      );
+    }
+    
+    // Filter by acknowledgment
+    if (acknowledged !== undefined) {
+      const isAcknowledged = acknowledged === 'true';
+      alerts = alerts.filter(alert => alert.acknowledged === isAcknowledged);
+    }
+    
+    // Sort by most recent and limit
+    alerts = alerts
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, parseInt(limit));
+    
+    const summary = {
+      total: alerts.length,
+      critical: alerts.filter(a => a.severity === 'CRITICAL').length,
+      warning: alerts.filter(a => a.severity === 'WARNING').length,
+      active: alerts.filter(a => a.status === 'ACTIVE').length,
+      acknowledged: alerts.filter(a => a.acknowledged).length
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        alerts,
+        summary,
+        filters: { severity, status, acknowledged, limit }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Alerts retrieval failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get alerts',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get optimization recommendations
+router.get('/recommendations', async (req, res) => {
+  try {
+    const { 
+      priority, 
+      category, 
+      implemented = 'false', 
+      limit = 20 
+    } = req.query;
+    
+    let recommendations = [...performanceService.recommendations];
+    
+    // Filter by implementation status
+    const isImplemented = implemented === 'true';
+    recommendations = recommendations.filter(rec => rec.implemented === isImplemented);
+    
+    // Filter by priority
+    if (priority) {
+      recommendations = recommendations.filter(rec => 
+        rec.priority.toLowerCase() === priority.toLowerCase()
+      );
+    }
+    
+    // Filter by category
+    if (category) {
+      recommendations = recommendations.filter(rec => 
+        rec.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+    
+    // Sort by priority and timestamp
+    const priorityOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+    recommendations = recommendations
+      .sort((a, b) => {
+        const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      })
+      .slice(0, parseInt(limit));
+    
+    const summary = {
+      total: recommendations.length,
+      high: recommendations.filter(r => r.priority === 'HIGH').length,
+      medium: recommendations.filter(r => r.priority === 'MEDIUM').length,
+      low: recommendations.filter(r => r.priority === 'LOW').length
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        recommendations,
+        summary,
+        filters: { priority, category, implemented, limit }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Recommendations retrieval failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get recommendations',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Performance health check
+router.get('/health', async (req, res) => {
+  try {
+    // Test performance monitoring functionality
+    const testMetric = performanceService.recordMetric(
+      'health_check_response_time', 
+      Date.now() % 1000, 
+      'api', 
+      { test: true }
+    );
+    
+    const dashboard = performanceService.getPerformanceDashboard();
+    
+    res.json({
+      success: true,
+      message: 'Performance monitoring services operational',
+      services: {
+        metricCollection: {
+          status: testMetric ? 'operational' : 'error',
+          totalMetrics: performanceService.metrics.size
+        },
+        alerting: {
+          status: 'operational',
+          totalAlerts: performanceService.alerts.length,
+          activeAlerts: performanceService.alerts.filter(a => a.status === 'ACTIVE').length
+        },
+        recommendations: {
+          status: 'operational',
+          totalRecommendations: performanceService.recommendations.length,
+          activeRecommendations: performanceService.recommendations.filter(r => !r.implemented).length
+        },
+        dashboard: {
+          status: dashboard ? 'operational' : 'error',
+          healthScore: dashboard.healthScore
+        }
+      },
+      statistics: {
+        metrics: performanceService.metrics.size,
+        alerts: performanceService.alerts.length,
+        recommendations: performanceService.recommendations.length,
+        systemHealth: dashboard.summary.systemHealth
+      },
+      thresholds: performanceService.thresholds,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Performance monitoring health check failed:', error);
+    res.status(503).json({
+      success: false,
+      error: 'Performance monitoring services unhealthy',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }
