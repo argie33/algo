@@ -1,7 +1,11 @@
-// Test setup file for Vitest
-import { vi } from 'vitest';
+// Test setup file for Vitest - Comprehensive Automated Testing
+import { vi, expect } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeAll } from 'vitest';
+import * as matchers from '@testing-library/jest-dom/matchers';
+
+// Extend Vitest's expect with Jest DOM matchers
+expect.extend(matchers);
 
 // Mock environment variables
 Object.defineProperty(import.meta, 'env', {

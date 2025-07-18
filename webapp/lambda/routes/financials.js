@@ -53,36 +53,58 @@ router.get('/debug/tables', async (req, res) => {
     
     for (const table of tables) {
       try {
-        // Check if table exists
+        // Use secure query builder to prevent SQL injection
+        const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+        const queryBuilder = new SecureQueryBuilder();
+        
+        // Validate table name against whitelist
+        if (!queryBuilder.allowedTables.has(table.toLowerCase())) {
+          console.warn(`🚨 Unauthorized table access attempt: ${table}`);
+          results[table] = {
+            exists: false,
+            error: 'Unauthorized table access',
+            authorized: false
+          };
+          continue;
+        }
+        
+        // Check if table exists using parameterized query
         const tableExistsQuery = `
           SELECT EXISTS (
             SELECT FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name = '${table}'
+            AND table_name = $1
           );
         `;
         
-        const tableExists = await query(tableExistsQuery);
+        const tableExists = await query(tableExistsQuery, [table]);
         
         if (tableExists.rows[0].exists) {
-          // Get column information
+          // Get column information using parameterized query
           const columnsQuery = `
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns 
-            WHERE table_name = '${table}' 
+            WHERE table_name = $1 
             AND table_schema = 'public'
             ORDER BY ordinal_position
           `;
           
-          const columnsResult = await query(columnsQuery);
+          const columnsResult = await query(columnsQuery, [table]);
           
-          // Count total records
-          const countQuery = `SELECT COUNT(*) as total FROM ${table}`;
-          const countResult = await query(countQuery);
+          // Use secure query builder for count and sample queries
+          const { query: countQuery, params: countParams } = queryBuilder.buildSelect({
+            table: table,
+            columns: ['COUNT(*) as total']
+          });
+          const countResult = await query(countQuery, countParams);
           
-          // Get sample records (first 2 rows)
-          const sampleQuery = `SELECT * FROM ${table} LIMIT 2`;
-          const sampleResult = await query(sampleQuery);
+          // Get sample records using secure query builder
+          const { query: sampleQuery, params: sampleParams } = queryBuilder.buildSelect({
+            table: table,
+            columns: ['*'],
+            limit: 2
+          });
+          const sampleResult = await query(sampleQuery, sampleParams);
           
           results[table] = {
             exists: true,

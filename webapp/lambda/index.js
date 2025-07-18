@@ -284,7 +284,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply input validation and sanitization first
+// Apply SQL injection protection first
+app.use((req, res, next) => {
+  try {
+    const SQLInjectionProtection = require('./middleware/sqlInjectionProtection');
+    const sqlProtection = new SQLInjectionProtection();
+    
+    // Add SQL security methods to request
+    sqlProtection.middleware()(req, res, next);
+  } catch (error) {
+    console.error('⚠️ SQL injection protection middleware failed to load:', error.message);
+    // Continue without protection but log the issue
+    next();
+  }
+});
+
+// Apply input validation and sanitization second
 app.use((req, res, next) => {
   const inputValidation = getInputValidation();
   const securityMiddleware = inputValidation.getSecurityMiddleware();

@@ -1099,53 +1099,41 @@ router.put('/profile', createValidationMiddleware(settingsValidationSchemas.prof
       console.log('⚠️ Using fallback column list:', existingColumns);
     }
     
-    // Build dynamic query based on existing columns
-    const updates = [];
-    const values = [userId];
-    let valueIndex = 2;
+    // Use secure query builder to prevent SQL injection
+    const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+    const queryBuilder = new SecureQueryBuilder();
     
-    // Check each field and only include if column exists
+    // Build secure update data object
+    const updateData = {};
+    
+    // Only include fields that exist in database and are provided
     if (existingColumns.includes('first_name') && firstName !== undefined) {
-      updates.push(`first_name = $${valueIndex}`);
-      values.push(firstName);
-      valueIndex++;
+      updateData.first_name = firstName;
     }
     
     if (existingColumns.includes('last_name') && lastName !== undefined) {
-      updates.push(`last_name = $${valueIndex}`);
-      values.push(lastName);
-      valueIndex++;
+      updateData.last_name = lastName;
     }
     
     if (existingColumns.includes('email') && email !== undefined) {
-      updates.push(`email = $${valueIndex}`);
-      values.push(email);
-      valueIndex++;
+      updateData.email = email;
     }
     
     if (existingColumns.includes('phone') && phone !== undefined) {
-      updates.push(`phone = $${valueIndex}`);
-      values.push(phone);
-      valueIndex++;
+      updateData.phone = phone;
     }
     
     if (existingColumns.includes('timezone') && timezone !== undefined) {
-      updates.push(`timezone = $${valueIndex}`);
-      values.push(timezone);
-      valueIndex++;
+      updateData.timezone = timezone;
     }
     
     if (existingColumns.includes('currency') && currency !== undefined) {
-      updates.push(`currency = $${valueIndex}`);
-      values.push(currency);
-      valueIndex++;
+      updateData.currency = currency;
     }
     
-    if (existingColumns.includes('updated_at')) {
-      updates.push('updated_at = NOW()');
-    }
+    // Note: updated_at will be handled by the secure query builder
     
-    if (updates.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         success: false,
         error: 'No valid fields to update',
@@ -1154,28 +1142,19 @@ router.put('/profile', createValidationMiddleware(settingsValidationSchemas.prof
       });
     }
     
-    // Build the return fields based on existing columns
-    const returnFields = [];
-    if (existingColumns.includes('first_name')) returnFields.push('first_name as "firstName"');
-    if (existingColumns.includes('last_name')) returnFields.push('last_name as "lastName"');
-    if (existingColumns.includes('email')) returnFields.push('email');
-    if (existingColumns.includes('phone')) returnFields.push('phone');
-    if (existingColumns.includes('timezone')) returnFields.push('timezone');
-    if (existingColumns.includes('currency')) returnFields.push('currency');
+    // Build secure query using the query builder
+    const { query: updateQuery, params: queryParams } = queryBuilder.buildUpdate({
+      table: 'users',
+      set: updateData,
+      where: { id: userId }
+    });
     
-    const updateQuery = `
-      UPDATE users 
-      SET ${updates.join(', ')}
-      WHERE id = $1
-      RETURNING ${returnFields.length > 0 ? returnFields.join(', ') : 'id'}
-    `;
-    
-    console.log('🔍 Executing query:', updateQuery);
-    console.log('📊 Query values:', values);
+    console.log('🔒 Executing secure query (parameters hidden for security)');
+    console.log('📊 Query parameter count:', queryParams.length);
     
     let result;
     try {
-      result = await query(updateQuery, values, 10000); // 10 second timeout
+      result = await query(updateQuery, queryParams, 10000); // 10 second timeout
       console.log('✅ Query executed successfully, rows affected:', result.rowCount);
     } catch (queryError) {
       console.error('❌ Query execution failed:', queryError.message);

@@ -1,0 +1,192 @@
+config:
+  target: 'http://localhost:4173'
+  phases:
+    # Warm up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm up"
+    # Ramp up phase
+    - duration: 300
+      arrivalRate: 5
+      rampTo: 50
+      name: "Ramp up to 50 users"
+    # Sustained load phase
+    - duration: 600
+      arrivalRate: 50
+      name: "Sustained load"
+    # Peak load phase
+    - duration: 300
+      arrivalRate: 50
+      rampTo: 100
+      name: "Peak load"
+    # Cool down phase
+    - duration: 120
+      arrivalRate: 100
+      rampTo: 5
+      name: "Cool down"
+  payload:
+    path: "./test-data.csv"
+    fields:
+      - "username"
+      - "password"
+      - "portfolio_id"
+  defaults:
+    headers:
+      User-Agent: "Artillery Load Test"
+      Accept: "application/json"
+      Content-Type: "application/json"
+  
+scenarios:
+  - name: "Health Check Flow"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/health"
+          capture:
+            - json: "$.status"
+              as: "health_status"
+      - think: 2
+      
+  - name: "User Authentication Flow"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "auth_token"
+      - think: 5
+      - get:
+          url: "/api/auth/validate"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+      - think: 2
+      
+  - name: "Portfolio Management Flow"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "auth_token"
+      - think: 2
+      - get:
+          url: "/api/portfolio"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          capture:
+            - json: "$[0].id"
+              as: "portfolio_id"
+      - think: 3
+      - get:
+          url: "/api/portfolio/{{ portfolio_id }}"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+      - think: 5
+      - put:
+          url: "/api/portfolio/{{ portfolio_id }}"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          json:
+            name: "Updated Portfolio {{ $randomString() }}"
+      - think: 2
+      
+  - name: "Market Data Flow"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/market-data/symbols"
+      - think: 2
+      - get:
+          url: "/api/market-data/quotes"
+          qs:
+            symbols: "AAPL,GOOGL,MSFT,AMZN,TSLA"
+      - think: 3
+      - get:
+          url: "/api/market-data/historical"
+          qs:
+            symbol: "AAPL"
+            period: "1d"
+      - think: 2
+      
+  - name: "Trading Signals Flow"
+    weight: 15
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "auth_token"
+      - think: 2
+      - get:
+          url: "/api/trading-signals"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+      - think: 3
+      - get:
+          url: "/api/social-sentiment"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+      - think: 2
+      
+  - name: "Settings Management Flow"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "auth_token"
+      - think: 2
+      - get:
+          url: "/api/settings"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+      - think: 3
+      - put:
+          url: "/api/settings"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          json:
+            theme: "dark"
+            notifications: true
+            autoRefresh: 30
+      - think: 2
+
+# Performance thresholds
+expect:
+  - statusCode: 200
+  - contentType: json
+  - hasProperty: status
+  - maxResponseTime: 2000
+
+# Metrics collection
+metrics:
+  - name: "response_time_p95"
+    unit: "ms"
+  - name: "response_time_p99"
+    unit: "ms"
+  - name: "error_rate"
+    unit: "percent"
+  - name: "requests_per_second"
+    unit: "rps"
+
+# Reporting
+reporting:
+  - type: "json"
+    output: "load-test-results.json"
+  - type: "html"
+    output: "load-test-report.html"

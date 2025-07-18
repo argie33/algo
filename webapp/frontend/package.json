@@ -11,9 +11,8 @@
     "@emotion/styled": "^11.14.1",
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
-    "@mui/icons-material": "^7.2.0",
-    "@mui/material": "^7.2.0",
-    "@mui/x-date-pickers": "^8.9.0",
+    "@mui/icons-material": "^5.15.14",
+    "@mui/material": "^5.15.14",
     "@tanstack/react-query": "^4.35.3",
     "aws-amplify": "^6.15.1",
     "axios": "^1.3.4",
@@ -27,10 +26,10 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
     "recharts": "^2.15.4",
-    "use-sync-external-store": "1.2.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.1",
     "@tailwindcss/forms": "^0.5.10",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
@@ -40,6 +39,7 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^1.1.0",
+    "artillery": "^2.0.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.55.0",
     "eslint-plugin-react": "^7.33.2",
@@ -68,6 +68,13 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:debug": "vitest run --config vitest.debug.config.js",
     "test:watch": "vitest",
+    "test:automated": "node -e \"import('./src/utils/automatedTestFramework.js').then(m => m.runAllTests().then(r => console.log('Automated tests completed:', r)))\"",
+    "test:react-hooks": "node -e \"import('./src/utils/automatedTestFramework.js').then(m => m.runReactHooksTests().then(r => console.log('React hooks tests completed:', r)))\"",
+    "test:portfolio-math": "node -e \"import('./src/utils/automatedTestFramework.js').then(m => m.runUnitTests().then(r => console.log('Portfolio math tests completed:', r)))\"",
+    "test:api-integration": "node -e \"import('./src/utils/automatedTestFramework.js').then(m => m.runIntegrationTests().then(r => console.log('API integration tests completed:', r)))\"",
+    "test:load": "artillery run src/tests/performance/load-test.yml",
+    "test:ci": "npm run test:unit && npm run test:integration && npm run test:performance && npm run test:security && npm run test:e2e",
+    "test:headless": "npm run test:automated && npm run test:e2e",
     "setup-dev": "node scripts/setup-dev.js",
     "setup-prod": "node scripts/setup-prod.js",
     "config": "node setup-api-config.js",
@@ -86,8 +93,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "overrides": {
-    "use-sync-external-store": "1.2.0"
   }
 }

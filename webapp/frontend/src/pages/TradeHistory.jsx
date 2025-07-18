@@ -66,9 +66,7 @@ import {
   Schedule as ScheduleIcon,
   Build as BuildIcon
 } from '@mui/icons-material';
-import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+// Removed MUI DatePicker imports - using standard HTML date inputs instead
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 
 const TradeHistory = () => {
@@ -834,20 +832,20 @@ const TradeHistory = () => {
             </Card>
           )}
           
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <MuiDatePicker
-              label="Start Date"
-              value={filters.startDate}
-              onChange={(date) => setFilters(prev => ({ ...prev, startDate: date }))}
-              renderInput={(params) => <TextField {...params} />}
-            />
-            <MuiDatePicker
-              label="End Date"
-              value={filters.endDate}
-              onChange={(date) => setFilters(prev => ({ ...prev, endDate: date }))}
-              renderInput={(params) => <TextField {...params} />}
-            />
-          </LocalizationProvider>
+          <TextField
+            label="Start Date"
+            type="date"
+            value={filters.startDate ? filters.startDate.toISOString().split('T')[0] : ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value ? new Date(e.target.value) : null }))}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            value={filters.endDate ? filters.endDate.toISOString().split('T')[0] : ''}
+            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value ? new Date(e.target.value) : null }))}
+            InputLabelProps={{ shrink: true }}
+          />
         </Stack>
       </DialogContent>
       <DialogActions>

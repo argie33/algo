@@ -151,8 +151,9 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
-                execute_values(cur, sql, rows)
+                # Use secure SQL builder to prevent injection
+                from secure_sql_utils import secure_execute_values
+                secure_execute_values(cur, table_name, COL_LIST, rows)
                 conn.commit()
                 inserted += len(rows)
                 logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")

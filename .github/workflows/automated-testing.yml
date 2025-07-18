@@ -1,0 +1,487 @@
+name: Automated Testing Suite
+
+on:
+  push:
+    branches: [ main, develop, initialbuild ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run automated tests every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - performance
+          - security
+          - react-hooks
+
+jobs:
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'unit' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Run unit tests
+      run: |
+        cd webapp/frontend
+        npm run test:unit
+        
+    - name: Generate coverage report
+      run: |
+        cd webapp/frontend
+        npm run test:coverage
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./webapp/frontend/coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: unit-test-results
+        path: |
+          webapp/frontend/test-results/
+          webapp/frontend/coverage/
+          
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'integration' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Setup test database
+      run: |
+        cd webapp/lambda
+        npm install
+        POSTGRES_HOST=localhost POSTGRES_PORT=5432 POSTGRES_DB=testdb POSTGRES_USER=testuser POSTGRES_PASSWORD=testpass node test-db-setup.js
+        
+    - name: Run integration tests
+      run: |
+        cd webapp/frontend
+        npm run test:integration
+      env:
+        API_BASE_URL: http://localhost:3000
+        TEST_DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: integration-test-results
+        path: webapp/frontend/test-results/
+        
+  # Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'performance' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Build application
+      run: |
+        cd webapp/frontend
+        npm run build
+        
+    - name: Install Artillery
+      run: npm install -g artillery@latest
+      
+    - name: Run performance tests
+      run: |
+        cd webapp/frontend
+        npm run test:performance
+        
+    - name: Run load tests
+      run: |
+        cd webapp/frontend
+        artillery run src/tests/performance/load-test.yml --output load-test-results.json
+        
+    - name: Generate performance report
+      run: |
+        cd webapp/frontend
+        artillery report load-test-results.json --output performance-report.html
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-test-results
+        path: |
+          webapp/frontend/load-test-results.json
+          webapp/frontend/performance-report.html
+          
+  # Security Tests
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'security' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Run security audit
+      run: |
+        cd webapp/frontend
+        npm audit --audit-level=moderate
+        
+    - name: Run security tests
+      run: |
+        cd webapp/frontend
+        npm run test:security
+        
+    - name: Install OWASP ZAP
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget
+        wget https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2.14.0_Linux.tar.gz
+        tar -xzf ZAP_2.14.0_Linux.tar.gz
+        
+    - name: Build and start application
+      run: |
+        cd webapp/frontend
+        npm run build
+        npm run preview &
+        sleep 30
+        
+    - name: Run OWASP ZAP security scan
+      run: |
+        cd ZAP_2.14.0
+        ./zap.sh -cmd -quickurl http://localhost:4173 -quickprogress -quickout zap-report.html
+        
+    - name: Upload security results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-test-results
+        path: |
+          webapp/frontend/test-results/
+          ZAP_2.14.0/zap-report.html
+          
+  # React Hooks Tests
+  react-hooks-tests:
+    name: React Hooks Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'react-hooks' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Run React hooks diagnostics
+      run: |
+        cd webapp/frontend
+        npm run debug:react
+        
+    - name: Run React hooks tests
+      run: |
+        cd webapp/frontend
+        npm run test:unit -- --testNamePattern="React Hooks"
+        
+    - name: Generate hooks diagnostic report
+      run: |
+        cd webapp/frontend
+        node -e "
+          const { runReactHooksDiagnostics } = require('./src/utils/reactHooksDebugger.js');
+          runReactHooksDiagnostics().then(report => {
+            console.log('React Hooks Diagnostic Report:', JSON.stringify(report, null, 2));
+          });
+        "
+        
+    - name: Upload hooks test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: react-hooks-test-results
+        path: webapp/frontend/test-results/
+        
+  # E2E Tests with Playwright
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: webapp/frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd webapp/frontend
+        npm ci
+        
+    - name: Install Playwright
+      run: |
+        cd webapp/frontend
+        npx playwright install --with-deps chromium
+        
+    - name: Build application
+      run: |
+        cd webapp/frontend
+        npm run build
+        
+    - name: Start application
+      run: |
+        cd webapp/frontend
+        npm run preview &
+        sleep 30
+        
+    - name: Run E2E tests
+      run: |
+        cd webapp/frontend
+        npm run test:e2e
+        
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results
+        path: |
+          webapp/frontend/test-results/
+          webapp/frontend/playwright-report/
+          
+  # Comprehensive Test Summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, performance-tests, security-tests, react-hooks-tests, e2e-tests]
+    if: always()
+    
+    steps:
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Generate comprehensive test report
+      run: |
+        echo "# Comprehensive Test Report" > test-summary.md
+        echo "" >> test-summary.md
+        echo "## Test Results Overview" >> test-summary.md
+        echo "" >> test-summary.md
+        
+        # Unit Tests
+        if [ -d "unit-test-results" ]; then
+          echo "✅ Unit Tests: Completed" >> test-summary.md
+        else
+          echo "❌ Unit Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        # Integration Tests
+        if [ -d "integration-test-results" ]; then
+          echo "✅ Integration Tests: Completed" >> test-summary.md
+        else
+          echo "❌ Integration Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        # Performance Tests
+        if [ -d "performance-test-results" ]; then
+          echo "✅ Performance Tests: Completed" >> test-summary.md
+        else
+          echo "❌ Performance Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        # Security Tests
+        if [ -d "security-test-results" ]; then
+          echo "✅ Security Tests: Completed" >> test-summary.md
+        else
+          echo "❌ Security Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        # React Hooks Tests
+        if [ -d "react-hooks-test-results" ]; then
+          echo "✅ React Hooks Tests: Completed" >> test-summary.md
+        else
+          echo "❌ React Hooks Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        # E2E Tests
+        if [ -d "e2e-test-results" ]; then
+          echo "✅ E2E Tests: Completed" >> test-summary.md
+        else
+          echo "❌ E2E Tests: Failed or Skipped" >> test-summary.md
+        fi
+        
+        echo "" >> test-summary.md
+        echo "## Test Artifacts" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "- Unit Test Results: $(ls -la unit-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        echo "- Integration Test Results: $(ls -la integration-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        echo "- Performance Test Results: $(ls -la performance-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        echo "- Security Test Results: $(ls -la security-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        echo "- React Hooks Test Results: $(ls -la react-hooks-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        echo "- E2E Test Results: $(ls -la e2e-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
+        
+        cat test-summary.md
+        
+    - name: Upload test summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: test-summary.md
+        
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('test-summary.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });
+          
+  # Quality Gates
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, performance-tests, security-tests]
+    if: always()
+    
+    steps:
+    - name: Evaluate quality gates
+      run: |
+        echo "Evaluating quality gates..."
+        
+        # Check if critical tests passed
+        if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+          echo "❌ Unit tests failed - blocking deployment"
+          exit 1
+        fi
+        
+        if [ "${{ needs.integration-tests.result }}" != "success" ]; then
+          echo "❌ Integration tests failed - blocking deployment"
+          exit 1
+        fi
+        
+        if [ "${{ needs.security-tests.result }}" != "success" ]; then
+          echo "❌ Security tests failed - blocking deployment"
+          exit 1
+        fi
+        
+        # Performance tests are warning-only
+        if [ "${{ needs.performance-tests.result }}" != "success" ]; then
+          echo "⚠️ Performance tests failed - deployment allowed but needs attention"
+        fi
+        
+        echo "✅ All quality gates passed"
+        
+    - name: Update deployment status
+      if: success()
+      run: |
+        echo "✅ Quality gates passed - deployment approved"
+        echo "DEPLOYMENT_APPROVED=true" >> $GITHUB_ENV
+        
+    - name: Block deployment on quality gate failure
+      if: failure()
+      run: |
+        echo "❌ Quality gates failed - deployment blocked"
+        echo "DEPLOYMENT_APPROVED=false" >> $GITHUB_ENV
+        exit 1

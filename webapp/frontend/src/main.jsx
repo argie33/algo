@@ -4,6 +4,7 @@ import asyncErrorHandler from './utils/asyncErrorHandler.js'
 import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
 import performanceMonitor from './utils/performanceMonitor.js'
 import debugInit from './utils/debugInit.js'
+import automatedTestFramework from './utils/automatedTestFramework.js'
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -36,7 +37,23 @@ import { getSystemHealth } from './utils/asyncErrorHandler.js';
 console.group('🔍 System Status');
 console.log('Browser compatibility:', getCompatibilityReport());
 console.log('Error handling health:', getSystemHealth());
+console.log('🤖 Automated testing framework:', automatedTestFramework ? 'ACTIVE' : 'INACTIVE');
 console.groupEnd();
+
+// Initialize automated testing in development
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  console.log('🧪 Development environment detected - automated testing enabled');
+  
+  // Run initial automated tests after app loads
+  setTimeout(() => {
+    console.log('🚀 Running initial automated tests...');
+    automatedTestFramework.runReactHooksTests().then(results => {
+      console.log('✅ Initial React hooks tests completed:', results);
+    }).catch(error => {
+      console.error('❌ Initial React hooks tests failed:', error);
+    });
+  }, 2000);
+}
 
 // Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'

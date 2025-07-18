@@ -271,17 +271,35 @@ router.get('/', async (req, res) => {
       const batch = tablesToCheck.slice(i, i + batchSize);
       const batchPromises = batch.map(tableName => {
         return Promise.race([
-          query(`SELECT COUNT(*) as count FROM "${tableName}" LIMIT 1`)
-            .then(result => ({
+          (async () => {
+            // Validate table name against whitelist for security
+            const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+            const queryBuilder = new SecureQueryBuilder();
+            
+            if (!queryBuilder.allowedTables.has(tableName.toLowerCase())) {
+              throw new Error('Unauthorized table access');
+            }
+            
+            // Use secure query builder
+            const { query: countQuery, params } = queryBuilder.buildSelect({
+              table: tableName,
+              columns: ['COUNT(*) as count'],
+              limit: 1
+            });
+            
+            const result = await query(countQuery, params);
+            return {
               table: tableName,
               count: parseInt(result.rows[0].count),
               status: 'success'
-            }))
+            };
+          })()
             .catch(err => ({
               table: tableName,
               count: null,
               status: 'error',
-              error: err.message.includes('does not exist') ? 'Table does not exist' : err.message
+              error: err.message.includes('does not exist') ? 'Table does not exist' : 
+                     err.message.includes('Unauthorized') ? 'Unauthorized table access' : err.message
             })),
           new Promise((resolve) => setTimeout(() => resolve({
             table: tableName,
@@ -422,8 +440,22 @@ router.get('/database', async (req, res) => {
           const startTime = Date.now();
           try {
             // Fast existence check only
+            // Validate table name for security
+            const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+            const queryBuilder = new SecureQueryBuilder();
+            
+            if (!queryBuilder.allowedTables.has(table.toLowerCase())) {
+              throw new Error('Unauthorized table access');
+            }
+            
+            const { query: selectQuery, params } = queryBuilder.buildSelect({
+              table: table,
+              columns: ['1'],
+              limit: 1
+            });
+            
             const result = await Promise.race([
-              query(`SELECT 1 FROM "${table}" LIMIT 1`),
+              query(selectQuery, params),
               new Promise((_, reject) => setTimeout(() => reject(new Error('Table timeout')), 1000))
             ]);
             
@@ -674,16 +706,37 @@ router.get('/database/diagnostics', async (req, res) => {
       let tablesWithData = 0;
       for (const table of tables) {
         try {
-          const count = await query(`SELECT COUNT(*) as count FROM ${table.table_name}`);
+          // Validate table name for security
+          const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+          const queryBuilder = new SecureQueryBuilder();
+          
+          if (!queryBuilder.allowedTables.has(table.table_name.toLowerCase())) {
+            console.warn(`🚨 Unauthorized table access: ${table.table_name}`);
+            continue;
+          }
+          
+          const { query: countQuery, params: countParams } = queryBuilder.buildSelect({
+            table: table.table_name,
+            columns: ['COUNT(*) as count']
+          });
+          const count = await query(countQuery, countParams);
           const recordCount = parseInt(count.rows[0].count);
           table.record_count = recordCount;
           // Try to get last updated timestamp
           let lastUpdate = null;
           try {
-            const tsCol = await query(`SELECT column_name FROM information_schema.columns WHERE table_name = '${table.table_name}' AND column_name IN ('fetched_at','updated_at','created_at','date','period_end') LIMIT 1`);
+            const tsCol = await query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND column_name IN ('fetched_at','updated_at','created_at','date','period_end') LIMIT 1`, [table.table_name]);
             if (tsCol.rows.length > 0) {
               const col = tsCol.rows[0].column_name;
-              const tsRes = await query(`SELECT MAX(${col}) as last_update FROM ${table.table_name}`);
+              // Validate column name
+              if (!['fetched_at','updated_at','created_at','date','period_end'].includes(col)) {
+                continue;
+              }
+              const { query: maxQuery, params: maxParams } = queryBuilder.buildSelect({
+                table: table.table_name,
+                columns: [`MAX(${col}) as last_update`]
+              });
+              const tsRes = await query(maxQuery, maxParams);
               lastUpdate = tsRes.rows[0].last_update;
             }
           } catch (e) { /* ignore */ }
@@ -964,7 +1017,23 @@ router.post('/update-status', async (req, res) => {
           } else {
             try {
               // Get record count
-              const recordResult = await query(`SELECT COUNT(*) as count FROM "${tableName}"`);
+              // Validate table name for security
+              const SecureQueryBuilder = require('../utils/secureQueryBuilder');
+              const queryBuilder = new SecureQueryBuilder();
+              
+              if (!queryBuilder.allowedTables.has(tableName.toLowerCase())) {
+                console.warn(`🚨 Unauthorized table access: ${tableName}`);
+                tableStatus = 'unauthorized';
+                summary.missing_tables++;
+                tableData[tableName] = { status: tableStatus, records: 0 };
+                continue;
+              }
+              
+              const { query: recordQuery, params: recordParams } = queryBuilder.buildSelect({
+                table: tableName,
+                columns: ['COUNT(*) as count']
+              });
+              const recordResult = await query(recordQuery, recordParams);
               recordCount = parseInt(recordResult.rows[0].count);
               summary.total_records += recordCount;
 
@@ -984,7 +1053,15 @@ router.post('/update-status', async (req, res) => {
                     `, [tableName, col]);
 
                     if (colCheck.rowCount > 0) {
-                      const tsResult = await query(`SELECT MAX("${col}") as last_update FROM "${tableName}"`);
+                      // Validate column name
+                      if (!['fetched_at','updated_at','created_at','date','period_end'].includes(col)) {
+                        continue;
+                      }
+                      const { query: tsQuery, params: tsParams } = queryBuilder.buildSelect({
+                        table: tableName,
+                        columns: [`MAX(${col}) as last_update`]
+                      });
+                      const tsResult = await query(tsQuery, tsParams);
                       if (tsResult.rows[0].last_update) {
                         lastUpdated = tsResult.rows[0].last_update;
                         foundTimestamp = true;
