@@ -164,64 +164,64 @@ const StockChart = ({
 
   if (error) {
     return (
-      <div className="bg-white shadow-md rounded-lg" sx={{ height: height }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
+      <Card sx={{ height: height }}>
+        <CardContent>
+          <Alert severity="error">
             {String(error)}
-          </div>
-        </div>
-      </div>
+          </Alert>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg" sx={{ height: isFullscreen ? '100vh' : height }}>
-      <div className="bg-white shadow-md rounded-lg"Content sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card sx={{ height: isFullscreen ? '100vh' : height }}>
+      <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Controls */}
         {showControls && (
-          <div  sx={{ mb: 2 }}>
-            <div className="grid" container spacing={2} alignItems="center">
+          <Box sx={{ mb: 2 }}>
+            <Grid container spacing={2} alignItems="center">
               {/* Timeframe Buttons */}
-              <div className="grid" item>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group size="small" variant="outlined">
+              <Grid item>
+                <ButtonGroup size="small" variant="outlined">
                   {timeframes.map((tf) => (
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <Button
                       key={tf.value}
                       variant={timeframe === tf.value ? 'contained' : 'outlined'}
                       onClick={() => handleTimeframeChange(tf.value)}
                     >
                       {tf.label}
-                    </button>
+                    </Button>
                   ))}
                 </ButtonGroup>
-              </div>
+              </Grid>
 
               {/* Chart Type */}
-              <div className="grid" item>
-                <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Chart Type</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Grid item>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Chart Type</InputLabel>
+                  <Select
                     value={chartType}
                     label="Chart Type"
                     onChange={handleChartTypeChange}
                   >
                     {chartTypes.map((type) => (
-                      <option  key={type.value} value={type.value}>
-                        <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                      <MenuItem key={type.value} value={type.value}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           {type.icon}
-                          <div  sx={{ ml: 1 }}>{type.label}</div>
-                        </div>
-                      </option>
+                          <Typography sx={{ ml: 1 }}>{type.label}</Typography>
+                        </Box>
+                      </MenuItem>
                     ))}
-                  </select>
-                </div>
-              </div>
+                  </Select>
+                </FormControl>
+              </Grid>
 
               {/* Indicators */}
-              <div className="grid" item>
-                <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              <Grid item>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {availableIndicators.slice(0, 5).map((indicator) => (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    <Chip
                       key={indicator}
                       label={indicator}
                       size="small"
@@ -230,44 +230,44 @@ const StockChart = ({
                       color={indicators.includes(indicator) ? 'primary' : 'default'}
                     />
                   ))}
-                </div>
-              </div>
+                </Box>
+              </Grid>
 
               {/* Action Buttons */}
-              <div className="grid" item sx={{ ml: 'auto' }}>
-                <div  sx={{ display: 'flex', gap: 1 }}>
-                  <div  title="Refresh">
-                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => onRefresh(symbol, timeframe)}>
+              <Grid item sx={{ ml: 'auto' }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title="Refresh">
+                    <IconButton size="small" onClick={() => onRefresh(symbol, timeframe)}>
                       <Refresh />
-                    </button>
-                  </div>
-                  <div  title="Download">
-                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleDownload}>
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Download">
+                    <IconButton size="small" onClick={handleDownload}>
                       <Download />
-                    </button>
-                  </div>
-                  <div  title="Fullscreen">
-                    <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleFullscreen}>
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Fullscreen">
+                    <IconButton size="small" onClick={handleFullscreen}>
                       <Fullscreen />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
         )}
 
         {/* Chart */}
-        <div  sx={{ flexGrow: 1, position: 'relative' }}>
+        <Box sx={{ flexGrow: 1, position: 'relative' }}>
           {isLoading ? (
-            <div  sx={{ 
+            <Box sx={{ 
               display: 'flex', 
               justifyContent: 'center', 
               alignItems: 'center', 
               height: '100%' 
             }}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-            </div>
+              <CircularProgress />
+            </Box>
           ) : chartData ? (
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'area' ? (
@@ -344,42 +344,42 @@ const StockChart = ({
               )}
             </ResponsiveContainer>
           ) : (
-            <div  sx={{ 
+            <Box sx={{ 
               display: 'flex', 
               justifyContent: 'center', 
               alignItems: 'center', 
               height: '100%' 
             }}>
-              <div  color="text.secondary">
+              <Typography color="text.secondary">
                 No data available for {symbol}
-              </div>
-            </div>
+              </Typography>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* Real-time info */}
         {realTimeData && (
-          <div  sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div  variant="body2" color="text.secondary">
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
               Real-time data
-            </div>
-            <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <div  variant="h6">
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6">
                 ${parseFloat(realTimeData.price).toFixed(2)}
-              </div>
+              </Typography>
               {realTimeData.change && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                <Chip
                   icon={realTimeData.change >= 0 ? <TrendingUp /> : <TrendingDown />}
                   label={`${realTimeData.change >= 0 ? '+' : ''}${realTimeData.change.toFixed(2)} (${realTimeData.changePercent?.toFixed(2)}%)`}
                   color={realTimeData.change >= 0 ? 'success' : 'error'}
                   size="small"
                 />
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

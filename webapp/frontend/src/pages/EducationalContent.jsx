@@ -79,7 +79,7 @@ import { formatDistanceToNow } from 'date-fns';
 function TabPanel({ children, value, index }) {
   return (
     <div hidden={value !== index}>
-      {value === index && <div  sx={{ py: 2 }}>{children}</div>}
+      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
     </div>
   );
 }
@@ -392,63 +392,63 @@ const EducationalContent = () => {
   });
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" fontWeight={700} gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
           Educational Content
-        </div>
-        <div  variant="body1" color="text.secondary">
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
           Learn about investing and market analysis with our comprehensive educational resources
-        </div>
-      </div>
+        </Typography>
+      </Box>
 
       {/* Quick Stats */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <LibraryBooks sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-              <div  variant="h4" fontWeight={600}>250+</div>
-              <div  variant="body2" color="text.secondary">Articles & Guides</div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" fontWeight={600}>250+</Typography>
+              <Typography variant="body2" color="text.secondary">Articles & Guides</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <VideoLibrary sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-              <div  variant="h4" fontWeight={600}>150+</div>
-              <div  variant="body2" color="text.secondary">Video Lessons</div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" fontWeight={600}>150+</Typography>
+              <Typography variant="body2" color="text.secondary">Video Lessons</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <School sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-              <div  variant="h4" fontWeight={600}>25+</div>
-              <div  variant="body2" color="text.secondary">Complete Courses</div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" fontWeight={600}>25+</Typography>
+              <Typography variant="body2" color="text.secondary">Complete Courses</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <Quiz sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-              <div  variant="h4" fontWeight={600}>50+</div>
-              <div  variant="body2" color="text.secondary">Practice Quizzes</div>
-            </div>
-          </div>
-        </div>
-      </div>
+              <Typography variant="h4" fontWeight={600}>50+</Typography>
+              <Typography variant="body2" color="text.secondary">Practice Quizzes</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Filters */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} md={3}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={3}>
+              <TextField
                 fullWidth
                 size="small"
                 placeholder="Search content..."
@@ -462,88 +462,88 @@ const EducationalContent = () => {
                   )
                 }}
               />
-            </div>
-            <div className="grid" item xs={12} md={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Difficulty</InputLabel>
+                <Select
                   value={difficulty}
                   label="Difficulty"
                   onChange={(e) => setDifficulty(e.target.value)}
                 >
-                  <option  value="all">All Levels</option>
-                  <option  value="beginner">Beginner</option>
-                  <option  value="intermediate">Intermediate</option>
-                  <option  value="advanced">Advanced</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} md={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="all">All Levels</MenuItem>
+                  <MenuItem value="beginner">Beginner</MenuItem>
+                  <MenuItem value="intermediate">Intermediate</MenuItem>
+                  <MenuItem value="advanced">Advanced</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Category</InputLabel>
+                <Select
                   value={category}
                   label="Category"
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  <option  value="all">All Categories</option>
-                  <option  value="fundamental-analysis">Fundamental Analysis</option>
-                  <option  value="technical-analysis">Technical Analysis</option>
-                  <option  value="portfolio-management">Portfolio Management</option>
-                  <option  value="derivatives">Derivatives</option>
-                  <option  value="economics">Economics</option>
-                  <option  value="risk-management">Risk Management</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} md={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="all">All Categories</MenuItem>
+                  <MenuItem value="fundamental-analysis">Fundamental Analysis</MenuItem>
+                  <MenuItem value="technical-analysis">Technical Analysis</MenuItem>
+                  <MenuItem value="portfolio-management">Portfolio Management</MenuItem>
+                  <MenuItem value="derivatives">Derivatives</MenuItem>
+                  <MenuItem value="economics">Economics</MenuItem>
+                  <MenuItem value="risk-management">Risk Management</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Content Type</InputLabel>
+                <Select
                   value={contentType}
                   label="Content Type"
                   onChange={(e) => setContentType(e.target.value)}
                 >
-                  <option  value="all">All Types</option>
-                  <option  value="article">Articles</option>
-                  <option  value="video">Videos</option>
-                  <option  value="course">Courses</option>
-                  <option  value="quiz">Quizzes</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} md={3}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="all">All Types</MenuItem>
+                  <MenuItem value="article">Articles</MenuItem>
+                  <MenuItem value="video">Videos</MenuItem>
+                  <MenuItem value="course">Courses</MenuItem>
+                  <MenuItem value="quiz">Quizzes</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Button
                 variant="outlined"
                 startIcon={<Refresh />}
                 onClick={() => { loadEducationalContent(); loadCourses(); loadQuizzes(); }}
                 fullWidth
               >
                 Refresh Content
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* Main Content Tabs */}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content sx={{ pb: 0 }}>
-          <div className="border-b border-gray-200" value={activeTab} onChange={(e, val) => setActiveTab(val)}>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="All Content" icon={<LibraryBooks />} iconPosition="start" />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Courses" icon={<School />} iconPosition="start" />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Quizzes" icon={<Quiz />} iconPosition="start" />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Learning Paths" icon={<Timeline />} iconPosition="start" />
-          </div>
-        </div>
+      <Card>
+        <CardContent sx={{ pb: 0 }}>
+          <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)}>
+            <Tab label="All Content" icon={<LibraryBooks />} iconPosition="start" />
+            <Tab label="Courses" icon={<School />} iconPosition="start" />
+            <Tab label="Quizzes" icon={<Quiz />} iconPosition="start" />
+            <Tab label="Learning Paths" icon={<Timeline />} iconPosition="start" />
+          </Tabs>
+        </CardContent>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
-          <div  sx={{ p: 3 }}>
-            <div className="grid" container spacing={3}>
+        <TabPanel value={activeTab} index={0}>
+          <Box sx={{ p: 3 }}>
+            <Grid container spacing={3}>
               {filteredContent.map((item) => (
-                <div className="grid" item xs={12} md={6} lg={4} key={item.id}>
-                  <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <div className="bg-white shadow-md rounded-lg"Media
+                <Grid item xs={12} md={6} lg={4} key={item.id}>
+                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <CardMedia
                       component="div"
                       sx={{
                         height: 140,
@@ -555,13 +555,13 @@ const EducationalContent = () => {
                     >
                       {getTypeIcon(item.type)}
                     </CardMedia>
-                    <div className="bg-white shadow-md rounded-lg"Content sx={{ flexGrow: 1 }}>
-                      <div className="flex flex-col space-y-2" spacing={1}>
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div  variant="h6" component="h3" gutterBottom>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Stack spacing={1}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Typography variant="h6" component="h3" gutterBottom>
                             {item.title}
-                          </div>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          </Typography>
+                          <Chip
                             label={item.difficulty}
                             size="small"
                             sx={{
@@ -570,76 +570,76 @@ const EducationalContent = () => {
                               textTransform: 'capitalize'
                             }}
                           />
-                        </div>
-                        <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                           {item.description}
-                        </div>
-                        <div className="flex flex-col space-y-2" direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                           <AccessTime sx={{ fontSize: 16 }} />
-                          <div  variant="caption">{item.duration} min</div>
+                          <Typography variant="caption">{item.duration} min</Typography>
                           <Person sx={{ fontSize: 16 }} />
-                          <div  variant="caption">{item.author}</div>
-                        </div>
-                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <Typography variant="caption">{item.author}</Typography>
+                        </Stack>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                           <Rating value={item.rating} precision={0.1} size="small" readOnly />
-                          <div  variant="caption">({item.rating})</div>
-                          <div  variant="caption">• {item.views.toLocaleString()} views</div>
-                        </div>
-                        <div className="flex flex-col space-y-2" direction="row" spacing={1} flexWrap="wrap">
+                          <Typography variant="caption">({item.rating})</Typography>
+                          <Typography variant="caption">• {item.views.toLocaleString()} views</Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
                           {item.tags.slice(0, 3).map(tag => (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" key={tag} label={tag} size="small" variant="outlined" />
+                            <Chip key={tag} label={tag} size="small" variant="outlined" />
                           ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div  sx={{ p: 2, pt: 0 }}>
-                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" fullWidth startIcon={<PlayArrow />}>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                    <Box sx={{ p: 2, pt: 0 }}>
+                      <Button variant="contained" fullWidth startIcon={<PlayArrow />}>
                         Start Learning
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                      </Button>
+                    </Box>
+                  </Card>
+                </Grid>
               ))}
-            </div>
-          </div>
-        </div>
+            </Grid>
+          </Box>
+        </TabPanel>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
-          <div  sx={{ p: 3 }}>
-            <div className="grid" container spacing={3}>
+        <TabPanel value={activeTab} index={1}>
+          <Box sx={{ p: 3 }}>
+            <Grid container spacing={3}>
               {courses.map((course) => (
-                <div className="grid" item xs={12} md={6} key={course.id}>
-                  <div className="bg-white shadow-md rounded-lg">
-                    <div className="bg-white shadow-md rounded-lg"Content>
-                      <div  variant="h6" gutterBottom>{course.title}</div>
-                      <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <Grid item xs={12} md={6} key={course.id}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>{course.title}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         {course.description}
-                      </div>
-                      <div className="grid" container spacing={2} sx={{ mb: 2 }}>
-                        <div className="grid" item xs={6}>
-                          <div  variant="caption" color="text.secondary">Lessons</div>
-                          <div  variant="body2" fontWeight={600}>{course.lessons}</div>
-                        </div>
-                        <div className="grid" item xs={6}>
-                          <div  variant="caption" color="text.secondary">Duration</div>
-                          <div  variant="body2" fontWeight={600}>{Math.floor(course.duration / 60)}h {course.duration % 60}m</div>
-                        </div>
-                        <div className="grid" item xs={6}>
-                          <div  variant="caption" color="text.secondary">Students</div>
-                          <div  variant="body2" fontWeight={600}>{course.students.toLocaleString()}</div>
-                        </div>
-                        <div className="grid" item xs={6}>
-                          <div  variant="caption" color="text.secondary">Rating</div>
-                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      </Typography>
+                      <Grid container spacing={2} sx={{ mb: 2 }}>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Lessons</Typography>
+                          <Typography variant="body2" fontWeight={600}>{course.lessons}</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Duration</Typography>
+                          <Typography variant="body2" fontWeight={600}>{Math.floor(course.duration / 60)}h {course.duration % 60}m</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Students</Typography>
+                          <Typography variant="body2" fontWeight={600}>{course.students.toLocaleString()}</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="text.secondary">Rating</Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Rating value={course.rating} precision={0.1} size="small" readOnly />
-                            <div  variant="body2">({course.rating})</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div  variant="caption" color="text.secondary">Instructor: {course.instructor}</div>
+                            <Typography variant="body2">({course.rating})</Typography>
+                          </Box>
+                        </Grid>
+                      </Grid>
+                      <Typography variant="caption" color="text.secondary">Instructor: {course.instructor}</Typography>
                       <Accordion sx={{ mt: 2 }}>
                         <AccordionSummary expandIcon={<ExpandMore />}>
-                          <div  variant="body2">Course Modules</div>
+                          <Typography variant="body2">Course Modules</Typography>
                         </AccordionSummary>
                         <AccordionDetails>
                           <List dense>
@@ -654,54 +654,54 @@ const EducationalContent = () => {
                           </List>
                         </AccordionDetails>
                       </Accordion>
-                      <div  sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Chip
                           label={course.price}
                           color={course.price === 'Free' ? 'success' : 'primary'}
                           variant={course.price === 'Free' ? 'filled' : 'outlined'}
                         />
-                        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" size="small">
+                        <Button variant="contained" size="small">
                           {course.price === 'Free' ? 'Start Free' : 'Enroll Now'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
-          </div>
-        </div>
+            </Grid>
+          </Box>
+        </TabPanel>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
-          <div  sx={{ p: 3 }}>
-            <div className="grid" container spacing={3}>
+        <TabPanel value={activeTab} index={2}>
+          <Box sx={{ p: 3 }}>
+            <Grid container spacing={3}>
               {quizzes.map((quiz) => (
-                <div className="grid" item xs={12} md={4} key={quiz.id}>
-                  <div className="bg-white shadow-md rounded-lg">
-                    <div className="bg-white shadow-md rounded-lg"Content>
-                      <div  variant="h6" gutterBottom>{quiz.title}</div>
-                      <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <Grid item xs={12} md={4} key={quiz.id}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>{quiz.title}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         {quiz.description}
-                      </div>
-                      <div className="flex flex-col space-y-2" spacing={1} sx={{ mb: 2 }}>
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <div  variant="caption">Questions:</div>
-                          <div  variant="caption" fontWeight={600}>{quiz.questions}</div>
-                        </div>
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <div  variant="caption">Duration:</div>
-                          <div  variant="caption" fontWeight={600}>{quiz.duration} min</div>
-                        </div>
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <div  variant="caption">Attempts:</div>
-                          <div  variant="caption" fontWeight={600}>{quiz.attempts.toLocaleString()}</div>
-                        </div>
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <div  variant="caption">Avg Score:</div>
-                          <div  variant="caption" fontWeight={600}>{quiz.averageScore}%</div>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      </Typography>
+                      <Stack spacing={1} sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption">Questions:</Typography>
+                          <Typography variant="caption" fontWeight={600}>{quiz.questions}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption">Duration:</Typography>
+                          <Typography variant="caption" fontWeight={600}>{quiz.duration} min</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption">Attempts:</Typography>
+                          <Typography variant="caption" fontWeight={600}>{quiz.attempts.toLocaleString()}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption">Avg Score:</Typography>
+                          <Typography variant="caption" fontWeight={600}>{quiz.averageScore}%</Typography>
+                        </Box>
+                      </Stack>
+                      <Chip
                         label={quiz.difficulty}
                         size="small"
                         sx={{
@@ -711,28 +711,28 @@ const EducationalContent = () => {
                           mb: 2
                         }}
                       />
-                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" fullWidth startIcon={<Assignment />}>
+                      <Button variant="outlined" fullWidth startIcon={<Assignment />}>
                         Take Quiz
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
-          </div>
-        </div>
+            </Grid>
+          </Box>
+        </TabPanel>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={3}>
-          <div  sx={{ p: 3 }}>
-            <div  variant="h6" gutterBottom>Structured Learning Paths</div>
-            <div className="grid" container spacing={3}>
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>Beginner Investor Path</div>
-                    <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <TabPanel value={activeTab} index={3}>
+          <Box sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Structured Learning Paths</Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Beginner Investor Path</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Complete beginner's guide to stock market investing
-                    </div>
+                    </Typography>
                     <List dense>
                       <ListItem>
                         <ListItemIcon><School sx={{ fontSize: 16 }} /></ListItemIcon>
@@ -751,19 +751,19 @@ const EducationalContent = () => {
                         <ListItemText primary="Portfolio Construction Basics" secondary="2 hours" />
                       </ListItem>
                     </List>
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" fullWidth sx={{ mt: 2 }}>
+                    <Button variant="contained" fullWidth sx={{ mt: 2 }}>
                       Start Path
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>Advanced Trading Path</div>
-                    <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Advanced Trading Path</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Advanced strategies for experienced traders
-                    </div>
+                    </Typography>
                     <List dense>
                       <ListItem>
                         <ListItemIcon><Psychology sx={{ fontSize: 16 }} /></ListItemIcon>
@@ -782,17 +782,17 @@ const EducationalContent = () => {
                         <ListItemText primary="Algorithmic Trading Basics" secondary="3 hours" />
                       </ListItem>
                     </List>
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="contained" fullWidth sx={{ mt: 2 }}>
+                    <Button variant="contained" fullWidth sx={{ mt: 2 }}>
                       Start Path
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
+        </TabPanel>
+      </Card>
+    </Container>
   );
 };
 

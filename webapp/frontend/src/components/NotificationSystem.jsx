@@ -159,15 +159,15 @@ const NotificationSystem = () => {
 
   return (
     <>
-      <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleClick} sx={{ position: 'relative' }}>
-        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" badgeContent={unreadCount} color="error" max={99}>
+      <IconButton onClick={handleClick} sx={{ position: 'relative' }}>
+        <Badge badgeContent={unreadCount} color="error" max={99}>
           {unreadCount > 0 ? (
             <NotificationsActive color="primary" />
           ) : (
             <Notifications />
           )}
-        </span>
-      </button>
+        </Badge>
+      </IconButton>
 
       <Popover
         open={open}
@@ -191,20 +191,20 @@ const NotificationSystem = () => {
           }
         }}
       >
-        <div  sx={{ p: 2 }}>
-          <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <div  variant="h6">Notifications</div>
-            <div  sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">Notifications</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
               {unreadCount > 0 && (
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" onClick={markAllAsRead}>
+                <Button size="small" onClick={markAllAsRead}>
                   Mark all read
-                </button>
+                </Button>
               )}
-              <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleClose}>
+              <IconButton size="small" onClick={handleClose}>
                 <Close />
-              </button>
-            </div>
-          </div>
+              </IconButton>
+            </Box>
+          </Box>
 
           <List sx={{ maxHeight: 350, overflow: 'auto' }}>
             {notifications.length === 0 ? (
@@ -217,7 +217,7 @@ const NotificationSystem = () => {
             ) : (
               notifications.map((notification, index) => (
                 <Fade in={true} timeout={300 + index * 100} key={notification.id}>
-                  <div className="bg-white shadow-md rounded-lg"
+                  <Card
                     variant={notification.read ? 'outlined' : 'elevation'}
                     elevation={notification.read ? 0 : 1}
                     sx={{
@@ -232,17 +232,17 @@ const NotificationSystem = () => {
                     }}
                     onClick={() => !notification.read && markAsRead(notification.id)}
                   >
-                    <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                      <div  sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                        <div  sx={{ mt: 0.5 }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Box sx={{ mt: 0.5 }}>
                           {notification.icon}
-                        </div>
-                        <div  sx={{ flex: 1, minWidth: 0 }}>
-                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                            <div  variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                               {notification.title}
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            </Typography>
+                            <Chip
                               label={notification.priority}
                               size="small"
                               color={getPriorityColor(notification.priority)}
@@ -251,15 +251,15 @@ const NotificationSystem = () => {
                             {!notification.read && (
                               <CircleIcon sx={{ fontSize: 8, color: 'primary.main' }} />
                             )}
-                          </div>
-                          <div  variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                             {notification.message}
-                          </div>
-                          <div  variant="caption" color="text.secondary">
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
                             {formatTime(notification.time)}
-                          </div>
-                        </div>
-                        <button className="p-2 rounded-full hover:bg-gray-100"
+                          </Typography>
+                        </Box>
+                        <IconButton
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -268,23 +268,23 @@ const NotificationSystem = () => {
                           sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
                         >
                           <Delete fontSize="small" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                        </IconButton>
+                      </Box>
+                    </CardContent>
+                  </Card>
                 </Fade>
               ))
             )}
           </List>
 
           {notifications.length > 5 && (
-            <div  sx={{ pt: 1, textAlign: 'center' }}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" size="small" variant="outlined" fullWidth>
+            <Box sx={{ pt: 1, textAlign: 'center' }}>
+              <Button size="small" variant="outlined" fullWidth>
                 View All Notifications
-              </button>
-            </div>
+              </Button>
+            </Box>
           )}
-        </div>
+        </Box>
       </Popover>
     </>
   );

@@ -11,6 +11,7 @@ import {
   IconButton,
   Snackbar
 } from '@mui/material';
+import { Schedule, Warning, Security, Close } from '@mui/icons-material';
 import { fetchAuthSession } from '@aws-amplify/auth';
 
 // Session management configuration
@@ -310,114 +311,114 @@ function SessionManager({ children }) {
       {children}
       
       {/* Session Expiry Warning Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
+      <Dialog 
         open={showWarning} 
         onClose={() => {}} 
         maxWidth="sm" 
         fullWidth
         disableEscapeKeyDown
       >
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content sx={{ textAlign: 'center', py: 4 }}>
+        <DialogContent sx={{ textAlign: 'center', py: 4 }}>
           <Warning sx={{ fontSize: 64, color: 'warning.main', mb: 2 }} />
-          <div  variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom>
             Session Expiring Soon
-          </div>
-          <div  variant="body1" color="text.secondary" gutterBottom>
+          </Typography>
+          <Typography variant="body1" color="text.secondary" gutterBottom>
             Your session will expire in {formatTimeRemaining(timeToExpiry)}
-          </div>
+          </Typography>
           
-          <div  sx={{ mt: 3, mb: 3 }}>
-            <div className="w-full bg-gray-200 rounded-full h-2" 
+          <Box sx={{ mt: 3, mb: 3 }}>
+            <LinearProgress 
               variant="determinate" 
               value={100 - getSessionProgress()} 
               color="warning"
               sx={{ height: 8, borderRadius: 4 }}
             />
-          </div>
+          </Box>
           
           {isRefreshing && (
-            <div  sx={{ mb: 2 }}>
-              <div className="w-full bg-gray-200 rounded-full h-2" />
-              <div  variant="caption" color="text.secondary">
+            <Box sx={{ mb: 2 }}>
+              <LinearProgress />
+              <Typography variant="caption" color="text.secondary">
                 Refreshing session...
-              </div>
-            </div>
+              </Typography>
+            </Box>
           )}
           
-          <div  sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button
               variant="outlined"
               onClick={handleSessionExpiry}
               disabled={isRefreshing}
             >
               Logout
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Button>
+            <Button
               variant="contained"
               onClick={extendSession}
               disabled={isRefreshing}
               startIcon={<Security />}
             >
               Extend Session
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
       {/* Idle Warning Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
+      <Dialog 
         open={showIdleWarning} 
         onClose={() => {}} 
         maxWidth="sm" 
         fullWidth
         disableEscapeKeyDown
       >
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content sx={{ textAlign: 'center', py: 4 }}>
+        <DialogContent sx={{ textAlign: 'center', py: 4 }}>
           <Schedule sx={{ fontSize: 64, color: 'info.main', mb: 2 }} />
-          <div  variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom>
             Are you still there?
-          </div>
-          <div  variant="body1" color="text.secondary" gutterBottom>
+          </Typography>
+          <Typography variant="body1" color="text.secondary" gutterBottom>
             You've been inactive for a while. For security, your session will end automatically.
-          </div>
+          </Typography>
           
-          <div  sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 3 }}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 3 }}>
+            <Button
               variant="outlined"
               onClick={handleIdleLogout}
             >
               Logout
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Button>
+            <Button
               variant="contained"
               onClick={handleContinueSession}
             >
               Continue Session
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
       {/* Session Extended Notification */}
-      <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-md shadow-lg"
+      <Snackbar
         open={sessionExtended}
         autoHideDuration={3000}
         onClose={() => setSessionExtended(false)}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
+        <Alert 
           onClose={() => setSessionExtended(false)} 
           severity="success"
           variant="filled"
           action={
-            <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="inherit" onClick={() => setSessionExtended(false)}>
+            <IconButton size="small" color="inherit" onClick={() => setSessionExtended(false)}>
               <Close fontSize="small" />
-            </button>
+            </IconButton>
           }
         >
           Session successfully extended
-        </div>
-      </div>
+        </Alert>
+      </Snackbar>
     </SessionContext.Provider>
   );
 }

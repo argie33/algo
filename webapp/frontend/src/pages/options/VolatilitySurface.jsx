@@ -256,123 +256,123 @@ const VolatilitySurface = () => {
   };
   
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" fontWeight={700} gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
           Volatility Surface Analysis
-        </div>
-        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Advanced 3D volatility surface modeling, skew analysis, and term structure visualization
-        </div>
-        <div  display="flex" gap={1} flexWrap="wrap">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="3D Surface" color="primary" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Volatility Skew" color="success" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Term Structure" color="info" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="IV Rank & Percentile" color="warning" size="small" variant="outlined" />
-        </div>
-      </div>
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip label="3D Surface" color="primary" size="small" variant="outlined" />
+          <Chip label="Volatility Skew" color="success" size="small" variant="outlined" />
+          <Chip label="Term Structure" color="info" size="small" variant="outlined" />
+          <Chip label="IV Rank & Percentile" color="warning" size="small" variant="outlined" />
+        </Box>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Controls */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} sm={2}>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={2}>
               <Autocomplete
                 options={symbols}
                 value={selectedSymbol}
                 onChange={(_, value) => value && setSelectedSymbol(value)}
                 renderInput={(params) => (
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Symbol" size="small" />
+                  <TextField {...params} label="Symbol" size="small" />
                 )}
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Expiry (Days)</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Expiry (Days)</InputLabel>
+                <Select
                   value={selectedExpiry}
                   label="Expiry (Days)"
                   onChange={(e) => setSelectedExpiry(e.target.value)}
                 >
                   {expiries.map(exp => (
-                    <option  key={exp} value={exp}>{exp}d</option>
+                    <MenuItem key={exp} value={exp}>{exp}d</MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">View Mode</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>View Mode</InputLabel>
+                <Select
                   value={viewMode}
                   label="View Mode"
                   onChange={(e) => setViewMode(e.target.value)}
                 >
-                  <option  value="surface">3D Surface</option>
-                  <option  value="skew">Volatility Skew</option>
-                  <option  value="term">Term Structure</option>
-                  <option  value="heatmap">IV Heatmap</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="surface">3D Surface</MenuItem>
+                  <MenuItem value="skew">Volatility Skew</MenuItem>
+                  <MenuItem value="term">Term Structure</MenuItem>
+                  <MenuItem value="heatmap">IV Heatmap</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
                 variant="contained"
-                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <↻  />}
+                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
                 onClick={loadVolatilityData}
                 disabled={loading}
                 fullWidth
               >
                 Refresh
-              </button>
-            </div>
-            <div className="grid" item xs={12} sm={4}>
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={4}>
               {surfaceAnalysis && (
-                <div  display="flex" gap={2}>
-                  <div  textAlign="center">
-                    <div  variant="caption" color="text.secondary">ATM IV</div>
-                    <div  variant="h6" fontWeight="bold">
+                <Box display="flex" gap={2}>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">ATM IV</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {surfaceAnalysis.avgATMVol}%
-                    </div>
-                  </div>
-                  <div  textAlign="center">
-                    <div  variant="caption" color="text.secondary">IV Rank</div>
-                    <div  variant="h6" fontWeight="bold" color="warning.main">
+                    </Typography>
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">IV Rank</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="warning.main">
                       {surfaceAnalysis.ivRank}
-                    </div>
-                  </div>
-                  <div  textAlign="center">
-                    <div  variant="caption" color="text.secondary">Regime</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="caption" color="text.secondary">Regime</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {surfaceAnalysis.volatilityRegime}
-                    </div>
-                  </div>
-                </div>
+                    </Typography>
+                  </Box>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Main Visualization */}
-        <div className="grid" item xs={12} lg={8}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Header 
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader 
               title={`Volatility ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} - ${selectedSymbol}`}
               subheader={`Current Price: $${currentPrice.toFixed(2)}`}
               action={
-                <div  display="flex" gap={1}>
-                  <div className="mb-4"Label
+                <Box display="flex" gap={1}>
+                  <FormControlLabel
                     control={
-                      <input type="checkbox" className="toggle" 
+                      <Switch 
                         checked={show3D} 
                         onChange={(e) => setShow3D(e.target.checked)}
                         size="small"
@@ -380,31 +380,31 @@ const VolatilitySurface = () => {
                     }
                     label="3D View"
                   />
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<SaveIcon />} size="small">
+                  <Button variant="outlined" startIcon={<SaveIcon />} size="small">
                     Save
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<⬇  />} size="small">
+                  </Button>
+                  <Button variant="outlined" startIcon={<DownloadIcon />} size="small">
                     Export
-                  </button>
-                </div>
+                  </Button>
+                </Box>
               }
             />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Surface View" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Skew Analysis" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Term Structure" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Data Table" />
-              </div>
+            <CardContent>
+              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+                <Tab label="Surface View" />
+                <Tab label="Skew Analysis" />
+                <Tab label="Term Structure" />
+                <Tab label="Data Table" />
+              </Tabs>
               
               {loading ? (
-                <div  display="flex" justifyContent="center" py={4}>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-                </div>
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
               ) : (
                 <>
                   {activeTab === 0 && (
-                    <div>
+                    <Box>
                       <ResponsiveContainer width="100%" height={500}>
                         <ScatterChart data={filteredSurfaceData}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -437,14 +437,14 @@ const VolatilitySurface = () => {
                           />
                         </ScatterChart>
                       </ResponsiveContainer>
-                      <div  variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                         Bubble size represents implied volatility level. Color indicates vol regime.
-                      </div>
-                    </div>
+                      </Typography>
+                    </Box>
                   )}
                   
                   {activeTab === 1 && (
-                    <div>
+                    <Box>
                       <ResponsiveContainer width="100%" height={400}>
                         <LineChart data={volatilitySkew}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -468,40 +468,40 @@ const VolatilitySurface = () => {
                           />
                         </LineChart>
                       </ResponsiveContainer>
-                      <div  mt={2}>
-                        <div  variant="h6" gutterBottom>Skew Analysis</div>
-                        <div className="grid" container spacing={2}>
-                          <div className="grid" item xs={4}>
-                            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                              <div  variant="h5" color="primary">
+                      <Box mt={2}>
+                        <Typography variant="h6" gutterBottom>Skew Analysis</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="primary">
                                 {surfaceAnalysis?.putCallSkew}%
-                              </div>
-                              <div  variant="caption">Put-Call Skew</div>
-                            </div>
-                          </div>
-                          <div className="grid" item xs={4}>
-                            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                              <div  variant="h5" color="secondary">
+                              </Typography>
+                              <Typography variant="caption">Put-Call Skew</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="secondary">
                                 {selectedExpiry}d
-                              </div>
-                              <div  variant="caption">Expiry</div>
-                            </div>
-                          </div>
-                          <div className="grid" item xs={4}>
-                            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                              <div  variant="h5" color="success.main">
+                              </Typography>
+                              <Typography variant="caption">Expiry</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="success.main">
                                 {Math.max(...volatilitySkew.map(d => d.impliedVol)).toFixed(1)}%
-                              </div>
-                              <div  variant="caption">Peak IV</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                              </Typography>
+                              <Typography variant="caption">Peak IV</Typography>
+                            </Paper>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </Box>
                   )}
                   
                   {activeTab === 2 && (
-                    <div>
+                    <Box>
                       <ResponsiveContainer width="100%" height={400}>
                         <AreaChart data={termStructure}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -526,141 +526,141 @@ const VolatilitySurface = () => {
                           />
                         </AreaChart>
                       </ResponsiveContainer>
-                      <div  mt={2}>
-                        <div  variant="h6" gutterBottom>Term Structure Analysis</div>
-                        <div className="grid" container spacing={2}>
-                          <div className="grid" item xs={6}>
-                            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                              <div  variant="h5" color="primary">
+                      <Box mt={2}>
+                        <Typography variant="h6" gutterBottom>Term Structure Analysis</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="primary">
                                 {surfaceAnalysis?.termStructure}
-                              </div>
-                              <div  variant="caption">Structure Type</div>
-                            </div>
-                          </div>
-                          <div className="grid" item xs={6}>
-                            <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                              <div  variant="h5" color="warning.main">
+                              </Typography>
+                              <Typography variant="caption">Structure Type</Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Paper sx={{ p: 2, textAlign: 'center' }}>
+                              <Typography variant="h5" color="warning.main">
                                 {surfaceAnalysis?.trend}
-                              </div>
-                              <div  variant="caption">IV Trend</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                              </Typography>
+                              <Typography variant="caption">IV Trend</Typography>
+                            </Paper>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </Box>
                   )}
                   
                   {activeTab === 3 && (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strike</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Expiry</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Moneyness</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">IV</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">OI</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                          </tr>
-                        </thead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Strike</TableCell>
+                            <TableCell>Expiry</TableCell>
+                            <TableCell align="right">Moneyness</TableCell>
+                            <TableCell align="right">IV</TableCell>
+                            <TableCell align="right">Volume</TableCell>
+                            <TableCell align="right">OI</TableCell>
+                            <TableCell>Type</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {filteredSurfaceData.slice(0, 50).map((row, index) => (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>${row.strike.toFixed(2)}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{row.dte}d</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                <div  
+                            <TableRow key={index} hover>
+                              <TableCell>${row.strike.toFixed(2)}</TableCell>
+                              <TableCell>{row.dte}d</TableCell>
+                              <TableCell align="right">
+                                <Typography 
                                   variant="body2" 
                                   color={Math.abs(row.moneyness) < 2.5 ? 'primary.main' : 'text.secondary'}
                                 >
                                   {row.moneyness.toFixed(1)}%
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                <div  sx={{ color: getVolatilityColor(row.impliedVol) }}>
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography sx={{ color: getVolatilityColor(row.impliedVol) }}>
                                   {(row.impliedVol * 100).toFixed(1)}%
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.volume.toLocaleString()}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{row.openInterest.toLocaleString()}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">{row.volume.toLocaleString()}</TableCell>
+                              <TableCell align="right">{row.openInterest.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Chip 
                                   label={row.type} 
                                   color={row.type === 'ATM' ? 'primary' : row.type === 'ITM' ? 'success' : 'warning'}
                                   size="small"
                                   variant="outlined"
                                 />
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
                 </>
               )}
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Sidebar Analysis */}
-        <div className="grid" item xs={12} lg={4}>
+        <Grid item xs={12} lg={4}>
           {/* Surface Metrics */}
           {surfaceAnalysis && (
-            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-              <div className="bg-white shadow-md rounded-lg"Header title="Surface Metrics" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">ATM Volatility</div>
-                    <div  variant="h6" fontWeight="bold">
+            <Card sx={{ mb: 3 }}>
+              <CardHeader title="Surface Metrics" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">ATM Volatility</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {surfaceAnalysis.avgATMVol}%
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">IV Rank</div>
-                    <div  variant="h6" fontWeight="bold" color="warning.main">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">IV Rank</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="warning.main">
                       {surfaceAnalysis.ivRank}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Put-Call Skew</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Put-Call Skew</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {surfaceAnalysis.putCallSkew}%
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Vol Regime</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Vol Regime</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {surfaceAnalysis.volatilityRegime}
-                    </div>
-                  </div>
-                </div>
-                <hr className="border-gray-200" sx={{ my: 2 }} />
-                <div>
-                  <div  variant="caption" color="text.secondary">Term Structure</div>
-                  <div  variant="body1" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Term Structure</Typography>
+                  <Typography variant="body1" fontWeight="bold">
                     {surfaceAnalysis.termStructure}
-                  </div>
-                  <div  variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                     {surfaceAnalysis.termStructure === 'Contango' ? 
                       'Front month IV < back month IV' : 
                       'Front month IV > back month IV'}
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
           )}
 
           {/* Controls */}
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Header title="Display Controls" />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  sx={{ mb: 3 }}>
-                <div  variant="subtitle2" gutterBottom>
+          <Card>
+            <CardHeader title="Display Controls" />
+            <CardContent>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
                   Moneyness Range (%)
-                </div>
+                </Typography>
                 <Slider
                   value={moneynessBounds}
                   onChange={(_, newValue) => setMoneynessBounds(newValue)}
@@ -669,11 +669,11 @@ const VolatilitySurface = () => {
                   max={50}
                   step={5}
                 />
-              </div>
-              <div  sx={{ mb: 3 }}>
-                <div  variant="subtitle2" gutterBottom>
+              </Box>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
                   Days to Expiry Range
-                </div>
+                </Typography>
                 <Slider
                   value={expiryBounds}
                   onChange={(_, newValue) => setExpiryBounds(newValue)}
@@ -682,22 +682,22 @@ const VolatilitySurface = () => {
                   max={365}
                   step={7}
                 />
-              </div>
-              <div>
-                <div  variant="subtitle2" gutterBottom>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
                   Analysis Notes
-                </div>
-                <div  variant="body2" color="text.secondary">
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                   • Higher IV for OTM options indicates volatility skew
                   • Term structure shows volatility expectations over time
                   • IV rank compares current levels to historical range
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 };
 

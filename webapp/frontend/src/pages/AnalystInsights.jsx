@@ -128,7 +128,7 @@ function AnalystInsights() {
     const config = actionConfig[action?.toLowerCase()] || actionConfig['main'];
     
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+      <Chip
         label={config.label}
         size="small"
         icon={config.icon}
@@ -160,38 +160,38 @@ function AnalystInsights() {
   };
 
   const UpgradesDowngradesTable = () => (
-    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Action</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>From Grade</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>To Grade</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Firm</td>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Date</td>
-          </tr>
-        </thead>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+    <TableContainer component={Paper}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Symbol</TableCell>
+            <TableCell>Company</TableCell>
+            <TableCell>Action</TableCell>
+            <TableCell>From Grade</TableCell>
+            <TableCell>To Grade</TableCell>
+            <TableCell>Firm</TableCell>
+            <TableCell>Date</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {upgradesData?.data?.map((item, index) => (
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={`${item.symbol}-${index}`} hover>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="body2" fontWeight="bold">
+            <TableRow key={`${item.symbol}-${index}`} hover>
+              <TableCell>
+                <Typography variant="body2" fontWeight="bold">
                   {item.symbol}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="body2" noWrap>
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" noWrap>
                   {item.company}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                </Typography>
+              </TableCell>
+              <TableCell>
                 {getActionChip(item.action)}
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+              </TableCell>
+              <TableCell>
                 {item.from_grade && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                  <Chip
                     label={item.from_grade}
                     size="small"
                     variant="outlined"
@@ -201,10 +201,10 @@ function AnalystInsights() {
                     }}
                   />
                 )}
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+              </TableCell>
+              <TableCell>
                 {item.to_grade && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                  <Chip
                     label={item.to_grade}
                     size="small"
                     sx={{
@@ -214,22 +214,22 @@ function AnalystInsights() {
                     }}
                   />
                 )}
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="body2">
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
                   {item.firm}
-                </div>
-              </td>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                <div  variant="body2">
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
                   {new Date(item.date).toLocaleDateString()}
-                </div>
-              </td>
-            </tr>
+                </Typography>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 
   // Summary stats
@@ -238,41 +238,41 @@ function AnalystInsights() {
   const initiates = upgradesData?.data?.filter(item => item.action?.toLowerCase() === 'init') || [];
 
   const SummaryCard = ({ title, value, subtitle, icon, color }) => (
-    <div className="bg-white shadow-md rounded-lg">
-      <div className="bg-white shadow-md rounded-lg"Content>
-        <div  display="flex" alignItems="center" mb={1}>
+    <Card>
+      <CardContent>
+        <Box display="flex" alignItems="center" mb={1}>
           {icon}
-          <div  variant="h6" ml={1}>{title}</div>
-        </div>
-        <div  variant="h4" sx={{ color, fontWeight: 'bold' }}>
+          <Typography variant="h6" ml={1}>{title}</Typography>
+        </Box>
+        <Typography variant="h4" sx={{ color, fontWeight: 'bold' }}>
           {value}
-        </div>
-        <div  variant="body2" color="text.secondary">
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
           {subtitle}
-        </div>
-      </div>
-    </div>
+        </Typography>
+      </CardContent>
+    </Card>
   );
 
   if (upgradesLoading && !upgradesData) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-        </div>
-      </div>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-      <div  variant="h4" gutterBottom>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
         Analyst Insights
-      </div>
+      </Typography>
       {/* Only Analyst Actions tab remains */}
       {/* Summary Cards */}
-      <div className="grid" container spacing={3} mb={4}>
-        <div className="grid" item xs={12} md={3}>
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} md={3}>
           <SummaryCard
             title="Upgrades"
             value={upgrades.length}
@@ -280,8 +280,8 @@ function AnalystInsights() {
             icon={<TrendingUp />}
             color="#10B981"
           />
-        </div>
-        <div className="grid" item xs={12} md={3}>
+        </Grid>
+        <Grid item xs={12} md={3}>
           <SummaryCard
             title="Downgrades"
             value={downgrades.length}
@@ -289,8 +289,8 @@ function AnalystInsights() {
             icon={<TrendingDown />}
             color="#DC2626"
           />
-        </div>
-        <div className="grid" item xs={12} md={3}>
+        </Grid>
+        <Grid item xs={12} md={3}>
           <SummaryCard
             title="Initiates"
             value={initiates.length}
@@ -298,8 +298,8 @@ function AnalystInsights() {
             icon={<Analytics />}
             color="#8B5CF6"
           />
-        </div>
-        <div className="grid" item xs={12} md={3}>
+        </Grid>
+        <Grid item xs={12} md={3}>
           <SummaryCard
             title="Total Actions"
             value={upgradesData?.data?.length || 0}
@@ -307,22 +307,22 @@ function AnalystInsights() {
             icon={<HorizontalRule />}
             color="#3B82F6"
           />
-        </div>
-      </div>
+        </Grid>
+      </Grid>
       {upgradesError && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load analyst data: {upgradesError.message}
           <br />
           <small>This may indicate that analyst data tables are not yet populated or there's a database connectivity issue.</small>
-        </div>
+        </Alert>
       )}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Recent Analyst Actions
-          </div>
+          </Typography>
           <UpgradesDowngradesTable />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+          <TablePagination
             component="div"
             count={upgradesData?.pagination?.total || 0}
             page={page}
@@ -334,9 +334,9 @@ function AnalystInsights() {
             }}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
-        </div>
-      </div>
-    </div>
+        </CardContent>
+      </Card>
+    </Container>
   );
 }
 

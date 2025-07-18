@@ -14,6 +14,7 @@ import {
   Divider,
   Collapse
 } from '@mui/material';
+import { Visibility, VisibilityOff, Login as LoginIcon, Security } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import BiometricAuth from './BiometricAuth';
 import MFASetupModal from './MFASetupModal';
@@ -72,13 +73,13 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   };
 
   const handleBiometricAuth = async (authResult) => {
-    console.log('Biometric authentication successful: [REDACTED]');
+    console.log('Biometric authentication successful:', authResult);
     // In production, you would validate this with your backend
     setLocalError('');
   };
 
   const handleBiometricSetup = (credentialData) => {
-    console.log('Biometric setup completed: [REDACTED]');
+    console.log('Biometric setup completed:', credentialData);
   };
 
   const handleBiometricError = (error) => {
@@ -93,27 +94,27 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const displayError = error || localError;
 
   return (
-    <div className="bg-white shadow-md rounded-lg" sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-      <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
-        <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
+    <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <CardContent sx={{ p: 4 }}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
           <LoginIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <div  variant="h4" component="h1" color="primary">
+          <Typography variant="h4" component="h1" color="primary">
             Sign In
-          </div>
-        </div>
+          </Typography>
+        </Box>
 
-        <div  variant="body1" color="text.secondary" align="center" mb={3}>
+        <Typography variant="body1" color="text.secondary" align="center" mb={3}>
           Access your Financial Dashboard
-        </div>
+        </Typography>
 
         {displayError && (
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {displayError}
-          </div>
+          </Alert>
         )}
 
-        <div  component="form" onSubmit={handleSubmit} noValidate>
-          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <TextField
             fullWidth
             id="username"
             name="username"
@@ -128,7 +129,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             disabled={isLoading}
           />
 
-          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <TextField
             fullWidth
             id="password"
             name="password"
@@ -143,31 +144,31 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <button className="p-2 rounded-full hover:bg-gray-100"
+                  <IconButton
                     aria-label="toggle password visibility"
                     onClick={() => setShowPassword(!showPassword)}
                     edge="end"
                     disabled={isLoading}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </button>
+                  </IconButton>
                 </InputAdornment>
               )
             }}
           />
 
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Button
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : <LoginIcon />}
+            startIcon={isLoading ? <CircularProgress size={20} /> : <LoginIcon />}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
-          </button>
+          </Button>
 
-          <div  display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
             <Link
               component="button"
               type="button"
@@ -177,17 +178,17 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
             >
               Forgot password?
             </Link>
-          </div>
+          </Box>
 
-          <hr className="border-gray-200" sx={{ my: 2 }} />
+          <Divider sx={{ my: 2 }} />
 
           {/* Biometric Authentication Section */}
           <Collapse in={showBiometric && user}>
-            <div  sx={{ mt: 2 }}>
-              <div  variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Security fontSize="small" />
                 Enhanced Security
-              </div>
+              </Typography>
               <BiometricAuth
                 userId={user?.userId}
                 username={user?.username}
@@ -196,11 +197,11 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
                 onError={handleBiometricError}
                 compact={true}
               />
-            </div>
+            </Box>
           </Collapse>
 
-          <div  textAlign="center">
-            <div  variant="body2" color="text.secondary">
+          <Box textAlign="center">
+            <Typography variant="body2" color="text.secondary">
               Don't have an account?{' '}
               <Link
                 component="button"
@@ -212,9 +213,9 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
               >
                 Sign up here
               </Link>
-            </div>
-          </div>
-        </div>
+            </Typography>
+          </Box>
+        </Box>
 
         {/* MFA Setup Modal */}
         <MFASetupModal
@@ -223,8 +224,8 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
           onSetupComplete={handleMFASetupComplete}
           userPhoneNumber={user?.phoneNumber}
         />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

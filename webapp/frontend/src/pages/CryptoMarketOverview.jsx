@@ -178,32 +178,32 @@ const CryptoMarketOverview = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
-        </div>
-      </div>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress size={60} />
+        </Box>
+      </Container>
     )
   }
 
   if (error) {
     return (
-      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">{String(error)}</div>
-      </div>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Alert severity="error">{String(error)}</Alert>
+      </Container>
     )
   }
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
-      <div  display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <div  variant="h4" component="h1" sx={{ fontWeight: 700 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
           Cryptocurrency Market Overview
-        </div>
-        <div  display="flex" alignItems="center" gap={2}>
-          <div className="mb-4"Label
+        </Typography>
+        <Box display="flex" alignItems="center" gap={2}>
+          <FormControlLabel
             control={
-              <input type="checkbox" className="toggle"
+              <Switch
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 size="small"
@@ -211,48 +211,48 @@ const CryptoMarketOverview = () => {
             }
             label="Auto-refresh"
           />
-          <div  title="Refresh data">
-            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh} color="primary">
+          <Tooltip title="Refresh data">
+            <IconButton onClick={handleRefresh} color="primary">
               <Refresh />
-            </button>
-          </div>
+            </IconButton>
+          </Tooltip>
           {lastUpdated && (
-            <div  variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
               Last updated: {new Date(lastUpdated).toLocaleTimeString()}
-            </div>
+            </Typography>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Market Overview Charts */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} md={8}>
-          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, height: 400 }}>
-            <div  display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <div  variant="h6" component="h2">
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6" component="h2">
                 Market Price Trends (24h)
-              </div>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"Group size="small">
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Typography>
+              <ButtonGroup size="small">
+                <Button
                   variant={selectedTimeframe === '1h' ? 'contained' : 'outlined'}
                   onClick={() => setSelectedTimeframe('1h')}
                 >
                   1H
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Button>
+                <Button
                   variant={selectedTimeframe === '24h' ? 'contained' : 'outlined'}
                   onClick={() => setSelectedTimeframe('24h')}
                 >
                   24H
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Button>
+                <Button
                   variant={selectedTimeframe === '7d' ? 'contained' : 'outlined'}
                   onClick={() => setSelectedTimeframe('7d')}
                 >
                   7D
-                </button>
+                </Button>
               </ButtonGroup>
-            </div>
+            </Box>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={priceChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -292,14 +292,14 @@ const CryptoMarketOverview = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </Paper>
+        </Grid>
         
-        <div className="grid" item xs={12} md={4}>
-          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, height: 400 }}>
-            <div  variant="h6" component="h2" gutterBottom>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" component="h2" gutterBottom>
               Market Cap Distribution
-            </div>
+            </Typography>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -318,11 +318,11 @@ const CryptoMarketOverview = () => {
                 <RechartsTooltip formatter={(value) => `${value}%`} />
               </PieChart>
             </ResponsiveContainer>
-            <div  mt={2}>
+            <Box mt={2}>
               {marketCapData.map((entry, index) => (
-                <div  key={index} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                  <div  display="flex" alignItems="center">
-                    <div  
+                <Box key={index} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                  <Box display="flex" alignItems="center">
+                    <Box 
                       sx={{ 
                         width: 12, 
                         height: 12, 
@@ -331,96 +331,96 @@ const CryptoMarketOverview = () => {
                         mr: 1 
                       }} 
                     />
-                    <div  variant="body2">{entry.name}</div>
-                  </div>
-                  <div  variant="body2" fontWeight={600}>{entry.value}%</div>
-                </div>
+                    <Typography variant="body2">{entry.name}</Typography>
+                  </Box>
+                  <Typography variant="body2" fontWeight={600}>{entry.value}%</Typography>
+                </Box>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
       {/* Market Metrics Cards */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" mb={1}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
                 <AccountBalance color="primary" sx={{ mr: 1 }} />
-                <div  variant="h6" component="div">
+                <Typography variant="h6" component="div">
                   Total Market Cap
-                </div>
-              </div>
-              <div  variant="h4" component="div" sx={{ fontWeight: 700 }}>
+                </Typography>
+              </Box>
+              <Typography variant="h4" component="div" sx={{ fontWeight: 700 }}>
                 {formatCurrency(marketData?.total_market_cap || 0, 0)}
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="body2" 
                 color={marketData?.market_cap_change_24h >= 0 ? 'success.main' : 'error.main'}
                 sx={{ display: 'flex', alignItems: 'center', mt: 1 }}
               >
                 {marketData?.market_cap_change_24h >= 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
                 {formatPercentage(marketData?.market_cap_change_24h || 0)} (24h)
-              </div>
-            </div>
-          </div>
-        </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" mb={1}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
                 <ShowChart color="primary" sx={{ mr: 1 }} />
-                <div  variant="h6" component="div">
+                <Typography variant="h6" component="div">
                   24h Volume
-                </div>
-              </div>
-              <div  variant="h4" component="div" sx={{ fontWeight: 700 }}>
+                </Typography>
+              </Box>
+              <Typography variant="h4" component="div" sx={{ fontWeight: 700 }}>
                 {formatCurrency(marketData?.total_volume_24h || 0, 0)}
-              </div>
-              <div  variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 Across all exchanges
-              </div>
-            </div>
-          </div>
-        </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" mb={1}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
                 <img 
                   src="https://cryptologos.cc/logos/bitcoin-btc-logo.png" 
                   alt="Bitcoin"
                   style={{ width: 24, height: 24, marginRight: 8 }}
                 />
-                <div  variant="h6" component="div">
+                <Typography variant="h6" component="div">
                   BTC Dominance
-                </div>
-              </div>
-              <div  variant="h4" component="div" sx={{ fontWeight: 700 }}>
+                </Typography>
+              </Box>
+              <Typography variant="h4" component="div" sx={{ fontWeight: 700 }}>
                 {formatPercentage(marketData?.btc_dominance || 0)}
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2" 
+              </Typography>
+              <LinearProgress 
                 variant="determinate" 
                 value={marketData?.btc_dominance || 0} 
                 sx={{ mt: 1, height: 8, borderRadius: 4 }}
               />
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" mb={1}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
                 <Psychology color="primary" sx={{ mr: 1 }} />
-                <div  variant="h6" component="div">
+                <Typography variant="h6" component="div">
                   Fear & Greed
-                </div>
-              </div>
-              <div  
+                </Typography>
+              </Box>
+              <Typography 
                 variant="h4" 
                 component="div" 
                 sx={{ 
@@ -429,8 +429,8 @@ const CryptoMarketOverview = () => {
                 }}
               >
                 {fearGreedIndex?.value || '--'}
-              </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+              </Typography>
+              <Chip
                 label={getFearGreedLabel(fearGreedIndex?.value || 50)}
                 size="small"
                 sx={{
@@ -439,36 +439,36 @@ const CryptoMarketOverview = () => {
                   color: 'white'
                 }}
               />
-            </div>
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Top Gainers */}
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
-            <div  display="flex" alignItems="center" mb={2}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <TrendingUp color="success" sx={{ mr: 1 }} />
-              <div  variant="h6" component="h2">
+              <Typography variant="h6" component="h2">
                 Top Gainers (24h)
-              </div>
-            </div>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Asset</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
-                  </tr>
-                </thead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+              </Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Asset</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Change</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {topMovers.gainers?.slice(0, 10).map((coin, index) => (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={coin.symbol}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                        <div  display="flex" alignItems="center">
-                          <button className="p-2 rounded-full hover:bg-gray-100"
+                    <TableRow key={coin.symbol}>
+                      <TableCell>
+                        <Box display="flex" alignItems="center">
+                          <IconButton
                             size="small"
                             onClick={() => toggleFavorite(coin.symbol)}
                             sx={{ mr: 1 }}
@@ -477,58 +477,58 @@ const CryptoMarketOverview = () => {
                               <Favorite fontSize="small" color="error" /> : 
                               <FavoriteBorder fontSize="small" />
                             }
-                          </button>
-                          <div  variant="body2" sx={{ fontWeight: 600 }}>
+                          </IconButton>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {coin.symbol}
-                          </div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2">
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
                           {formatCurrency(coin.price)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography 
                           variant="body2" 
                           color="success.main"
                           sx={{ fontWeight: 600 }}
                         >
                           +{formatPercentage(coin.price_change_24h)}
-                        </div>
-                      </td>
-                    </tr>
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
 
         {/* Top Losers */}
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
-            <div  display="flex" alignItems="center" mb={2}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <TrendingDown color="error" sx={{ mr: 1 }} />
-              <div  variant="h6" component="h2">
+              <Typography variant="h6" component="h2">
                 Top Losers (24h)
-              </div>
-            </div>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Asset</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
-                  </tr>
-                </thead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+              </Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Asset</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Change</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {topMovers.losers?.slice(0, 10).map((coin, index) => (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={coin.symbol}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                        <div  display="flex" alignItems="center">
-                          <button className="p-2 rounded-full hover:bg-gray-100"
+                    <TableRow key={coin.symbol}>
+                      <TableCell>
+                        <Box display="flex" alignItems="center">
+                          <IconButton
                             size="small"
                             onClick={() => toggleFavorite(coin.symbol)}
                             sx={{ mr: 1 }}
@@ -537,47 +537,47 @@ const CryptoMarketOverview = () => {
                               <Favorite fontSize="small" color="error" /> : 
                               <FavoriteBorder fontSize="small" />
                             }
-                          </button>
-                          <div  variant="body2" sx={{ fontWeight: 600 }}>
+                          </IconButton>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {coin.symbol}
-                          </div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2">
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
                           {formatCurrency(coin.price)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography 
                           variant="body2" 
                           color="error.main"
                           sx={{ fontWeight: 600 }}
                         >
                           {formatPercentage(coin.price_change_24h)}
-                        </div>
-                      </td>
-                    </tr>
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
 
         {/* Trending Cryptocurrencies */}
-        <div className="grid" item xs={12}>
-          <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3 }}>
-            <div  display="flex" alignItems="center" mb={2}>
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <LocalFireDepartment color="warning" sx={{ mr: 1 }} />
-              <div  variant="h6" component="h2">
+              <Typography variant="h6" component="h2">
                 Trending Cryptocurrencies
-              </div>
-            </div>
-            <div className="grid" container spacing={2}>
+              </Typography>
+            </Box>
+            <Grid container spacing={2}>
               {trending?.slice(0, 10).map((coin, index) => (
-                <div className="grid" item xs={12} sm={6} md={4} lg={2.4} key={coin.symbol}>
-                  <div className="bg-white shadow-md rounded-lg" 
+                <Grid item xs={12} sm={6} md={4} lg={2.4} key={coin.symbol}>
+                  <Card 
                     variant="outlined" 
                     sx={{ 
                       textAlign: 'center', 
@@ -590,12 +590,12 @@ const CryptoMarketOverview = () => {
                       }
                     }}
                   >
-                    <div className="bg-white shadow-md rounded-lg"Content sx={{ pb: '16px !important' }}>
-                      <div  display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                        <div  variant="h6" component="div" sx={{ fontWeight: 600 }}>
+                    <CardContent sx={{ pb: '16px !important' }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                        <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
                           {coin.symbol}
-                        </div>
-                        <button className="p-2 rounded-full hover:bg-gray-100"
+                        </Typography>
+                        <IconButton
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation()
@@ -606,26 +606,26 @@ const CryptoMarketOverview = () => {
                             <Favorite fontSize="small" color="error" /> : 
                             <FavoriteBorder fontSize="small" />
                           }
-                        </button>
-                      </div>
-                      <div  variant="body2" color="text.secondary" noWrap>
+                        </IconButton>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" noWrap>
                         {coin.name}
-                      </div>
-                      <div  display="flex" alignItems="center" justifyContent="center" mt={1}>
+                      </Typography>
+                      <Box display="flex" alignItems="center" justifyContent="center" mt={1}>
                         <Star fontSize="small" color="warning" sx={{ mr: 0.5 }} />
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           #{index + 1}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Grid>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Container>
   )
 }
 

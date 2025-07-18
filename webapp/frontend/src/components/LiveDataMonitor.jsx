@@ -243,9 +243,9 @@ const LiveDataMonitor = () => {
     const color = percent >= 0 ? 'success.main' : 'error.main';
     const sign = percent >= 0 ? '+' : '';
     return (
-      <div  component="span" sx={{ color }}>
+      <Typography component="span" sx={{ color }}>
         {sign}{percent.toFixed(2)}%
-      </div>
+      </Typography>
     );
   };
 
@@ -256,167 +256,167 @@ const LiveDataMonitor = () => {
   };
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" fontWeight={700} gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
           Live Data Monitor
-        </div>
-        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Real-time market data feed with WebSocket connectivity and validation
-        </div>
-        <div  display="flex" gap={1} flexWrap="wrap">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Feed" color="primary" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Data Validation" color="success" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Auto Reconnect" color="info" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Market Data" color="warning" size="small" variant="outlined" />
-        </div>
-      </div>
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip label="Real-time Feed" color="primary" size="small" variant="outlined" />
+          <Chip label="Data Validation" color="success" size="small" variant="outlined" />
+          <Chip label="Auto Reconnect" color="info" size="small" variant="outlined" />
+          <Chip label="Market Data" color="warning" size="small" variant="outlined" />
+        </Box>
+      </Box>
 
       {connectionError && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setConnectionError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setConnectionError(null)}>
           {connectionError}
-        </div>
+        </Alert>
       )}
 
       {/* Connection Status */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Header
+      <Card sx={{ mb: 3 }}>
+        <CardHeader
           title="Connection Status"
           action={
-            <div  display="flex" gap={1} alignItems="center">
-              <div className="mb-4"Label
+            <Box display="flex" gap={1} alignItems="center">
+              <FormControlLabel
                 control={
-                  <input type="checkbox" className="toggle"
+                  <Switch
                     checked={autoReconnect}
                     onChange={(e) => setAutoReconnect(e.target.checked)}
                   />
                 }
                 label="Auto Reconnect"
               />
-              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSettingsOpen(true)}>
+              <IconButton onClick={() => setSettingsOpen(true)}>
                 <Settings />
-              </button>
-            </div>
+              </IconButton>
+            </Box>
           }
         />
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={3} alignItems="center">
-            <div className="grid" item xs={12} sm={3}>
-              <div  display="flex" alignItems="center" gap={2}>
-                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" 
+        <CardContent>
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} sm={3}>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Badge 
                   color={getConnectionColor()} 
                   variant="dot" 
                   sx={{ '& .MuiBadge-dot': { width: 12, height: 12 } }}
                 >
                   <NetworkCheck fontSize="large" />
-                </span>
-                <div>
-                  <div  variant="h6" fontWeight="bold">
+                </Badge>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold">
                     {connectionStatus}
-                  </div>
-                  <div  variant="caption" color="text.secondary">
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
                     WebSocket Status
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </Typography>
+                </Box>
+              </Box>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={6}>
-              <div  display="flex" gap={2}>
+            <Grid item xs={12} sm={6}>
+              <Box display="flex" gap={2}>
                 {!isConnected ? (
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     variant="contained"
                     startIcon={<PlayArrow />}
                     onClick={handleConnect}
                     disabled={connectionStatus === 'CONNECTING'}
                   >
                     {connectionStatus === 'CONNECTING' ? 'Connecting...' : 'Connect'}
-                  </button>
+                  </Button>
                 ) : (
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     variant="outlined"
                     startIcon={<Stop />}
                     onClick={handleDisconnect}
                   >
                     Disconnect
-                  </button>
+                  </Button>
                 )}
                 
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Button
                   variant="outlined"
                   startIcon={<Refresh />}
                   onClick={() => window.location.reload()}
                 >
                   Refresh
-                </button>
+                </Button>
                 
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Button
                   variant="outlined"
                   startIcon={<Analytics />}
                   onClick={() => setShowStats(!showStats)}
                 >
                   {showStats ? 'Hide' : 'Show'} Stats
-                </button>
-              </div>
-            </div>
+                </Button>
+              </Box>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={3}>
-              <div>
-                <div  variant="caption" color="text.secondary">Active Subscriptions</div>
-                <div  variant="h6" fontWeight="bold">
+            <Grid item xs={12} sm={3}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Active Subscriptions</Typography>
+                <Typography variant="h6" fontWeight="bold">
                   {subscriptions.size}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* Statistics */}
       {showStats && (
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Header title="Connection Statistics" />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={3}>
-              <div className="grid" item xs={6} sm={3}>
-                <div  textAlign="center">
-                  <div  variant="h4" color="primary">{statistics.messagesReceived || 0}</div>
-                  <div  variant="caption">Messages Received</div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} sm={3}>
-                <div  textAlign="center">
-                  <div  variant="h4" color="secondary">{statistics.messagesSent || 0}</div>
-                  <div  variant="caption">Messages Sent</div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} sm={3}>
-                <div  textAlign="center">
-                  <div  variant="h4" color="error">{statistics.dataValidationErrors || 0}</div>
-                  <div  variant="caption">Validation Errors</div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} sm={3}>
-                <div  textAlign="center">
-                  <div  variant="h4" color="warning.main">{statistics.reconnectCount || 0}</div>
-                  <div  variant="caption">Reconnections</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Card sx={{ mb: 3 }}>
+          <CardHeader title="Connection Statistics" />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={6} sm={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" color="primary">{statistics.messagesReceived || 0}</Typography>
+                  <Typography variant="caption">Messages Received</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" color="secondary">{statistics.messagesSent || 0}</Typography>
+                  <Typography variant="caption">Messages Sent</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" color="error">{statistics.dataValidationErrors || 0}</Typography>
+                  <Typography variant="caption">Validation Errors</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box textAlign="center">
+                  <Typography variant="h4" color="warning.main">{statistics.reconnectCount || 0}</Typography>
+                  <Typography variant="caption">Reconnections</Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Market Data Feed */}
-        <div className="grid" item xs={12} lg={8}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Header
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader
               title="Market Data Feed"
               subheader={`${Object.keys(marketData).length} symbols streaming`}
               action={
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                <Chip
                   label={isConnected ? 'LIVE' : 'OFFLINE'}
                   color={isConnected ? 'success' : 'error'}
                   icon={isConnected ? <NotificationsActive /> : <Notifications />}
@@ -424,99 +424,99 @@ const LiveDataMonitor = () => {
                 />
               }
             />
-            <div className="bg-white shadow-md rounded-lg"Content>
+            <CardContent>
               {Object.keys(marketData).length === 0 ? (
-                <div  textAlign="center" py={4}>
-                  <div  color="text.secondary">
+                <Box textAlign="center" py={4}>
+                  <Typography color="text.secondary">
                     {isConnected ? 'No market data received yet' : 'Connect to start receiving data'}
-                  </div>
-                </div>
+                  </Typography>
+                </Box>
               ) : (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Bid</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Ask</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
-                      </tr>
-                    </thead>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                  <Table stickyHeader size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell align="right">Price</TableCell>
+                        <TableCell align="right">Change</TableCell>
+                        <TableCell align="right">Bid</TableCell>
+                        <TableCell align="right">Ask</TableCell>
+                        <TableCell align="right">Volume</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                       {Object.entries(marketData).map(([symbol, data]) => (
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={symbol} hover>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                            <div  variant="body2" fontWeight="bold">
+                        <TableRow key={symbol} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
                               {symbol}
-                            </div>
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="body2" fontWeight="bold">
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" fontWeight="bold">
                               {formatPrice(data.price)}
-                            </div>
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
                             {formatPercent(data.change_percent)}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPrice(data.bid)}</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatPrice(data.ask)}</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatNumber(data.volume)}</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          </TableCell>
+                          <TableCell align="right">{formatPrice(data.bid)}</TableCell>
+                          <TableCell align="right">{formatPrice(data.ask)}</TableCell>
+                          <TableCell align="right">{formatNumber(data.volume)}</TableCell>
+                          <TableCell>
                             {isDataStale(symbol) ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Stale" color="warning" size="small" />
+                              <Chip label="Stale" color="warning" size="small" />
                             ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live" color="success" size="small" />
+                              <Chip label="Live" color="success" size="small" />
                             )}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                            <div  title="Subscribe to Options">
-                              <button className="p-2 rounded-full hover:bg-gray-100" 
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title="Subscribe to Options">
+                              <IconButton 
                                 size="small" 
                                 onClick={() => handleSubscribeOptions(symbol)}
                               >
                                 <Add />
-                              </button>
-                            </div>
-                            <div  title="Remove Symbol">
-                              <button className="p-2 rounded-full hover:bg-gray-100" 
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Remove Symbol">
+                              <IconButton 
                                 size="small" 
                                 onClick={() => handleUnsubscribeSymbol(symbol)}
                               >
                                 <Remove />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Sidebar */}
-        <div className="grid" item xs={12} lg={4}>
+        <Grid item xs={12} lg={4}>
           {/* Symbol Subscription */}
-          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-            <div className="bg-white shadow-md rounded-lg"Header title="Symbol Management" />
-            <div className="bg-white shadow-md rounded-lg"Content>
+          <Card sx={{ mb: 3 }}>
+            <CardHeader title="Symbol Management" />
+            <CardContent>
               <Autocomplete
                 multiple
                 options={availableSymbols}
                 value={selectedSymbols}
                 onChange={(_, newValue) => setSelectedSymbols(newValue)}
                 renderInput={(params) => (
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Subscribed Symbols" />
+                  <TextField {...params} label="Subscribed Symbols" />
                 )}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    <Chip
                       variant="outlined"
                       label={option}
                       {...getTagProps({ index })}
@@ -524,47 +524,47 @@ const LiveDataMonitor = () => {
                   ))
                 }
               />
-              <div  variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                 Select symbols to receive real-time market data
-              </div>
-            </div>
-          </div>
+              </Typography>
+            </CardContent>
+          </Card>
 
           {/* Data Quality */}
-          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-            <div className="bg-white shadow-md rounded-lg"Header title="Data Quality" />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div className="grid" container spacing={2}>
-                <div className="grid" item xs={6}>
-                  <div  variant="caption" color="text.secondary">Latency</div>
-                  <div  variant="h6" fontWeight="bold">
+          <Card sx={{ mb: 3 }}>
+            <CardHeader title="Data Quality" />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Latency</Typography>
+                  <Typography variant="h6" fontWeight="bold">
                     ~50ms
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="caption" color="text.secondary">Accuracy</div>
-                  <div  variant="h6" fontWeight="bold" color="success.main">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Accuracy</Typography>
+                  <Typography variant="h6" fontWeight="bold" color="success.main">
                     99.8%
-                  </div>
-                </div>
-                <div className="grid" item xs={12}>
-                  <div  variant="caption" color="text.secondary">Data Validation</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2" 
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">Data Validation</Typography>
+                  <LinearProgress 
                     variant="determinate" 
                     value={98} 
                     color="success" 
                     sx={{ mt: 1 }}
                   />
-                </div>
-              </div>
-            </div>
-          </div>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
 
           {/* Price History Chart */}
           {Object.keys(priceHistory).length > 0 && (
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header title="Price Movement" />
-              <div className="bg-white shadow-md rounded-lg"Content>
+            <Card>
+              <CardHeader title="Price Movement" />
+              <CardContent>
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={priceHistory[selectedSymbols[0]] || []}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -589,32 +589,32 @@ const LiveDataMonitor = () => {
                     />
                   </LineChart>
                 </ResponsiveContainer>
-                <div  variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary">
                   {selectedSymbols[0]} - Last 50 data points
-                </div>
-              </div>
-            </div>
+                </Typography>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </div>
+        </Grid>
+      </Grid>
 
       {/* Settings Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
+      <Dialog 
         open={settingsOpen} 
         onClose={() => setSettingsOpen(false)}
         maxWidth="sm"
         fullWidth
       >
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+        <DialogTitle>
           WebSocket Settings
-          <button className="p-2 rounded-full hover:bg-gray-100"
+          <IconButton
             sx={{ position: 'absolute', right: 8, top: 8 }}
             onClick={() => setSettingsOpen(false)}
           >
             <Close />
-          </button>
-        </h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content dividers>
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
           <List>
             <ListItem>
               <ListItemIcon><Speed /></ListItemIcon>
@@ -645,12 +645,12 @@ const LiveDataMonitor = () => {
               />
             </ListItem>
           </List>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setSettingsOpen(false)}>Close</button>
-        </div>
-      </div>
-    </div>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSettingsOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 };
 

@@ -232,7 +232,7 @@ function TechnicalAnalysis() {
   });
 
   const renderAccordionTable = () => (
-    <div  sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%' }}>
       {technicalList.map((row, idx) => (
         <Accordion
           key={row.symbol + '-' + row.date + '-' + idx}
@@ -241,153 +241,153 @@ function TechnicalAnalysis() {
           sx={{ mb: 1, borderLeft: 4, borderColor: row.rsi > 70 ? 'error.main' : row.rsi < 30 ? 'primary.main' : 'grey.300', boxShadow: expandedRow === idx ? 6 : 1 }}
         >
           <AccordionSummary expandIcon={<ExpandMore />} sx={{ backgroundColor: expandedRow === idx ? 'grey.100' : 'grey.50', '&:hover': { backgroundColor: 'grey.200' } }}>
-            <div className="grid" container alignItems="center" spacing={2}>
-              <div className="grid" item xs={2}>
-                <div  variant="h6" fontWeight="bold">{row.symbol}</div>
+            <Grid container alignItems="center" spacing={2}>
+              <Grid item xs={2}>
+                <Typography variant="h6" fontWeight="bold">{row.symbol}</Typography>
                 {row.company_name && (
-                  <div  variant="body2" color="text.secondary">{row.company_name}</div>
+                  <Typography variant="body2" color="text.secondary">{row.company_name}</Typography>
                 )}
-                <div  variant="caption" color="text.secondary">{formatDate(row.date)}</div>
-              </div>
-              <div className="grid" item xs={2}>
-                <div  display="flex" alignItems="center" gap={1}>
+                <Typography variant="caption" color="text.secondary">{formatDate(row.date)}</Typography>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
                   {getIconComponent(getTechStatus('rsi', row.rsi).icon)}
-                  <div  variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
+                  <Typography variant="body2" color={getTechStatus('rsi', row.rsi).color} fontWeight="bold">
                     RSI: {formatNumber(row.rsi)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={2}>
-                <div  display="flex" alignItems="center" gap={1}>
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
                   {getIconComponent(getTechStatus('macd', row.macd).icon)}
-                  <div  variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
+                  <Typography variant="body2" color={getTechStatus('macd', row.macd).color} fontWeight="bold">
                     MACD: {formatNumber(row.macd)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={2}>
-                <div  display="flex" alignItems="center" gap={1}>
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
                   {getIconComponent(getTechStatus('adx', row.adx).icon)}
-                  <div  variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
+                  <Typography variant="body2" color={getTechStatus('adx', row.adx).color} fontWeight="bold">
                     ADX: {formatNumber(row.adx)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={2}>
-                <div  display="flex" alignItems="center" gap={1}>
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
                   {getIconComponent(getTechStatus('atr', row.atr).icon)}
-                  <div  variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
+                  <Typography variant="body2" color={getTechStatus('atr', row.atr).color} fontWeight="bold">
                     ATR: {formatNumber(row.atr)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={2}>
-                <div  display="flex" alignItems="center" gap={1}>
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={2}>
+                <Box display="flex" alignItems="center" gap={1}>
                   {getIconComponent(getTechStatus('mfi', row.mfi).icon)}
-                  <div  variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
+                  <Typography variant="body2" color={getTechStatus('mfi', row.mfi).color} fontWeight="bold">
                     MFI: {formatNumber(row.mfi)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={12}>
-                <hr className="border-gray-200" sx={{ my: 1 }} />
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={2}>
-                    <div  display="flex" alignItems="center" gap={1}>
-                      <div  variant="body2" color="text.secondary">Price:</div>
-                      <div  variant="body2" fontWeight="bold">
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Price:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
                         ${row.current_price ? formatNumber(row.current_price, 2) : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={2}>
-                    <div  display="flex" alignItems="center" gap={1}>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
                       {row.price_direction && (
                         getIconComponent(row.price_direction)
                       )}
-                      <div  
+                      <Typography 
                         variant="body2" 
                         color={row.price_direction === 'up' ? 'success.main' : row.price_direction === 'down' ? 'error.main' : 'text.secondary'}
                         fontWeight="bold"
                       >
                         {row.price_change_percent ? `${row.price_change_percent > 0 ? '+' : ''}${formatNumber(row.price_change_percent, 2)}%` : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={2}>
-                    <div  display="flex" alignItems="center" gap={1}>
-                      <div  variant="body2" color="text.secondary">Range:</div>
-                      <div  variant="body2" fontWeight="bold">
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Range:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
                         {row.high_price && row.low_price ? `${formatNumber(row.low_price, 2)} - ${formatNumber(row.high_price, 2)}` : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={2}>
-                    <div  display="flex" alignItems="center" gap={1}>
-                      <div  variant="body2" color="text.secondary">Volume:</div>
-                      <div  variant="body2" fontWeight="bold">
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Volume:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
                         {row.volume ? formatNumber(row.volume) : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={2}>
-                    <div  display="flex" alignItems="center" gap={1}>
-                      <div  variant="body2" color="text.secondary">Open:</div>
-                      <div  variant="body2" fontWeight="bold">
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary">Open:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
                         ${row.open_price ? formatNumber(row.open_price, 2) : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={2}>
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); navigate(`/technical-history/${row.symbol}`); }}>
                       View History
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Grid>
+            </Grid>
           </AccordionSummary>
           <AccordionDetails>
-            <div className="grid" container spacing={2}>
+            <Grid container spacing={2}>
               {columns.filter(col => col.id !== 'symbol' && col.id !== 'date').map((col) => (
-                <div className="grid" item xs={12} sm={6} md={3} key={col.id}>
-                  <div className="bg-white shadow-md rounded-lg" variant="outlined" sx={{ height: '100%' }}>
-                    <div className="bg-white shadow-md rounded-lg"Content>
-                      <div  display="flex" alignItems="center" gap={1}>
+                <Grid item xs={12} sm={6} md={3} key={col.id}>
+                  <Card variant="outlined" sx={{ height: '100%' }}>
+                    <CardContent>
+                      <Box display="flex" alignItems="center" gap={1}>
                         {getIconComponent(getTechStatus(col.id, row[col.id]).icon)}
-                        <div  variant="subtitle2">{col.label}</div>
-                      </div>
-                      <div  variant="h6" color={getTechStatus(col.id, row[col.id]).color} fontWeight="bold">
+                        <Typography variant="subtitle2">{col.label}</Typography>
+                      </Box>
+                      <Typography variant="h6" color={getTechStatus(col.id, row[col.id]).color} fontWeight="bold">
                         {col.format ? col.format(row[col.id]) : (row[col.id] !== undefined && row[col.id] !== null ? formatNumber(row[col.id]) : 'N/A')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
+            </Grid>
           </AccordionDetails>
         </Accordion>
       ))}
-    </div>
+    </Box>
   );
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
-      <div  display="flex" alignItems="flex-start" gap={4}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box display="flex" alignItems="flex-start" gap={4}>
         {/* Left filter/search panel */}
-        <div  minWidth={260} maxWidth={320}>
-          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>Filter Technicals</div>
-              <div className="mb-4" fullWidth size="small" sx={{ mb: 2 }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value={timeframe} label="Timeframe" onChange={handleTimeframeChange}>
-                  <option  value="daily">Daily</option>
-                  <option  value="weekly">Weekly</option>
-                  <option  value="monthly">Monthly</option>
-                </select>
-              </div>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <Box minWidth={260} maxWidth={320}>
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Filter Technicals</Typography>
+              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <InputLabel>Timeframe</InputLabel>
+                <Select value={timeframe} label="Timeframe" onChange={handleTimeframeChange}>
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
                 label="Search Symbol"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
@@ -404,42 +404,42 @@ function TechnicalAnalysis() {
                   )
                 }}
               />
-              <div className="mb-4" fullWidth size="small" sx={{ mb: 2 }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Indicator</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value={indicatorFilter} label="Indicator" onChange={e => setIndicatorFilter(e.target.value)}>
-                  <option  value="">All</option>
-                  <option  value="rsi">RSI</option>
-                  <option  value="macd">MACD</option>
-                  <option  value="adx">ADX</option>
-                  <option  value="atr">ATR</option>
-                  <option  value="mfi">MFI</option>
-                  <option  value="roc">ROC</option>
-                  <option  value="mom">MOM</option>
-                  <option  value="bbands_upper">BB Upper</option>
-                  <option  value="bbands_middle">BB Middle</option>
-                  <option  value="bbands_lower">BB Lower</option>
-                  <option  value="sma_10">SMA 10</option>
-                  <option  value="sma_20">SMA 20</option>
-                  <option  value="sma_50">SMA 50</option>
-                  <option  value="sma_150">SMA 150</option>
-                  <option  value="sma_200">SMA 200</option>
-                  <option  value="ema_4">EMA 4</option>
-                  <option  value="ema_9">EMA 9</option>
-                  <option  value="ema_21">EMA 21</option>
-                  <option  value="ad">A/D</option>
-                  <option  value="cmf">CMF</option>
-                  <option  value="td_sequential">TD Seq</option>
-                  <option  value="td_combo">TD Combo</option>
-                  <option  value="marketwatch">MW</option>
-                  <option  value="dm">DM</option>
-                  <option  value="pivot_high">Pivot H</option>
-                  <option  value="pivot_low">Pivot L</option>
-                  <option  value="pivot_high_triggered">Pivot H Triggered</option>
-                  <option  value="pivot_low_triggered">Pivot L Triggered</option>
-                </select>
-              </div>
-              <div  display="flex" gap={1} mb={2}>
-                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <InputLabel>Indicator</InputLabel>
+                <Select value={indicatorFilter} label="Indicator" onChange={e => setIndicatorFilter(e.target.value)}>
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="rsi">RSI</MenuItem>
+                  <MenuItem value="macd">MACD</MenuItem>
+                  <MenuItem value="adx">ADX</MenuItem>
+                  <MenuItem value="atr">ATR</MenuItem>
+                  <MenuItem value="mfi">MFI</MenuItem>
+                  <MenuItem value="roc">ROC</MenuItem>
+                  <MenuItem value="mom">MOM</MenuItem>
+                  <MenuItem value="bbands_upper">BB Upper</MenuItem>
+                  <MenuItem value="bbands_middle">BB Middle</MenuItem>
+                  <MenuItem value="bbands_lower">BB Lower</MenuItem>
+                  <MenuItem value="sma_10">SMA 10</MenuItem>
+                  <MenuItem value="sma_20">SMA 20</MenuItem>
+                  <MenuItem value="sma_50">SMA 50</MenuItem>
+                  <MenuItem value="sma_150">SMA 150</MenuItem>
+                  <MenuItem value="sma_200">SMA 200</MenuItem>
+                  <MenuItem value="ema_4">EMA 4</MenuItem>
+                  <MenuItem value="ema_9">EMA 9</MenuItem>
+                  <MenuItem value="ema_21">EMA 21</MenuItem>
+                  <MenuItem value="ad">A/D</MenuItem>
+                  <MenuItem value="cmf">CMF</MenuItem>
+                  <MenuItem value="td_sequential">TD Seq</MenuItem>
+                  <MenuItem value="td_combo">TD Combo</MenuItem>
+                  <MenuItem value="marketwatch">MW</MenuItem>
+                  <MenuItem value="dm">DM</MenuItem>
+                  <MenuItem value="pivot_high">Pivot H</MenuItem>
+                  <MenuItem value="pivot_low">Pivot L</MenuItem>
+                  <MenuItem value="pivot_high_triggered">Pivot H Triggered</MenuItem>
+                  <MenuItem value="pivot_low_triggered">Pivot L Triggered</MenuItem>
+                </Select>
+              </FormControl>
+              <Box display="flex" gap={1} mb={2}>
+                <TextField
                   label="Min Value"
                   type="number"
                   value={indicatorMin}
@@ -448,7 +448,7 @@ function TechnicalAnalysis() {
                   fullWidth
                   disabled={!indicatorFilter}
                 />
-                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <TextField
                   label="Max Value"
                   type="number"
                   value={indicatorMax}
@@ -457,41 +457,41 @@ function TechnicalAnalysis() {
                   fullWidth
                   disabled={!indicatorFilter}
                 />
-              </div>
-              <div  display="flex" gap={1} mb={2}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" onClick={handleSearch} startIcon={<Search />} disabled={isLoading}>
+              </Box>
+              <Box display="flex" gap={1} mb={2}>
+                <Button variant="outlined" onClick={handleSearch} startIcon={<Search />} disabled={isLoading}>
                   {symbolFilter ? 'Search' : 'Filter'}
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<Clear />} onClick={handleClearSearch} disabled={isLoading || !symbolFilter}>
+                </Button>
+                <Button variant="outlined" startIcon={<Clear />} onClick={handleClearSearch} disabled={isLoading || !symbolFilter}>
                   Clear
-                </button>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={`${activeFilters} Filters`} color={activeFilters > 0 ? 'primary' : 'default'} icon={<FilterList />} />
-              </div>
-            </div>
-          </div>
-        </div>
+                </Button>
+                <Chip label={`${activeFilters} Filters`} color={activeFilters > 0 ? 'primary' : 'default'} icon={<FilterList />} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
         {/* Main content: overview + table */}
-        <div  flex={1}>
-          <div  variant="h4" gutterBottom sx={{ mb: 2, mt: 1, textAlign: 'left' }}>Technical Analysis</div>
-          <hr className="border-gray-200" sx={{ mb: 2 }} />
+        <Box flex={1}>
+          <Typography variant="h4" gutterBottom sx={{ mb: 2, mt: 1, textAlign: 'left' }}>Technical Analysis</Typography>
+          <Divider sx={{ mb: 2 }} />
           {/* Error/Loading/Empty states */}
           {error && (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>Error loading technical data: {error.message}</div>
+            <Alert severity="error" sx={{ mb: 2 }}>Error loading technical data: {error.message}</Alert>
           )}
           {isLoading ? (
-            <div  display="flex" flexDirection="column" alignItems="center" p={4}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" sx={{ mb: 2 }} />
-              <div  variant="body2" color="text.secondary">Loading technical data...</div>
-            </div>
+            <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+              <CircularProgress sx={{ mb: 2 }} />
+              <Typography variant="body2" color="text.secondary">Loading technical data...</Typography>
+            </Box>
           ) : (
             <>
               {technicalList.length === 0 ? (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mb: 2 }}>No technical data found.</div>
+                <Alert severity="warning" sx={{ mb: 2 }}>No technical data found.</Alert>
               ) : (
                 renderAccordionTable()
               )}
               {/* Pagination */}
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+              <TablePagination
                 component="div"
                 count={technicalData?.pagination?.total || 0}
                 page={page}
@@ -503,9 +503,9 @@ function TechnicalAnalysis() {
               />
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Container>
   );
 }
 

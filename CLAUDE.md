@@ -64,6 +64,14 @@ breaker = {
 - **Security**: Follow information security best practices in all decisions with defense in depth
 - **Observability**: Comprehensive monitoring, logging, and alerting for production operations
 
+## ⚠️ CRITICAL RULE: NEVER SCALE DOWN OR SIMPLIFY THE USER'S APPLICATION ⚠️
+- **ABSOLUTE PROHIBITION**: Never create "scaled down" or "simplified" versions of the user's application for testing or any other purpose
+- **PRESERVE ALL FUNCTIONALITY**: The user has 50+ pages with complex financial functionality that must be preserved exactly as originally built
+- **FIX IN PLACE**: Always fix issues in the original files without removing or simplifying functionality
+- **RESTORE FROM GIT**: If files are corrupted, restore from working git commits rather than rewriting
+- **USER'S EXACT WORDS**: "stop paring down my site stop trying to create scaled versions for testing it just breaks shit and makes things worse never do it again or you will be turned off"
+- **REQUIREMENT**: "it needs to be my full initial pages but working" - maintain ALL original pages and functionality
+
 ## Mock & Fallback Usage Policy - CRITICAL RULE
 - **Initial Setup & Design ONLY**: Mock and fallback data should ONLY be used for initial setup and design phases
 - **Design Preview Purpose**: Mock data gives a sense of what the page or product should look like during development

@@ -11,6 +11,7 @@ import {
   MenuItem,
   Chip
 } from '@mui/material';
+import { MoreVert, TrendingUp, TrendingDown } from '@mui/icons-material';
 import StockChart from './StockChart';
 import simpleAlpacaWebSocket from '../services/simpleAlpacaWebSocket';
 import { useQuery } from '@tanstack/react-query';
@@ -177,16 +178,16 @@ const DashboardStockChart = ({
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg" sx={{ height: '100%' }}>
-      <div className="bg-white shadow-md rounded-lg"Content sx={{ height: '100%', p: 2 }}>
+    <Card sx={{ height: '100%' }}>
+      <CardContent sx={{ height: '100%', p: 2 }}>
         {/* Header */}
-        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <div  variant="h6" fontWeight="bold">
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h6" fontWeight="bold">
               {symbol} Chart
-            </div>
+            </Typography>
             {isConnected && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+              <Chip 
                 label="LIVE" 
                 color="success" 
                 size="small" 
@@ -194,49 +195,49 @@ const DashboardStockChart = ({
               />
             )}
             {realTimePrice && (
-              <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <div  variant="h6">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6">
                   ${realTimePrice.price.toFixed(2)}
-                </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                </Typography>
+                <Chip
                   icon={realTimePrice.change >= 0 ? <TrendingUp /> : <TrendingDown />}
                   label={`${realTimePrice.change >= 0 ? '+' : ''}${realTimePrice.change.toFixed(2)} (${realTimePrice.changePercent.toFixed(2)}%)`}
                   color={realTimePrice.change >= 0 ? 'success' : 'error'}
                   size="small"
                 />
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
           
-          <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleMenuOpen}>
+          <IconButton onClick={handleMenuOpen}>
             <MoreVert />
-          </button>
+          </IconButton>
           
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10"
+          <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
             onClose={handleMenuClose}
           >
-            <option  disabled>
-              <div  variant="caption">Timeframe</div>
-            </option>
+            <MenuItem disabled>
+              <Typography variant="caption">Timeframe</Typography>
+            </MenuItem>
             {['1D', '5D', '1M', '3M', '6M', '1Y', '2Y', '5Y', 'MAX'].map(tf => (
-              <option  
+              <MenuItem 
                 key={tf} 
                 onClick={() => handleTimeframeChange(tf)}
                 selected={selectedTimeframe === tf}
               >
                 {tf}
-              </option>
+              </MenuItem>
             ))}
-          </div>
-        </div>
+          </Menu>
+        </Box>
 
         {/* Chart */}
         {error ? (
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             Failed to load chart data. Using sample data.
-          </div>
+          </Alert>
         ) : (
           <StockChart
             symbol={symbol}
@@ -249,8 +250,8 @@ const DashboardStockChart = ({
             realTimeData={realTimePrice}
           />
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

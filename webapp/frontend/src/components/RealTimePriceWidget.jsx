@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Box, Typography, Chip, LinearProgress, Skeleton, Alert } from '@mui/material';
+import { TrendingUp, TrendingDown, TrendingFlat, Warning } from '@mui/icons-material';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
 import dataCache from '../services/dataCache';
 
@@ -98,18 +100,18 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
 
   if (loading) {
     return (
-      <div>
+      <Box>
         <Skeleton variant="text" width={100} height={30} />
         <Skeleton variant="text" width={150} height={24} />
-      </div>
+      </Box>
     );
   }
 
   if (!priceData) {
     return (
-      <div  variant="body2" color="text.secondary">
+      <Typography variant="body2" color="text.secondary">
         No data available
-      </div>
+      </Typography>
     );
   }
 
@@ -119,11 +121,11 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
 
   if (compact) {
     return (
-      <div  display="flex" alignItems="center" gap={1}>
-        <div  variant="h6" fontWeight="bold">
+      <Box display="flex" alignItems="center" gap={1}>
+        <Typography variant="h6" fontWeight="bold">
           {formatCurrency(priceData.price)}
-        </div>
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+        </Typography>
+        <Chip
           size="small"
           icon={<TrendIcon />}
           label={`${isPositive ? '+' : ''}${formatPercentage(priceData.dayChangePercent)}`}
@@ -133,60 +135,60 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
             fontWeight: 'bold'
           }}
         />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div>
+    <Box>
       {priceData.isMockData && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mb: 1, py: 0.5 }}>
-          <div  variant="caption">
+        <Alert severity="warning" sx={{ mb: 1, py: 0.5 }}>
+          <Typography variant="caption">
             ⚠️ MOCK DATA - Connect to real API for production
-          </div>
-        </div>
+          </Typography>
+        </Alert>
       )}
-      <div  display="flex" alignItems="baseline" gap={2} mb={1}>
-        <div  variant="h4" fontWeight="bold" color="text.primary">
+      <Box display="flex" alignItems="baseline" gap={2} mb={1}>
+        <Typography variant="h4" fontWeight="bold" color="text.primary">
           {formatCurrency(priceData.price)}
-        </div>
-        <div  display="flex" alignItems="center" gap={0.5}>
+        </Typography>
+        <Box display="flex" alignItems="center" gap={0.5}>
           <TrendIcon sx={{ color: changeColor, fontSize: 20 }} />
-          <div  variant="h6" color={changeColor} fontWeight="medium">
+          <Typography variant="h6" color={changeColor} fontWeight="medium">
             {isPositive && '+'}{formatCurrency(Math.abs(priceData.dayChange))}
-          </div>
-          <div  variant="h6" color={changeColor} fontWeight="medium">
+          </Typography>
+          <Typography variant="h6" color={changeColor} fontWeight="medium">
             ({isPositive && '+'}{formatPercentage(priceData.dayChangePercent)})
-          </div>
-        </div>
-      </div>
+          </Typography>
+        </Box>
+      </Box>
       
       {!compact && (
         <>
-          <div  display="flex" gap={3} mb={2}>
-            <div>
-              <div  variant="caption" color="text.secondary">Volume</div>
-              <div  variant="body2" fontWeight="medium">
+          <Box display="flex" gap={3} mb={2}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Volume</Typography>
+              <Typography variant="body2" fontWeight="medium">
                 {(priceData.volume / 1000000).toFixed(2)}M
-              </div>
-            </div>
-            <div>
-              <div  variant="caption" color="text.secondary">Day Range</div>
-              <div  variant="body2" fontWeight="medium">
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Day Range</Typography>
+              <Typography variant="body2" fontWeight="medium">
                 {formatCurrency(priceData.dayLow)} - {formatCurrency(priceData.dayHigh)}
-              </div>
-            </div>
-            <div>
-              <div  variant="caption" color="text.secondary">Prev Close</div>
-              <div  variant="body2" fontWeight="medium">
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Prev Close</Typography>
+              <Typography variant="body2" fontWeight="medium">
                 {formatCurrency(priceData.previousClose)}
-              </div>
-            </div>
-          </div>
+              </Typography>
+            </Box>
+          </Box>
           
           {dataCache.isMarketHours() && (
-            <div>
-              <div className="w-full bg-gray-200 rounded-full h-2" 
+            <Box>
+              <LinearProgress 
                 variant="indeterminate" 
                 sx={{ 
                   height: 2, 
@@ -196,26 +198,26 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
                   }
                 }} 
               />
-              <div  variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                 Live - Market Open • Last update: {new Date(priceData.lastUpdate).toLocaleTimeString()}
-              </div>
-            </div>
+              </Typography>
+            </Box>
           )}
           
           {!dataCache.isMarketHours() && (
-            <div  variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
               After Hours • Last update: {new Date(priceData.lastUpdate).toLocaleTimeString()}
-            </div>
+            </Typography>
           )}
           
           {isStale && (
-            <div  variant="caption" color="warning.main">
+            <Typography variant="caption" color="warning.main">
               ⚠️ Data may be delayed
-            </div>
+            </Typography>
           )}
         </>
       )}
-    </div>
+    </Box>
   );
 };
 

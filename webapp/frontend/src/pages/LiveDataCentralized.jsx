@@ -269,29 +269,29 @@ const LiveDataCentralized = () => {
   }));
 
   return (
-    <div  sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }}>
       {/* Page Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h3" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
           Centralized Live Data Service
-        </div>
-        <div  variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+        </Typography>
+        <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
           Revolutionary architecture with single API connections per symbol for maximum efficiency
-        </div>
+        </Typography>
         
         {/* Service Status Bar */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3, backgroundColor: isServiceRunning ? 'success.main' : 'error.main', color: 'white' }}>
-          <div className="bg-white shadow-md rounded-lg"Content sx={{ py: 2 }}>
-            <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Card sx={{ mb: 3, backgroundColor: isServiceRunning ? 'success.main' : 'error.main', color: 'white' }}>
+          <CardContent sx={{ py: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 {isServiceRunning ? <CloudDone /> : <SignalWifiOff />}
-                <div  variant="h6">
+                <Typography variant="h6">
                   Service Status: {isServiceRunning ? 'OPERATIONAL' : 'STOPPED'}
-                </div>
-              </div>
+                </Typography>
+              </Box>
               
-              <div  sx={{ display: 'flex', gap: 1 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
                   variant="contained"
                   color={isServiceRunning ? "error" : "success"}
                   onClick={isServiceRunning ? stopLiveDataService : startLiveDataService}
@@ -299,121 +299,121 @@ const LiveDataCentralized = () => {
                   sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.2)' }}
                 >
                   {isServiceRunning ? 'Stop Service' : 'Start Service'}
-                </button>
+                </Button>
                 
-                <button className="p-2 rounded-full hover:bg-gray-100" onClick={fetchServiceMetrics} sx={{ color: 'white' }}>
+                <IconButton onClick={fetchServiceMetrics} sx={{ color: 'white' }}>
                   <Refresh />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                </IconButton>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
 
       {/* Main Navigation Tabs */}
-      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} variant="scrollable" scrollButtons="auto">
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Service Metrics" icon={<Analytics />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Live Streams" icon={<Timeline />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Admin Config" icon={<Settings />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Cost Analysis" icon={<MonetizationOn />} />
-        </div>
-      </div>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} variant="scrollable" scrollButtons="auto">
+          <Tab label="Service Metrics" icon={<Analytics />} />
+          <Tab label="Live Streams" icon={<Timeline />} />
+          <Tab label="Admin Config" icon={<Settings />} />
+          <Tab label="Cost Analysis" icon={<MonetizationOn />} />
+        </Tabs>
+      </Box>
 
       {/* Tab Content */}
       {activeTab === 0 && (
-        <div className="grid" container spacing={3}>
+        <Grid container spacing={3}>
           {/* Key Metrics Cards */}
-          <div className="grid" item xs={12} md={3}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div  color="text.secondary" gutterBottom>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
                       Active Connections
-                    </div>
-                    <div  variant="h4" color="primary">
+                    </Typography>
+                    <Typography variant="h4" color="primary">
                       {serviceMetrics.activeConnections}
-                    </div>
-                    <div  variant="body2" color="text.secondary">
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
                       Websocket connections to providers
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                   <Router color="primary" fontSize="large" />
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={3}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div  color="text.secondary" gutterBottom>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
                       Total Subscribers
-                    </div>
-                    <div  variant="h4" color="success.main">
+                    </Typography>
+                    <Typography variant="h4" color="success.main">
                       {serviceMetrics.totalSubscribers}
-                    </div>
-                    <div  variant="body2" color="text.secondary">
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
                       User sessions receiving data
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                   <PeopleAlt color="success" fontSize="large" />
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={3}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div  color="text.secondary" gutterBottom>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
                       Avg Latency
-                    </div>
-                    <div  variant="h4" color="warning.main">
+                    </Typography>
+                    <Typography variant="h4" color="warning.main">
                       {serviceMetrics.dataLatency}ms
-                    </div>
-                    <div  variant="body2" color="text.secondary">
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
                       Data delivery latency
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                   <Speed color="warning" fontSize="large" />
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={3}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div  color="text.secondary" gutterBottom>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom>
                       Error Rate
-                    </div>
-                    <div  variant="h4" color={serviceMetrics.errorRate > 0.05 ? "error" : "success"}>
+                    </Typography>
+                    <Typography variant="h4" color={serviceMetrics.errorRate > 0.05 ? "error" : "success"}>
                       {(serviceMetrics.errorRate * 100).toFixed(2)}%
-                    </div>
-                    <div  variant="body2" color="text.secondary">
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
                       Connection failure rate
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                   <Assessment color={serviceMetrics.errorRate > 0.05 ? "error" : "success"} fontSize="large" />
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Charts */}
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header title="Connection Distribution" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ height: 300 }}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader title="Connection Distribution" />
+              <CardContent>
+                <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -428,26 +428,26 @@ const LiveDataCentralized = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <div  />
+                      <Tooltip />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header title="Real-time Latency" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ height: 300 }}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader title="Real-time Latency" />
+              <CardContent>
+                <Box sx={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={latencyData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="time" />
                       <YAxis label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft' }} />
-                      <div  />
+                      <Tooltip />
                       <Legend />
                       <Line 
                         type="monotone" 
@@ -458,25 +458,25 @@ const LiveDataCentralized = () => {
                       />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {activeTab === 1 && (
-        <div className="grid" container spacing={3}>
+        <Grid container spacing={3}>
           {/* Symbol Subscription Management */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header 
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader 
                 title="Symbol Subscriptions"
                 subheader="Manage live data streams for specific symbols"
               />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <CardContent>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
+                  <TextField
                     label="Symbol"
                     value={newSymbol}
                     onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
@@ -491,25 +491,25 @@ const LiveDataCentralized = () => {
                     options={adminConfig.providers}
                     size="small"
                     sx={{ minWidth: 120 }}
-                    renderInput={(params) => <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Provider" />}
+                    renderInput={(params) => <TextField {...params} label="Provider" />}
                   />
                   
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     variant="contained"
                     onClick={handleAddSymbol}
                     startIcon={<Add />}
                     disabled={!newSymbol.trim() || subscribedSymbols.has(newSymbol.toUpperCase())}
                   >
                     Subscribe
-                  </button>
-                </div>
+                  </Button>
+                </Box>
 
                 {/* Quick Symbol Selection */}
-                <div  sx={{ mb: 3 }}>
-                  <div  variant="subtitle2" gutterBottom>Quick Subscribe:</div>
-                  <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>Quick Subscribe:</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {POPULAR_SYMBOLS.map(symbol => (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      <Chip
                         key={symbol}
                         label={symbol}
                         variant={subscribedSymbols.has(symbol) ? "filled" : "outlined"}
@@ -518,189 +518,189 @@ const LiveDataCentralized = () => {
                         icon={subscribedSymbols.has(symbol) ? <CheckCircle /> : <Add />}
                       />
                     ))}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
 
                 {/* Active Subscriptions */}
-                <div  variant="h6" gutterBottom>
+                <Typography variant="h6" gutterBottom>
                   Active Subscriptions ({subscribedSymbols.size})
-                </div>
+                </Typography>
                 
                 {subscribedSymbols.size === 0 ? (
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+                  <Alert severity="info">
                     No active subscriptions. Add symbols to start receiving live data.
-                  </div>
+                  </Alert>
                 ) : (
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Price</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Change</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Volume</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Provider</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Actions</td>
-                        </tr>
-                      </thead>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Last Price</TableCell>
+                          <TableCell>Change</TableCell>
+                          <TableCell>Volume</TableCell>
+                          <TableCell>Provider</TableCell>
+                          <TableCell>Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
                         {Array.from(subscribedSymbols).map(symbol => {
                           const data = liveStreams.get(symbol) || {};
                           return (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={symbol}>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <div  variant="subtitle2" fontWeight="bold">
+                            <TableRow key={symbol}>
+                              <TableCell>
+                                <Typography variant="subtitle2" fontWeight="bold">
                                   {symbol}
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>${data.price || '--'}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <div  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                </Typography>
+                              </TableCell>
+                              <TableCell>${data.price || '--'}</TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   {data.change > 0 ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                                  <div  color={data.change > 0 ? 'success.main' : 'error.main'}>
+                                  <Typography color={data.change > 0 ? 'success.main' : 'error.main'}>
                                     {data.change || '--'}%
-                                  </div>
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{data.volume?.toLocaleString() || '--'}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={data.provider || selectedProvider} size="small" />
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <button className="p-2 rounded-full hover:bg-gray-100" 
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell>{data.volume?.toLocaleString() || '--'}</TableCell>
+                              <TableCell>
+                                <Chip label={data.provider || selectedProvider} size="small" />
+                              </TableCell>
+                              <TableCell>
+                                <IconButton 
                                   size="small" 
                                   color="error"
                                   onClick={() => unsubscribeFromSymbol(symbol)}
                                 >
                                   <Delete />
-                                </button>
-                              </td>
-                            </tr>
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {activeTab === 2 && (
-        <div className="grid" container spacing={3}>
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header 
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader 
                 title="Service Configuration"
                 subheader="Admin controls for centralized live data service"
               />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 3 }}>
-                  <div  variant="subtitle2" gutterBottom>Centralized Architecture Benefits:</div>
-                  <div  variant="body2">
+              <CardContent>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>Centralized Architecture Benefits:</Typography>
+                  <Typography variant="body2">
                     • Single API connection per symbol (not per user)<br/>
                     • Massive cost reduction vs per-user websockets<br/>
                     • Better performance through centralized caching<br/>
                     • Easier management and monitoring<br/>
                     • Can serve unlimited customers from same data streams
-                  </div>
-                </div>
+                  </Typography>
+                </Alert>
 
-                <div  variant="h6" gutterBottom>Enabled Data Feeds</div>
-                <div  sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>Enabled Data Feeds</Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                   {adminConfig.enabledFeeds.map(feed => (
-                    <div className="mb-4"Label
+                    <FormControlLabel
                       key={feed}
-                      control={<input type="checkbox" className="toggle" defaultChecked />}
+                      control={<Switch defaultChecked />}
                       label={feed.charAt(0).toUpperCase() + feed.slice(1)}
                     />
                   ))}
-                </div>
+                </Box>
 
-                <div  variant="h6" gutterBottom>Data Providers</div>
-                <div  sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>Data Providers</Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                   {adminConfig.providers.map(provider => (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       key={provider} 
                       label={provider.charAt(0).toUpperCase() + provider.slice(1)}
                       variant="filled"
                       color="primary"
                     />
                   ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {activeTab === 3 && (
-        <div className="grid" container spacing={3}>
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header 
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader 
                 title="Cost Analysis"
                 subheader="Efficiency gains from centralized architecture"
               />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mb: 3 }}>
-                  <div  variant="subtitle2" gutterBottom>Cost Optimization Achieved:</div>
-                  <div  variant="body2">
+              <CardContent>
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>Cost Optimization Achieved:</Typography>
+                  <Typography variant="body2">
                     Previous architecture: Each user ran their own websockets (expensive, redundant)<br/>
                     New architecture: Single connection per symbol shared across all users (efficient, scalable)
-                  </div>
-                </div>
+                  </Typography>
+                </Alert>
 
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={12} md={6}>
-                    <div  variant="h6" gutterBottom>Previous vs Current</div>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Active Symbols</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{subscribedSymbols.size}</td>
-                          </tr>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Connected Users</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{serviceMetrics.totalSubscribers}</td>
-                          </tr>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Old Model: Connections</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'error.main' }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" gutterBottom>Previous vs Current</Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell>Active Symbols</TableCell>
+                            <TableCell align="right">{subscribedSymbols.size}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Connected Users</TableCell>
+                            <TableCell align="right">{serviceMetrics.totalSubscribers}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Old Model: Connections</TableCell>
+                            <TableCell align="right" sx={{ color: 'error.main' }}>
                               {subscribedSymbols.size * serviceMetrics.totalSubscribers}
-                            </td>
-                          </tr>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>New Model: Connections</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>New Model: Connections</TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>
                               {serviceMetrics.activeConnections}
-                            </td>
-                          </tr>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><div  variant="subtitle2">Efficiency Gain</div></td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>
-                              <div  variant="subtitle2">
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell><Typography variant="subtitle2">Efficiency Gain</Typography></TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>
+                              <Typography variant="subtitle2">
                                 {subscribedSymbols.size * serviceMetrics.totalSubscribers > 0 
                                   ? `${Math.round((1 - serviceMetrics.activeConnections / (subscribedSymbols.size * serviceMetrics.totalSubscribers || 1)) * 100)}%`
                                   : '0%'
                                 } reduction
-                              </div>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
-    </div>
+    </Box>
   );
 };
 

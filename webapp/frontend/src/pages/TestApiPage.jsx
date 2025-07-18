@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Container, Typography, Button, Box, Alert, Card, CardContent } from '@mui/material';
 import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
 
 const TestApiPage = () => {
@@ -49,82 +50,82 @@ const TestApiPage = () => {
   }, []);
 
   return (
-    <div className="container mx-auto" maxWidth="md">
-      <div  sx={{ mt: 4 }}>
-        <div  variant="h4" gutterBottom>
+    <Container maxWidth="md">
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h4" gutterBottom>
           API Test Page
-        </div>
-        <div  variant="body1" sx={{ mb: 3 }}>
+        </Typography>
+        <Typography variant="body1" sx={{ mb: 3 }}>
           This page tests the API endpoints used by the Portfolio Performance page.
-        </div>
+        </Typography>
 
         {error && (
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 3 }}>
             Error: {error}
-          </div>
+          </Alert>
         )}
 
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+        <Button 
           variant="contained" 
           onClick={testApi} 
           disabled={loading}
           sx={{ mb: 3 }}
         >
           {loading ? 'Testing...' : 'Test API Endpoints'}
-        </button>
+        </Button>
 
         {Object.keys(results).length > 0 && (
-          <div>
-            <div  variant="h6" gutterBottom>
+          <Box>
+            <Typography variant="h6" gutterBottom>
               Test Results:
-            </div>
+            </Typography>
             
             {results.performance && (
-              <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2 }}>
-                <div className="bg-white shadow-md rounded-lg"Content>
-                  <div  variant="h6" color="success.main">
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" color="success.main">
                     ✅ Portfolio Performance API
-                  </div>
-                  <div  variant="body2">
+                  </Typography>
+                  <Typography variant="body2">
                     Data points: {results.performance.dataLength}
-                  </div>
-                  <div  variant="body2">
+                  </Typography>
+                  <Typography variant="body2">
                     Status: {results.performance.success ? 'SUCCESS' : 'FAILED'}
-                  </div>
-                </div>
-              </div>
+                  </Typography>
+                </CardContent>
+              </Card>
             )}
 
             {results.analytics && (
-              <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2 }}>
-                <div className="bg-white shadow-md rounded-lg"Content>
-                  <div  variant="h6" color="success.main">
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" color="success.main">
                     ✅ Portfolio Analytics API
-                  </div>
-                  <div  variant="body2">
+                  </Typography>
+                  <Typography variant="body2">
                     Holdings count: {results.analytics.holdingsCount}
-                  </div>
-                  <div  variant="body2">
+                  </Typography>
+                  <Typography variant="body2">
                     Status: {results.analytics.success ? 'SUCCESS' : 'FAILED'}
-                  </div>
-                </div>
-              </div>
+                  </Typography>
+                </CardContent>
+              </Card>
             )}
 
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Raw Results:
-                </div>
-                <div  component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto', maxHeight: 300 }}>
+                </Typography>
+                <Box component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto', maxHeight: 300 }}>
                   {JSON.stringify(results, null, 2)}
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Container>
   );
 };
 

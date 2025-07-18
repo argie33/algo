@@ -272,16 +272,16 @@ const PortfolioManager = () => {
 
   if (loading) {
     return (
-      <div  display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-      </div>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
     );
   }
 
   return (
-    <div>
+    <Box>
       {/* API Key Status */}
-      <div  sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           compact={true}
           showSetupDialog={true}
@@ -289,203 +289,203 @@ const PortfolioManager = () => {
             console.log('Portfolio Manager - API Key Status:', status);
           }}
         />
-      </div>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Portfolio Summary Cards */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Total Value
-              </div>
-              <div  variant="h4" color="primary.main">
+              </Typography>
+              <Typography variant="h4" color="primary.main">
                 {formatCurrency(portfolioSummary.totalValue)}
-              </div>
-            </div>
-          </div>
-        </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Total Gain/Loss
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="h4" 
                 color={getChangeColor(portfolioSummary.totalGainLoss)}
                 sx={{ display: 'flex', alignItems: 'center' }}
               >
                 {portfolioSummary.totalGainLoss >= 0 ? <TrendingUp /> : <TrendingDown />}
                 {formatCurrency(portfolioSummary.totalGainLoss)}
-              </div>
-              <div  variant="body2" color="text.secondary">
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
                 {formatPercent(portfolioSummary.totalGainLossPercent)}
-              </div>
-            </div>
-          </div>
-        </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Top Performer
-              </div>
+              </Typography>
               {portfolioSummary.topGainer ? (
                 <>
-                  <div  variant="h5" color="success.main">
+                  <Typography variant="h5" color="success.main">
                     {portfolioSummary.topGainer.symbol}
-                  </div>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     {formatPercent(portfolioSummary.topGainer.gainLossPercent)}
-                  </div>
+                  </Typography>
                 </>
               ) : (
-                <div  variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary">
                   No data
-                </div>
+                </Typography>
               )}
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Risk Metrics
-              </div>
-              <div  variant="body2">
+              </Typography>
+              <Typography variant="body2">
                 Beta: {portfolioSummary.riskMetrics.beta.toFixed(2)}
-              </div>
-              <div  variant="body2">
+              </Typography>
+              <Typography variant="body2">
                 Sharpe: {portfolioSummary.riskMetrics.sharpeRatio.toFixed(2)}
-              </div>
-              <div  variant="body2">
+              </Typography>
+              <Typography variant="body2">
                 Volatility: {portfolioSummary.riskMetrics.volatility.toFixed(1)}%
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Action Buttons */}
-      <div  sx={{ mb: 3, display: 'flex', gap: 2 }}>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+        <Button
           variant="contained"
           startIcon={<Add />}
           onClick={() => setOpenAddDialog(true)}
         >
           Add Holding
-        </button>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        </Button>
+        <Button
           variant="outlined"
           startIcon={<CloudSync />}
           onClick={() => setOpenImportDialog(true)}
         >
           Import from Broker
-        </button>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        </Button>
+        <Button
           variant="outlined"
           startIcon={<Refresh />}
           onClick={fetchPortfolioData}
         >
           Refresh
-        </button>
-      </div>
+        </Button>
+      </Box>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200" value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Holdings" />
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Allocation" />
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Performance" />
-      </div>
+      <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+        <Tab label="Holdings" />
+        <Tab label="Allocation" />
+        <Tab label="Performance" />
+      </Tabs>
 
       {/* Holdings Table */}
       {tabValue === 0 && (
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Quantity</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg Price</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current Price</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Market Value</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Gain/Loss</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Gain/Loss %</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
-              </tr>
-            </thead>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Symbol</TableCell>
+                <TableCell align="right">Quantity</TableCell>
+                <TableCell align="right">Avg Price</TableCell>
+                <TableCell align="right">Current Price</TableCell>
+                <TableCell align="right">Market Value</TableCell>
+                <TableCell align="right">Gain/Loss</TableCell>
+                <TableCell align="right">Gain/Loss %</TableCell>
+                <TableCell align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {portfolioData.map((holding) => (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={holding.id}>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                    <div>
-                      <div  variant="body2" fontWeight="bold">
+                <TableRow key={holding.id}>
+                  <TableCell>
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold">
                         {holding.symbol}
-                      </div>
-                      <div  variant="caption" color="text.secondary">
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
                         {holding.companyName}
-                      </div>
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{holding.quantity}</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(holding.averagePrice)}</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(holding.currentPrice)}</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(holding.currentValue)}</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <div  color={getChangeColor(holding.gainLoss)}>
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right">{holding.quantity}</TableCell>
+                  <TableCell align="right">{formatCurrency(holding.averagePrice)}</TableCell>
+                  <TableCell align="right">{formatCurrency(holding.currentPrice)}</TableCell>
+                  <TableCell align="right">{formatCurrency(holding.currentValue)}</TableCell>
+                  <TableCell align="right">
+                    <Typography color={getChangeColor(holding.gainLoss)}>
                       {formatCurrency(holding.gainLoss)}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Chip
                       label={formatPercent(holding.gainLossPercent)}
                       color={holding.gainLossPercent >= 0 ? 'success' : 'error'}
                       size="small"
                     />
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                    <button className="p-2 rounded-full hover:bg-gray-100"
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton
                       onClick={() => {
                         setSelectedHolding(holding);
                         setOpenEditDialog(true);
                       }}
                     >
                       <Edit />
-                    </button>
-                    <button className="p-2 rounded-full hover:bg-gray-100"
+                    </IconButton>
+                    <IconButton
                       onClick={() => handleDeleteHolding(holding.id)}
                       color="error"
                     >
                       <Delete />
-                    </button>
-                  </td>
-                </tr>
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {/* Sector Allocation */}
       {tabValue === 1 && (
-        <div className="grid" container spacing={3}>
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Sector Allocation
-                </div>
+                </Typography>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -505,56 +505,56 @@ const PortfolioManager = () => {
                     <RechartsTooltip formatter={(value) => formatCurrency(value)} />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+              </CardContent>
+            </Card>
+          </Grid>
           
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Top Holdings
-                </div>
+                </Typography>
                 {portfolioData
                   .sort((a, b) => b.currentValue - a.currentValue)
                   .slice(0, 5)
                   .map((holding) => (
-                    <div  key={holding.id} sx={{ mb: 2 }}>
-                      <div  display="flex" justifyContent="space-between" alignItems="center">
-                        <div  variant="body2">{holding.symbol}</div>
-                        <div  variant="body2">
+                    <Box key={holding.id} sx={{ mb: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2">{holding.symbol}</Typography>
+                        <Typography variant="body2">
                           {formatCurrency(holding.currentValue)}
-                        </div>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2"
+                        </Typography>
+                      </Box>
+                      <LinearProgress
                         variant="determinate"
                         value={(holding.currentValue / portfolioSummary.totalValue) * 100}
                         sx={{ mt: 1 }}
                       />
-                    </div>
+                    </Box>
                   ))}
-              </div>
-            </div>
-          </div>
-        </div>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {/* Add Holding Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Add New Holding</h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div className="grid" container spacing={2} sx={{ mt: 1 }}>
-            <div className="grid" item xs={12}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Holding</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
                 label="Symbol"
                 value={newHolding.symbol}
                 onChange={(e) => setNewHolding({...newHolding, symbol: e.target.value.toUpperCase()})}
                 fullWidth
                 required
               />
-            </div>
-            <div className="grid" item xs={6}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
                 label="Quantity"
                 type="number"
                 value={newHolding.quantity}
@@ -562,9 +562,9 @@ const PortfolioManager = () => {
                 fullWidth
                 required
               />
-            </div>
-            <div className="grid" item xs={6}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
                 label="Average Price"
                 type="number"
                 value={newHolding.averagePrice}
@@ -572,9 +572,9 @@ const PortfolioManager = () => {
                 fullWidth
                 required
               />
-            </div>
-            <div className="grid" item xs={6}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
                 label="Purchase Date"
                 type="date"
                 value={newHolding.purchaseDate}
@@ -582,24 +582,24 @@ const PortfolioManager = () => {
                 fullWidth
                 InputLabelProps={{ shrink: true }}
               />
-            </div>
-            <div className="grid" item xs={6}>
-              <div className="mb-4" fullWidth>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Broker</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth>
+                <InputLabel>Broker</InputLabel>
+                <Select
                   value={newHolding.broker}
                   onChange={(e) => setNewHolding({...newHolding, broker: e.target.value})}
                 >
-                  <option  value="manual">Manual Entry</option>
-                  <option  value="alpaca">Alpaca</option>
-                  <option  value="robinhood">Robinhood</option>
-                  <option  value="fidelity">Fidelity</option>
-                  <option  value="schwab">Schwab</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <MenuItem value="manual">Manual Entry</MenuItem>
+                  <MenuItem value="alpaca">Alpaca</MenuItem>
+                  <MenuItem value="robinhood">Robinhood</MenuItem>
+                  <MenuItem value="fidelity">Fidelity</MenuItem>
+                  <MenuItem value="schwab">Schwab</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
                 label="Notes"
                 value={newHolding.notes}
                 onChange={(e) => setNewHolding({...newHolding, notes: e.target.value})}
@@ -607,80 +607,80 @@ const PortfolioManager = () => {
                 multiline
                 rows={2}
               />
-            </div>
-          </div>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setOpenAddDialog(false)}>Cancel</button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleAddHolding} variant="contained">Add Holding</button>
-        </div>
-      </div>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <Button onClick={handleAddHolding} variant="contained">Add Holding</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Import Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={openImportDialog} onClose={() => setOpenImportDialog(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Import Portfolio</h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div  variant="body2" sx={{ mb: 2 }}>
+      <Dialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Import Portfolio</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
             Select your broker to import portfolio data:
-          </div>
+          </Typography>
           
           {importStatus && (
-            <div  sx={{ mb: 2 }}>
-              <div  variant="body2" sx={{ mb: 1 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
                 {importStatus}
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2" variant="determinate" value={importProgress} />
-            </div>
+              </Typography>
+              <LinearProgress variant="determinate" value={importProgress} />
+            </Box>
           )}
           
-          <div className="grid" container spacing={2}>
-            <div className="grid" item xs={6}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Button
                 variant="outlined"
                 fullWidth
                 onClick={() => handleImportPortfolio('alpaca')}
                 startIcon={<AccountBalance />}
               >
                 Alpaca
-              </button>
-            </div>
-            <div className="grid" item xs={6}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Button>
+            </Grid>
+            <Grid item xs={6}>
+              <Button
                 variant="outlined"
                 fullWidth
                 onClick={() => handleImportPortfolio('robinhood')}
                 startIcon={<AccountBalance />}
               >
                 Robinhood
-              </button>
-            </div>
-            <div className="grid" item xs={6}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Button>
+            </Grid>
+            <Grid item xs={6}>
+              <Button
                 variant="outlined"
                 fullWidth
                 onClick={() => handleImportPortfolio('fidelity')}
                 startIcon={<AccountBalance />}
               >
                 Fidelity
-              </button>
-            </div>
-            <div className="grid" item xs={6}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Button>
+            </Grid>
+            <Grid item xs={6}>
+              <Button
                 variant="outlined"
                 fullWidth
                 onClick={() => handleImportPortfolio('schwab')}
                 startIcon={<AccountBalance />}
               >
                 Schwab
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setOpenImportDialog(false)}>Cancel</button>
-        </div>
-      </div>
-    </div>
+              </Button>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenImportDialog(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Container, Typography, CircularProgress, Alert, Card, CardContent, Button, Box } from '@mui/material';
 import { getPortfolioPerformance, getPortfolioAnalytics } from '../services/api';
 import ApiKeyStatusIndicator from '../components/ApiKeyStatusIndicator';
 
@@ -55,32 +56,32 @@ const PortfolioPerformanceSimple = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto" maxWidth="md">
-        <div  variant="h4" gutterBottom>
+      <Container maxWidth="md">
+        <Typography variant="h4" gutterBottom>
           Portfolio Performance (Simple Debug Version)
-        </div>
+        </Typography>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          <div>Loading portfolio data...</div>
+          <CircularProgress />
+          <Typography>Loading portfolio data...</Typography>
         </div>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6">Debug Information:</div>
+        <Card>
+          <CardContent>
+            <Typography variant="h6">Debug Information:</Typography>
             {debugInfo.map((info, index) => (
-              <div  key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
+              <Typography key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
                 {info}
-              </div>
+              </Typography>
             ))}
-          </div>
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+      </Container>
     );
   }
 
   return (
-    <div className="container mx-auto" maxWidth="md">
+    <Container maxWidth="md">
       {/* API Key Status */}
-      <div  sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           compact={true}
           showSetupDialog={true}
@@ -88,79 +89,79 @@ const PortfolioPerformanceSimple = () => {
             console.log('Portfolio Performance Simple - API Key Status:', status);
           }}
         />
-      </div>
+      </Box>
 
-      <div  variant="h4" gutterBottom>
+      <Typography variant="h4" gutterBottom>
         Portfolio Performance (Simple Debug Version)
-      </div>
+      </Typography>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           {error}
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={retryFetch} sx={{ ml: 2 }}>
+          <Button onClick={retryFetch} sx={{ ml: 2 }}>
             Retry
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
 
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Performance Data Status
-          </div>
+          </Typography>
           {performanceData ? (
             <div>
-              <div  color="success.main">✅ Performance data loaded successfully</div>
-              <div>
+              <Typography color="success.main">✅ Performance data loaded successfully</Typography>
+              <Typography>
                 Data points: {performanceData.data?.performance?.length || 0}
-              </div>
-              <div>
+              </Typography>
+              <Typography>
                 Success: {performanceData.success ? 'true' : 'false'}
-              </div>
+              </Typography>
             </div>
           ) : (
-            <div  color="error.main">❌ No performance data</div>
+            <Typography color="error.main">❌ No performance data</Typography>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Analytics Data Status
-          </div>
+          </Typography>
           {analyticsData ? (
             <div>
-              <div  color="success.main">✅ Analytics data loaded successfully</div>
-              <div>
+              <Typography color="success.main">✅ Analytics data loaded successfully</Typography>
+              <Typography>
                 Holdings: {analyticsData.data?.holdings?.length || 0}
-              </div>
-              <div>
+              </Typography>
+              <Typography>
                 Success: {analyticsData.success ? 'true' : 'false'}
-              </div>
+              </Typography>
             </div>
           ) : (
-            <div  color="error.main">❌ No analytics data</div>
+            <Typography color="error.main">❌ No analytics data</Typography>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Debug Information:
-          </div>
+          </Typography>
           {debugInfo.map((info, index) => (
-            <div  key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
+            <Typography key={index} variant="body2" style={{ fontFamily: 'monospace', marginBottom: '4px' }}>
               {info}
-            </div>
+            </Typography>
           ))}
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={retryFetch} variant="outlined" sx={{ mt: 2 }}>
+          <Button onClick={retryFetch} variant="outlined" sx={{ mt: 2 }}>
             Reload Data
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </CardContent>
+      </Card>
+    </Container>
   );
 };
 

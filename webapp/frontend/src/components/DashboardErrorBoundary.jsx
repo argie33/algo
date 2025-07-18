@@ -1,4 +1,6 @@
 import React from 'react';
+import { Box, Card, CardContent, Typography, Button, Alert, Stack } from '@mui/material';
+import { Error, Refresh, Home, BugReport } from '@mui/icons-material';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -44,53 +46,53 @@ class DashboardErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div  sx={{ p: 4, maxWidth: 800, mx: 'auto' }}>
-          <div className="bg-white shadow-md rounded-lg" sx={{ border: '1px solid', borderColor: 'error.main' }}>
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
-              <div className="flex flex-col space-y-2" spacing={3} alignItems="center" textAlign="center">
+        <Box sx={{ p: 4, maxWidth: 800, mx: 'auto' }}>
+          <Card sx={{ border: '1px solid', borderColor: 'error.main' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Stack spacing={3} alignItems="center" textAlign="center">
                 <Error sx={{ fontSize: 60, color: 'error.main' }} />
                 
-                <div  variant="h4" color="error.main" gutterBottom>
+                <Typography variant="h4" color="error.main" gutterBottom>
                   Dashboard Error
-                </div>
+                </Typography>
                 
-                <div  variant="body1" color="text.secondary">
+                <Typography variant="body1" color="text.secondary">
                   Something went wrong while loading your dashboard. This is likely due to:
-                </div>
+                </Typography>
 
-                <div className="flex flex-col space-y-2" spacing={1} sx={{ width: '100%', maxWidth: 500 }}>
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" variant="outlined">
+                <Stack spacing={1} sx={{ width: '100%', maxWidth: 500 }}>
+                  <Alert severity="warning" variant="outlined">
                     <strong>Database Connection Issues:</strong> The backend may be unable to connect to the database
-                  </div>
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" variant="outlined">
+                  </Alert>
+                  <Alert severity="warning" variant="outlined">
                     <strong>Authentication Problems:</strong> Cognito configuration may be using fallback values
-                  </div>
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" variant="outlined">
+                  </Alert>
+                  <Alert severity="warning" variant="outlined">
                     <strong>API Failures:</strong> One or more API endpoints may be returning errors
-                  </div>
-                </div>
+                  </Alert>
+                </Stack>
 
-                <div  variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', mt: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', mt: 2 }}>
                   <strong>Error:</strong> {this.state.error && this.state.error.toString()}
-                </div>
+                </Typography>
 
-                <div className="flex flex-col space-y-2" direction="row" spacing={2}>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Stack direction="row" spacing={2}>
+                  <Button
                     variant="contained"
                     onClick={this.handleRetry}
                     startIcon={<Refresh />}
                     disabled={this.state.retryCount >= 3}
                   >
                     {this.state.retryCount >= 3 ? 'Max Retries Reached' : 'Retry Dashboard'}
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  </Button>
+                  <Button
                     variant="outlined"
                     onClick={() => window.location.href = '/'}
                     startIcon={<Home />}
                   >
                     Go Home
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  </Button>
+                  <Button
                     variant="outlined"
                     onClick={() => {
                       const issue = encodeURIComponent(`Dashboard Error: ${this.state.error}`);
@@ -99,16 +101,16 @@ class DashboardErrorBoundary extends React.Component {
                     startIcon={<BugReport />}
                   >
                     Report Bug
-                  </button>
-                </div>
+                  </Button>
+                </Stack>
 
-                <div  variant="caption" color="text.secondary" sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
                   Retry count: {this.state.retryCount}/3
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
       );
     }
 

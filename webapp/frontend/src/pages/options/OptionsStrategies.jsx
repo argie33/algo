@@ -298,61 +298,61 @@ const OptionsStrategies = () => {
   };
   
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" fontWeight={700} gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
           Options Strategy Builder
-        </div>
-        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Build, analyze, and optimize options strategies with real-time P&L visualization
-        </div>
-        <div  display="flex" gap={1} flexWrap="wrap">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Strategy Templates" color="primary" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="P&L Analysis" color="success" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Greeks Monitoring" color="info" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Risk Assessment" color="warning" size="small" variant="outlined" />
-        </div>
-      </div>
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip label="Strategy Templates" color="primary" size="small" variant="outlined" />
+          <Chip label="P&L Analysis" color="success" size="small" variant="outlined" />
+          <Chip label="Greeks Monitoring" color="info" size="small" variant="outlined" />
+          <Chip label="Risk Assessment" color="warning" size="small" variant="outlined" />
+        </Box>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Controls */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} sm={2}>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={2}>
               <Autocomplete
                 options={symbols}
                 value={selectedSymbol}
                 onChange={(_, value) => value && setSelectedSymbol(value)}
                 renderInput={(params) => (
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Symbol" size="small" />
+                  <TextField {...params} label="Symbol" size="small" />
                 )}
               />
-            </div>
-            <div className="grid" item xs={12} sm={3}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Strategy</InputLabel>
+                <Select
                   value={selectedStrategy}
                   label="Strategy"
                   onChange={(e) => setSelectedStrategy(e.target.value)}
                 >
                   {Object.entries(strategyTemplates).map(([key, strategy]) => (
-                    <option  key={key} value={key}>
+                    <MenuItem key={key} value={key}>
                       {strategy.name}
-                    </option>
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <TextField
                 label="Stock Price"
                 type="number"
                 value={currentPrice}
@@ -360,9 +360,9 @@ const OptionsStrategies = () => {
                 size="small"
                 fullWidth
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <TextField
                 label="Implied Vol (%)"
                 type="number"
                 value={(impliedVol * 100).toFixed(1)}
@@ -370,9 +370,9 @@ const OptionsStrategies = () => {
                 size="small"
                 fullWidth
               />
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <TextField
                 label="Days to Expiry"
                 type="number"
                 value={daysToExpiry}
@@ -380,9 +380,9 @@ const OptionsStrategies = () => {
                 size="small"
                 fullWidth
               />
-            </div>
-            <div className="grid" item xs={12} sm={1}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={1}>
+              <Button
                 variant="contained"
                 startIcon={<Science />}
                 onClick={analyzeStrategy}
@@ -390,40 +390,40 @@ const OptionsStrategies = () => {
                 fullWidth
               >
                 Analyze
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Main Strategy Analysis */}
-        <div className="grid" item xs={12} lg={8}>
-          <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-            <div className="bg-white shadow-md rounded-lg"Header 
+        <Grid item xs={12} lg={8}>
+          <Card sx={{ mb: 3 }}>
+            <CardHeader 
               title={`${strategyTemplates[selectedStrategy]?.name} - ${selectedSymbol}`}
               subheader={strategyTemplates[selectedStrategy]?.description}
               action={
-                <div  display="flex" gap={1}>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<SaveIcon />} size="small">
+                <Box display="flex" gap={1}>
+                  <Button variant="outlined" startIcon={<SaveIcon />} size="small">
                     Save
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" variant="outlined" startIcon={<⬇  />} size="small">
+                  </Button>
+                  <Button variant="outlined" startIcon={<DownloadIcon />} size="small">
                     Export
-                  </button>
-                </div>
+                  </Button>
+                </Box>
               }
             />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="P&L Chart" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Strategy Details" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Greeks" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Time Decay" />
-              </div>
+            <CardContent>
+              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+                <Tab label="P&L Chart" />
+                <Tab label="Strategy Details" />
+                <Tab label="Greeks" />
+                <Tab label="Time Decay" />
+              </Tabs>
               
               {activeTab === 0 && (
-                <div>
+                <Box>
                   <ResponsiveContainer width="100%" height={400}>
                     <AreaChart data={pnlChart}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -449,47 +449,47 @@ const OptionsStrategies = () => {
                       />
                     </AreaChart>
                   </ResponsiveContainer>
-                  <div  variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                     Orange line shows current stock price. P&L shown at expiration.
-                  </div>
-                </div>
+                  </Typography>
+                </Box>
               )}
               
               {activeTab === 1 && (
-                <div className="grid" container spacing={3}>
-                  <div className="grid" item xs={12} md={6}>
-                    <div  variant="h6" gutterBottom>Strategy Legs</div>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Action</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Quantity</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strike</td>
-                          </tr>
-                        </thead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" gutterBottom>Strategy Legs</Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Action</TableCell>
+                            <TableCell>Type</TableCell>
+                            <TableCell>Quantity</TableCell>
+                            <TableCell>Strike</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {strategyTemplates[selectedStrategy]?.legs.map((leg, index) => (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                            <TableRow key={index}>
+                              <TableCell>
+                                <Chip 
                                   label={leg.action} 
                                   color={leg.action === 'BUY' ? 'success' : 'error'} 
                                   size="small"
                                 />
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{leg.type}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{leg.quantity}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{leg.strike || 'N/A'}</td>
-                            </tr>
+                              </TableCell>
+                              <TableCell>{leg.type}</TableCell>
+                              <TableCell>{leg.quantity}</TableCell>
+                              <TableCell>{leg.strike || 'N/A'}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={12} md={6}>
-                    <div  variant="h6" gutterBottom>Strategy Info</div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" gutterBottom>Strategy Info</Typography>
                     <List dense>
                       <ListItem>
                         <ListItemIcon><Analytics /></ListItemIcon>
@@ -520,51 +520,51 @@ const OptionsStrategies = () => {
                         />
                       </ListItem>
                     </List>
-                  </div>
-                </div>
+                  </Grid>
+                </Grid>
               )}
               
               {activeTab === 2 && greeksData && (
-                <div className="grid" container spacing={3}>
-                  <div className="grid" item xs={12} md={6}>
-                    <div  variant="h6" gutterBottom>Portfolio Greeks</div>
-                    <div className="grid" container spacing={2}>
-                      <div className="grid" item xs={6}>
-                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                          <div  variant="h5" color="primary">
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" gutterBottom>Portfolio Greeks</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h5" color="primary">
                             {greeksData.delta.toFixed(3)}
-                          </div>
-                          <div  variant="caption">Delta</div>
-                        </div>
-                      </div>
-                      <div className="grid" item xs={6}>
-                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                          <div  variant="h5" color="secondary">
+                          </Typography>
+                          <Typography variant="caption">Delta</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h5" color="secondary">
                             {greeksData.gamma.toFixed(4)}
-                          </div>
-                          <div  variant="caption">Gamma</div>
-                        </div>
-                      </div>
-                      <div className="grid" item xs={6}>
-                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                          <div  variant="h5" color="error">
+                          </Typography>
+                          <Typography variant="caption">Gamma</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h5" color="error">
                             {greeksData.theta.toFixed(3)}
-                          </div>
-                          <div  variant="caption">Theta</div>
-                        </div>
-                      </div>
-                      <div className="grid" item xs={6}>
-                        <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, textAlign: 'center' }}>
-                          <div  variant="h5" color="warning.main">
+                          </Typography>
+                          <Typography variant="caption">Theta</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h5" color="warning.main">
                             {greeksData.vega.toFixed(3)}
-                          </div>
-                          <div  variant="caption">Vega</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid" item xs={12} md={6}>
-                    <div  variant="h6" gutterBottom>Greeks Explanation</div>
+                          </Typography>
+                          <Typography variant="caption">Vega</Typography>
+                        </Paper>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" gutterBottom>Greeks Explanation</Typography>
                     <List dense>
                       <ListItem>
                         <ListItemText 
@@ -591,110 +591,110 @@ const OptionsStrategies = () => {
                         />
                       </ListItem>
                     </List>
-                  </div>
-                </div>
+                  </Grid>
+                </Grid>
               )}
               
               {activeTab === 3 && (
-                <div>
-                  <div  variant="h6" gutterBottom>Time Decay Analysis</div>
-                  <div  variant="body2" color="text.secondary" paragraph>
+                <Box>
+                  <Typography variant="h6" gutterBottom>Time Decay Analysis</Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
                     Time decay (Theta) shows how much the strategy loses value per day due to time passage.
-                  </div>
-                  <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 3, textAlign: 'center', bgcolor: 'error.light', color: 'error.contrastText' }}>
-                    <div  variant="h4" fontWeight="bold">
+                  </Typography>
+                  <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'error.light', color: 'error.contrastText' }}>
+                    <Typography variant="h4" fontWeight="bold">
                       ${strategyAnalysis?.timeDecay?.toFixed(2) || '--'}
-                    </div>
-                    <div  variant="body1">
+                    </Typography>
+                    <Typography variant="body1">
                       Daily Time Decay
-                    </div>
-                  </div>
-                </div>
+                    </Typography>
+                  </Paper>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Sidebar Analysis */}
-        <div className="grid" item xs={12} lg={4}>
+        <Grid item xs={12} lg={4}>
           {/* Strategy Summary */}
           {strategyAnalysis && (
-            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-              <div className="bg-white shadow-md rounded-lg"Header title="Strategy Summary" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Total Cost</div>
-                    <div  variant="h6" fontWeight="bold">
+            <Card sx={{ mb: 3 }}>
+              <CardHeader title="Strategy Summary" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Total Cost</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       ${Math.abs(parseFloat(strategyAnalysis.totalCost)).toLocaleString()}
-                    </div>
-                    <div  variant="caption" color={parseFloat(strategyAnalysis.totalCost) < 0 ? 'success.main' : 'error.main'}>
+                    </Typography>
+                    <Typography variant="caption" color={parseFloat(strategyAnalysis.totalCost) < 0 ? 'success.main' : 'error.main'}>
                       {parseFloat(strategyAnalysis.totalCost) < 0 ? 'Net Credit' : 'Net Debit'}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Max Profit</div>
-                    <div  variant="h6" fontWeight="bold" color="success.main">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Max Profit</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="success.main">
                       ${strategyAnalysis.maxProfit}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Max Loss</div>
-                    <div  variant="h6" fontWeight="bold" color="error.main">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Max Loss</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="error.main">
                       ${strategyAnalysis.maxLoss}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Success Probability</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Success Probability</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {strategyAnalysis.probability}%
-                    </div>
-                  </div>
-                </div>
-                <hr className="border-gray-200" sx={{ my: 2 }} />
-                <div>
-                  <div  variant="caption" color="text.secondary">Risk Level</div>
-                  <div  display="flex" alignItems="center" gap={1} mt={1}>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    </Typography>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Risk Level</Typography>
+                  <Box display="flex" alignItems="center" gap={1} mt={1}>
+                    <Chip 
                       label={getRiskLevel().level} 
                       color={getRiskLevel().color} 
                       size="small"
                     />
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
           )}
 
           {/* Market Conditions */}
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Header title="Market Conditions" />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div className="grid" container spacing={2}>
-                <div className="grid" item xs={6}>
-                  <div  variant="caption" color="text.secondary">Current IV</div>
-                  <div  variant="body1" fontWeight="bold">
+          <Card>
+            <CardHeader title="Market Conditions" />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Current IV</Typography>
+                  <Typography variant="body1" fontWeight="bold">
                     {(impliedVol * 100).toFixed(1)}%
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="caption" color="text.secondary">Days to Expiry</div>
-                  <div  variant="body1" fontWeight="bold">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Days to Expiry</Typography>
+                  <Typography variant="body1" fontWeight="bold">
                     {daysToExpiry}
-                  </div>
-                </div>
-                <div className="grid" item xs={12}>
-                  <div  variant="caption" color="text.secondary">Best Market Scenario</div>
-                  <div  variant="body2">
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">Best Market Scenario</Typography>
+                  <Typography variant="body2">
                     {strategyTemplates[selectedStrategy]?.bestCase}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 };
 

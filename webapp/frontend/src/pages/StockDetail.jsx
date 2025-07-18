@@ -61,9 +61,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <div  sx={{ p: 3 }}>
+        <Box sx={{ p: 3 }}>
           {children}
-        </div>
+        </Box>
       )}
     </div>
   )
@@ -143,31 +143,31 @@ function StockDetail() {
 
   if (profileLoading) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
-        </div>
-      </div>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress size={60} />
+        </Box>
+      </Container>
     )
   }
 
   if (profileError) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">
           Error loading stock data: {profileError.message}
-        </div>
-      </div>
+        </Alert>
+      </Container>
     )
   }
 
   if (!profile || profile.length === 0) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning">
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="warning">
           Stock not found: {symbol}
-        </div>
-      </div>
+        </Alert>
+      </Container>
     )
   }
 
@@ -215,9 +215,9 @@ function StockDetail() {
   ].filter(item => item.value > 0) : []
 
   return (
-    <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* API Key Status */}
-      <div  sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           compact={true}
           showSetupDialog={true}
@@ -225,117 +225,117 @@ function StockDetail() {
             console.log('Stock Detail - API Key Status:', status);
           }}
         />
-      </div>
+      </Box>
 
       {/* Header Section */}
-      <div  mb={4}>
-        <div  display="flex" alignItems="center" gap={2} mb={2}>
+      <Box mb={4}>
+        <Box display="flex" alignItems="center" gap={2} mb={2}>
           <Business sx={{ fontSize: 40, color: 'primary.main' }} />
-          <div>
-            <div  variant="h3" component="h1" fontWeight="bold">
+          <Box>
+            <Typography variant="h3" component="h1" fontWeight="bold">
               {stockData.symbol}
-            </div>
-            <div  variant="h6" color="text.secondary" gutterBottom>
+            </Typography>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
               {stockData.company_name}
-            </div>
-          </div>
-        </div>
+            </Typography>
+          </Box>
+        </Box>
 
         {/* Price and Change */}
-        <div  display="flex" alignItems="center" gap={2} mb={2}>
-          <div  variant="h4" fontWeight="bold">
+        <Box display="flex" alignItems="center" gap={2} mb={2}>
+          <Typography variant="h4" fontWeight="bold">
             {formatCurrency(stockData.price)}
-          </div>
-          <div  display="flex" alignItems="center" gap={1}>
+          </Typography>
+          <Box display="flex" alignItems="center" gap={1}>
             {isPositiveChange ? (
               <TrendingUp sx={{ color: 'success.main' }} />
             ) : (
               <TrendingDown sx={{ color: 'error.main' }} />
             )}
-            <div  
+            <Typography 
               variant="h6" 
               color={isPositiveChange ? 'success.main' : 'error.main'}
               fontWeight="bold"
             >
               {formatCurrency(priceChange)} ({formatPercent(priceChangePercent / 100)})
-            </div>
-          </div>
-        </div>
+            </Typography>
+          </Box>
+        </Box>
 
         {/* Industry and Sector Chips */}
-        <div  display="flex" gap={1} flexWrap="wrap">
+        <Box display="flex" gap={1} flexWrap="wrap">
           {stockData.sector && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={stockData.sector} color="primary" variant="outlined" />
+            <Chip label={stockData.sector} color="primary" variant="outlined" />
           )}
           {stockData.industry && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={stockData.industry} color="secondary" variant="outlined" />
+            <Chip label={stockData.industry} color="secondary" variant="outlined" />
           )}
           {stockData.country && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={stockData.country} variant="outlined" />
+            <Chip label={stockData.country} variant="outlined" />
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Company Description */}
       {stockData.description && (
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 4 }}>
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               Company Overview
-            </div>
-            <div  variant="body1" color="text.secondary">
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
               {stockData.description}
-            </div>
-          </div>
-        </div>
+            </Typography>
+          </CardContent>
+        </Card>
       )}
       {/* Tab Navigation */}
-      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <div className="border-b border-gray-200" value={tabValue} onChange={handleTabChange} aria-label="stock detail tabs">
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Overview" icon={<Analytics />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Price & Volume" icon={<Timeline />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Financials" icon={<AccountBalance />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Ratios" icon={<Timeline />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Factor Analysis" icon={<Business />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Recommendations" icon={<TrendingUp />} />
-        </div>
-      </div>{/* Tab Panels */}      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={0}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={handleTabChange} aria-label="stock detail tabs">
+          <Tab label="Overview" icon={<Analytics />} />
+          <Tab label="Price & Volume" icon={<Timeline />} />
+          <Tab label="Financials" icon={<AccountBalance />} />
+          <Tab label="Ratios" icon={<Timeline />} />
+          <Tab label="Factor Analysis" icon={<Business />} />
+          <Tab label="Recommendations" icon={<TrendingUp />} />
+        </Tabs>
+      </Box>{/* Tab Panels */}      <TabPanel value={tabValue} index={0}>
         {/* Company Overview and Key Metrics - No Price Chart */}
-        <div className="grid" container spacing={3}>
-          <div className="grid" item xs={12} md={8}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Key Statistics
-                </div>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                </Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
                       {keyStats.map((stat, index) => (
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row">
+                        <TableRow key={index}>
+                          <TableCell component="th" scope="row">
                             {stat.label}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 'bold' }}>
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                             {stat.value}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={4}>
+          <Grid item xs={12} md={4}>
             {recData.length > 0 && (
-              <div className="bg-white shadow-md rounded-lg">
-                <div className="bg-white shadow-md rounded-lg"Content>
-                  <div  variant="h6" gutterBottom>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
                     Analyst Recommendations
-                  </div>
-                  <div  height={200}>
+                  </Typography>
+                  <Box height={200}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -351,46 +351,46 @@ function StockDetail() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <div  />
+                        <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
-                  <div  mt={2}>
+                  </Box>
+                  <Box mt={2}>
                     {recData.map((rec, index) => (
-                      <div  key={index} display="flex" alignItems="center" gap={1} mb={0.5}>
-                        <div  
+                      <Box key={index} display="flex" alignItems="center" gap={1} mb={0.5}>
+                        <Box 
                           width={12} 
                           height={12} 
                           bgcolor={rec.color} 
                           borderRadius="50%" 
                         />
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           {rec.name}: {rec.value}
-                        </div>
-                      </div>
+                        </Typography>
+                      </Box>
                     ))}
-                  </div>
-                </div>
-              </div>
+                  </Box>
+                </CardContent>
+              </Card>
             )}
-          </div>
-        </div>
-      </div>      {/* Price & Volume Tab - Lightweight, no technical indicators */}
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={1}>
+          </Grid>
+        </Grid>
+      </TabPanel>      {/* Price & Volume Tab - Lightweight, no technical indicators */}
+      <TabPanel value={tabValue} index={1}>
         {/* Price Chart Section */}
-        <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Recent Price Chart (30 Days)
-                </div>
+                </Typography>
                 {recentPricesLoading ? (
-                  <div  display="flex" justifyContent="center" alignItems="center" height={300}>
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-                  </div>
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <CircularProgress />
+                  </Box>
                 ) : recentPrices && recentPrices.data && recentPrices.data.data && recentPrices.data.data.length > 0 ? (
-                  <div  height={300}>
+                  <Box height={300}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={recentPrices.data.data.reverse()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -402,7 +402,7 @@ function StockDetail() {
                           domain={['dataMin - 5', 'dataMax + 5']}
                           tickFormatter={(value) => `$${value.toFixed(2)}`}
                         />
-                        <div  
+                        <Tooltip 
                           labelFormatter={(value) => new Date(value).toLocaleDateString()}
                           formatter={(value, name) => [`$${value.toFixed(2)}`, name === 'close' ? 'Close Price' : name]}
                         />
@@ -416,151 +416,151 @@ function StockDetail() {
                         />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+                  </Box>
                 ) : (
-                  <div  display="flex" justifyContent="center" alignItems="center" height={300}>
-                    <div  color="text.secondary">
+                  <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                    <Typography color="text.secondary">
                       {recentPricesError ? `Error loading price data: ${recentPricesError.message}` : 'Price chart data not available'}
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
 
         {/* Price Summary */}
         {recentPrices && recentPrices.data && recentPrices.data.summary && (
-          <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-            <div className="grid" item xs={12}>
-              <div className="bg-white shadow-md rounded-lg">
-                <div className="bg-white shadow-md rounded-lg"Content>
-                  <div  variant="h6" gutterBottom>
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
                     Price Summary (Last 30 Days)
-                  </div>
-                  <div className="grid" container spacing={2}>
-                    <div className="grid" item xs={6} sm={3}>
-                      <div  textAlign="center">
-                        <div  variant="body2" color="text.secondary">Latest Price</div>
-                        <div  variant="h6" fontWeight="bold">
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Latest Price</Typography>
+                        <Typography variant="h6" fontWeight="bold">
                           {formatCurrency(recentPrices.data.summary.latestPrice)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid" item xs={6} sm={3}>
-                      <div  textAlign="center">
-                        <div  variant="body2" color="text.secondary">Period Return</div>
-                        <div  
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Period Return</Typography>
+                        <Typography 
                           variant="h6" 
                           fontWeight="bold"
                           color={recentPrices.data.summary.periodReturn >= 0 ? 'success.main' : 'error.main'}
                         >
                           {recentPrices.data.summary.periodReturn.toFixed(2)}%
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid" item xs={6} sm={3}>
-                      <div  textAlign="center">
-                        <div  variant="body2" color="text.secondary">Latest Volume</div>
-                        <div  variant="h6" fontWeight="bold">
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Latest Volume</Typography>
+                        <Typography variant="h6" fontWeight="bold">
                           {formatNumber(recentPrices.data.summary.latestVolume)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid" item xs={6} sm={3}>
-                      <div  textAlign="center">
-                        <div  variant="body2" color="text.secondary">Data Points</div>
-                        <div  variant="h6" fontWeight="bold">
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="text.secondary">Data Points</Typography>
+                        <Typography variant="h6" fontWeight="bold">
                           {recentPrices.data.dataPoints} days
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         )}
 
         {/* OHLCV Data Table */}
-        <div className="grid" container spacing={3}>
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Recent Price & Volume Data (OHLCV)
-                </div>
+                </Typography>
                 {recentPrices && recentPrices.data && recentPrices.data.data && recentPrices.data.data.length > 0 ? (
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Date</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Open</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>High</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Low</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Close</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Volume</strong></td>
-                        </tr>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell><strong>Date</strong></TableCell>
+                          <TableCell align="right"><strong>Open</strong></TableCell>
+                          <TableCell align="right"><strong>High</strong></TableCell>
+                          <TableCell align="right"><strong>Low</strong></TableCell>
+                          <TableCell align="right"><strong>Close</strong></TableCell>
+                          <TableCell align="right"><strong>Volume</strong></TableCell>
+                        </TableRow>
                         {recentPrices.data.data.slice(0, 15).map((dayData, index) => (
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{new Date(dayData.date).toLocaleDateString()}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(dayData.open)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(dayData.high)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(dayData.low)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontWeight: 'bold' }}>
+                          <TableRow key={index}>
+                            <TableCell>{new Date(dayData.date).toLocaleDateString()}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.open)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.high)}</TableCell>
+                            <TableCell align="right">{formatCurrency(dayData.low)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                               {formatCurrency(dayData.close)}
-                            </td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatNumber(dayData.volume)}</td>
-                          </tr>
+                            </TableCell>
+                            <TableCell align="right">{formatNumber(dayData.volume)}</TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 ) : (
-                  <div  display="flex" justifyContent="center" alignItems="center" height={200}>
-                    <div  color="text.secondary">
+                  <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                    <Typography color="text.secondary">
                       {recentPricesError ? `Error: ${recentPricesError.message}` : 'OHLCV data not available'}
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div><button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={2}>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel><TabPanel value={tabValue} index={2}>
         {(balanceSheetLoading || incomeStatementLoading || cashFlowLoading) ? (
-          <div  display="flex" justifyContent="center" p={4}>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          </div>
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
         ) : (
-          <div>
+          <Box>
             {/* Financial Statements Header */}
-            <div  variant="h5" gutterBottom sx={{ mb: 3 }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
               Financial Statements - {symbol?.toUpperCase()}
-            </div>
+            </Typography>
             
-            <div className="grid" container spacing={3}>
+            <Grid container spacing={3}>
               {/* Income Statement */}
-              <div className="grid" item xs={12} lg={4}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                       <AccountBalance sx={{ mr: 1 }} />
                       Income Statement (Annual)
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {incomeStatement?.data?.length > 0 ? (
-                      <div>
+                      <Box>
                         {incomeStatement.data.slice(0, 3).map((period, periodIndex) => (
-                          <div  key={period.date} sx={{ mb: 3 }}>
-                            <div  variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                               {new Date(period.date).getFullYear()}
-                            </div>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
                                   {Object.entries(period.items)
                                     .filter(([key]) => [
                                       'Total Revenue', 'Revenue', 'Gross Profit', 
@@ -568,49 +568,49 @@ function StockDetail() {
                                     ].some(item => key.includes(item)))
                                     .slice(0, 6)
                                     .map(([key, value]) => (
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {key.replace(/([A-Z])/g, ' $1').trim()}
-                                      </td>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {value ? formatCurrency(value, 0) : 'N/A'}
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            {periodIndex < 2 && <hr className="border-gray-200" sx={{ mt: 2 }} />}
-                          </div>
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
                         ))}
-                      </div>
+                      </Box>
                     ) : (
-                      <div  color="text.secondary">No income statement data available</div>
+                      <Typography color="text.secondary">No income statement data available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Balance Sheet */}
-              <div className="grid" item xs={12} lg={4}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                       <Analytics sx={{ mr: 1 }} />
                       Balance Sheet (Annual)
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {balanceSheet?.data?.length > 0 ? (
-                      <div>
+                      <Box>
                         {balanceSheet.data.slice(0, 3).map((period, periodIndex) => (
-                          <div  key={period.date} sx={{ mb: 3 }}>
-                            <div  variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                               {new Date(period.date).getFullYear()}
-                            </div>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
                                   {Object.entries(period.items)
                                     .filter(([key]) => [
                                       'Total Assets', 'Current Assets', 'Total Debt', 
@@ -618,49 +618,49 @@ function StockDetail() {
                                     ].some(item => key.includes(item)))
                                     .slice(0, 6)
                                     .map(([key, value]) => (
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {key.replace(/([A-Z])/g, ' $1').trim()}
-                                      </td>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {value ? formatCurrency(value, 0) : 'N/A'}
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            {periodIndex < 2 && <hr className="border-gray-200" sx={{ mt: 2 }} />}
-                          </div>
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
                         ))}
-                      </div>
+                      </Box>
                     ) : (
-                      <div  color="text.secondary">No balance sheet data available</div>
+                      <Typography color="text.secondary">No balance sheet data available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Cash Flow Statement */}
-              <div className="grid" item xs={12} lg={4}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <Grid item xs={12} lg={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                       <Timeline sx={{ mr: 1 }} />
                       Cash Flow (Annual)
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {cashFlowStatement?.data?.length > 0 ? (
-                      <div>
+                      <Box>
                         {cashFlowStatement.data.slice(0, 3).map((period, periodIndex) => (
-                          <div  key={period.date} sx={{ mb: 3 }}>
-                            <div  variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          <Box key={period.date} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                               {new Date(period.date).getFullYear()}
-                            </div>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                            </Typography>
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
                                   {Object.entries(period.items)
                                     .filter(([key]) => [
                                       'Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure',
@@ -668,37 +668,37 @@ function StockDetail() {
                                     ].some(item => key.includes(item)))
                                     .slice(0, 6)
                                     .map(([key, value]) => (
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                    <TableRow key={key}>
+                                      <TableCell sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {key.replace(/([A-Z])/g, ' $1').trim()}
-                                      </td>
-                                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem' }}>
                                         {value ? formatCurrency(value, 0) : 'N/A'}
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            {periodIndex < 2 && <hr className="border-gray-200" sx={{ mt: 2 }} />}
-                          </div>
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {periodIndex < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
                         ))}
-                      </div>
+                      </Box>
                     ) : (
-                      <div  color="text.secondary">No cash flow data available</div>
+                      <Typography color="text.secondary">No cash flow data available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
 
             {/* Financial Statement Summary Charts */}
-            <div className="grid" container spacing={3} sx={{ mt: 2 }}>
+            <Grid container spacing={3} sx={{ mt: 2 }}>
               {/* Revenue Trend */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>Revenue Trend</div>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Revenue Trend</Typography>
                     <ResponsiveContainer width="100%" height={250}>
                       <LineChart data={
                         incomeStatement?.data?.slice(0, 5).reverse().map(period => ({
@@ -709,19 +709,19 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
-                        <div  formatter={(value) => [formatCurrency(value, 0), 'Revenue']} />
+                        <Tooltip formatter={(value) => [formatCurrency(value, 0), 'Revenue']} />
                         <Line type="monotone" dataKey="revenue" stroke="#1976d2" strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Net Income Trend */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>Net Income Trend</div>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>Net Income Trend</Typography>
                     <ResponsiveContainer width="100%" height={250}>
                       <LineChart data={
                         incomeStatement?.data?.slice(0, 5).reverse().map(period => ({
@@ -732,107 +732,107 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
-                        <div  formatter={(value) => [formatCurrency(value, 0), 'Net Income']} />
+                        <Tooltip formatter={(value) => [formatCurrency(value, 0), 'Net Income']} />
                         <Line type="monotone" dataKey="netIncome" stroke="#4caf50" strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
         )}
-        </div>
+        </TabPanel>
 
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={3}>
+      <TabPanel value={tabValue} index={3}>
         {metricsLoading ? (
-          <div  display="flex" justifyContent="center" p={4}>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          </div>
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
         ) : (
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Financial Ratios
-              </div>
-              <div className="grid" container spacing={2}>
+              </Typography>
+              <Grid container spacing={2}>
                 {ratios.map((ratio, index) => (
-                  <div className="grid" item xs={12} sm={6} md={3} key={index}>
-                    <div  
+                  <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Box 
                       p={2} 
                       border={1} 
                       borderColor="divider" 
                       borderRadius={1}
                       textAlign="center"
                     >
-                      <div  variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary">
                         {ratio.label}
-                      </div>
-                      <div  variant="h6" fontWeight="bold">
+                      </Typography>
+                      <Typography variant="h6" fontWeight="bold">
                         {ratio.value}
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                  </Grid>
                 ))}
-              </div>
-            </div>
-          </div>
+              </Grid>
+            </CardContent>
+          </Card>
         )}
-        </div>
+        </TabPanel>
 
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={4}>
+      <TabPanel value={tabValue} index={4}>
         {/* Factor Analysis Tab - Enhanced Institutional-Grade Analysis */}
-        <div  mb={3}>
-          <div  variant="h5" gutterBottom>
+        <Box mb={3}>
+          <Typography variant="h5" gutterBottom>
             Institutional Factor Analysis - {symbol?.toUpperCase()}
-          </div>
-          <div  variant="body1" color="text.secondary">
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
             Multi-factor quantitative analysis using institutional methodologies
-          </div>
-        </div>
+          </Typography>
+        </Box>
 
-        <div className="grid" container spacing={3}>
+        <Grid container spacing={3}>
           {/* Overall Factor Score */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12}>
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Composite Factor Score
-                </div>
-                <div  display="flex" alignItems="center" justifyContent="center" mb={3}>
-                  <div  textAlign="center">
-                    <div  variant="h2" color="primary" fontWeight="bold">
+                </Typography>
+                <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
+                  <Box textAlign="center">
+                    <Typography variant="h2" color="primary" fontWeight="bold">
                       {Math.round((82 + 67 + 45 + 78 + 62 + 55) / 6)}
-                    </div>
-                    <div  variant="body1" color="text.secondary">
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary">
                       Overall Score (0-100)
-                    </div>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2" 
+                    </Typography>
+                  </Box>
+                </Box>
+                <LinearProgress 
                   variant="determinate" 
                   value={Math.round((82 + 67 + 45 + 78 + 62 + 55) / 6)} 
                   color="primary"
                   sx={{ height: 12, borderRadius: 6 }}
                 />
-                <div  mt={2} textAlign="center">
-                  <div  variant="body2" color="text.secondary">
+                <Box mt={2} textAlign="center">
+                  <Typography variant="body2" color="text.secondary">
                     Weighted composite of Quality (30%), Growth (25%), Value (20%), Momentum (15%), Sentiment (5%), Positioning (5%)
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* 6-Factor Score Overview with Enhanced Calculations */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Multi-Factor Quantitative Analysis
-                </div>
-                <hr className="border-gray-200" sx={{ mb: 3 }} />
-                <div className="grid" container spacing={3}>
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <Grid container spacing={3}>
                   {(() => {
                     // Calculate real factor scores based on available metrics
                     const qualityScore = Math.min(100, Math.max(0, 
@@ -943,15 +943,15 @@ function StockDetail() {
                       }
                     ];
                   })().map((factor) => (
-                    <div className="grid" item xs={12} md={6} lg={4} key={factor.factor}>
-                      <div className="bg-white shadow-md rounded-lg" variant="outlined" sx={{ height: '100%' }}>
-                        <div className="bg-white shadow-md rounded-lg"Content>
-                          <div  display="flex" alignItems="center" justifyContent="between" mb={2}>
-                            <div  variant="h6" fontWeight="bold">
+                    <Grid item xs={12} md={6} lg={4} key={factor.factor}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+                            <Typography variant="h6" fontWeight="bold">
                               {factor.factor}
-                            </div>
-                            <div  display="flex" alignItems="center" gap={1}>
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Chip 
                                 label={factor.score}
                                 color={factor.color}
                                 variant="filled"
@@ -965,50 +965,50 @@ function StockDetail() {
                               ) : (
                                 <Analytics color="action" fontSize="small" />
                               )}
-                            </div>
-                          </div>
+                            </Box>
+                          </Box>
                           
-                          <div className="w-full bg-gray-200 rounded-full h-2" 
+                          <LinearProgress 
                             variant="determinate" 
                             value={factor.score} 
                             color={factor.color}
                             sx={{ mb: 2, height: 8, borderRadius: 4 }}
                           />
                           
-                          <div  variant="body2" color="text.secondary" mb={2}>
+                          <Typography variant="body2" color="text.secondary" mb={2}>
                             {factor.description}
-                          </div>
+                          </Typography>
                           
-                          <div  display="flex" justifyContent="between" mb={1}>
-                            <div  variant="body2" color="text.secondary">
+                          <Box display="flex" justifyContent="between" mb={1}>
+                            <Typography variant="body2" color="text.secondary">
                               Percentile Rank
-                            </div>
-                            <div  variant="body2" fontWeight="bold">
+                            </Typography>
+                            <Typography variant="body2" fontWeight="bold">
                               {factor.percentile}th
-                            </div>
-                          </div>
+                            </Typography>
+                          </Box>
                           
-                          <div  variant="caption" color="text.secondary">
+                          <Typography variant="caption" color="text.secondary">
                             Components: {factor.components.map(c => c.name).join(', ')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
                   ))}
-                </div>
-              </div>
-            </div>
-          </div>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Factor Breakdown Details */}
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Quality Factor Breakdown
-                </div>
-                <hr className="border-gray-200" sx={{ mb: 2 }} />
-                <div  mb={3}>
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={[
                       { name: 'ROE', value: (currentMetrics.return_on_equity || 0.15) * 100, benchmark: 15 },
@@ -1019,91 +1019,91 @@ function StockDetail() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <div  formatter={(value) => `${value.toFixed(1)}%`} />
+                      <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
                       <Bar dataKey="value" fill="#1976d2" />
                       <Bar dataKey="benchmark" fill="#e0e0e0" opacity={0.5} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
+                </Box>
                 
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Return on Equity</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Return on Equity</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={currentMetrics.return_on_equity ? `${formatPercent(currentMetrics.return_on_equity)}` : 'N/A'} 
                             color={currentMetrics.return_on_equity > 0.15 ? 'success' : 'default'}
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 15% benchmark
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Debt-to-Equity</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Debt-to-Equity</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={currentMetrics.debt_to_equity ? formatNumber(currentMetrics.debt_to_equity, 2) : 'N/A'} 
                             color={currentMetrics.debt_to_equity < 0.3 ? 'success' : 'warning'}
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 0.3 optimal
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Interest Coverage</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Interest Coverage</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={currentMetrics.interest_coverage || 'N/A'} 
                             color="success"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 5x minimum
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Altman Z-Score</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Altman Z-Score</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label="2.8" 
                             color="success"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             Safe zone (&gt;2.6)
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          <div className="grid" item xs={12} md={6}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Growth Factor Analysis
-                </div>
-                <hr className="border-gray-200" sx={{ mb: 2 }} />
-                <div  mb={3}>
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
                   <ResponsiveContainer width="100%" height={200}>
                     {/* ⚠️ MOCK DATA - Replace with real API when available */}
                     <LineChart data={[
@@ -1116,579 +1116,579 @@ function StockDetail() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="year" />
                       <YAxis />
-                      <div  />
+                      <Tooltip />
                       <Line type="monotone" dataKey="revenue" stroke="#4caf50" strokeWidth={2} />
                       <Line type="monotone" dataKey="earnings" stroke="#2196f3" strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
+                </Box>
                 
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Revenue CAGR (5Y)</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Revenue CAGR (5Y)</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={currentMetrics.revenue_growth ? `${formatPercent(currentMetrics.revenue_growth)}` : '7.2%' /* ⚠️ MOCK DATA */} 
                             color="success"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 5% sector avg {/* ⚠️ MOCK DATA */}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>EPS CAGR (5Y)</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>EPS CAGR (5Y)</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={currentMetrics.earnings_growth ? `${formatPercent(currentMetrics.earnings_growth)}` : '9.8%' /* ⚠️ MOCK DATA */} 
                             color="success"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 6% sector avg {/* ⚠️ MOCK DATA */}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>FCF Growth (3Y)</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>FCF Growth (3Y)</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label="12.5%" // ⚠️ MOCK DATA 
                             color="success"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 8% sector avg {/* ⚠️ MOCK DATA */}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>PEG Ratio</td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>PEG Ratio</TableCell>
+                        <TableCell align="right">
+                          <Chip 
                             label={(currentMetrics.pe_ratio || 18) / ((currentMetrics.earnings_growth || 0.1) * 100) || 'N/A'} 
                             color="warning"
                             size="small"
                           />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                          <div  variant="caption" color="text.secondary">
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
                             vs 1.0 fair value
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Advanced Factor Insights */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Factor-Based Investment Insights
-                </div>
-                <hr className="border-gray-200" sx={{ mb: 3 }} />
-                <div className="grid" container spacing={3}>
-                  <div className="grid" item xs={12} md={4}>
-                    <div  p={3} border={1} borderColor="primary.main" borderRadius={2}>
-                      <div  display="flex" alignItems="center" gap={2} mb={2}>
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Box p={3} border={1} borderColor="primary.main" borderRadius={2}>
+                      <Box display="flex" alignItems="center" gap={2} mb={2}>
                         <Analytics color="primary" />
-                        <div  variant="h6" color="primary">
+                        <Typography variant="h6" color="primary">
                           Quality Premium
-                        </div>
-                      </div>
-                      <div  variant="body2" color="text.secondary" mb={2}>
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={2}>
                         High-quality companies with strong balance sheets and consistent profitability 
                         typically command valuation premiums during market stress.
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Strong Quality Score: 82/100" color="success" size="small" />
-                    </div>
-                  </div>
+                      </Typography>
+                      <Chip label="Strong Quality Score: 82/100" color="success" size="small" />
+                    </Box>
+                  </Grid>
                   
-                  <div className="grid" item xs={12} md={4}>
-                    <div  p={3} border={1} borderColor="warning.main" borderRadius={2}>
-                      <div  display="flex" alignItems="center" gap={2} mb={2}>
+                  <Grid item xs={12} md={4}>
+                    <Box p={3} border={1} borderColor="warning.main" borderRadius={2}>
+                      <Box display="flex" alignItems="center" gap={2} mb={2}>
                         <Timeline color="warning" />
-                        <div  variant="h6" color="warning.main">
+                        <Typography variant="h6" color="warning.main">
                           Value Opportunity
-                        </div>
-                      </div>
-                      <div  variant="body2" color="text.secondary" mb={2}>
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={2}>
                         Current valuation metrics suggest potential value opportunity, but consider 
                         quality and growth factors for comprehensive assessment.
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Value Score: 45/100" color="warning" size="small" />
-                    </div>
-                  </div>
+                      </Typography>
+                      <Chip label="Value Score: 45/100" color="warning" size="small" />
+                    </Box>
+                  </Grid>
                   
-                  <div className="grid" item xs={12} md={4}>
-                    <div  p={3} border={1} borderColor="info.main" borderRadius={2}>
-                      <div  display="flex" alignItems="center" gap={2} mb={2}>
+                  <Grid item xs={12} md={4}>
+                    <Box p={3} border={1} borderColor="info.main" borderRadius={2}>
+                      <Box display="flex" alignItems="center" gap={2} mb={2}>
                         <TrendingUp color="info" />
-                        <div  variant="h6" color="info.main">
+                        <Typography variant="h6" color="info.main">
                           Momentum Strength
-                        </div>
-                      </div>
-                      <div  variant="body2" color="text.secondary" mb={2}>
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={2}>
                         Strong price and earnings momentum suggest continued outperformance, 
                         though momentum factors can be cyclical.
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Momentum Score: 78/100" color="info" size="small" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                      </Typography>
+                      <Chip label="Momentum Score: 78/100" color="info" size="small" />
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Institutional Positioning Analysis */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   Institutional Positioning & Flow Analysis
-                </div>
-                <hr className="border-gray-200" sx={{ mb: 3 }} />
-                <div className="grid" container spacing={3}>
-                  <div className="grid" item xs={12} md={4}>
-                    <div  textAlign="center" p={2}>
-                      <div  variant="h3" color="primary" fontWeight="bold">
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2}>
+                      <Typography variant="h3" color="primary" fontWeight="bold">
                         {currentMetrics.institutional_ownership ? `${formatPercent(currentMetrics.institutional_ownership)}` : '68.5%' /* ⚠️ MOCK DATA */}
-                      </div>
-                      <div  variant="body1" color="text.secondary" mb={1}>
+                      </Typography>
+                      <Typography variant="body1" color="text.secondary" mb={1}>
                         Institutional Ownership
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2" 
+                      </Typography>
+                      <LinearProgress 
                         variant="determinate" 
                         value={(currentMetrics.institutional_ownership || 0.685 /* ⚠️ MOCK DATA */) * 100} 
                         color="primary"
                         sx={{ mb: 1 }}
                       />
-                      <div  variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary">
                         Above 60% indicates institutional confidence
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                  </Grid>
                   
-                  <div className="grid" item xs={12} md={4}>
-                    <div  textAlign="center" p={2}>
-                      <div  variant="h3" color="success.main" fontWeight="bold">
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2}>
+                      <Typography variant="h3" color="success.main" fontWeight="bold">
                         {currentMetrics.insider_ownership ? `${formatPercent(currentMetrics.insider_ownership)}` : '3.2%' /* ⚠️ MOCK DATA */}
-                      </div>
-                      <div  variant="body1" color="text.secondary" mb={1}>
+                      </Typography>
+                      <Typography variant="body1" color="text.secondary" mb={1}>
                         Insider Ownership
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2" 
+                      </Typography>
+                      <LinearProgress 
                         variant="determinate" 
                         value={(currentMetrics.insider_ownership || 0.032 /* ⚠️ MOCK DATA */) * 100 * 10} 
                         color="success"
                         sx={{ mb: 1 }}
                       />
-                      <div  variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary">
                         2-5% range indicates aligned interests
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                  </Grid>
                   
-                  <div className="grid" item xs={12} md={4}>
-                    <div  textAlign="center" p={2}>
-                      <div  variant="h3" color="error.main" fontWeight="bold">
+                  <Grid item xs={12} md={4}>
+                    <Box textAlign="center" p={2}>
+                      <Typography variant="h3" color="error.main" fontWeight="bold">
                         {currentMetrics.short_interest ? `${formatPercent(currentMetrics.short_interest)}` : '2.8%' /* ⚠️ MOCK DATA */}
-                      </div>
-                      <div  variant="body1" color="text.secondary" mb={1}>
+                      </Typography>
+                      <Typography variant="body1" color="text.secondary" mb={1}>
                         Short Interest
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2" 
+                      </Typography>
+                      <LinearProgress 
                         variant="determinate" 
                         value={(currentMetrics.short_interest || 0.028 /* ⚠️ MOCK DATA */) * 100 * 5} 
                         color="error"
                         sx={{ mb: 1 }}
                       />
-                      <div  variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary">
                         Below 5% suggests limited bearish sentiment
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
                 
-                <div  mt={3}>
-                  <div  variant="subtitle1" fontWeight="bold" mb={2}>
+                <Box mt={3}>
+                  <Typography variant="subtitle1" fontWeight="bold" mb={2}>
                     Recent Institutional Activity (90 Days)
-                  </div>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Net Institutional Flow</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="+$125M" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="caption" color="text.secondary">
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Net Institutional Flow</TableCell>
+                          <TableCell align="right">
+                            <Chip label="+$125M" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="caption" color="text.secondary">
                               Net buying activity
-                            </div>
-                          </td>
-                        </tr>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Number of Institutions</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="342 (+8)" color="info" size="small" /> {/* ⚠️ MOCK DATA */}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="caption" color="text.secondary">
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Number of Institutions</TableCell>
+                          <TableCell align="right">
+                            <Chip label="342 (+8)" color="info" size="small" /> {/* ⚠️ MOCK DATA */}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="caption" color="text.secondary">
                               Growing institutional base
-                            </div>
-                          </td>
-                        </tr>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Avg Position Size</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="0.89%" color="primary" size="small" /> {/* ⚠️ MOCK DATA */}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="caption" color="text.secondary">
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Avg Position Size</TableCell>
+                          <TableCell align="right">
+                            <Chip label="0.89%" color="primary" size="small" /> {/* ⚠️ MOCK DATA */}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="caption" color="text.secondary">
                               Moderate conviction levels
-                            </div>
-                          </td>
-                        </tr>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Days to Cover (Short)</td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="1.8 days" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="caption" color="text.secondary">
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Days to Cover (Short)</TableCell>
+                          <TableCell align="right">
+                            <Chip label="1.8 days" color="success" size="small" /> {/* ⚠️ MOCK DATA */}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="caption" color="text.secondary">
                               Low short squeeze risk
-                            </div>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </TabPanel>
 
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={5}>
+      <TabPanel value={tabValue} index={5}>
         {analystOverviewLoading ? (
-          <div  display="flex" justifyContent="center" p={4}>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          </div>
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
         ) : (
-          <div>
-            <div  variant="h5" gutterBottom sx={{ mb: 3 }}>
+          <Box>
+            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
               Analyst Coverage - {symbol?.toUpperCase()}
-            </div>
+            </Typography>
             
-            <div className="grid" container spacing={3}>
+            <Grid container spacing={3}>
               {/* Earnings Estimates */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       Earnings Estimates
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.earnings_estimates?.length > 0 ? (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
                             {analystOverview.data.earnings_estimates.map((estimate) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={estimate.period}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 'bold' }}>
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
                                   {estimate.period === '0q' ? 'Current Quarter' :
                                    estimate.period === '+1q' ? 'Next Quarter' :
                                    estimate.period === '0y' ? 'Current Year' :
                                    estimate.period === '+1y' ? 'Next Year' : estimate.period}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate) : 'N/A'}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
                                     label={`${estimate.number_of_analysts || 0} analysts`} 
                                     size="small" 
                                     variant="outlined"
                                   />
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     ) : (
-                      <div  color="text.secondary">No earnings estimates available</div>
+                      <Typography color="text.secondary">No earnings estimates available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Revenue Estimates */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       Revenue Estimates
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.revenue_estimates?.length > 0 ? (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
                             {analystOverview.data.revenue_estimates.map((estimate) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={estimate.period}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 'bold' }}>
+                              <TableRow key={estimate.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
                                   {estimate.period === '0q' ? 'Current Quarter' :
                                    estimate.period === '+1q' ? 'Next Quarter' :
                                    estimate.period === '0y' ? 'Current Year' :
                                    estimate.period === '+1y' ? 'Next Year' : estimate.period}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   {estimate.avg_estimate ? formatCurrency(estimate.avg_estimate, 0) : 'N/A'}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
                                     label={`${estimate.number_of_analysts || 0} analysts`} 
                                     size="small" 
                                     variant="outlined"
                                   />
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     ) : (
-                      <div  color="text.secondary">No revenue estimates available</div>
+                      <Typography color="text.secondary">No revenue estimates available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* EPS Revisions */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       EPS Revisions
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.eps_revisions?.length > 0 ? (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
                             {analystOverview.data.eps_revisions.map((revision) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={revision.period}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 'bold' }}>
+                              <TableRow key={revision.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
                                   {revision.period === '0q' ? 'Current Quarter' :
                                    revision.period === '+1q' ? 'Next Quarter' :
                                    revision.period === '0y' ? 'Current Year' :
                                    revision.period === '+1y' ? 'Next Year' : revision.period}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <div  display="flex" gap={1}>
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box display="flex" gap={1}>
+                                    <Chip 
                                       label={`↑${revision.up_last30days || 0}`} 
                                       size="small" 
                                       color="success"
                                       variant="outlined"
                                     />
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                    <Chip 
                                       label={`↓${revision.down_last30days || 0}`} 
                                       size="small" 
                                       color="error"
                                       variant="outlined"
                                     />
-                                  </div>
-                                </td>
-                              </tr>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     ) : (
-                      <div  color="text.secondary">No EPS revisions available</div>
+                      <Typography color="text.secondary">No EPS revisions available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Growth Estimates */}
-              <div className="grid" item xs={12} md={6}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       Growth Estimates
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.growth_estimates?.length > 0 ? (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
                             {analystOverview.data.growth_estimates.map((growth) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={growth.period}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 'bold' }}>
+                              <TableRow key={growth.period}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
                                   {growth.period === '0q' ? 'Current Quarter' :
                                    growth.period === '+1q' ? 'Next Quarter' :
                                    growth.period === '0y' ? 'Current Year' :
                                    growth.period === '+1y' ? 'Next Year' :
                                    growth.period === '+5y' ? 'Next 5 Years' : growth.period}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   {growth.stock_trend ? formatPercent(growth.stock_trend / 100) : 'N/A'}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
                                   vs Index: {growth.index_trend ? formatPercent(growth.index_trend / 100) : 'N/A'}
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     ) : (
-                      <div  color="text.secondary">No growth estimates available</div>
+                      <Typography color="text.secondary">No growth estimates available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Analyst Recommendations */}
-              <div className="grid" item xs={12}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       Analyst Recommendations
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.recommendations?.length > 0 ? (
-                      <div>
+                      <Box>
                         {analystOverview.data.recommendations.slice(0, 3).map((rec, index) => (
-                          <div  key={index} sx={{ mb: 2 }}>
-                            <div  variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          <Box key={index} sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                               {new Date(rec.collected_date).toLocaleDateString()} - {rec.period}
-                            </div>
-                            <div className="grid" container spacing={2}>
-                              <div className="grid" item>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                            </Typography>
+                            <Grid container spacing={2}>
+                              <Grid item>
+                                <Chip 
                                   label={`Strong Buy: ${rec.strong_buy || 0}`} 
                                   color="success"
                                   variant="outlined"
                                   size="small"
                                 />
-                              </div>
-                              <div className="grid" item>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                              </Grid>
+                              <Grid item>
+                                <Chip 
                                   label={`Buy: ${rec.buy || 0}`} 
                                   color="success"
                                   variant="outlined"
                                   size="small"
                                 />
-                              </div>
-                              <div className="grid" item>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                              </Grid>
+                              <Grid item>
+                                <Chip 
                                   label={`Hold: ${rec.hold || 0}`} 
                                   color="warning"
                                   variant="outlined"
                                   size="small"
                                 />
-                              </div>
-                              <div className="grid" item>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                              </Grid>
+                              <Grid item>
+                                <Chip 
                                   label={`Sell: ${rec.sell || 0}`} 
                                   color="error"
                                   variant="outlined"
                                   size="small"
                                 />
-                              </div>
-                              <div className="grid" item>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                              </Grid>
+                              <Grid item>
+                                <Chip 
                                   label={`Strong Sell: ${rec.strong_sell || 0}`} 
                                   color="error"
                                   variant="outlined"
                                   size="small"
                                 />
-                              </div>
-                            </div>
-                            {index < 2 && <hr className="border-gray-200" sx={{ mt: 2 }} />}
-                          </div>
+                              </Grid>
+                            </Grid>
+                            {index < 2 && <Divider sx={{ mt: 2 }} />}
+                          </Box>
                         ))}
-                      </div>
+                      </Box>
                     ) : (
-                      <div  color="text.secondary">No analyst recommendations available</div>
+                      <Typography color="text.secondary">No analyst recommendations available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
 
               {/* Earnings History */}
-              <div className="grid" item xs={12}>
-                <div className="bg-white shadow-md rounded-lg">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  variant="h6" gutterBottom>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
                       Earnings History
-                    </div>
-                    <hr className="border-gray-200" sx={{ mb: 2 }} />
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
                     
                     {analystOverview?.data?.earnings_history?.length > 0 ? (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      <TableContainer>
+                        <Table>
+                          <TableBody>
                             {analystOverview.data.earnings_history.slice(0, 8).map((history) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={history.quarter}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ fontWeight: 'bold' }}>
+                              <TableRow key={history.quarter}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>
                                   {new Date(history.quarter).toLocaleDateString()}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   Actual: {history.eps_actual ? formatCurrency(history.eps_actual) : 'N/A'}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   Estimate: {history.eps_estimate ? formatCurrency(history.eps_estimate) : 'N/A'}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Chip 
                                     label={history.surprise_percent ? `${formatPercent(history.surprise_percent / 100)} surprise` : 'N/A'}
                                     color={history.surprise_percent > 0 ? 'success' : history.surprise_percent < 0 ? 'error' : 'default'}
                                     size="small"
                                     variant="outlined"
                                   />
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     ) : (
-                      <div  color="text.secondary">No earnings history available</div>
+                      <Typography color="text.secondary">No earnings history available</Typography>
                     )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
         )}
-      </div>
-    </div>
+      </TabPanel>
+    </Container>
   )
 }
 

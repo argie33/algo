@@ -416,11 +416,11 @@ function StockExplorer() {
     const maxValue = filters[maxKey] !== '' ? parseFloat(filters[maxKey]) : max
     
     return (
-      <div  mb={3}>
-        <div  variant="subtitle2" gutterBottom>
+      <Box mb={3}>
+        <Typography variant="subtitle2" gutterBottom>
           {label}
-        </div>
-        <div  px={2}>
+        </Typography>
+        <Box px={2}>
           <Slider
             value={[minValue, maxValue]}
             min={min}
@@ -437,9 +437,9 @@ function StockExplorer() {
               { value: max, label: format(max) }
             ]}
           />
-        </div>
-        <div  display="flex" gap={2} mt={1}>
-          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        </Box>
+        <Box display="flex" gap={2} mt={1}>
+          <TextField
             size="small"
             label="Min"
             type="number"
@@ -447,7 +447,7 @@ function StockExplorer() {
             onChange={(e) => handleFilterChange(minKey, e.target.value)}
             sx={{ width: '100px' }}
           />
-          <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <TextField
             size="small"
             label="Max"
             type="number"
@@ -455,8 +455,8 @@ function StockExplorer() {
             onChange={(e) => handleFilterChange(maxKey, e.target.value)}
             sx={{ width: '100px' }}
           />
-        </div>
-      </div>
+        </Box>
+      </Box>
     )
   }
 
@@ -473,67 +473,67 @@ function StockExplorer() {
   });
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  display="flex" alignItems="center" justifyContent="space-between" mb={4}>
-        <div>
-          <div  variant="h4" component="h1" fontWeight="bold" gutterBottom>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Box>
+          <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Stock Explorer
-          </div>
-          <div  variant="body1" color="text.secondary">
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
             Browse and filter stocks with comprehensive stock information and screening criteria
-          </div>
-        </div>
-        <div  display="flex" gap={2} alignItems="center">
+          </Typography>
+        </Box>
+        <Box display="flex" gap={2} alignItems="center">
           
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Button
             variant="outlined"
             startIcon={<Clear />}
             onClick={handleClearFilters}
             disabled={getActiveFiltersCount() === 0}
           >
             Clear
-          </button>
+          </Button>
           
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+          <Chip 
             label={`${getActiveFiltersCount()} Filters`} 
             color={getActiveFiltersCount() > 0 ? "primary" : "default"}
             icon={<FilterList />}
           />
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Performance and Error Alerts */}
       {stocksData?.performance?.hasComplexFilters && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info" sx={{ mb: 2 }}>
           <strong>Performance Note:</strong> Complex filters are active. Results may take longer to load.
-        </div>
+        </Alert>
       )}
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           <strong>Error loading stocks:</strong> {error.message}. Try reducing filter complexity or refreshing the page.
-        </div>
+        </Alert>
       )}
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Filters Panel */}
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg" sx={{ position: 'sticky', top: 20 }}>
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+        <Grid item xs={12} md={3}>
+          <Card sx={{ position: 'sticky', top: 20 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
                 <FilterList />
                 Advanced Filters
-              </div>
+              </Typography>
 
               {/* Basic Search */}
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <div  variant="subtitle1">Search & Basic</div>
+                  <Typography variant="subtitle1">Search & Basic</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <div  display="flex" flexDirection="column" gap={2}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Box display="flex" flexDirection="column" gap={2}>
+                    <TextField
                       label="Search"
                       placeholder="Ticker or company name"
                       value={filters.search}
@@ -549,7 +549,7 @@ function StockExplorer() {
                       }}
                     />
 
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <TextField
                       select
                       label="Sector"
                       value={filters.sector}
@@ -557,13 +557,13 @@ function StockExplorer() {
                       size="small"
                       fullWidth
                     >
-                      <option  value="">All Sectors</option>
+                      <MenuItem value="">All Sectors</MenuItem>
                       {SECTORS.map(sector => (
-                        <option  key={sector} value={sector}>{sector}</option>
+                        <MenuItem key={sector} value={sector}>{sector}</MenuItem>
                       ))}
-                    </input>
+                    </TextField>
 
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <TextField
                       select
                       label="Exchange"
                       value={filters.exchange}
@@ -571,23 +571,23 @@ function StockExplorer() {
                       size="small"
                       fullWidth
                     >
-                      <option  value="">All Exchanges</option>
+                      <MenuItem value="">All Exchanges</MenuItem>
                       {EXCHANGES.map(exchange => (
-                        <option  key={exchange} value={exchange}>{exchange}</option>
+                        <MenuItem key={exchange} value={exchange}>{exchange}</MenuItem>
                       ))}
-                    </input>
-                  </div>
+                    </TextField>
+                  </Box>
                 </AccordionDetails>
               </Accordion>
 
               {/* Additional Options */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <div  variant="subtitle1">Additional Options</div>
+                  <Typography variant="subtitle1">Additional Options</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <div  display="flex" flexDirection="column" gap={2}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Box display="flex" flexDirection="column" gap={2}>
+                    <TextField
                       select
                       label="Financial Status"
                       value={filters.financialStatus || ''}
@@ -595,14 +595,14 @@ function StockExplorer() {
                       size="small"
                       fullWidth
                     >
-                      <option  value="">All Statuses</option>
-                      <option  value="N">Normal</option>
-                      <option  value="D">Deficient</option>
-                      <option  value="Q">Bankruptcy</option>
-                      <option  value="S">Suspended</option>
-                    </input>
+                      <MenuItem value="">All Statuses</MenuItem>
+                      <MenuItem value="N">Normal</MenuItem>
+                      <MenuItem value="D">Deficient</MenuItem>
+                      <MenuItem value="Q">Bankruptcy</MenuItem>
+                      <MenuItem value="S">Suspended</MenuItem>
+                    </TextField>
 
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <TextField
                       select
                       label="Security Type"
                       value={filters.securityType || ''}
@@ -610,28 +610,28 @@ function StockExplorer() {
                       size="small"
                       fullWidth
                     >
-                      <option  value="">All Types</option>
-                      <option  value="stock">Stocks Only</option>
-                      <option  value="etf">ETFs Only</option>
-                    </input>
-                  </div>
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="stock">Stocks Only</MenuItem>
+                      <MenuItem value="etf">ETFs Only</MenuItem>
+                    </TextField>
+                  </Box>
                 </AccordionDetails>
               </Accordion>
 
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Results Panel */}
-        <div className="grid" item xs={12} md={9}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
+        <Grid item xs={12} md={9}>
+          <Card>
+            <CardContent>
               {/* Results Header */}
-              <div  display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-                <div  variant="h6">
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+                <Typography variant="h6">
                   Screening Results
                   {(stocksData?.pagination?.total || stocksData?.total) && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       label={`${stocksData?.pagination?.total || stocksData?.total} stocks found`} 
                       color="primary" 
                       variant="outlined" 
@@ -639,17 +639,17 @@ function StockExplorer() {
                     />
                   )}
                   {stocksList.length > 0 && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       label={`Showing ${stocksList.length}`} 
                       color="secondary" 
                       variant="outlined" 
                       sx={{ ml: 1 }} 
                     />
                   )}
-                </div>
+                </Typography>
                 
-                <div  display="flex" gap={2}>
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Box display="flex" gap={2}>
+                  <TextField
                     select
                     label="Sort By"
                     value={orderBy}
@@ -657,42 +657,42 @@ function StockExplorer() {
                     size="small"
                     sx={{ minWidth: 150 }}
                   >
-                    <option  value="symbol">Symbol</option>
-                    <option  value="exchange">Exchange</option>
-                    <option  value="marketCap">Market Cap</option>
-                    <option  value="currentPrice">Price</option>
-                    <option  value="volume">Volume</option>
-                  </input>
+                    <MenuItem value="symbol">Symbol</MenuItem>
+                    <MenuItem value="exchange">Exchange</MenuItem>
+                    <MenuItem value="marketCap">Market Cap</MenuItem>
+                    <MenuItem value="currentPrice">Price</MenuItem>
+                    <MenuItem value="volume">Volume</MenuItem>
+                  </TextField>
                   
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     variant={order === 'desc' ? 'contained' : 'outlined'}
                     size="small"
                     onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
                     startIcon={order === 'desc' ? <TrendingDown /> : <TrendingUp />}
                   >
                     {order === 'desc' ? 'Desc' : 'Asc'}
-                  </button>
-                </div>
-              </div>
+                  </Button>
+                </Box>
+              </Box>
 
               {/* Loading State */}
               {isLoading && (
-                <div  display="flex" justifyContent="center" p={4}>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
-                  <div  ml={2}>
-                    <div  variant="body2" color="text.secondary">
+                <Box display="flex" justifyContent="center" p={4}>
+                  <CircularProgress size={60} />
+                  <Box ml={2}>
+                    <Typography variant="body2" color="text.secondary">
                       Loading stocks data...
-                    </div>
-                    <div  variant="caption" color="text.secondary">
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
                       API: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
-                    </div>
-                  </div>
-                </div>
+                    </Typography>
+                  </Box>
+                </Box>
               )}
 
               {/* Error State */}
               {error && (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+                <Alert severity="error" sx={{ mb: 3 }}>
                   <strong>Error loading stocks:</strong> {error.message}
                   <br />
                   <small>
@@ -704,7 +704,7 @@ function StockExplorer() {
                     </ul>
                     Current API URL: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
                   </small>
-                </div>
+                </Alert>
               )}
 
               {/* Results Display */}
@@ -712,7 +712,7 @@ function StockExplorer() {
                 <>
 
                   {/* Accordion Display */}
-                  <div  sx={{ width: '100%' }}>
+                  <Box sx={{ width: '100%' }}>
                     {stocksList.map((stock) => (
                       <Accordion
                         key={stock.symbol}
@@ -727,71 +727,71 @@ function StockExplorer() {
                             '&:hover': { backgroundColor: 'grey.100' }
                           }}
                         >
-                          <div className="grid" container alignItems="center" spacing={2}>
-                            <div className="grid" item xs={2}>
-                              <div  variant="h6" fontWeight="bold">
+                          <Grid container alignItems="center" spacing={2}>
+                            <Grid item xs={2}>
+                              <Typography variant="h6" fontWeight="bold">
                                 {stock.symbol}
-                              </div>
-                              <div  variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                                 {stock.exchange}
-                              </div>
-                            </div>
-                            <div className="grid" item xs={4}>
-                              <div  variant="body1" fontWeight="medium">
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="body1" fontWeight="medium">
                                 {stock.displayName || stock.shortName || stock.name || stock.fullName || 'N/A'}
-                              </div>
-                              <div  variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                                 {stock.sector} • {stock.industry}
-                              </div>
-                            </div>
-                            <div className="grid" item xs={2}>
-                              <div  variant="body2" fontWeight="bold">
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2" fontWeight="bold">
                                 {stock.price?.current ? formatCurrency(stock.price.current) : 'N/A'}
-                              </div>
-                              <div  variant="caption" color={getChangeColor(stock.price?.current - stock.price?.previousClose)}>
+                              </Typography>
+                              <Typography variant="caption" color={getChangeColor(stock.price?.current - stock.price?.previousClose)}>
                                 {stock.price?.current && stock.price?.previousClose
                                   ? `${stock.price.current - stock.price.previousClose > 0 ? '+' : ''}${formatPercent((stock.price.current - stock.price.previousClose) / stock.price.previousClose)}`
                                   : 'N/A'}
-                              </div>
-                            </div>
-                            <div className="grid" item xs={2}>
-                              <div  variant="body2">
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2">
                                 {stock.marketCap ? formatCurrency(stock.marketCap) : (stock.financialMetrics?.marketCap ? formatCurrency(stock.financialMetrics.marketCap) : 'N/A')}
-                              </div>
-                              <div  variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                                 Market Cap
-                              </div>
-                            </div>
-                            <div className="grid" item xs={2}>
-                              <div  variant="body2">
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Typography variant="body2">
                                 {stock.financialMetrics?.trailingPE ? formatNumber(stock.financialMetrics.trailingPE, 2) : (stock.displayData?.keyMetrics?.pe ? formatNumber(stock.displayData.keyMetrics.pe, 2) : 'N/A')}
-                              </div>
-                              <div  variant="caption" color="text.secondary">
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                                 P/E Ratio
-                              </div>
-                            </div>
-                          </div>
+                              </Typography>
+                            </Grid>
+                          </Grid>
                         </AccordionSummary>
                         
                         <AccordionDetails>
-                          <div className="grid" container spacing={3}>
+                          <Grid container spacing={3}>
                             {/* Company Information */}
-                            <div className="grid" item xs={12} md={6}>
-                              <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                                <div className="bg-white shadow-md rounded-lg"Content>
-                                  <div  variant="h6" gutterBottom>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
                                     Company Information
-                                  </div>
-                                  <div className="grid" container spacing={2}>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Full Name</div>
-                                      <div  variant="body2">
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Full Name</Typography>
+                                      <Typography variant="body2">
                                         {stock.fullName || stock.name || stock.shortName || stock.displayName || 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Website</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Website</Typography>
+                                      <Typography variant="body2">
                                         {stock.website ? (
                                           <a href={stock.website} target="_blank" rel="noopener noreferrer">
                                             {(() => {
@@ -803,185 +803,185 @@ function StockExplorer() {
                                             })()}
                                           </a>
                                         ) : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Employees</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Employees</Typography>
+                                      <Typography variant="body2">
                                         {stock.employeeCount !== undefined && stock.employeeCount !== null && stock.employeeCount !== ''
                                           ? (typeof stock.employeeCount === 'number' ? formatNumber(stock.employeeCount) : stock.employeeCount)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Country</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Country</Typography>
+                                      <Typography variant="body2">
                                         {stock.address?.country || stock.country || 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={12}>
-                                      <div  variant="body2" color="text.secondary">Business Summary</div>
-                                      <div  variant="body2" sx={{ mt: 0.5 }}>
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                      <Typography variant="body2" color="text.secondary">Business Summary</Typography>
+                                      <Typography variant="body2" sx={{ mt: 0.5 }}>
                                         {stock.businessSummary ? 
                                           (stock.businessSummary.length > 200 ? 
                                             `${stock.businessSummary.substring(0, 200)}...` : 
                                             stock.businessSummary
                                           ) : 'N/A'
                                         }
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                                      </Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
 
                             {/* Market Data */}
-                            <div className="grid" item xs={12} md={6}>
-                              <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                                <div className="bg-white shadow-md rounded-lg"Content>
-                                  <div  variant="h6" gutterBottom>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
                                     Market Data
-                                  </div>
-                                  <div className="grid" container spacing={2}>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Current Price</div>
-                                      <div  variant="body2" fontWeight="bold">
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Current Price</Typography>
+                                      <Typography variant="body2" fontWeight="bold">
                                         {stock.price?.current !== undefined && stock.price?.current !== null && stock.price?.current !== ''
                                           ? formatCurrency(stock.price.current)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Previous Close</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Previous Close</Typography>
+                                      <Typography variant="body2">
                                         {stock.price?.previousClose !== undefined && stock.price?.previousClose !== null && stock.price?.previousClose !== ''
                                           ? formatCurrency(stock.price.previousClose)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Day Range</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Day Range</Typography>
+                                      <Typography variant="body2">
                                         {stock.price?.dayLow !== undefined && stock.price?.dayHigh !== undefined && stock.price?.dayLow !== null && stock.price?.dayHigh !== null && stock.price?.dayLow !== '' && stock.price?.dayHigh !== ''
                                           ? `${formatCurrency(stock.price.dayLow)} - ${formatCurrency(stock.price.dayHigh)}`
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">52W Range</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">52W Range</Typography>
+                                      <Typography variant="body2">
                                         {stock.price?.fiftyTwoWeekLow !== undefined && stock.price?.fiftyTwoWeekHigh !== undefined && stock.price?.fiftyTwoWeekLow !== null && stock.price?.fiftyTwoWeekHigh !== null && stock.price?.fiftyTwoWeekLow !== '' && stock.price?.fiftyTwoWeekHigh !== ''
                                           ? `${formatCurrency(stock.price.fiftyTwoWeekLow)} - ${formatCurrency(stock.price.fiftyTwoWeekHigh)}`
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Volume</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Volume</Typography>
+                                      <Typography variant="body2">
                                         {stock.volume !== undefined && stock.volume !== null && stock.volume !== ''
                                           ? formatNumber(stock.volume)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Avg Volume</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Avg Volume</Typography>
+                                      <Typography variant="body2">
                                         {stock.averageVolume !== undefined && stock.averageVolume !== null && stock.averageVolume !== ''
                                           ? formatNumber(stock.averageVolume)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                                      </Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
 
                             {/* Financial Metrics */}
-                            <div className="grid" item xs={12} md={6}>
-                              <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                                <div className="bg-white shadow-md rounded-lg"Content>
-                                  <div  variant="h6" gutterBottom>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
                                     Financial Metrics
-                                  </div>
-                                  <div className="grid" container spacing={2}>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">P/E Ratio</div>
-                                      <div  variant="body2">
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.trailingPE !== undefined && stock.financialMetrics?.trailingPE !== null && stock.financialMetrics?.trailingPE !== ''
                                           ? formatNumber(stock.financialMetrics.trailingPE, 2)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">PEG Ratio</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">PEG Ratio</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.pegRatio !== undefined && stock.financialMetrics?.pegRatio !== null && stock.financialMetrics?.pegRatio !== ''
                                           ? formatNumber(stock.financialMetrics.pegRatio, 2)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">P/B Ratio</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">P/B Ratio</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.priceToBook !== undefined && stock.financialMetrics?.priceToBook !== null && stock.financialMetrics?.priceToBook !== ''
                                           ? formatNumber(stock.financialMetrics.priceToBook, 2)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">EPS</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">EPS</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.epsTrailing !== undefined && stock.financialMetrics?.epsTrailing !== null && stock.financialMetrics?.epsTrailing !== ''
                                           ? formatCurrency(stock.financialMetrics.epsTrailing)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Revenue Growth</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Revenue Growth</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.revenueGrowth !== undefined && stock.financialMetrics?.revenueGrowth !== null && stock.financialMetrics?.revenueGrowth !== ''
                                           ? formatPercent(stock.financialMetrics.revenueGrowth)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="grid" item xs={6}>
-                                      <div  variant="body2" color="text.secondary">Profit Margin</div>
-                                      <div  variant="body2">
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="body2" color="text.secondary">Profit Margin</Typography>
+                                      <Typography variant="body2">
                                         {stock.financialMetrics?.profitMargin !== undefined && stock.financialMetrics?.profitMargin !== null && stock.financialMetrics?.profitMargin !== ''
                                           ? formatPercent(stock.financialMetrics.profitMargin)
                                           : 'N/A'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                                      </Typography>
+                                    </Grid>
+                                  </Grid>
+                                </CardContent>
+                              </Card>
+                            </Grid>
 
                             {/* Actions */}
-                            <div className="grid" item xs={12} md={6}>
-                              <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                                <div className="bg-white shadow-md rounded-lg"Content>
-                                  <div  variant="h6" gutterBottom>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="h6" gutterBottom>
                                     Actions
-                                  </div>
-                                  <div  sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Button
                                       variant="contained"
                                       startIcon={<ShowChart />}
                                       onClick={() => handleFetchPriceHistory(stock.symbol)}
                                       size="small"
                                     >
                                       Price History
-                                    </button>
-                                    <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    </Button>
+                                    <Button
                                       variant="outlined"
                                       onClick={() => navigate(`/stocks/${stock.symbol}`)}
                                       size="small"
                                     >
                                       Full Details
-                                    </button>
+                                    </Button>
                                     {stock.website && (
-                                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      <Button
                                         variant="outlined"
                                         href={stock.website}
                                         target="_blank"
@@ -989,33 +989,33 @@ function StockExplorer() {
                                         size="small"
                                       >
                                         Company Website
-                                      </button>
+                                      </Button>
                                     )}
-                                  </div>
+                                  </Box>
                                   
                                   {/* Price History Cache Indicator */}
                                   {priceHistoryData[stock.symbol] && (
-                                    <div  sx={{ mt: 2 }}>
-                                      <div  variant="body2" color="text.secondary" gutterBottom>
+                                    <Box sx={{ mt: 2 }}>
+                                      <Typography variant="body2" color="text.secondary" gutterBottom>
                                         Recent Price Data Loaded ({priceHistoryData[stock.symbol]?.length || 0} records)
-                                      </div>
-                                      <div  variant="caption" color="success.main">
+                                      </Typography>
+                                      <Typography variant="caption" color="success.main">
                                         Click "Price History" again to see detailed view
-                                      </div>
-                                    </div>
+                                      </Typography>
+                                    </Box>
                                   )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          </Grid>
                         </AccordionDetails>
                       </Accordion>
                     ))}
-                  </div>
+                  </Box>
 
                   {/* Pagination */}
-                  <div  sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                    <TablePagination
                       rowsPerPageOptions={[10, 25, 50, 100]}
                       component="div"
                       count={stocksData?.pagination?.total || stocksData?.total || 0}
@@ -1024,32 +1024,32 @@ function StockExplorer() {
                       onPageChange={handlePageChange}
                       onRowsPerPageChange={handleRowsPerPageChange}
                     />
-                  </div>
+                  </Box>
                 </>
               )}
 
               {/* No Results State */}
               {stocksData && (stocksList.length === 0) && !isLoading && (
-                <div  textAlign="center" py={6}>
-                  <div  variant="h6" color="text.secondary" gutterBottom>
+                <Box textAlign="center" py={6}>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
                     No stocks match your criteria
-                  </div>
-                  <div  variant="body2" color="text.secondary" mb={3}>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" mb={3}>
                     Try adjusting your search or filter criteria
-                  </div>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  </Typography>
+                  <Button 
                     variant="outlined" 
                     onClick={handleClearFilters}
                     startIcon={<Clear />}
                   >
                     Clear All Filters
-                  </button>
-                </div>
+                  </Button>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Price History Modal */}
       <Modal
@@ -1062,7 +1062,7 @@ function StockExplorer() {
         }}
       >
         <Fade in={priceHistoryModal.open}>
-          <div  sx={{
+          <Box sx={{
             position: 'absolute',
             top: '50%',
             left: '50%',
@@ -1076,61 +1076,61 @@ function StockExplorer() {
             boxShadow: 24,
             overflow: 'auto'
           }}>
-            <div  sx={{ p: 3 }}>
-              <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <div  variant="h5" component="h2">
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" component="h2">
                   Price History - {priceHistoryModal.symbol}
-                </div>
-                <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleClosePriceModal}>
+                </Typography>
+                <IconButton onClick={handleClosePriceModal}>
                   <Clear />
-                </button>
-              </div>
+                </IconButton>
+              </Box>
 
               {priceHistoryModal.loading ? (
-                <div  sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-                  <div  sx={{ ml: 2 }}>Loading comprehensive price data...</div>
-                </div>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                  <Typography sx={{ ml: 2 }}>Loading comprehensive price data...</Typography>
+                </Box>
               ) : priceHistoryModal.error ? (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
+                <Alert severity="error" sx={{ mb: 2 }}>
                   Error loading price data: {priceHistoryModal.error}
                   <br />
                   <small>Please try again later or check if the stock symbol is valid.</small>
-                </div>
+                </Alert>
               ) : priceHistoryModal.data.length > 0 ? (
                 <>
                   {/* Price Summary */}
                   {priceHistoryModal.summary && (
-                    <div className="bg-white shadow-md rounded-lg" variant="outlined" sx={{ mb: 3 }}>
-                      <div className="bg-white shadow-md rounded-lg"Content>
-                        <div  variant="h6" gutterBottom>Price Summary</div>
-                        <div className="grid" container spacing={2}>
-                          <div className="grid" item xs={6} sm={3}>
-                            <div  variant="body2" color="text.secondary">Current Price</div>
-                            <div  variant="h6">{formatCurrency(priceHistoryModal.summary.priceStats?.current)}</div>
-                          </div>
-                          <div className="grid" item xs={6} sm={3}>
-                            <div  variant="body2" color="text.secondary">Period High</div>
-                            <div  variant="h6" color="success.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodHigh)}</div>
-                          </div>
-                          <div className="grid" item xs={6} sm={3}>
-                            <div  variant="body2" color="text.secondary">Period Low</div>
-                            <div  variant="h6" color="error.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodLow)}</div>
-                          </div>
-                          <div className="grid" item xs={6} sm={3}>
-                            <div  variant="body2" color="text.secondary">Total Records</div>
-                            <div  variant="h6">{priceHistoryModal.summary.dataPoints}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <Card variant="outlined" sx={{ mb: 3 }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Price Summary</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Current Price</Typography>
+                            <Typography variant="h6">{formatCurrency(priceHistoryModal.summary.priceStats?.current)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Period High</Typography>
+                            <Typography variant="h6" color="success.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodHigh)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Period Low</Typography>
+                            <Typography variant="h6" color="error.main">{formatCurrency(priceHistoryModal.summary.priceStats?.periodLow)}</Typography>
+                          </Grid>
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="body2" color="text.secondary">Total Records</Typography>
+                            <Typography variant="h6">{priceHistoryModal.summary.dataPoints}</Typography>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
                   )}
 
                   {/* Price Chart */}
-                  <div className="bg-white shadow-md rounded-lg" variant="outlined" sx={{ mb: 3 }}>
-                    <div className="bg-white shadow-md rounded-lg"Content>
-                      <div  variant="h6" gutterBottom>Price Chart</div>
-                      <div  sx={{ width: '100%', height: 400 }}>
+                  <Card variant="outlined" sx={{ mb: 3 }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Price Chart</Typography>
+                      <Box sx={{ width: '100%', height: 400 }}>
                         <ResponsiveContainer>
                           <AreaChart data={[...priceHistoryModal.data].reverse()}>
                             <defs>
@@ -1168,62 +1168,62 @@ function StockExplorer() {
                             />
                           </AreaChart>
                         </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
+                      </Box>
+                    </CardContent>
+                  </Card>
 
                   {/* Price History Table */}
-                  <div className="bg-white shadow-md rounded-lg p-4" sx={{ width: '100%', overflow: 'hidden' }}>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell><strong>Date</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Open</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>High</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Low</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Close</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Adj Close</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Volume</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Change</strong></td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>Change %</strong></td>
-                        </tr>
-                      </thead>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                  <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell><strong>Date</strong></TableCell>
+                          <TableCell align="right"><strong>Open</strong></TableCell>
+                          <TableCell align="right"><strong>High</strong></TableCell>
+                          <TableCell align="right"><strong>Low</strong></TableCell>
+                          <TableCell align="right"><strong>Close</strong></TableCell>
+                          <TableCell align="right"><strong>Adj Close</strong></TableCell>
+                          <TableCell align="right"><strong>Volume</strong></TableCell>
+                          <TableCell align="right"><strong>Change</strong></TableCell>
+                          <TableCell align="right"><strong>Change %</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
                         {priceHistoryModal.data.map((row, index) => (
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{new Date(row.date).toLocaleDateString()}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(row.open)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'success.main' }}>{formatCurrency(row.high)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: 'error.main' }}>{formatCurrency(row.low)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right"><strong>{formatCurrency(row.close)}</strong></td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatCurrency(row.adjClose)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{formatNumber(row.volume)}</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: getChangeColor(row.priceChange) }}>
+                          <TableRow key={index} hover>
+                            <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                            <TableCell align="right">{formatCurrency(row.open)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>{formatCurrency(row.high)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'error.main' }}>{formatCurrency(row.low)}</TableCell>
+                            <TableCell align="right"><strong>{formatCurrency(row.close)}</strong></TableCell>
+                            <TableCell align="right">{formatCurrency(row.adjClose)}</TableCell>
+                            <TableCell align="right">{formatNumber(row.volume)}</TableCell>
+                            <TableCell align="right" sx={{ color: getChangeColor(row.priceChange) }}>
                               {row.priceChange ? formatCurrency(row.priceChange) : 'N/A'}
-                            </td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ color: getChangeColor(row.priceChangePct) }}>
+                            </TableCell>
+                            <TableCell align="right" sx={{ color: getChangeColor(row.priceChangePct) }}>
                               {row.priceChangePct ? formatPercent(row.priceChangePct) : 'N/A'}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </Paper>
 
-                  <div  variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
+                  <Typography variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
                     Showing {priceHistoryModal.data.length} price records from your database tables
-                  </div>
+                  </Typography>
                 </>
               ) : (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+                <Alert severity="info">
                   No price data available for {priceHistoryModal.symbol}
-                </div>
+                </Alert>
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
         </Fade>
       </Modal>
-    </div>
+    </Container>
   )
 }
 

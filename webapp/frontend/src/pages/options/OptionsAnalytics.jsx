@@ -257,167 +257,167 @@ const OptionsAnalytics = () => {
   };
   
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" fontWeight={700} gutterBottom>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
           Options Analytics
-        </div>
-        <div  variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Professional options analysis with real-time pricing, Greeks, and market indicators
-        </div>
-        <div  display="flex" gap={1} flexWrap="wrap">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Real-time Chains" color="primary" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Live Greeks" color="success" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Vol Analysis" color="info" size="small" variant="outlined" />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Market Metrics" color="warning" size="small" variant="outlined" />
-        </div>
-      </div>
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip label="Real-time Chains" color="primary" size="small" variant="outlined" />
+          <Chip label="Live Greeks" color="success" size="small" variant="outlined" />
+          <Chip label="Vol Analysis" color="info" size="small" variant="outlined" />
+          <Chip label="Market Metrics" color="warning" size="small" variant="outlined" />
+        </Box>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Controls */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} sm={3}>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={3}>
               <Autocomplete
                 options={symbols}
                 value={selectedSymbol}
                 onChange={(_, value) => value && setSelectedSymbol(value)}
                 renderInput={(params) => (
-                  <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} label="Symbol" size="small" />
+                  <TextField {...params} label="Symbol" size="small" />
                 )}
               />
-            </div>
-            <div className="grid" item xs={12} sm={3}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Expiration</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Expiration</InputLabel>
+                <Select
                   value={expirationDate}
                   label="Expiration"
                   onChange={(e) => setExpirationDate(e.target.value)}
                 >
                   {expirationDates.map(date => (
-                    <option  key={date} value={date}>
+                    <MenuItem key={date} value={date}>
                       {new Date(date).toLocaleDateString()}
-                    </option>
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid" item xs={12} sm={2}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
                 variant="contained"
-                startIcon={loading ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={16} /> : <↻  />}
+                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
                 onClick={loadOptionsData}
                 disabled={loading}
                 fullWidth
               >
                 Refresh
-              </button>
-            </div>
-            <div className="grid" item xs={12} sm={4}>
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={4}>
               {marketData && (
-                <div  display="flex" alignItems="center" gap={2}>
-                  <div  variant="h6" fontWeight="bold">
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Typography variant="h6" fontWeight="bold">
                     ${marketData.price.toFixed(2)}
-                  </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                  </Typography>
+                  <Chip 
                     label={`${marketData.change >= 0 ? '+' : ''}${marketData.change.toFixed(2)} (${marketData.changePercent.toFixed(2)}%)`}
                     color={marketData.change >= 0 ? 'success' : 'error'}
                     size="small"
                   />
-                </div>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* Main Options Chain */}
-        <div className="grid" item xs={12} lg={8}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Header 
+        <Grid item xs={12} lg={8}>
+          <Card>
+            <CardHeader 
               title="Options Chain"
               subheader={`${selectedSymbol} - Expires ${new Date(expirationDate).toLocaleDateString()}`}
             />
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2 }}>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Chain" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Volume" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Greeks" />
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="IV Analysis" />
-              </div>
+            <CardContent>
+              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2 }}>
+                <Tab label="Chain" />
+                <Tab label="Volume" />
+                <Tab label="Greeks" />
+                <Tab label="IV Analysis" />
+              </Tabs>
               
               {loading ? (
-                <div  display="flex" justifyContent="center" py={4}>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-                </div>
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
               ) : (
                 <>
                   {activeTab === 0 && (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strike</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Bid</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Ask</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Mid</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">OI</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">IV</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Money</td>
-                          </tr>
-                        </thead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Strike</TableCell>
+                            <TableCell align="right">Bid</TableCell>
+                            <TableCell align="right">Ask</TableCell>
+                            <TableCell align="right">Mid</TableCell>
+                            <TableCell align="right">Volume</TableCell>
+                            <TableCell align="right">OI</TableCell>
+                            <TableCell align="right">IV</TableCell>
+                            <TableCell>Money</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {optionsChain.map((option, index) => {
                             const moneyness = getMoneynessBadge(option.moneyness);
                             return (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                  <div  variant="body2" fontWeight="bold">
+                              <TableRow key={index} hover>
+                                <TableCell>
+                                  <Typography variant="body2" fontWeight="bold">
                                     ${option.strike}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${option.bid}</td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${option.ask}</td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <div  variant="body2" fontWeight="bold">
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="right">${option.bid}</TableCell>
+                                <TableCell align="right">${option.ask}</TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2" fontWeight="bold">
                                     ${option.mid}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="right">
                                   {parseInt(option.volume).toLocaleString()}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                </TableCell>
+                                <TableCell align="right">
                                   {parseInt(option.openInterest).toLocaleString()}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <div  sx={{ color: getIVColor(option.impliedVolatility) }}>
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography sx={{ color: getIVColor(option.impliedVolatility) }}>
                                     {(parseFloat(option.impliedVolatility) * 100).toFixed(1)}%
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip 
                                     label={moneyness.label} 
                                     color={moneyness.color} 
                                     size="small" 
                                     variant="outlined"
                                   />
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
                   
                   {activeTab === 1 && (
@@ -434,44 +434,44 @@ const OptionsAnalytics = () => {
                   )}
                   
                   {activeTab === 2 && (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Strike</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Delta</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Gamma</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Theta</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Vega</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Mid Price</td>
-                          </tr>
-                        </thead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Strike</TableCell>
+                            <TableCell align="right">Delta</TableCell>
+                            <TableCell align="right">Gamma</TableCell>
+                            <TableCell align="right">Theta</TableCell>
+                            <TableCell align="right">Vega</TableCell>
+                            <TableCell align="right">Mid Price</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {optionsChain.map((option, index) => (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index} hover>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <div  variant="body2" fontWeight="bold">
+                            <TableRow key={index} hover>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight="bold">
                                   ${option.strike}
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                <div  sx={{ color: parseFloat(option.delta) > 0.5 ? 'success.main' : 'text.primary' }}>
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography sx={{ color: parseFloat(option.delta) > 0.5 ? 'success.main' : 'text.primary' }}>
                                   {option.delta}
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{option.gamma}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                <div  sx={{ color: 'error.main' }}>
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">{option.gamma}</TableCell>
+                              <TableCell align="right">
+                                <Typography sx={{ color: 'error.main' }}>
                                   {option.theta}
-                                </div>
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{option.vega}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">${option.mid}</td>
-                            </tr>
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">{option.vega}</TableCell>
+                              <TableCell align="right">${option.mid}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
                   
                   {activeTab === 3 && (
@@ -488,90 +488,90 @@ const OptionsAnalytics = () => {
                   )}
                 </>
               )}
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Sidebar Metrics */}
-        <div className="grid" item xs={12} lg={4}>
+        <Grid item xs={12} lg={4}>
           {/* Market Metrics */}
           {optionsMetrics && (
-            <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-              <div className="bg-white shadow-md rounded-lg"Header title="Market Indicators" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Put/Call Ratio</div>
-                    <div  variant="h6" fontWeight="bold">
+            <Card sx={{ mb: 3 }}>
+              <CardHeader title="Market Indicators" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Put/Call Ratio</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {optionsMetrics.putCallRatio}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Total Volume</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Total Volume</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {optionsMetrics.totalVolume}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">ATM IV</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">ATM IV</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       {optionsMetrics.atmImpliedVol}%
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Max Pain</div>
-                    <div  variant="h6" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Max Pain</Typography>
+                    <Typography variant="h6" fontWeight="bold">
                       ${optionsMetrics.maxPain}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
           )}
 
           {/* Stock Info */}
           {marketData && (
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header title="Stock Information" />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Volume</div>
-                    <div  variant="body2" fontWeight="bold">
+            <Card>
+              <CardHeader title="Stock Information" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Volume</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       {marketData.volume.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Avg Volume</div>
-                    <div  variant="body2" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Avg Volume</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       {marketData.avgVolume.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">P/E Ratio</div>
-                    <div  variant="body2" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">P/E Ratio</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       {marketData.pe.toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <div  variant="caption" color="text.secondary">Beta</div>
-                    <div  variant="body2" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Beta</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       {marketData.beta.toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="grid" item xs={12}>
-                    <div  variant="caption" color="text.secondary">Market Cap</div>
-                    <div  variant="body2" fontWeight="bold">
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">Market Cap</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       ${(marketData.marketCap / 1000000000).toFixed(1)}B
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </div>
-    </div>
+        </Grid>
+      </Grid>
+    </Container>
   );
 };
 

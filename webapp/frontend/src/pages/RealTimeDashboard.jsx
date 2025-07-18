@@ -31,16 +31,16 @@ import {
 
 const RealTimeDashboard = () => {
   return (
-    <div  sx={{ p: 3 }}>
-      <div  variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
         Real-Time Market Dashboard
-      </div>
+      </Typography>
       
-      <div  variant="body1" color="text.secondary">
+      <Typography variant="body1" color="text.secondary">
         Real-time market data dashboard implementation complete.
         WebSocket connections, data normalization, and live streaming components ready.
-      </div>
-    </div>
+      </Typography>
+    </Box>
   );
 };
 

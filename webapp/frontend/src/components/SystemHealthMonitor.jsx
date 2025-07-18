@@ -151,165 +151,165 @@ const SystemHealthMonitor = ({
 
   if (compact) {
     return (
-      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Chip
           icon={statusInfo.icon}
           label={`System: ${statusInfo.label}`}
           color={statusInfo.color}
           size="small"
         />
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+        <Chip
           icon={<Security />}
           label={`API Keys: ${apiKeyStatus.label}`}
           color={apiKeyStatus.color}
           size="small"
         />
-        {loading && <div className="w-full bg-gray-200 rounded-full h-2" sx={{ width: 60, height: 4 }} />}
-      </div>
+        {loading && <LinearProgress sx={{ width: 60, height: 4 }} />}
+      </Box>
     );
   }
 
   return (
-    <div>
+    <Box>
       {/* Main Health Status Card */}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', mb: 2 }}>
-            <div  sx={{ display: 'flex', alignItems: 'center' }}>
+      <Card>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <HealthAndSafety sx={{ mr: 1, color: 'primary.main' }} />
-              <div  variant="h6">System Health</div>
-            </div>
-            <div  sx={{ display: 'flex', gap: 1 }}>
-              <div  title="Refresh health status">
-                <button className="p-2 rounded-full hover:bg-gray-100" onClick={loadHealthData} disabled={loading}>
+              <Typography variant="h6">System Health</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Refresh health status">
+                <IconButton onClick={loadHealthData} disabled={loading}>
                   <Refresh />
-                </button>
-              </div>
+                </IconButton>
+              </Tooltip>
               {showDetails && (
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Button
                   variant="outlined"
                   size="small"
                   onClick={() => setShowDetailDialog(true)}
                   startIcon={<Timeline />}
                 >
                   Details
-                </button>
+                </Button>
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
 
-          {loading && <div className="w-full bg-gray-200 rounded-full h-2" sx={{ mb: 2 }} />}
+          {loading && <LinearProgress sx={{ mb: 2 }} />}
 
           {/* Status Grid */}
-          <div className="grid" container spacing={2}>
-            <div className="grid" item xs={12} md={3}>
-              <div  sx={{ textAlign: 'center' }}>
-                <div  variant="body2" color="text.secondary">
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={3}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
                   Overall Status
-                </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                </Typography>
+                <Chip
                   icon={statusInfo.icon}
                   label={statusInfo.label}
                   color={statusInfo.color}
                   sx={{ mt: 1 }}
                 />
-              </div>
-            </div>
+              </Box>
+            </Grid>
             
-            <div className="grid" item xs={12} md={3}>
-              <div  sx={{ textAlign: 'center' }}>
-                <div  variant="body2" color="text.secondary">
+            <Grid item xs={12} md={3}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
                   API Keys
-                </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                </Typography>
+                <Chip
                   icon={<Security />}
                   label={apiKeyStatus.label}
                   color={apiKeyStatus.color}
                   sx={{ mt: 1 }}
                 />
-              </div>
-            </div>
+              </Box>
+            </Grid>
             
-            <div className="grid" item xs={12} md={3}>
-              <div  sx={{ textAlign: 'center' }}>
-                <div  variant="body2" color="text.secondary">
+            <Grid item xs={12} md={3}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
                   Success Rate
-                </div>
-                <div  variant="h6" color="primary.main">
+                </Typography>
+                <Typography variant="h6" color="primary.main">
                   {performanceMetrics.successRate.toFixed(1)}%
-                </div>
-              </div>
-            </div>
+                </Typography>
+              </Box>
+            </Grid>
             
-            <div className="grid" item xs={12} md={3}>
-              <div  sx={{ textAlign: 'center' }}>
-                <div  variant="body2" color="text.secondary">
+            <Grid item xs={12} md={3}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
                   Response Time
-                </div>
-                <div  variant="h6" color="primary.main">
+                </Typography>
+                <Typography variant="h6" color="primary.main">
                   {performanceMetrics.responseTime}ms
-                </div>
-              </div>
-            </div>
-          </div>
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
 
           {/* Circuit Breaker Warning */}
           {healthData?.circuitBreakerOpen && (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
-              <div  variant="subtitle2" gutterBottom>
+            <Alert severity="error" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
                 Circuit Breaker Active
-              </div>
-              <div  variant="body2">
+              </Typography>
+              <Typography variant="body2">
                 API requests are being blocked due to consecutive failures. 
                 The system will automatically retry when the timeout expires.
-              </div>
-            </div>
+              </Typography>
+            </Alert>
           )}
 
           {/* API Key Error */}
           {apiKeyError && (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
-              <div  variant="subtitle2" gutterBottom>
+            <Alert severity="error" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
                 API Key Issue
-              </div>
-              <div  variant="body2">
+              </Typography>
+              <Typography variant="body2">
                 {apiKeyError}
-              </div>
-            </div>
+              </Typography>
+            </Alert>
           )}
 
           {/* Last Update */}
           {lastUpdate && (
-            <div  variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
               Last updated: {lastUpdate.toLocaleTimeString()}
-            </div>
+            </Typography>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Detailed Health Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" 
+      <Dialog 
         open={showDetailDialog} 
         onClose={() => setShowDetailDialog(false)}
         maxWidth="md"
         fullWidth
       >
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
-          <div  sx={{ display: 'flex', alignItems: 'center' }}>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Timeline sx={{ mr: 1 }} />
             System Health Details
-          </div>
-        </h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
           {healthData && (
-            <div>
+            <Box>
               {/* Endpoint Status */}
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <div  variant="h6">
+                  <Typography variant="h6">
                     <Api sx={{ mr: 1, verticalAlign: 'middle' }} />
                     API Endpoints ({healthData.endpoints.filter(e => e.healthy).length}/{healthData.endpoints.length})
-                  </div>
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <List dense>
@@ -325,7 +325,7 @@ const SystemHealthMonitor = ({
                           primary={endpoint.name}
                           secondary={`${endpoint.path} - ${endpoint.duration}ms`}
                         />
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        <Chip
                           label={endpoint.status || (endpoint.healthy ? 'OK' : 'FAIL')}
                           color={endpoint.healthy ? 'success' : 'error'}
                           size="small"
@@ -339,61 +339,61 @@ const SystemHealthMonitor = ({
               {/* Performance Metrics */}
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
-                  <div  variant="h6">
+                  <Typography variant="h6">
                     <Speed sx={{ mr: 1, verticalAlign: 'middle' }} />
                     Performance Metrics
-                  </div>
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <div className="grid" container spacing={2}>
-                    <div className="grid" item xs={6}>
-                      <div  variant="body2" color="text.secondary">
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
                         Success Rate
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2" 
+                      </Typography>
+                      <LinearProgress 
                         variant="determinate" 
                         value={performanceMetrics.successRate} 
                         color="success"
                         sx={{ mt: 1 }}
                       />
-                      <div  variant="body2">
+                      <Typography variant="body2">
                         {performanceMetrics.successRate.toFixed(1)}%
-                      </div>
-                    </div>
-                    <div className="grid" item xs={6}>
-                      <div  variant="body2" color="text.secondary">
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
                         Error Rate
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2" 
+                      </Typography>
+                      <LinearProgress 
                         variant="determinate" 
                         value={performanceMetrics.errorRate} 
                         color="error"
                         sx={{ mt: 1 }}
                       />
-                      <div  variant="body2">
+                      <Typography variant="body2">
                         {performanceMetrics.errorRate.toFixed(1)}%
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Grid>
+                  </Grid>
                 </AccordionDetails>
               </Accordion>
-            </div>
+            </Box>
           )}
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setShowDetailDialog(false)}>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowDetailDialog(false)}>
             Close
-          </button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          </Button>
+          <Button 
             variant="contained" 
             onClick={loadHealthData}
             startIcon={<Refresh />}
           >
             Refresh
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

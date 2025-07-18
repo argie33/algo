@@ -315,119 +315,119 @@ const PortfolioHoldings = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto" maxWidth="xl">
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-        </div>
-      </div>
+      <Container maxWidth="xl">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress />
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <div className="container mx-auto" maxWidth="xl">
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" gutterBottom>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
           Portfolio Holdings
-        </div>
-        <div  variant="body1" color="text.secondary">
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
           Track and manage your investment holdings
-        </div>
-      </div>
+        </Typography>
+      </Box>
 
       {/* API Key Status */}
-      <div  sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           showSetupDialog={true}
           onStatusChange={(status) => {
             console.log('Portfolio Holdings - API Key Status:', status);
           }}
         />
-      </div>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Portfolio Summary Cards */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  color="text.secondary" gutterBottom>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" gutterBottom>
                 Total Value
-              </div>
-              <div  variant="h5">
+              </Typography>
+              <Typography variant="h5">
                 ${portfolioSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  color="text.secondary" gutterBottom>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" gutterBottom>
                 Total Gain/Loss
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="h5" 
                 color={portfolioSummary.totalGainLoss >= 0 ? 'success.main' : 'error.main'}
               >
                 ${portfolioSummary.totalGainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="body2" 
                 color={portfolioSummary.totalGainLoss >= 0 ? 'success.main' : 'error.main'}
               >
                 ({portfolioSummary.totalGainLossPercent.toFixed(2)}%)
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  color="text.secondary" gutterBottom>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" gutterBottom>
                 Day Gain/Loss
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="h5" 
                 color={portfolioSummary.dayGainLoss >= 0 ? 'success.main' : 'error.main'}
               >
                 ${portfolioSummary.dayGainLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </div>
-              <div  
+              </Typography>
+              <Typography 
                 variant="body2" 
                 color={portfolioSummary.dayGainLoss >= 0 ? 'success.main' : 'error.main'}
               >
                 ({portfolioSummary.dayGainLossPercent.toFixed(2)}%)
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  color="text.secondary" gutterBottom>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" gutterBottom>
                 Cash Balance
-              </div>
-              <div  variant="h5">
+              </Typography>
+              <Typography variant="h5">
                 ${portfolioSummary.cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Charts Row */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Sector Allocation
-              </div>
+              </Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
@@ -446,15 +446,15 @@ const PortfolioHoldings = () => {
                   <RechartsTooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Value']} />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Top Holdings
-              </div>
+              </Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <Treemap
                   data={topHoldings}
@@ -464,37 +464,37 @@ const PortfolioHoldings = () => {
                   fill="#8884d8"
                 />
               </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Actions Bar */}
-      <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <div  sx={{ display: 'flex', gap: 1 }}>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
             variant="contained"
             startIcon={<Add />}
             onClick={() => setAddDialogOpen(true)}
           >
             Add Holding
-          </button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Button>
+          <Button
             variant="outlined"
             startIcon={<Upload />}
             onClick={() => setImportDialogOpen(true)}
           >
             Import
-          </button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Button>
+          <Button
             variant="outlined"
             startIcon={<Sync />}
             onClick={fetchHoldings}
           >
             Refresh
-          </button>
-        </div>
-        <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Button>
+        </Box>
+        <TextField
           size="small"
           placeholder="Filter holdings..."
           value={filterText}
@@ -503,96 +503,96 @@ const PortfolioHoldings = () => {
             startAdornment: <FilterList sx={{ mr: 1, color: 'text.secondary' }} />
           }}
         />
-      </div>
+      </Box>
 
       {/* Holdings Table */}
-      <div className="bg-white shadow-md rounded-lg">
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
+      <Card>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>
+                  <TableSortLabel
                     active={orderBy === 'symbol'}
                     direction={orderBy === 'symbol' ? order : 'asc'}
                     onClick={() => handleRequestSort('symbol')}
                   >
                     Symbol
                   </TableSortLabel>
-                </td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
+                </TableCell>
+                <TableCell>Company</TableCell>
+                <TableCell align="right">
+                  <TableSortLabel
                     active={orderBy === 'quantity'}
                     direction={orderBy === 'quantity' ? order : 'asc'}
                     onClick={() => handleRequestSort('quantity')}
                   >
                     Quantity
                   </TableSortLabel>
-                </td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg Cost</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Current Price</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
+                </TableCell>
+                <TableCell align="right">Avg Cost</TableCell>
+                <TableCell align="right">Current Price</TableCell>
+                <TableCell align="right">
+                  <TableSortLabel
                     active={orderBy === 'marketValue'}
                     direction={orderBy === 'marketValue' ? order : 'asc'}
                     onClick={() => handleRequestSort('marketValue')}
                   >
                     Market Value
                   </TableSortLabel>
-                </td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leSortLabel
+                </TableCell>
+                <TableCell align="right">
+                  <TableSortLabel
                     active={orderBy === 'gainLoss'}
                     direction={orderBy === 'gainLoss' ? order : 'asc'}
                     onClick={() => handleRequestSort('gainLoss')}
                   >
                     Gain/Loss
                   </TableSortLabel>
-                </td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">% Change</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sector</td>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
-              </tr>
-            </thead>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                </TableCell>
+                <TableCell align="right">% Change</TableCell>
+                <TableCell>Sector</TableCell>
+                <TableCell align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {paginatedHoldings.map((holding) => (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={holding.id || holding.symbol}>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                    <div  variant="body2" fontWeight="bold">
+                <TableRow key={holding.id || holding.symbol}>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="bold">
                       {holding.symbol}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                    <div  variant="body2">
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
                       {holding.companyName || 'N/A'}
-                    </div>
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">{holding.quantity}</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">{holding.quantity}</TableCell>
+                  <TableCell align="right">
                     ${(holding.costBasis || 0).toFixed(2)}
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  </TableCell>
+                  <TableCell align="right">
                     ${(holding.currentPrice || 0).toFixed(2)}
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                  </TableCell>
+                  <TableCell align="right">
                     ${(holding.marketValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
+                  </TableCell>
+                  <TableCell 
                     align="right"
                     sx={{ color: (holding.gainLoss || 0) >= 0 ? 'success.main' : 'error.main' }}
                   >
                     ${(holding.gainLoss || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
+                  </TableCell>
+                  <TableCell 
                     align="right"
                     sx={{ color: (holding.gainLossPercent || 0) >= 0 ? 'success.main' : 'error.main' }}
                   >
                     {(holding.gainLossPercent || 0) >= 0 ? '+' : ''}
                     {(holding.gainLossPercent || 0).toFixed(2)}%
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
                       label={holding.sector || 'Unknown'} 
                       size="small"
                       sx={{ 
@@ -600,9 +600,9 @@ const PortfolioHoldings = () => {
                         color: getSectorColor(holding.sector)
                       }}
                     />
-                  </td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                    <button className="p-2 rounded-full hover:bg-gray-100"
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton
                       size="small"
                       onClick={() => {
                         setSelectedHolding(holding);
@@ -610,21 +610,21 @@ const PortfolioHoldings = () => {
                       }}
                     >
                       <Edit />
-                    </button>
-                    <button className="p-2 rounded-full hover:bg-gray-100"
+                    </IconButton>
+                    <IconButton
                       size="small"
                       color="error"
                       onClick={() => handleDeleteHolding(holding.id)}
                     >
                       <Delete />
-                    </button>
-                  </td>
-                </tr>
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
           count={filteredHoldings.length}
@@ -636,27 +636,27 @@ const PortfolioHoldings = () => {
             setPage(0);
           }}
         />
-      </div>
+      </Card>
 
       {/* Add Holding Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Add New Holding</h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Holding</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
               label="Symbol"
               value={newHolding.symbol}
               onChange={(e) => setNewHolding({ ...newHolding, symbol: e.target.value.toUpperCase() })}
               required
             />
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <TextField
               label="Quantity"
               type="number"
               value={newHolding.quantity}
               onChange={(e) => setNewHolding({ ...newHolding, quantity: e.target.value })}
               required
             />
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <TextField
               label="Cost Basis (per share)"
               type="number"
               step="0.01"
@@ -664,97 +664,97 @@ const PortfolioHoldings = () => {
               onChange={(e) => setNewHolding({ ...newHolding, costBasis: e.target.value })}
               required
             />
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <TextField
               label="Purchase Date"
               type="date"
               value={newHolding.purchaseDate}
               onChange={(e) => setNewHolding({ ...newHolding, purchaseDate: e.target.value })}
               InputLabelProps={{ shrink: true }}
             />
-          </div>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAddDialogOpen(false)}>Cancel</button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleAddHolding} variant="contained">Add Holding</button>
-        </div>
-      </div>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddHolding} variant="contained">Add Holding</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Edit Holding Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Edit Holding</h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Holding</DialogTitle>
+        <DialogContent>
           {selectedHolding && (
-            <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <TextField
                 label="Symbol"
                 value={selectedHolding.symbol}
                 disabled
               />
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <TextField
                 label="Quantity"
                 type="number"
                 value={selectedHolding.quantity}
                 onChange={(e) => setSelectedHolding({ ...selectedHolding, quantity: e.target.value })}
               />
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <TextField
                 label="Cost Basis (per share)"
                 type="number"
                 step="0.01"
                 value={selectedHolding.costBasis}
                 onChange={(e) => setSelectedHolding({ ...selectedHolding, costBasis: e.target.value })}
               />
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <TextField
                 label="Purchase Date"
                 type="date"
                 value={selectedHolding.purchaseDate}
                 onChange={(e) => setSelectedHolding({ ...selectedHolding, purchaseDate: e.target.value })}
                 InputLabelProps={{ shrink: true }}
               />
-            </div>
+            </Box>
           )}
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setEditDialogOpen(false)}>Cancel</button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleEditHolding} variant="contained">Save Changes</button>
-        </div>
-      </div>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleEditHolding} variant="contained">Save Changes</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Import Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={importDialogOpen} onClose={() => setImportDialogOpen(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Import Portfolio</h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div  variant="body2" sx={{ mb: 2 }}>
+      <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Import Portfolio</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
             Import your portfolio from a supported broker:
-          </div>
-          <div  sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Button
               variant="outlined"
               onClick={() => handleImportFromBroker('alpaca')}
               disabled={loading}
             >
               Import from Alpaca
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Button>
+            <Button
               variant="outlined"
               onClick={() => handleImportFromBroker('robinhood')}
               disabled={loading}
             >
               Import from Robinhood
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </Button>
+            <Button
               variant="outlined"
               onClick={() => handleImportFromBroker('fidelity')}
               disabled={loading}
             >
               Import from Fidelity
-            </button>
-          </div>
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setImportDialogOpen(false)}>Cancel</button>
-        </div>
-      </div>
-    </div>
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportDialogOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 };
 

@@ -66,6 +66,9 @@ import {
   Schedule as ScheduleIcon,
   Build as BuildIcon
 } from '@mui/icons-material';
+import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 
 const TradeHistory = () => {
@@ -233,185 +236,185 @@ const TradeHistory = () => {
   };
 
   const AnalyticsOverview = () => (
-    <div className="grid" container spacing={3}>
-      <div className="grid" item xs={12} md={3}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  display="flex" alignItems="center">
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={3}>
+        <Card>
+          <CardContent>
+            <Box display="flex" alignItems="center">
               <AssessmentIcon color="primary" sx={{ mr: 1 }} />
-              <div  variant="h6">Total Trades</div>
-            </div>
-            <div  variant="h4" color="primary">
+              <Typography variant="h6">Total Trades</Typography>
+            </Box>
+            <Typography variant="h4" color="primary">
               {analytics?.overview?.totalTrades || 0}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid" item xs={12} md={3}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  display="flex" alignItems="center">
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={3}>
+        <Card>
+          <CardContent>
+            <Box display="flex" alignItems="center">
               <TrendingUpIcon color="success" sx={{ mr: 1 }} />
-              <div  variant="h6">Win Rate</div>
-            </div>
-            <div  variant="h4" color="success.main">
+              <Typography variant="h6">Win Rate</Typography>
+            </Box>
+            <Typography variant="h4" color="success.main">
               {analytics?.overview?.winRate || 0}%
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid" item xs={12} md={3}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  display="flex" alignItems="center">
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={3}>
+        <Card>
+          <CardContent>
+            <Box display="flex" alignItems="center">
               <AccountBalanceIcon color="info" sx={{ mr: 1 }} />
-              <div  variant="h6">Total P&L</div>
-            </div>
-            <div  variant="h4" color={getPnLColor(analytics?.overview?.totalPnl)}>
+              <Typography variant="h6">Total P&L</Typography>
+            </Box>
+            <Typography variant="h4" color={getPnLColor(analytics?.overview?.totalPnl)}>
               {formatCurrency(analytics?.overview?.totalPnl)}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid" item xs={12} md={3}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  display="flex" alignItems="center">
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={3}>
+        <Card>
+          <CardContent>
+            <Box display="flex" alignItems="center">
               <TimelineIcon color="warning" sx={{ mr: 1 }} />
-              <div  variant="h6">Avg ROI</div>
-            </div>
-            <div  variant="h4" color={getPnLColor(analytics?.overview?.avgRoi)}>
+              <Typography variant="h6">Avg ROI</Typography>
+            </Box>
+            <Typography variant="h4" color={getPnLColor(analytics?.overview?.avgRoi)}>
               {formatPercent(analytics?.overview?.avgRoi)}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
   );
 
   const TradeTable = () => (
-    <div className="bg-white shadow-md rounded-lg">
-      <div className="bg-white shadow-md rounded-lg"Header 
+    <Card>
+      <CardHeader 
         title="Trade History"
         action={
-          <div  display="flex" gap={1}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          <Box display="flex" gap={1}>
+            <Button 
               variant="outlined" 
               startIcon={<FilterIcon />}
               onClick={() => setImportDialog(true)}
             >
               Filters
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            </Button>
+            <Button 
               variant="outlined" 
-              startIcon={<⬇  />}
+              startIcon={<DownloadIcon />}
               onClick={() => handleExport('csv')}
             >
               Export
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            </Button>
+            <Button 
               variant="contained" 
               startIcon={<SyncIcon />}
               onClick={() => setImportDialog(true)}
             >
               Import
-            </button>
-          </div>
+            </Button>
+          </Box>
         }
       />
-      <div className="bg-white shadow-md rounded-lg"Content>
+      <CardContent>
         {loading ? (
-          <div  display="flex" justifyContent="center" p={3}>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          </div>
+          <Box display="flex" justifyContent="center" p={3}>
+            <CircularProgress />
+          </Box>
         ) : (
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Date</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Quantity</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Total P&L</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">ROI</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Pattern</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sector</td>
-                </tr>
-              </thead>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Symbol</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Price</TableCell>
+                  <TableCell align="right">Total P&L</TableCell>
+                  <TableCell align="right">ROI</TableCell>
+                  <TableCell>Pattern</TableCell>
+                  <TableCell>Sector</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {trades.map((trade, index) => (
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                  <TableRow key={index}>
+                    <TableCell>
                       {new Date(trade.execution_time).toLocaleDateString()}
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                      <div  variant="body2" fontWeight="bold">
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="bold">
                         {trade.symbol}
-                      </div>
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
                         label={trade.side} 
                         color={getTradeTypeColor(trade.side)}
                         size="small"
                       />
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                    </TableCell>
+                    <TableCell align="right">
                       {trade.quantity}
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                    </TableCell>
+                    <TableCell align="right">
                       {formatCurrency(trade.price)}
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                      <div  color={getPnLColor(trade.net_pnl)}>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography color={getPnLColor(trade.net_pnl)}>
                         {formatCurrency(trade.net_pnl)}
-                      </div>
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                      <div  color={getPnLColor(trade.return_percentage)}>
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography color={getPnLColor(trade.return_percentage)}>
                         {formatPercent(trade.return_percentage)}
-                      </div>
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
                       {trade.trade_pattern_type && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                        <Chip 
                           label={trade.trade_pattern_type} 
                           variant="outlined" 
                           size="small"
                         />
                       )}
-                    </td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                    </TableCell>
+                    <TableCell>
                       {trade.sector && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                        <Chip 
                           label={trade.sector} 
                           color="info"
                           variant="outlined" 
                           size="small"
                         />
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
         
         {pagination.hasMore && (
-          <div  display="flex" justifyContent="center" mt={2}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          <Box display="flex" justifyContent="center" mt={2}>
+            <Button 
               variant="outlined" 
               onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
             >
               Load More
-            </button>
-          </div>
+            </Button>
+          </Box>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 
   // Advanced Analytics Component
@@ -581,18 +584,18 @@ const TradeHistory = () => {
     const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff00ff', '#00ffff'];
 
     return (
-      <div>
+      <Box>
         {/* Pattern Recognition Section */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Header
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
             title="Pattern Recognition Analysis"
             avatar={<PsychologyIcon color="primary" />}
             subheader="Identify which trading patterns work best for you"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={3}>
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Pattern Performance</div>
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Pattern Performance</Typography>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={metrics.patternAnalysis.patterns}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -606,9 +609,9 @@ const TradeHistory = () => {
                     <Bar dataKey="winRate" fill="#82ca9d" name="winRate" />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Pattern Frequency</div>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Pattern Frequency</Typography>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -626,79 +629,79 @@ const TradeHistory = () => {
                     <ChartTooltip />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
         {/* Risk Attribution Section */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Header
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
             title="Risk Attribution Analysis"
             avatar={<WarningIcon color="warning" />}
             subheader="Understand your risk/reward profile and improve risk management"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={3}>
-              <div className="grid" item xs={6} md={3}>
-                <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  color="text.secondary" gutterBottom>Profit Factor</div>
-                    <div  variant="h4" color={metrics.riskAttribution.profitFactor >= 1.5 ? 'success.main' : 'error.main'}>
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Profit Factor</Typography>
+                    <Typography variant="h4" color={metrics.riskAttribution.profitFactor >= 1.5 ? 'success.main' : 'error.main'}>
                       {metrics.riskAttribution.profitFactor.toFixed(2)}
-                    </div>
-                    <div  variant="body2">
+                    </Typography>
+                    <Typography variant="body2">
                       {metrics.riskAttribution.profitFactor >= 1.5 ? 'Good' : 'Needs Improvement'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} md={3}>
-                <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  color="text.secondary" gutterBottom>Expectancy</div>
-                    <div  variant="h4" color={metrics.riskAttribution.expectancy >= 0 ? 'success.main' : 'error.main'}>
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Expectancy</Typography>
+                    <Typography variant="h4" color={metrics.riskAttribution.expectancy >= 0 ? 'success.main' : 'error.main'}>
                       ${metrics.riskAttribution.expectancy.toFixed(2)}
-                    </div>
-                    <div  variant="body2">Per Trade</div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} md={3}>
-                <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  color="text.secondary" gutterBottom>Avg Win</div>
-                    <div  variant="h4" color="success.main">
+                    </Typography>
+                    <Typography variant="body2">Per Trade</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Avg Win</Typography>
+                    <Typography variant="h4" color="success.main">
                       ${metrics.riskAttribution.avgWin.toFixed(2)}
-                    </div>
-                    <div  variant="body2">Average</div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid" item xs={6} md={3}>
-                <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  color="text.secondary" gutterBottom>Avg Loss</div>
-                    <div  variant="h4" color="error.main">
+                    </Typography>
+                    <Typography variant="body2">Average</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Avg Loss</Typography>
+                    <Typography variant="h4" color="error.main">
                       ${metrics.riskAttribution.avgLoss.toFixed(2)}
-                    </div>
-                    <div  variant="body2">Average</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                    </Typography>
+                    <Typography variant="body2">Average</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
         {/* Performance Benchmarking Section */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Header
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
             title="Performance Benchmarking"
             avatar={<CompareArrowsIcon color="info" />}
             subheader="Compare performance across sectors and identify strengths"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>Sector Performance</div>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Sector Performance</Typography>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={metrics.performanceBenchmark.sectors}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -713,20 +716,20 @@ const TradeHistory = () => {
                 <Bar dataKey="winRate" fill="#ffc658" name="winRate" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Timing Analysis Section */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Header
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
             title="Trade Timing Analysis"
             avatar={<ScheduleIcon color="primary" />}
             subheader="Discover optimal trading times and patterns"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={3}>
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Daily Performance</div>
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Daily Performance</Typography>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={Object.keys(metrics.timingAnalysis.daily).map(day => ({
                     day,
@@ -739,9 +742,9 @@ const TradeHistory = () => {
                     <Bar dataKey="pnl" fill="#8884d8" />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Hourly Performance</div>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Hourly Performance</Typography>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={Object.keys(metrics.timingAnalysis.hourly).map(hour => ({
                     hour: `${hour}:00`,
@@ -754,81 +757,81 @@ const TradeHistory = () => {
                     <Line type="monotone" dataKey="pnl" stroke="#8884d8" />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
         {/* Learning Insights Section */}
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Header
+        <Card>
+          <CardHeader
             title="Learning Insights & Recommendations"
             avatar={<LightbulbIcon color="warning" />}
             subheader="Actionable insights to improve your trading performance"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
+          <CardContent>
             {metrics.learningInsights.length > 0 ? (
-              <div className="flex flex-col space-y-2" spacing={2}>
+              <Stack spacing={2}>
                 {metrics.learningInsights.map((insight, index) => (
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200"
+                  <Alert
                     key={index}
                     severity={insight.type}
                     action={
-                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" color="inherit" size="small">
+                      <Button color="inherit" size="small">
                         Apply
-                      </button>
+                      </Button>
                     }
                   >
-                    <div  variant="subtitle2" gutterBottom>
+                    <Typography variant="subtitle2" gutterBottom>
                       {insight.title}
-                    </div>
-                    <div  variant="body2" gutterBottom>
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
                       {insight.message}
-                    </div>
-                    <div  variant="body2" sx={{ fontStyle: 'italic' }}>
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
                       💡 {insight.action}
-                    </div>
-                  </div>
+                    </Typography>
+                  </Alert>
                 ))}
-              </div>
+              </Stack>
             ) : (
-              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+              <Alert severity="info">
                 Import more trade data to generate personalized insights and recommendations.
-              </div>
+              </Alert>
             )}
-          </div>
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+      </Box>
     );
   };
 
   const ImportDialog = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={importDialog} onClose={() => setImportDialog(false)}>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>Import Trades from Alpaca</h2>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-        <div className="flex flex-col space-y-2" spacing={2} sx={{ mt: 1 }}>
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+    <Dialog open={importDialog} onClose={() => setImportDialog(false)}>
+      <DialogTitle>Import Trades from Alpaca</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <Alert severity="info">
             This will import your trade history from Alpaca using your configured API keys.
-          </div>
+          </Alert>
           
           {importStatus?.brokerStatus?.length > 0 && (
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>API Key Status</div>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>API Key Status</Typography>
                 {importStatus.brokerStatus.map((broker, index) => (
-                  <div  key={index} display="flex" alignItems="center" gap={1}>
+                  <Box key={index} display="flex" alignItems="center" gap={1}>
                     {broker.keyActive ? (
                       <CheckCircleIcon color="success" />
                     ) : (
                       <CancelIcon color="error" />
                     )}
-                    <div>
+                    <Typography>
                       {broker.provider} - {broker.keyActive ? 'Active' : 'Inactive'}
-                    </div>
-                  </div>
+                    </Typography>
+                  </Box>
                 ))}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
           
           <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -836,82 +839,82 @@ const TradeHistory = () => {
               label="Start Date"
               value={filters.startDate}
               onChange={(date) => setFilters(prev => ({ ...prev, startDate: date }))}
-              renderInput={(params) => <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} />}
+              renderInput={(params) => <TextField {...params} />}
             />
             <MuiDatePicker
               label="End Date"
               value={filters.endDate}
               onChange={(date) => setFilters(prev => ({ ...prev, endDate: date }))}
-              renderInput={(params) => <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" {...params} />}
+              renderInput={(params) => <TextField {...params} />}
             />
           </LocalizationProvider>
-        </div>
-      </div>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setImportDialog(false)}>Cancel</button>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setImportDialog(false)}>Cancel</Button>
+        <Button 
           onClick={handleImportTrades} 
           variant="contained"
           disabled={importing}
         >
-          {importing ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={20} /> : 'Import Trades'}
-        </button>
-      </div>
-    </div>
+          {importing ? <CircularProgress size={20} /> : 'Import Trades'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 
   return (
-    <div className="container mx-auto" maxWidth="xl">
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h4" component="h1" gutterBottom>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
           Trade History
-        </div>
-        <div  variant="body1" color="text.secondary">
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
           Comprehensive analysis of your trading activity with institutional-grade insights
-        </div>
-      </div>
+        </Typography>
+      </Box>
 
       {alertMessage && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
+        <Alert 
           severity={alertMessage.severity} 
           onClose={() => setAlertMessage(null)}
           sx={{ mb: 2 }}
         >
           {alertMessage.message}
-        </div>
+        </Alert>
       )}
 
-      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Overview" icon={<AnalyticsIcon />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Trade History" icon={<HistoryIcon />} />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Analytics" icon={<AssessmentIcon />} />
-        </div>
-      </div>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+          <Tab label="Overview" icon={<AnalyticsIcon />} />
+          <Tab label="Trade History" icon={<HistoryIcon />} />
+          <Tab label="Analytics" icon={<AssessmentIcon />} />
+        </Tabs>
+      </Box>
 
-      <div  sx={{ mb: 3 }}>
-        <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Box sx={{ mb: 3 }}>
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>Timeframe</InputLabel>
+          <Select
             value={timeframe}
             label="Timeframe"
             onChange={(e) => setTimeframe(e.target.value)}
           >
-            <option  value="1M">1 Month</option>
-            <option  value="3M">3 Months</option>
-            <option  value="6M">6 Months</option>
-            <option  value="1Y">1 Year</option>
-            <option  value="YTD">Year to Date</option>
-          </select>
-        </div>
-      </div>
+            <MenuItem value="1M">1 Month</MenuItem>
+            <MenuItem value="3M">3 Months</MenuItem>
+            <MenuItem value="6M">6 Months</MenuItem>
+            <MenuItem value="1Y">1 Year</MenuItem>
+            <MenuItem value="YTD">Year to Date</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
 
       {activeTab === 0 && analytics && <AnalyticsOverview />}
       {activeTab === 1 && <TradeTable />}
       {activeTab === 2 && <AdvancedAnalytics />}
 
       <ImportDialog />
-    </div>
+    </Container>
   );
 };
 

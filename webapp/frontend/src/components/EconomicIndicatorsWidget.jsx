@@ -151,55 +151,55 @@ const EconomicIndicatorsWidget = ({ height = 400, autoRefresh = true }) => {
   ] : [];
 
   return (
-    <div className="bg-white shadow-md rounded-lg" sx={{ height }}>
-      <div className="bg-white shadow-md rounded-lg"Header
+    <Card sx={{ height }}>
+      <CardHeader
         title={
-          <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <AccountBalance color="primary" />
-            <div  variant="h6" fontWeight="bold">
+            <Typography variant="h6" fontWeight="bold">
               Economic Indicators
-            </div>
-          </div>
+            </Typography>
+          </Box>
         }
         action={
-          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleRefresh} disabled={isLoading}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <IconButton onClick={handleRefresh} disabled={isLoading}>
               <Refresh />
-            </button>
-            <button className="p-2 rounded-full hover:bg-gray-100" onClick={handleMenuOpen}>
+            </IconButton>
+            <IconButton onClick={handleMenuOpen}>
               <MoreVert />
-            </button>
-          </div>
+            </IconButton>
+          </Box>
         }
         sx={{ pb: 1 }}
       />
       
-      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10"
+      <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
-        <option  onClick={handleRefresh}>
+        <MenuItem onClick={handleRefresh}>
           <Refresh fontSize="small" sx={{ mr: 1 }} />
           Refresh Data
-        </option>
-        <option  disabled>
-          <div  variant="caption">Data updates every 5 minutes</div>
-        </option>
-      </div>
+        </MenuItem>
+        <MenuItem disabled>
+          <Typography variant="caption">Data updates every 5 minutes</Typography>
+        </MenuItem>
+      </Menu>
 
-      <div className="bg-white shadow-md rounded-lg"Content sx={{ pt: 0, height: 'calc(100% - 64px)', overflow: 'hidden' }}>
-        {isLoading && <div className="w-full bg-gray-200 rounded-full h-2" sx={{ mb: 2 }} />}
+      <CardContent sx={{ pt: 0, height: 'calc(100% - 64px)', overflow: 'hidden' }}>
+        {isLoading && <LinearProgress sx={{ mb: 2 }} />}
         
         {error && (
-          <div  sx={{ textAlign: 'center', py: 2 }}>
-            <div  color="error" variant="body2">
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <Typography color="error" variant="body2">
               Using sample economic data
-            </div>
-          </div>
+            </Typography>
+          </Box>
         )}
 
-        <div  sx={{ height: '100%', overflow: 'auto' }}>
+        <Box sx={{ height: '100%', overflow: 'auto' }}>
           <List dense>
             {indicators.map((indicator, index) => {
               const data = indicator.data;
@@ -217,76 +217,76 @@ const EconomicIndicatorsWidget = ({ height = 400, autoRefresh = true }) => {
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div  variant="body2" fontWeight="medium">
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="body2" fontWeight="medium">
                             {indicator.name}
-                          </div>
-                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <div  variant="body2" fontWeight="bold">
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" fontWeight="bold">
                               {formatValue(value, unit)}
-                            </div>
+                            </Typography>
                             {getTrendIcon(trend)}
-                          </div>
-                        </div>
+                          </Box>
+                        </Box>
                       }
                       secondary={
-                        <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                          <div  sx={{ display: 'flex', gap: 1 }}>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Chip
                               label={trend || 'stable'}
                               size="small"
                               color={getTrendColor(trend)}
                               sx={{ fontSize: '0.7rem', height: 20 }}
                             />
-                          </div>
-                          <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {change !== undefined && change !== null && (
-                              <div  
+                              <Typography 
                                 variant="caption" 
                                 color={change >= 0 ? 'success.main' : 'error.main'}
                                 fontWeight="medium"
                               >
                                 {change >= 0 ? '+' : ''}{change.toFixed(2)}
-                              </div>
+                              </Typography>
                             )}
                             {changePercent !== undefined && changePercent !== null && (
-                              <div  
+                              <Typography 
                                 variant="caption" 
                                 color={changePercent >= 0 ? 'success.main' : 'error.main'}
                                 fontWeight="medium"
                               >
                                 ({changePercent >= 0 ? '+' : ''}{changePercent.toFixed(1)}%)
-                              </div>
+                              </Typography>
                             )}
-                          </div>
-                        </div>
+                          </Box>
+                        </Box>
                       }
                     />
                   </ListItem>
-                  {index < indicators.length - 1 && <hr className="border-gray-200" variant="inset" />}
+                  {index < indicators.length - 1 && <Divider variant="inset" />}
                 </React.Fragment>
               );
             })}
             
             {indicators.length === 0 && !isLoading && (
-              <div  sx={{ textAlign: 'center', py: 4 }}>
-                <div  color="text.secondary">
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
                   No economic data available
-                </div>
-              </div>
+                </Typography>
+              </Box>
             )}
           </List>
-        </div>
+        </Box>
 
         {economicData && (
-          <div  sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
-            <div  variant="caption" color="text.secondary" align="center" display="block">
+          <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary" align="center" display="block">
               Last updated: {new Date().toLocaleTimeString()}
-            </div>
-          </div>
+            </Typography>
+          </Box>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

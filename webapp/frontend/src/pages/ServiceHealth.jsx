@@ -156,7 +156,7 @@ function ServiceHealth() {
           return errorResult;
         }
         
-        console.log('✅ Database health data received: [REDACTED]');
+        console.log('✅ Database health data received:', response.data);
         console.log('📊 Database status:', response.data.database?.status);
         console.log('📋 Tables found:', Object.keys(response.data.database?.tables || {}).length);
         setDbHealth(response.data);
@@ -222,17 +222,17 @@ function ServiceHealth() {
   // Early return if component has error
   if (componentError) {
     return (
-      <div className="container mx-auto" maxWidth="lg" sx={{ py: 4 }}>
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">
-          <div  variant="h6">Service Health Error</div>
-          <div  variant="body2">
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">
+          <Typography variant="h6">Service Health Error</Typography>
+          <Typography variant="body2">
             {componentError}
-          </div>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => window.location.reload()} sx={{ mt: 2 }}>
+          </Typography>
+          <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>
             Reload Page
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Alert>
+      </Container>
     );
   }
 
@@ -725,49 +725,49 @@ function ServiceHealth() {
   };
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
-      <div  sx={{ mb: 3 }}>
-        <div  variant="h4" component="h1" gutterBottom>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
           Service Health Dashboard
-        </div>
-        <div  variant="subtitle1" color="textSecondary">
+        </Typography>
+        <Typography variant="subtitle1" color="textSecondary">
           Monitor system status, API health, and data integrity
-        </div>
-      </div>
+        </Typography>
+      </Box>
 
       {/* API Key Status Integration */}
-      <div  sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 
           showSetupDialog={true}
           onStatusChange={(status) => {
             console.log('Service Health - API Key Status:', status);
           }}
         />
-      </div>
+      </Box>
 
       {/* Overall Status */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               {healthLoading ? (
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+                <CircularProgress />
               ) : healthError ? (
                 <>
                   <Error color="error" sx={{ fontSize: 40, mb: 1 }} />
-                  <div  variant="h6" color="error">
+                  <Typography variant="h6" color="error">
                     Service Down
-                  </div>
+                  </Typography>
                 </>
               ) : (
                 <>
                   <CheckCircle color="success" sx={{ fontSize: 40, mb: 1 }} />
-                  <div  variant="h6" color="success.main">
+                  <Typography variant="h6" color="success.main">
                     Service Healthy
-                  </div>
+                  </Typography>
                 </>
               )}
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Button 
                 variant="outlined" 
                 size="small" 
                 startIcon={<Refresh />}
@@ -776,36 +776,36 @@ function ServiceHealth() {
                 disabled={refreshing}
               >
                 {refreshing ? 'Refreshing...' : 'Refresh Health Status'}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <Api sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
-              <div  variant="h6">
+              <Typography variant="h6">
                 API Gateway
-              </div>
-              <div  variant="body2" color="textSecondary">
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
                 {safeDiagnosticInfo?.isConfigured ? 'Configured' : 'Not Configured'}
-              </div>
-              <div  variant="caption" display="block" sx={{ mt: 1 }}>
+              </Typography>
+              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                 {safeDiagnosticInfo?.urlsMatch ? 'URLs Match' : 'URL Mismatch'}
-              </div>
-            </div>
-          </div>
-        </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <Storage sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
-              <div  variant="h6">
+              <Typography variant="h6">
                 Database
-              </div>
-              <div  variant="body2" color="textSecondary">
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
                 {dbLoading ? 'Checking...' : 
                  dbError ? 'Error' : 
                  safeDbHealth?.database?.status === 'connected' ? 'Connected' :
@@ -814,24 +814,24 @@ function ServiceHealth() {
                  safeDbHealth?.error ? 'Error' :
                  dbHealth === null ? 'Not checked' :
                  'Unknown'}
-              </div>
+              </Typography>
               {dbError && (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
-                  <div  variant="subtitle2">Failed to load database health:</div>
-                  <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2">Failed to load database health:</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                     {typeof dbError === 'string' ? dbError : dbError?.message || 'Unknown error'}
-                  </div>
-                </div>
+                  </Typography>
+                </Alert>
               )}
               {safeDbHealth?.error && (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mt: 2 }}>
-                  <div  variant="subtitle2">Database Error:</div>
-                  <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2">Database Error:</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                     {safeDbHealth.message || 'Unknown error'}
-                  </div>
-                </div>
+                  </Typography>
+                </Alert>
               )}
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Button 
                 variant="outlined" 
                 size="small" 
                 startIcon={<Refresh />}
@@ -840,19 +840,19 @@ function ServiceHealth() {
                 disabled={dbLoading}
               >
                 {dbLoading ? 'Checking...' : 'Check Database'}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content sx={{ textAlign: 'center' }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
               <Cloud sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
-              <div  variant="h6">
+              <Typography variant="h6">
                 Environment
-              </div>
-              <div  variant="body2" color="textSecondary">
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
                 {(() => {
                   const env = import.meta.env.VITE_ENV || import.meta.env.MODE || '';
                   if (env.toLowerCase().startsWith('prod')) return 'Production';
@@ -861,49 +861,49 @@ function ServiceHealth() {
                   if (env) return env.charAt(0).toUpperCase() + env.slice(1);
                   return 'Production';
                 })()}
-              </div>
-                      <div  variant="caption" display="block" sx={{ mt: 1 }} title={'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'}>
+              </Typography>
+                      <Typography variant="caption" display="block" sx={{ mt: 1 }} title={'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'}>
           API: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
 
       {/* Detailed Health Information */}
-      <div className="grid" container spacing={3}>
+      <Grid container spacing={3}>
         {/* API Health */}
-        <div className="grid" item xs={12} lg={6}>
+        <Grid item xs={12} lg={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <div  variant="h6">
+              <Typography variant="h6">
                 <Api sx={{ mr: 1, verticalAlign: 'middle' }} />
                 API Health
-              </div>
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               {safeHealthData && (
-                <div>
-                  <div  variant="subtitle2" gutterBottom>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
                     Status: {safeHealthData.status}
-                  </div>
-                  <div  variant="body2" color="textSecondary" gutterBottom>
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
                     Last Updated: {new Date(safeHealthData.timestamp).toLocaleString()}
-                  </div>
+                  </Typography>
                   
                   {safeHealthData.api && (
-                    <div  sx={{ mt: 2 }}>
-                      <div  variant="subtitle2">API Information:</div>
-                      <div  variant="body2">Version: {safeHealthData.api.version}</div>
-                      <div  variant="body2">Environment: {safeHealthData.api.environment}</div>
-                    </div>
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2">API Information:</Typography>
+                      <Typography variant="body2">Version: {safeHealthData.api.version}</Typography>
+                      <Typography variant="body2">Environment: {safeHealthData.api.environment}</Typography>
+                    </Box>
                   )}
-                </div>
+                </Box>
               )}
               
-              <div  sx={{ mt: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Box sx={{ mt: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Button
                   variant="outlined" 
                   size="small" 
                   startIcon={<Refresh />}
@@ -911,9 +911,9 @@ function ServiceHealth() {
                   disabled={testingInProgress}
                 >
                   {testingInProgress ? 'Testing...' : 'Test All Endpoints'}
-                </button>
-                <div  title={comprehensiveMode ? 'Switch to quick mode for faster testing' : 'Switch to comprehensive mode for thorough testing'}>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Button>
+                <Tooltip title={comprehensiveMode ? 'Switch to quick mode for faster testing' : 'Switch to comprehensive mode for thorough testing'}>
+                  <Button
                     variant="text"
                     size="small"
                     startIcon={comprehensiveMode ? <ToggleOn /> : <ToggleOff />}
@@ -921,146 +921,146 @@ function ServiceHealth() {
                     disabled={testingInProgress}
                   >
                     {comprehensiveMode ? 'Comprehensive Mode' : 'Quick Mode'}
-                  </button>
-                </div>
-              </div>
+                  </Button>
+                </Tooltip>
+              </Box>
 
               {Object.keys(safeTestResults).length > 0 && (
-                <div  sx={{ mt: 2 }}>
+                <Box sx={{ mt: 2 }}>
                   {comprehensiveMode ? (
                     // Comprehensive mode: Display by category
                     Object.entries(safeTestResults).map(([category, tests]) => (
                       <Accordion key={category} defaultExpanded>
                         <AccordionSummary expandIcon={<ExpandMore />}>
-                          <div  variant="subtitle1">{category}</div>
-                          <div  sx={{ ml: 'auto', mr: 2 }}>
+                          <Typography variant="subtitle1">{category}</Typography>
+                          <Box sx={{ ml: 'auto', mr: 2 }}>
                             {(() => {
                               const testArray = Object.values(tests || {});
                               const successCount = testArray.filter(t => t && t.status === 'success').length;
                               const totalCount = testArray.length;
                               const allSuccess = successCount === totalCount;
                               return (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                <Chip
                                   label={`${successCount}/${totalCount}`}
                                   color={allSuccess ? 'success' : 'warning'}
                                   size="small"
                                 />
                               );
                             })()}
-                          </div>
+                          </Box>
                         </AccordionSummary>
                         <AccordionDetails>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Endpoint</td>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Response Time</td>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Critical</td>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Error</td>
-                                </tr>
-                              </thead>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                          <TableContainer component={Paper}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Endpoint</TableCell>
+                                  <TableCell>Status</TableCell>
+                                  <TableCell>Response Time</TableCell>
+                                  <TableCell>Critical</TableCell>
+                                  <TableCell>Error</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
                                 {Object.entries(tests || {}).map(([name, result]) => (
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={name}>
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{name}</td>
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                  <TableRow key={name}>
+                                    <TableCell>{name}</TableCell>
+                                    <TableCell>
+                                      <Chip
                                         icon={getStatusIcon(result?.status)}
                                         label={result?.status || 'Unknown'}
                                         color={getStatusColor(result?.status)}
                                         size="small"
                                       />
-                                    </td>
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                    </TableCell>
+                                    <TableCell>
                                       {result?.responseTime ? `${result.responseTime}ms` : '-'}
-                                    </td>
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                    </TableCell>
+                                    <TableCell>
                                       {result?.critical && (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Critical" size="small" variant="outlined" />
+                                        <Chip label="Critical" size="small" variant="outlined" />
                                       )}
-                                    </td>
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                    </TableCell>
+                                    <TableCell>
                                       {result?.error ? (
-                                        <div  title={result.details || result.error}>
-                                          <div  variant="body2" sx={{ 
+                                        <Tooltip title={result.details || result.error}>
+                                          <Typography variant="body2" sx={{ 
                                             maxWidth: 300, 
                                             overflow: 'hidden', 
                                             textOverflow: 'ellipsis',
                                             cursor: 'help'
                                           }}>
                                             {result.error}
-                                          </div>
-                                        </div>
+                                          </Typography>
+                                        </Tooltip>
                                       ) : '-'}
-                                    </td>
-                                  </tr>
+                                    </TableCell>
+                                  </TableRow>
                                 ))}
-                              </tbody>
-                            </table>
-                          </div>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </AccordionDetails>
                       </Accordion>
                     ))
                   ) : (
                     // Quick mode: Simple table
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Endpoint</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Response Time</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Critical</td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Error</td>
-                          </tr>
-                        </thead>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Endpoint</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Response Time</TableCell>
+                            <TableCell>Critical</TableCell>
+                            <TableCell>Error</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {Object.entries(safeTestResults).map(([name, result]) => (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={name}>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>{name}</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            <TableRow key={name}>
+                              <TableCell>{name}</TableCell>
+                              <TableCell>
+                                <Chip
                                   icon={getStatusIcon(result?.status)}
                                   label={result?.status || 'Unknown'}
                                   color={getStatusColor(result?.status)}
                                   size="small"
                                 />
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              </TableCell>
+                              <TableCell>
                                 {result?.responseTime ? `${result.responseTime}ms` : '-'}
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              </TableCell>
+                              <TableCell>
                                 {result?.critical && (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label="Critical" size="small" variant="outlined" />
+                                  <Chip label="Critical" size="small" variant="outlined" />
                                 )}
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                              </TableCell>
+                              <TableCell>
                                 {result?.error || '-'}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
-                </div>
+                </Box>
               )}
             </AccordionDetails>
           </Accordion>
-        </div>
+        </Grid>
 
         {/* Database Health */}
-        <div className="grid" item xs={12} lg={6}>
+        <Grid item xs={12} lg={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <div  variant="h6">
+              <Typography variant="h6">
                 <Storage sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Database Health
-              </div>
-              <div  sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              </Typography>
+              <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                <Button 
                   variant="outlined" 
                   size="small" 
                   startIcon={<Refresh />}
@@ -1068,196 +1068,196 @@ function ServiceHealth() {
                   disabled={refreshing}
                 >
                   {refreshing ? 'Updating...' : 'Update All Tables'}
-                </button>
-              </div>
+                </Button>
+              </Box>
             </AccordionSummary>
             <AccordionDetails>
               {/* Debug info */}
-              <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
-                <div  variant="body2">
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
                   Debug: dbHealth={!!dbHealth ? 'exists' : 'null'}, 
                   safeDbHealth={!!safeDbHealth ? 'exists' : 'empty'}, 
                   dbLoading={dbLoading.toString()}, 
                   dbError={!!dbError ? 'exists' : 'null'}
-                </div>
+                </Typography>
                 {safeDbHealth && (
-                  <div  variant="body2" sx={{ mt: 1 }}>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
                     Data keys: {Object.keys(safeDbHealth).join(', ')}
-                  </div>
+                  </Typography>
                 )}
-              </div>
+              </Alert>
               
               {dbLoading && (
-                <div  sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={24} />
-                  <div  sx={{ ml: 2 }}>Loading database health...</div>
-                </div>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                  <Typography sx={{ ml: 2 }}>Loading database health...</Typography>
+                </Box>
               )}
               
               {dbError && (
-                <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
-                  <div  variant="subtitle2">Failed to load database health:</div>
-                  <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2">Failed to load database health:</Typography>
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                     {typeof dbError === 'string' ? dbError : dbError?.message || 'Unknown error'}
-                  </div>
-                </div>
+                  </Typography>
+                </Alert>
               )}
 
               {safeDbHealth && (
-                <div>
+                <Box>
                   {console.log('🔍 Rendering safeDbHealth:', safeDbHealth)}
-                  <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ mb: 2 }}>
-                    <div  variant="subtitle2" gutterBottom>
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
                       🗄️ Database Status: {safeDbHealth.database?.status === 'connected' ? 'Connected & Healthy' : safeDbHealth.database?.status || 'Unknown'}
-                    </div>
+                    </Typography>
                     {safeDbHealth.database?.currentTime && (
-                      <div  variant="body2">📅 Server Time: {new Date(safeDbHealth.database.currentTime).toLocaleString()}</div>
+                      <Typography variant="body2">📅 Server Time: {new Date(safeDbHealth.database.currentTime).toLocaleString()}</Typography>
                     )}
                     {safeDbHealth.database?.postgresVersion && (
-                      <div  variant="body2">⚙️ PostgreSQL: {safeDbHealth.database.postgresVersion}</div>
+                      <Typography variant="body2">⚙️ PostgreSQL: {safeDbHealth.database.postgresVersion}</Typography>
                     )}
                     {safeDbHealth.database?.note && (
-                      <div  variant="body2">📋 {safeDbHealth.database.note}</div>
+                      <Typography variant="body2">📋 {safeDbHealth.database.note}</Typography>
                     )}
-                  </div>
+                  </Alert>
 
                   {/* Backend error/message display */}
                   {safeDbHealth.error || safeDbHealth.message || safeDbHealth.details ? (
-                    <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 2 }}>
-                      <div  variant="subtitle2">Backend Error:</div>
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">Backend Error:</Typography>
                       {safeDbHealth.error && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Error:</b> {safeDbHealth.error}
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.message && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Message:</b> {safeDbHealth.message}
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.timeoutCause && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Likely Cause:</b> {safeDbHealth.timeoutCause}
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.requestDuration && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Request Duration:</b> {Math.round(safeDbHealth.requestDuration / 1000)}s
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.errorCode && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Error Code:</b> {safeDbHealth.errorCode}
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.httpStatus && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>HTTP Status:</b> {safeDbHealth.httpStatus}
-                        </div>
+                        </Typography>
                       )}
                       {safeDbHealth.details && (
-                        <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                           <b>Details:</b> {safeDbHealth.details}
-                        </div>
+                        </Typography>
                       )}
-                    </div>
+                    </Alert>
                   ) : null}
 
                   {/* Summary Statistics */}
                   {safeDbHealth.database?.summary && (
-                    <div className="bg-white shadow-md rounded-lg" sx={{ mb: 2, bgcolor: 'grey.50' }}>
-                      <div className="bg-white shadow-md rounded-lg"Content sx={{ py: 2 }}>
-                        <div  variant="subtitle2" gutterBottom>📊 Database Tables Summary:</div>
-                        <div className="grid" container spacing={1}>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="text.secondary">
+                    <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
+                      <CardContent sx={{ py: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>📊 Database Tables Summary:</Typography>
+                        <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
                             Total Tables: {safeDbHealth.database.summary.total_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="success.main">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="success.main">
                             Healthy: {safeDbHealth.database.summary.healthy_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="warning.main">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="warning.main">
                             Stale: {safeDbHealth.database.summary.stale_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="error.main">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="error.main">
                             Errors: {safeDbHealth.database.summary.error_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="info.main">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="info.main">
                             Empty: {safeDbHealth.database.summary.empty_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="text.secondary">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
                             Missing: {safeDbHealth.database.summary.missing_tables}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="text.secondary">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary">
                             Total Records: {formatNumber(safeDbHealth.database.summary.total_records)}
-                          </div>
-                        </div>
-                        <div className="grid" item xs={6} sm={3}>
-                          <div  variant="body2" color="warning.main">
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="warning.main">
                             Missing Data: {formatNumber(safeDbHealth.database.summary.total_missing_data)}
-                          </div>
-                        </div>
-                      </div>
-                      </div>
-                    </div>
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                      </CardContent>
+                    </Card>
                   )}
 
                   {/* Detailed Table List */}
                   {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
-                    <div  sx={{ mt: 2 }}>
-                      <div  variant="subtitle2" gutterBottom>
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>
                         Table Details ({Object.keys(safeDbHealth.database.tables).length} tables monitored):
-                      </div>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} sx={{ maxHeight: 600 }}>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small" stickyHeader>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Table</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Category</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Records</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Status</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Critical</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Updated</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Missing Data</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Checked</td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Error</td>
-                            </tr>
-                          </thead>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Table</TableCell>
+                              <TableCell>Category</TableCell>
+                              <TableCell align="right">Records</TableCell>
+                              <TableCell>Status</TableCell>
+                              <TableCell>Critical</TableCell>
+                              <TableCell>Last Updated</TableCell>
+                              <TableCell>Missing Data</TableCell>
+                              <TableCell>Last Checked</TableCell>
+                              <TableCell>Error</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
                             {Object.entries(safeDbHealth.database.tables)
                               .sort(([a], [b]) => a.localeCompare(b))
                               .map(([tableName, tableData]) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={tableName} sx={{ 
+                              <TableRow key={tableName} sx={{ 
                                 backgroundColor: tableData.critical_table ? 'rgba(25, 118, 210, 0.04)' : 'inherit',
                                 '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
                               }}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row">
-                                  <div>
-                                    <div  variant="body2" fontFamily="monospace" fontWeight={600}>
+                                <TableCell component="th" scope="row">
+                                  <Box>
+                                    <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
                                       {tableName}
-                                    </div>
+                                    </Typography>
                                     {tableData.table_category && (
-                                      <div  variant="caption" color="text.secondary">
+                                      <Typography variant="caption" color="text.secondary">
                                         {tableData.table_category}
-                                      </div>
+                                      </Typography>
                                     )}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
                                   {tableData.table_category && (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                    <Chip
                                       label={tableData.table_category}
                                       size="small"
                                       variant="outlined"
@@ -1277,15 +1277,15 @@ function ServiceHealth() {
                                       }}
                                     />
                                   )}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                                  <div  variant="body2" fontWeight={600}>
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2" fontWeight={600}>
                                     {formatNumber(tableData.record_count)}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                  <div  sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                    <Chip
                                       icon={getStatusIcon(tableData?.status)}
                                       label={tableData?.status || 'Unknown'}
                                       color={getStatusColor(tableData?.status)}
@@ -1293,217 +1293,217 @@ function ServiceHealth() {
                                       sx={{ minWidth: 80 }}
                                     />
                                     {tableData.is_stale && (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                      <Chip
                                         label="Stale"
                                         color="warning"
                                         size="small"
                                       />
                                     )}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
                                   {tableData.critical_table && (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                    <Chip
                                       label="Critical"
                                       color="error"
                                       size="small"
                                       variant="outlined"
                                     />
                                   )}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                  <div>
-                                    <div  variant="body2">
+                                </TableCell>
+                                <TableCell>
+                                  <Box>
+                                    <Typography variant="body2">
                                       {formatDate(tableData.last_updated)}
-                                    </div>
-                                    <div  variant="caption" color="text.secondary">
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
                                       {formatTimeAgo(tableData.last_updated)}
-                                    </div>
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell align="right">
                                   {tableData.missing_data_count > 0 ? (
-                                    <div  variant="body2" color="warning.main" fontWeight={600}>
+                                    <Typography variant="body2" color="warning.main" fontWeight={600}>
                                       {formatNumber(tableData.missing_data_count)}
-                                    </div>
+                                    </Typography>
                                   ) : (
-                                    <div  variant="body2" color="success.main">
+                                    <Typography variant="body2" color="success.main">
                                       0
-                                    </div>
+                                    </Typography>
                                   )}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                  <div  variant="body2">
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
                                     {formatDate(tableData.last_checked)}
-                                  </div>
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
                                   {tableData.error && (
-                                    <div  title={tableData.error}>
-                                      <div  variant="body2" color="error" sx={{ 
+                                    <Tooltip title={tableData.error}>
+                                      <Typography variant="body2" color="error" sx={{ 
                                         maxWidth: 200, 
                                         overflow: 'hidden', 
                                         textOverflow: 'ellipsis',
                                         cursor: 'help'
                                       }}>
                                         {tableData.error.length > 30 ? `${tableData.error.substring(0, 30)}...` : tableData.error}
-                                      </div>
-                                    </div>
+                                      </Typography>
+                                    </Tooltip>
                                   )}
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
                   )}
 
                   {/* Show if no tables found */}
                   {(!safeDbHealth.database?.tables || Object.keys(safeDbHealth.database.tables).length === 0) && (
-                    <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mt: 2 }}>
-                      <div  variant="subtitle2">No table data found</div>
-                      <div  variant="body2">
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2">No table data found</Typography>
+                      <Typography variant="body2">
                         The database health check did not return any table information. 
                         This could mean the health_status table is empty or the backend is not properly configured.
-                      </div>
-                    </div>
+                      </Typography>
+                    </Alert>
                   )}
 
                   {safeDbHealth.database?.note && (
-                    <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
+                    <Alert severity="info" sx={{ mt: 2 }}>
                       {safeDbHealth.database.note}
-                    </div>
+                    </Alert>
                   )}
-                </div>
+                </Box>
               )}
             </AccordionDetails>
           </Accordion>
-        </div>
+        </Grid>
 
         {/* Environment Information */}
-        <div className="grid" item xs={12} lg={6}>
+        <Grid item xs={12} lg={6}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <div  variant="h6">
+              <Typography variant="h6">
                 <Info sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Environment Information
-              </div>
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               {Object.keys(safeEnvironmentInfo).length > 0 && (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableBody>
                       {Object.entries(safeEnvironmentInfo).map(([section, values]) => (
                         <React.Fragment key={section}>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell colSpan={2} sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
+                          <TableRow>
+                            <TableCell colSpan={2} sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
                               {section}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                           {isObject(values) && Object.entries(values).map(([key, value]) => (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={`${section}-${key}`}>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold', pl: 3 }}>
+                            <TableRow key={`${section}-${key}`}>
+                              <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', pl: 3 }}>
                                 {key}
-                              </td>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                                <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                                   {String(value ?? 'undefined')}
-                                </div>
-                              </td>
-                            </tr>
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
                           ))}
                         </React.Fragment>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </AccordionDetails>
           </Accordion>
-        </div>
+        </Grid>
 
         {/* API Configuration Diagnostics */}
-        <div className="grid" item xs={12} lg={6}>
+        <Grid item xs={12} lg={6}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <div  variant="h6">
+              <Typography variant="h6">
                 <Api sx={{ mr: 1, verticalAlign: 'middle' }} />
                 API Configuration Diagnostics
-              </div>
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               {Object.keys(safeDiagnosticInfo).length > 0 && (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper}>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                           Current API URL
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                             {safeDiagnosticInfo.currentApiUrl || 'Not set'}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                           Axios Default Base URL
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                             {safeDiagnosticInfo.axiosDefaultBaseUrl || 'Not set'}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                           VITE_API_URL
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" sx={{ wordBreak: 'break-all' }}>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                             {safeDiagnosticInfo.viteApiUrl || 'Not set'}
-                          </div>
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                           URLs Match
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        </TableCell>
+                        <TableCell>
+                          <Chip
                             icon={getStatusIcon(safeDiagnosticInfo.urlsMatch ? 'success' : 'error')}
                             label={safeDiagnosticInfo.urlsMatch ? 'Yes' : 'No'}
                             color={getStatusColor(safeDiagnosticInfo.urlsMatch ? 'success' : 'error')}
                             size="small"
                           />
-                        </td>
-                      </tr>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
                           Is Configured
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        </TableCell>
+                        <TableCell>
+                          <Chip
                             icon={getStatusIcon(safeDiagnosticInfo.isConfigured ? 'success' : 'error')}
                             label={safeDiagnosticInfo.isConfigured ? 'Yes' : 'No'}
                             color={getStatusColor(safeDiagnosticInfo.isConfigured ? 'success' : 'error')}
                             size="small"
                           />
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </AccordionDetails>
           </Accordion>
-        </div>
+        </Grid>
 
-      </div>
-    </div>
+      </Grid>
+    </Container>
   );
 }
 

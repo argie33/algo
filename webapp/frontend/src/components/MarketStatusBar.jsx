@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Box, Typography, Chip, Paper, Divider } from '@mui/material';
+import { Circle, TrendingUp, TrendingDown } from '@mui/icons-material';
 import dataCache from '../services/dataCache';
 import { formatPercentage, formatNumber } from '../utils/formatters';
 
@@ -110,7 +112,7 @@ const MarketStatusBar = () => {
   };
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4" 
+    <Paper 
       elevation={0} 
       sx={{ 
         p: 1.5, 
@@ -119,10 +121,10 @@ const MarketStatusBar = () => {
         borderColor: 'divider'
       }}
     >
-      <div  display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
         {/* Market Status */}
-        <div  display="flex" alignItems="center" gap={2}>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+        <Box display="flex" alignItems="center" gap={2}>
+          <Chip
             icon={<Circle sx={{ fontSize: 12 }} />}
             label={`Market ${marketStatus.session}`}
             color={getSessionColor()}
@@ -130,60 +132,60 @@ const MarketStatusBar = () => {
             sx={{ fontWeight: 'bold' }}
           />
           {marketStatus.nextChange && (
-            <div  variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
               {marketStatus.nextChange}
-            </div>
+            </Typography>
           )}
-        </div>
+        </Box>
 
         {/* Market Indices */}
-        <div  display="flex" alignItems="center" gap={3}>
+        <Box display="flex" alignItems="center" gap={3}>
           {marketStatus.indices.map((index, i) => (
             <React.Fragment key={index.symbol}>
-              {i > 0 && <hr className="border-gray-200" orientation="vertical" flexItem />}
-              <div  display="flex" alignItems="center" gap={1}>
-                <div>
-                  <div  variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+              {i > 0 && <Divider orientation="vertical" flexItem />}
+              <Box display="flex" alignItems="center" gap={1}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
                     {index.name}
-                  </div>
-                  <div  display="flex" alignItems="center" gap={0.5}>
-                    <div  variant="body2" fontWeight="bold">
+                  </Typography>
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <Typography variant="body2" fontWeight="bold">
                       {formatNumber(index.value, 0)}
-                    </div>
+                    </Typography>
                     {index.change >= 0 ? (
                       <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
                     ) : (
                       <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
                     )}
-                    <div  
+                    <Typography 
                       variant="body2" 
                       color={index.change >= 0 ? 'success.main' : 'error.main'}
                       fontWeight="medium"
                     >
                       {formatPercentage(index.changePercent)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
             </React.Fragment>
           ))}
-        </div>
+        </Box>
 
         {/* Cache Stats (Development Only) */}
         {process.env.NODE_ENV === 'development' && (
-          <div>
-            <div  
+          <Box>
+            <Typography 
               variant="caption" 
               color="text.secondary"
               sx={{ cursor: 'pointer' }}
               onClick={() => console.log('Cache Stats:', dataCache.getStats())}
             >
               Cache: {dataCache.cache.size} items
-            </div>
-          </div>
+            </Typography>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Paper>
   );
 };
 

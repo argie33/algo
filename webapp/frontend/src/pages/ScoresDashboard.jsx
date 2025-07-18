@@ -162,7 +162,7 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
   ];
   
   return (
-    <div  sx={{ position: 'relative', width: size, height: size }}>
+    <Box sx={{ position: 'relative', width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -182,7 +182,7 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
           </Pie>
         </PieChart>
       </ResponsiveContainer>
-      <div 
+      <Box
         sx={{
           position: 'absolute',
           top: '50%',
@@ -191,16 +191,16 @@ const ScoreGauge = ({ score, size = 120, thickness = 10, showGrade = true }) => 
           textAlign: 'center'
         }}
       >
-        <div  variant="h4" fontWeight={700}>
+        <Typography variant="h4" fontWeight={700}>
           {score}
-        </div>
+        </Typography>
         {showGrade && (
-          <div  variant="h6" color={getColor(score)} fontWeight={600}>
+          <Typography variant="h6" color={getColor(score)} fontWeight={600}>
             {getGrade(score)}
-          </div>
+          </Typography>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 };
 
@@ -214,9 +214,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <div  sx={{ py: 3 }}>
+        <Box sx={{ py: 3 }}>
           {children}
-        </div>
+        </Box>
       )}
     </div>
   );
@@ -583,23 +583,23 @@ const ScoresDashboard = () => {
   };
 
   const renderMainDashboard = () => (
-    <div className="grid" container spacing={3}>
+    <Grid container spacing={3}>
       {/* Stock Selection */}
-      <div className="grid" item xs={12}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={3} alignItems="center">
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>
+      <Grid item xs={12}>
+        <Card>
+          <CardContent>
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>
                   Select Stock for Analysis
-                </div>
+                </Typography>
                 <Autocomplete
                   options={stockOptions}
                   getOptionLabel={(option) => `${option.symbol} - ${option.company_name}`}
                   value={selectedStock}
                   onChange={(event, newValue) => setSelectedStock(newValue)}
                   renderInput={(params) => (
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <TextField
                       {...params}
                       label="Search stocks..."
                       variant="outlined"
@@ -607,9 +607,9 @@ const ScoresDashboard = () => {
                     />
                   )}
                 />
-              </div>
-              <div className="grid" item xs={12} md={6}>
-                <div  sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <ToggleButtonGroup
                     value={selectedTimeframe}
                     exclusive
@@ -622,100 +622,100 @@ const ScoresDashboard = () => {
                     <ToggleButton value="6M">6M</ToggleButton>
                     <ToggleButton value="1Y">1Y</ToggleButton>
                   </ToggleButtonGroup>
-                  <div className="mb-4"Label
-                    control={<input type="checkbox" className="toggle" checked={showAdvanced} onChange={(e) => setShowAdvanced(e.target.checked)} />}
+                  <FormControlLabel
+                    control={<Switch checked={showAdvanced} onChange={(e) => setShowAdvanced(e.target.checked)} />}
                     label="Advanced View"
                   />
-                  <button className="p-2 rounded-full hover:bg-gray-100" color="primary" onClick={() => selectedStock && loadScores(selectedStock.symbol)}>
+                  <IconButton color="primary" onClick={() => selectedStock && loadScores(selectedStock.symbol)}>
                     <Refresh />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  </IconButton>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
 
       {loading && (
-        <div className="grid" item xs={12}>
-          <div  sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-          </div>
-        </div>
+        <Grid item xs={12}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <CircularProgress />
+          </Box>
+        </Grid>
       )}
 
       {scores && selectedStock && !loading && (
         <>
           {/* Composite Score Hero Card */}
-          <div className="grid" item xs={12}>
-            <div className="bg-white shadow-md rounded-lg" sx={{ 
+          <Grid item xs={12}>
+            <Card sx={{ 
               background: `linear-gradient(135deg, ${'#1976d21A'} 0%, ${'#dc004e1A'} 100%)`,
               border: `1px solid ${'#1976d233'}`
             }}>
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div className="grid" container spacing={3} alignItems="center">
-                  <div className="grid" item xs={12} md={3}>
+              <CardContent>
+                <Grid container spacing={3} alignItems="center">
+                  <Grid item xs={12} md={3}>
                     <ScoreGauge score={scores.composite} size={180} thickness={15} />
-                  </div>
-                  <div className="grid" item xs={12} md={5}>
-                    <div  variant="h4" fontWeight={700} gutterBottom>
+                  </Grid>
+                  <Grid item xs={12} md={5}>
+                    <Typography variant="h4" fontWeight={700} gutterBottom>
                       {selectedStock.symbol} - {selectedStock.company_name}
-                    </div>
-                    <div  variant="h6" color="text.secondary" gutterBottom>
+                    </Typography>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
                       Composite Score Analysis
-                    </div>
-                    <div  sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+                      <Chip
                         icon={<WorkspacePremium />}
                         label={getScoreInterpretation(scores.composite).label}
                         color="primary"
                         sx={{ fontWeight: 600 }}
                       />
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      <Chip
                         icon={<Speed />}
                         label={`Market Regime: ${scores.market_regime.toUpperCase()}`}
                         variant="outlined"
                       />
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      <Chip
                         icon={<Security />}
                         label={`Confidence: ${scores.confidence_level}%`}
                         variant="outlined"
                       />
-                    </div>
-                  </div>
-                  <div className="grid" item xs={12} md={4}>
-                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, backgroundColor: '#ffffffCC' }}>
-                      <div  variant="subtitle2" color="text.secondary" gutterBottom>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, backgroundColor: '#ffffffCC' }}>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                         Investment Recommendation
-                      </div>
+                      </Typography>
                       <Rating value={scores.composite / 20} readOnly precision={0.5} size="large" />
-                      <div  variant="h6" color={getScoreInterpretation(scores.composite).color} sx={{ mt: 1 }}>
+                      <Typography variant="h6" color={getScoreInterpretation(scores.composite).color} sx={{ mt: 1 }}>
                         {scores.composite >= 70 ? "Strong Buy" : scores.composite >= 50 ? "Hold" : "Avoid"}
-                      </div>
-                      <div  variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         Based on institutional-grade multi-factor analysis
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Category Scores Grid */}
-          <div className="grid" item xs={12}>
-            <div  variant="h5" gutterBottom sx={{ mb: 2 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
               Six-Factor Analysis
-            </div>
-          </div>
+            </Typography>
+          </Grid>
           
           {scoreCategories.map((category) => {
             const categoryScore = scores[category.id];
             const isExpanded = expandedCategories[category.id];
             
             return (
-              <div className="grid" item xs={12} md={6} lg={4} key={category.id}>
-                <div className="bg-white shadow-md rounded-lg" sx={{ 
+              <Grid item xs={12} md={6} lg={4} key={category.id}>
+                <Card sx={{ 
                   height: '100%',
                   transition: 'all 0.3s ease',
                   '&:hover': { 
@@ -723,68 +723,68 @@ const ScoresDashboard = () => {
                     boxShadow: 8
                   }
                 }}>
-                  <div className="bg-white shadow-md rounded-lg"Header
+                  <CardHeader
                     avatar={
-                      <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: category.color + '1A', color: category.color }}>
+                      <Avatar sx={{ bgcolor: category.color + '1A', color: category.color }}>
                         {category.icon}
-                      </div>
+                      </Avatar>
                     }
                     action={
-                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {getTrendIcon(categoryScore.trend)}
-                        <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => handleCategoryToggle(category.id)} size="small">
+                        <IconButton onClick={() => handleCategoryToggle(category.id)} size="small">
                           {isExpanded ? <ExpandMore /> : <ExpandMore sx={{ transform: 'rotate(-90deg)' }} />}
-                        </button>
-                      </div>
+                        </IconButton>
+                      </Box>
                     }
                     title={
-                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <div  variant="h6">{category.title}</div>
-                        <div  title={category.description}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="h6">{category.title}</Typography>
+                        <Tooltip title={category.description}>
                           <Info sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        </div>
-                      </div>
+                        </Tooltip>
+                      </Box>
                     }
                     subheader={
-                      <div  variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary">
                         Weight: {(category.weight * 100).toFixed(0)}% • {category.academicBasis}
-                      </div>
+                      </Typography>
                     }
                   />
-                  <div className="bg-white shadow-md rounded-lg"Content>
-                    <div  sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <ScoreGauge score={categoryScore.composite} size={100} thickness={8} showGrade={false} />
-                      <div>
-                        <div  variant="h3" fontWeight={700} color={category.color}>
+                      <Box>
+                        <Typography variant="h3" fontWeight={700} color={category.color}>
                           {categoryScore.composite}
-                        </div>
-                        <div  variant="subtitle1" color="text.secondary">
+                        </Typography>
+                        <Typography variant="subtitle1" color="text.secondary">
                           {getScoreInterpretation(categoryScore.composite).label}
-                        </div>
-                      </div>
-                    </div>
+                        </Typography>
+                      </Box>
+                    </Box>
                     
                     <Collapse in={isExpanded}>
-                      <hr className="border-gray-200" sx={{ my: 2 }} />
-                      <div  sx={{ mt: 2 }}>
-                        <div  variant="subtitle2" color="text.secondary" gutterBottom>
+                      <Divider sx={{ my: 2 }} />
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                           Component Analysis
-                        </div>
+                        </Typography>
                         {category.subScores.map((subScore) => {
                           const value = categoryScore[subScore.key] || 0;
                           return (
-                            <div  key={subScore.key} sx={{ mb: 2 }}>
-                              <div  sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                <div  title={subScore.description}>
-                                  <div  variant="body2" sx={{ cursor: 'help' }}>
+                            <Box key={subScore.key} sx={{ mb: 2 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                <Tooltip title={subScore.description}>
+                                  <Typography variant="body2" sx={{ cursor: 'help' }}>
                                     {subScore.name}
-                                  </div>
-                                </div>
-                                <div  variant="body2" fontWeight={600}>
+                                  </Typography>
+                                </Tooltip>
+                                <Typography variant="body2" fontWeight={600}>
                                   {value} ({subScore.weight})
-                                </div>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2"
+                                </Typography>
+                              </Box>
+                              <LinearProgress
                                 variant="determinate"
                                 value={value}
                                 sx={{
@@ -797,31 +797,31 @@ const ScoresDashboard = () => {
                                   },
                                 }}
                               />
-                            </div>
+                            </Box>
                           );
                         })}
-                      </div>
+                      </Box>
                     </Collapse>
-                  </div>
-                </div>
-              </div>
+                  </CardContent>
+                </Card>
+              </Grid>
             );
           })}
 
           {/* Historical Trends Chart */}
-          <div className="grid" item xs={12} lg={8}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header
+          <Grid item xs={12} lg={8}>
+            <Card>
+              <CardHeader
                 title="Score Trends"
                 subheader="Historical performance across all factors"
                 action={
-                  <button className="p-2 rounded-full hover:bg-gray-100">
+                  <IconButton>
                     <Download />
-                  </button>
+                  </IconButton>
                 }
               />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ height: 400 }}>
+              <CardContent>
+                <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historicalScores}>
                       <CartesianGrid strokeDasharray="3 3" stroke={'#e0e0e080'} />
@@ -838,20 +838,20 @@ const ScoresDashboard = () => {
                       <Line type="monotone" dataKey="positioning" stroke={scoreCategories[5].color} strokeWidth={2} name="Positioning" />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
 
           {/* Radar Chart */}
-          <div className="grid" item xs={12} lg={4}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Header
+          <Grid item xs={12} lg={4}>
+            <Card>
+              <CardHeader
                 title="Factor Profile"
                 subheader="Multi-dimensional analysis"
               />
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  sx={{ height: 400 }}>
+              <CardContent>
+                <Box sx={{ height: 400 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={scoreCategories.map(cat => ({
                       category: cat.title.replace(' Score', ''),
@@ -864,75 +864,75 @@ const ScoresDashboard = () => {
                       <Radar name="Current" dataKey="score" stroke="#1976d2" fill="#1976d2" fillOpacity={0.6} />
                     </RadarChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
         </>
       )}
-    </div>
+    </Grid>
   );
 
   const renderPeerComparison = () => (
-    <div className="grid" container spacing={3}>
-      <div className="grid" item xs={12}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Header
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader
             title="Peer Comparison"
             subheader="Compare scores across similar companies"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Company</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Composite</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Quality</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Growth</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Value</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Momentum</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Sentiment</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Positioning</td>
-                  </tr>
-                </thead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+          <CardContent>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Company</TableCell>
+                    <TableCell align="center">Composite</TableCell>
+                    <TableCell align="center">Quality</TableCell>
+                    <TableCell align="center">Growth</TableCell>
+                    <TableCell align="center">Value</TableCell>
+                    <TableCell align="center">Momentum</TableCell>
+                    <TableCell align="center">Sentiment</TableCell>
+                    <TableCell align="center">Positioning</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {peerComparison.map((peer) => (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={peer.symbol} selected={peer.symbol === selectedStock?.symbol}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                        <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <div  fontWeight={600}>{peer.symbol}</div>
-                          <div  variant="body2" color="text.secondary">{peer.name}</div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <TableRow key={peer.symbol} selected={peer.symbol === selectedStock?.symbol}>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography fontWeight={600}>{peer.symbol}</Typography>
+                          <Typography variant="body2" color="text.secondary">{peer.name}</Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip 
                           label={peer.composite} 
                           color={peer.composite >= 80 ? 'success' : peer.composite >= 60 ? 'warning' : 'error'}
                           size="small"
                         />
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.quality}</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.growth}</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.value}</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.momentum}</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.sentiment}</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">{peer.positioning}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell align="center">{peer.quality}</TableCell>
+                      <TableCell align="center">{peer.growth}</TableCell>
+                      <TableCell align="center">{peer.value}</TableCell>
+                      <TableCell align="center">{peer.momentum}</TableCell>
+                      <TableCell align="center">{peer.sentiment}</TableCell>
+                      <TableCell align="center">{peer.positioning}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      </Grid>
 
       {/* Peer Comparison Bar Chart */}
-      <div className="grid" item xs={12}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Header title="Visual Comparison" />
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  sx={{ height: 400 }}>
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader title="Visual Comparison" />
+          <CardContent>
+            <Box sx={{ height: 400 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={peerComparison}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -948,70 +948,70 @@ const ScoresDashboard = () => {
                   <Bar dataKey="positioning" fill={scoreCategories[5].color} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Box>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
   );
 
   const renderMethodology = () => (
-    <div className="grid" container spacing={3}>
+    <Grid container spacing={3}>
       {scoreCategories.map((category) => (
-        <div className="grid" item xs={12} key={category.id}>
+        <Grid item xs={12} key={category.id}>
           <Accordion defaultExpanded={false}>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: category.color + '1A', color: category.color }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar sx={{ bgcolor: category.color + '1A', color: category.color }}>
                   {category.icon}
-                </div>
-                <div>
-                  <div  variant="h6">{category.title}</div>
-                  <div  variant="body2" color="text.secondary">
+                </Avatar>
+                <Box>
+                  <Typography variant="h6">{category.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">
                     {category.academicBasis}
-                  </div>
-                </div>
-              </div>
+                  </Typography>
+                </Box>
+              </Box>
             </AccordionSummary>
             <AccordionDetails>
-              <div  paragraph>
+              <Typography paragraph>
                 {category.description}
-              </div>
-              <hr className="border-gray-200" sx={{ my: 2 }} />
-              <div className="grid" container spacing={2}>
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Grid container spacing={2}>
                 {category.subScores.map((subScore) => (
-                  <div className="grid" item xs={12} md={6} key={subScore.key}>
-                    <div className="bg-white shadow-md rounded-lg p-4" sx={{ p: 2, backgroundColor: category.color + '0D' }}>
-                      <div  variant="subtitle1" fontWeight={600} gutterBottom>
+                  <Grid item xs={12} md={6} key={subScore.key}>
+                    <Paper sx={{ p: 2, backgroundColor: category.color + '0D' }}>
+                      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                         {subScore.name} ({subScore.weight})
-                      </div>
-                      <div  variant="body2" color="text.secondary">
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
                         {subScore.description}
-                      </div>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Paper>
+                  </Grid>
                 ))}
-              </div>
+              </Grid>
             </AccordionDetails>
           </Accordion>
-        </div>
+        </Grid>
       ))}
       
       {/* Academic References */}
-      <div className="grid" item xs={12}>
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Header
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader
             avatar={<School />}
             title="Academic Foundation"
             subheader="Research-based methodology"
           />
-          <div className="bg-white shadow-md rounded-lg"Content>
+          <CardContent>
             <List>
               <ListItem>
                 <ListItemAvatar>
-                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'primary.main' }}>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>
                     <Lightbulb />
-                  </div>
+                  </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary="Fama-French Five-Factor Model (2015)"
@@ -1020,9 +1020,9 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'secondary.main' }}>
+                  <Avatar sx={{ bgcolor: 'secondary.main' }}>
                     <Lightbulb />
-                  </div>
+                  </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary="Jegadeesh & Titman Momentum Strategy (1993)"
@@ -1031,9 +1031,9 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'success.main' }}>
+                  <Avatar sx={{ bgcolor: 'success.main' }}>
                     <Lightbulb />
-                  </div>
+                  </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary="Baker & Wurgler Sentiment Index (2006)"
@@ -1042,9 +1042,9 @@ const ScoresDashboard = () => {
               </ListItem>
               <ListItem>
                 <ListItemAvatar>
-                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" sx={{ bgcolor: 'warning.main' }}>
+                  <Avatar sx={{ bgcolor: 'warning.main' }}>
                     <Lightbulb />
-                  </div>
+                  </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary="Piotroski F-Score (2000)"
@@ -1052,62 +1052,62 @@ const ScoresDashboard = () => {
                 />
               </ListItem>
             </List>
-          </div>
-        </div>
-      </div>
-    </div>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
   );
 
   return (
-    <div className="container mx-auto" maxWidth="xl">
-      <div  sx={{ mb: 4 }}>
-        <div  variant="h3" fontWeight={700} gutterBottom>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h3" fontWeight={700} gutterBottom>
           Institutional-Grade Stock Scoring System
-        </div>
-        <div  variant="h6" color="text.secondary" paragraph>
+        </Typography>
+        <Typography variant="h6" color="text.secondary" paragraph>
           Six-factor scoring methodology based on proven academic research and hedge fund analysis techniques
-        </div>
+        </Typography>
         
-        <div  sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+          <Chip
             icon={<Diamond />}
             label="Premium Feature"
             color="primary"
             variant="outlined"
           />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+          <Chip
             icon={<School />}
             label="Academic Research Based"
             variant="outlined"
           />
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+          <Chip
             icon={<Security />}
             label="Institutional Grade"
             variant="outlined"
           />
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <div className="border-b border-gray-200" value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Dashboard" icon={<Assessment />} iconPosition="start" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Peer Comparison" icon={<CompareArrows />} iconPosition="start" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Methodology" icon={<School />} iconPosition="start" />
-        </div>
-      </div>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+          <Tab label="Dashboard" icon={<Assessment />} iconPosition="start" />
+          <Tab label="Peer Comparison" icon={<CompareArrows />} iconPosition="start" />
+          <Tab label="Methodology" icon={<School />} iconPosition="start" />
+        </Tabs>
+      </Box>
 
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={0}>
+      <TabPanel value={activeTab} index={0}>
         {renderMainDashboard()}
-      </div>
+      </TabPanel>
       
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={1}>
+      <TabPanel value={activeTab} index={1}>
         {renderPeerComparison()}
-      </div>
+      </TabPanel>
       
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={activeTab} index={2}>
+      <TabPanel value={activeTab} index={2}>
         {renderMethodology()}
-      </div>
-    </div>
+      </TabPanel>
+    </Container>
   );
 };
 

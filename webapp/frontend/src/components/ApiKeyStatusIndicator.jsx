@@ -130,54 +130,54 @@ const ApiKeyStatusIndicator = ({
 
   if (compact) {
     return (
-      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <div  title={statusInfo.message}>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Tooltip title={statusInfo.message}>
+          <Chip
             icon={statusInfo.icon}
             label={apiKeys.length > 0 ? `${apiKeys.length} connected` : 'No API keys'}
             color={statusInfo.color}
             size="small"
             variant="outlined"
           />
-        </div>
+        </Tooltip>
         {statusInfo.status === 'missing' && (
-          <div  title="Configure API keys">
-            <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={handleSetupClick}>
+          <Tooltip title="Configure API keys">
+            <IconButton size="small" onClick={handleSetupClick}>
               <Settings fontSize="small" />
-            </button>
-          </div>
+            </IconButton>
+          </Tooltip>
         )}
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div>
-      <div className="p-4 rounded-md bg-blue-50 border border-blue-200" 
+    <Box>
+      <Alert 
         severity={statusInfo.severity}
         action={
           statusInfo.status === 'missing' ? (
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            <Button 
               color="inherit" 
               size="small" 
               onClick={handleSetupClick}
               startIcon={<Settings />}
             >
               Setup API Keys
-            </button>
+            </Button>
           ) : statusInfo.status === 'error' ? (
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            <Button 
               color="inherit" 
               size="small" 
               onClick={checkApiKeyStatus}
               startIcon={<Refresh />}
             >
               Retry
-            </button>
+            </Button>
           ) : null
         }
       >
-        <div  variant="body2">
+        <Typography variant="body2">
           {statusInfo.message}
           {statusInfo.status === 'missing' && (
             <span>
@@ -189,8 +189,8 @@ const ApiKeyStatusIndicator = ({
               . Live data from: {apiKeys.map(k => k.provider).join(', ')}
             </span>
           )}
-        </div>
-      </div>
+        </Typography>
+      </Alert>
 
       {/* Setup Dialog */}
       <Dialog open={setupDialogOpen} onClose={() => setSetupDialogOpen(false)}>
@@ -234,8 +234,7 @@ const ApiKeyStatusIndicator = ({
           </Button>
         </DialogActions>
       </Dialog>
-      </div>
-    </div>
+    </Box>
   );
 };
 

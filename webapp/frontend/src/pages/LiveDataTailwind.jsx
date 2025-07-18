@@ -94,8 +94,8 @@ const LiveDataTailwind = () => {
             onClick={() => setIsStreaming(!isStreaming)}
             className={`px-4 py-2 rounded-md font-medium ${
               isStreaming 
-                ? 'bg-red-600 text-white hover:bg-red-700' 
-                : 'bg-green-600 text-white hover:bg-green-700'
+                ? 'bg-red-600 text-gray-100 hover:bg-red-700' 
+                : 'bg-green-600 text-gray-100 hover:bg-green-700'
             }`}
           >
             {isStreaming ? 'Disconnect' : 'Connect WebSocket'}

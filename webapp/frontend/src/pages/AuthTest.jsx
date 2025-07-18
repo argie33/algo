@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Container, Typography, Card, CardContent, Button, Box } from '@mui/material';
 
 const AuthTest = () => {
   const auth = useAuth();
@@ -52,54 +53,54 @@ const AuthTest = () => {
   };
 
   return (
-    <div className="container mx-auto" maxWidth="md">
-      <div  variant="h4" gutterBottom>
+    <Container maxWidth="md">
+      <Typography variant="h4" gutterBottom>
         Authentication Test Page
-      </div>
+      </Typography>
 
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Current Auth State:
-          </div>
-          <div>Loading: {auth.isLoading ? '⏳ Yes' : '✅ No'}</div>
-          <div>Authenticated: {auth.isAuthenticated ? '✅ Yes' : '❌ No'}</div>
-          <div>User: {auth.user ? `✅ ${auth.user.username}` : '❌ None'}</div>
-          <div>Error: {auth.error || '❌ None'}</div>
-          <div>Tokens: {auth.tokens ? '✅ Present' : '❌ None'}</div>
+          </Typography>
+          <Typography>Loading: {auth.isLoading ? '⏳ Yes' : '✅ No'}</Typography>
+          <Typography>Authenticated: {auth.isAuthenticated ? '✅ Yes' : '❌ No'}</Typography>
+          <Typography>User: {auth.user ? `✅ ${auth.user.username}` : '❌ None'}</Typography>
+          <Typography>Error: {auth.error || '❌ None'}</Typography>
+          <Typography>Tokens: {auth.tokens ? '✅ Present' : '❌ None'}</Typography>
           
-          <div  sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={loginWithTestUser} variant="contained" size="small">
+          <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button onClick={loginWithTestUser} variant="contained" size="small">
               Login Test User
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={logout} variant="outlined" size="small">
+            </Button>
+            <Button onClick={logout} variant="outlined" size="small">
               Logout
-            </button>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={checkAuthState} variant="outlined" size="small">
+            </Button>
+            <Button onClick={checkAuthState} variant="outlined" size="small">
               Check Auth State
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Local Storage Tokens:
-          </div>
-          <div>accessToken: {localStorage.getItem('accessToken') ? '✅ Present' : '❌ Missing'}</div>
-          <div>authToken: {localStorage.getItem('authToken') ? '✅ Present' : '❌ Missing'}</div>
-        </div>
-      </div>
+          </Typography>
+          <Typography>accessToken: {localStorage.getItem('accessToken') ? '✅ Present' : '❌ Missing'}</Typography>
+          <Typography>authToken: {localStorage.getItem('authToken') ? '✅ Present' : '❌ Missing'}</Typography>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Debug Log ({debugInfo.length} entries):
-          </div>
-          <div  sx={{ maxHeight: 300, overflow: 'auto', bgcolor: 'grey.50', p: 1 }}>
+          </Typography>
+          <Box sx={{ maxHeight: 300, overflow: 'auto', bgcolor: 'grey.50', p: 1 }}>
             {debugInfo.map((info, index) => (
-              <div  
+              <Typography 
                 key={index} 
                 variant="body2" 
                 sx={{ 
@@ -109,20 +110,20 @@ const AuthTest = () => {
                 }}
               >
                 {info}
-              </div>
+              </Typography>
             ))}
-          </div>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          </Box>
+          <Button 
             onClick={() => setDebugInfo([])} 
             variant="outlined" 
             size="small" 
             sx={{ mt: 1 }}
           >
             Clear Log
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </CardContent>
+      </Card>
+    </Container>
   );
 };
 

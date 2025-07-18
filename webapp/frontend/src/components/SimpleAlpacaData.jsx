@@ -203,107 +203,107 @@ const SimpleAlpacaData = () => {
   };
 
   return (
-    <div  sx={{ p: 3 }}>
-      <div  variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
         Live Data Feed
-      </div>
-      <div  variant="subtitle1" color="text.secondary" gutterBottom>
+      </Typography>
+      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
         Real-time market data streaming with WebSocket connections
-      </div>
+      </Typography>
 
       {/* Connection Status */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <div  variant="h6">Connection</div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6">Connection</Typography>
+                <Chip 
                   label={connected ? 'Connected' : 'Disconnected'} 
                   color={getStatusColor()} 
                   variant="outlined" 
                 />
-              </div>
+              </Box>
               
-              <div  sx={{ display: 'flex', gap: 1 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
                   variant="contained" 
                   startIcon={<PlayArrow />}
                   onClick={handleConnect}
                   disabled={connected}
                 >
                   Connect
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   startIcon={<Stop />}
                   onClick={handleDisconnect}
                   disabled={!connected}
                 >
                   Disconnect
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>Metrics</div>
-              <div className="grid" container spacing={2}>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">Messages</div>
-                  <div  variant="h6">{metrics.messagesReceived || 0}</div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">Subscriptions</div>
-                  <div  variant="h6">{subscriptions.length}</div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">Uptime</div>
-                  <div  variant="h6">
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Metrics</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Messages</Typography>
+                  <Typography variant="h6">{metrics.messagesReceived || 0}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Subscriptions</Typography>
+                  <Typography variant="h6">{subscriptions.length}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Uptime</Typography>
+                  <Typography variant="h6">
                     {metrics.uptime ? `${Math.floor(metrics.uptime / 1000)}s` : '0s'}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">Data Points</div>
-                  <div  variant="h6">{Object.keys(data).length}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Data Points</Typography>
+                  <Typography variant="h6">{Object.keys(data).length}</Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
           {String(error)}
-        </div>
+        </Alert>
       )}
 
       {/* Main Content */}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="border-b border-gray-200" value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Subscribe" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Live Data" />
-        </div>
+      <Card>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="Subscribe" />
+          <Tab label="Live Data" />
+        </Tabs>
 
         {/* Subscribe Tab */}
         {activeTab === 0 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>Subscribe to Symbols</div>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Subscribe to Symbols</Typography>
             
             {/* Feed Selection */}
-            <div  sx={{ mb: 3 }}>
-              <div  variant="subtitle2" gutterBottom>Select Data Feeds:</div>
-              <div className="grid" container spacing={1}>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Select Data Feeds:</Typography>
+              <Grid container spacing={1}>
                 {Object.entries(selectedFeeds).map(([feed, isSelected]) => (
-                  <div className="grid" item key={feed}>
-                    <div className="mb-4"Label
+                  <Grid item key={feed}>
+                    <FormControlLabel
                       control={
-                        <input type="checkbox" className="toggle"
+                        <Switch
                           checked={isSelected}
                           onChange={(e) => setSelectedFeeds(prev => ({
                             ...prev,
@@ -314,55 +314,55 @@ const SimpleAlpacaData = () => {
                       }
                       label={feed.charAt(0).toUpperCase() + feed.slice(1)}
                     />
-                  </div>
+                  </Grid>
                 ))}
-              </div>
-            </div>
+              </Grid>
+            </Box>
             
             {/* Quick Subscribe Buttons */}
-            <div  sx={{ mb: 3 }}>
-              <div  variant="subtitle2" gutterBottom>Quick Subscribe:</div>
-              <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Quick Subscribe:</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['AAPL', 'MSFT', 'GOOGL', 'AMZN'], 'quotes')}
                   disabled={!connected || !selectedFeeds.quotes}
                 >
                   Big Tech (Quotes)
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['TSLA', 'NVDA', 'META'], 'trades')}
                   disabled={!connected || !selectedFeeds.trades}
                 >
                   Growth Stocks (Trades)
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['SPY', 'QQQ', 'IWM'], 'bars')}
                   disabled={!connected || !selectedFeeds.bars}
                 >
                   ETFs (Bars)
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   size="small"
                   onClick={() => quickSubscribe(['BTCUSD', 'ETHUSD'], 'crypto')}
                   disabled={!connected || !selectedFeeds.crypto}
                 >
                   Crypto
-                </button>
-              </div>
-            </div>
+                </Button>
+              </Box>
+            </Box>
 
             {/* Manual Subscribe */}
-            <div  sx={{ mb: 3 }}>
-              <div  variant="subtitle2" gutterBottom>Manual Subscribe:</div>
-              <div  sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Manual Subscribe:</Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField
                   size="small"
                   label="Symbol (e.g., AAPL)"
                   value={newSymbol}
@@ -370,23 +370,23 @@ const SimpleAlpacaData = () => {
                   onKeyPress={(e) => e.key === 'Enter' && handleSubscribeWithSelectedFeeds()}
                   disabled={!connected}
                 />
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                <Button 
                   variant="contained" 
                   onClick={handleSubscribeWithSelectedFeeds}
                   disabled={!connected || !newSymbol.trim() || Object.values(selectedFeeds).every(v => !v)}
                 >
                   Subscribe to Selected Feeds
-                </button>
-              </div>
-              <div  variant="caption" color="text.secondary">
+                </Button>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
                 Will subscribe to all selected feed types for this symbol
-              </div>
-            </div>
+              </Typography>
+            </Box>
 
             {/* Active Subscriptions */}
-            <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <div  variant="h6">Active Subscriptions ({subscriptions.length})</div>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Active Subscriptions ({subscriptions.length})</Typography>
+              <Button
                 variant="outlined"
                 size="small"
                 startIcon={<Delete />}
@@ -394,89 +394,89 @@ const SimpleAlpacaData = () => {
                 disabled={subscriptions.length === 0}
               >
                 Unsubscribe All
-              </button>
-            </div>
+              </Button>
+            </Box>
 
             {subscriptions.length === 0 ? (
-              <div  color="text.secondary">No active subscriptions</div>
+              <Typography color="text.secondary">No active subscriptions</Typography>
             ) : (
-              <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {subscriptions.map((sub, index) => (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                  <Chip 
                     key={index} 
                     label={`${sub.symbol} (${sub.type})`} 
                     variant="outlined" 
                   />
                 ))}
-              </div>
+              </Box>
             )}
-          </div>
+          </CardContent>
         )}
 
         {/* Live Data Tab */}
         {activeTab === 1 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>Live Market Data</div>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Live Market Data</Typography>
             
             {Object.keys(data).length === 0 ? (
-              <div  color="text.secondary">
+              <Typography color="text.secondary">
                 No live data yet. Subscribe to symbols to see real-time data.
-              </div>
+              </Typography>
             ) : (
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Data</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Update</td>
-                    </tr>
-                  </thead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Symbol</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Data</TableCell>
+                      <TableCell>Last Update</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {Object.entries(data).map(([key, item]) => (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" fontWeight="bold">
+                      <TableRow key={key}>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="bold">
                             {item.symbol}
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={item.type} size="small" variant="outlined" />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={item.type} size="small" variant="outlined" />
+                        </TableCell>
+                        <TableCell>
                           {item.type === 'quote' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               Bid: {formatPrice(item.bid)} | Ask: {formatPrice(item.ask)}
-                            </div>
+                            </Typography>
                           )}
                           {item.type === 'trade' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               Price: {formatPrice(item.price)} | Size: {formatNumber(item.size)}
-                            </div>
+                            </Typography>
                           )}
                           {item.type === 'bar' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               O: {formatPrice(item.open)} | H: {formatPrice(item.high)} | 
                               L: {formatPrice(item.low)} | C: {formatPrice(item.close)}
-                            </div>
+                            </Typography>
                           )}
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" color="text.secondary">
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
                             {item.lastUpdate}
-                          </div>
-                        </td>
-                      </tr>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
-          </div>
+          </CardContent>
         )}
-      </div>
-    </div>
+      </Card>
+    </Box>
   );
 };
 

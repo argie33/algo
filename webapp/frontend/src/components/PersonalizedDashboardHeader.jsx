@@ -39,9 +39,9 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
   };
 
   return (
-    <div  sx={{ mb: 4 }}>
+    <Box sx={{ mb: 4 }}>
       <Fade in={showWelcome} timeout={1000}>
-        <div className="bg-white shadow-md rounded-lg" 
+        <Card 
           sx={{ 
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
@@ -51,7 +51,7 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
             boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
           }}
         >
-          <div 
+          <Box
             sx={{
               position: 'absolute',
               top: -50,
@@ -63,24 +63,24 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
             }}
           />
           
-          <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 4 }}>
-            <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div  sx={{ flex: 1 }}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ flex: 1 }}>
                 <Grow in={true} timeout={800}>
-                  <div  variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
                     {getGreeting()}
-                  </div>
+                  </Typography>
                 </Grow>
                 
                 <Grow in={true} timeout={1200}>
-                  <div  variant="h6" sx={{ opacity: 0.9, mb: 3 }}>
+                  <Typography variant="h6" sx={{ opacity: 0.9, mb: 3 }}>
                     {getMotivationalMessage()}
-                  </div>
+                  </Typography>
                 </Grow>
 
-                <div className="flex flex-col space-y-2" direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
                   <Grow in={true} timeout={1000}>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       icon={<LocalFireDepartment />} 
                       label="Markets Open" 
                       sx={{ 
@@ -91,7 +91,7 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                     />
                   </Grow>
                   <Grow in={true} timeout={1200}>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       icon={<Psychology />} 
                       label="AI Active" 
                       sx={{ 
@@ -102,7 +102,7 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                     />
                   </Grow>
                   <Grow in={true} timeout={1400}>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       icon={<Security />} 
                       label="Secure" 
                       sx={{ 
@@ -113,7 +113,7 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                     />
                   </Grow>
                   <Grow in={true} timeout={1600}>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                    <Chip 
                       icon={<Star />} 
                       label="Premium" 
                       sx={{ 
@@ -123,11 +123,11 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                       }}
                     />
                   </Grow>
-                </div>
-              </div>
+                </Stack>
+              </Box>
 
-              <div  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <div  sx={{ 
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ 
                   '& .MuiIconButton-root': { 
                     backgroundColor: 'rgba(255,255,255,0.1)',
                     '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' }
@@ -135,9 +135,9 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                   '& .MuiSvgIcon-root': { color: 'white' }
                 }}>
                   <NotificationSystem />
-                </div>
+                </Box>
                 
-                <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center" 
+                <Avatar 
                   sx={{ 
                     bgcolor: 'rgba(255,255,255,0.2)', 
                     width: 56, 
@@ -148,13 +148,13 @@ const PersonalizedDashboardHeader = ({ onNotificationClick }) => {
                   }}
                 >
                   {user?.name ? user.name[0] : (user?.email ? user.email[0] : 'U')}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Avatar>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
       </Fade>
-    </div>
+    </Box>
   );
 };
 

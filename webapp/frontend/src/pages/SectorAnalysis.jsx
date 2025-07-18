@@ -227,165 +227,165 @@ function SectorAnalysis() {
 
   if (loading) {
     return (
-      <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <div  textAlign="center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
-            <div  variant="h6" sx={{ mt: 2 }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <Box textAlign="center">
+            <CircularProgress size={60} />
+            <Typography variant="h6" sx={{ mt: 2 }}>
               Loading Sector Analysis...
-            </div>
-            <div  variant="body2" color="text.secondary">
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
               Analyzing {timeframe} data from live tables
-            </div>
-          </div>
-        </div>
-      </div>
+            </Typography>
+          </Box>
+        </Box>
+      </Container>
     );
   }
 
   const sortedData = getSortedSectorData();
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <div  display="flex" alignItems="center" justifyContent="space-between" mb={4}>
-        <div>
-          <div  variant="h4" component="h1" fontWeight="bold" gutterBottom>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+        <Box>
+          <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
             Sector Analysis
-          </div>
-          <div  variant="body1" color="text.secondary">
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
             Comprehensive sector performance analysis with live momentum data
-          </div>
-        </div>
-        <div  display="flex" gap={2} alignItems="center">
-          <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Typography>
+        </Box>
+        <Box display="flex" gap={2} alignItems="center">
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Timeframe</InputLabel>
+            <Select
               value={timeframe}
               label="Timeframe"
               onChange={(e) => setTimeframe(e.target.value)}
             >
-              <option  value="daily">Daily</option>
-              <option  value="weekly">Weekly</option>
-              <option  value="monthly">Monthly</option>
-            </select>
-          </div>
-          <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Sort By</InputLabel>
+            <Select
               value={sortBy}
               label="Sort By"
               onChange={(e) => setSortBy(e.target.value)}
             >
-              <option  value="monthly_change">Performance</option>
-              <option  value="momentum">Momentum</option>
-              <option  value="volume">Volume</option>
-              <option  value="name">Name</option>
-            </select>
-          </div>
-          <div className="mb-4"Label
+              <MenuItem value="monthly_change">Performance</MenuItem>
+              <MenuItem value="momentum">Momentum</MenuItem>
+              <MenuItem value="volume">Volume</MenuItem>
+              <MenuItem value="name">Name</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControlLabel
             control={
-              <input type="checkbox" className="toggle"
+              <Switch
                 checked={showMomentum}
                 onChange={(e) => setShowMomentum(e.target.checked)}
               />
             }
             label="Momentum"
           />
-          <button className="p-2 rounded-full hover:bg-gray-100" onClick={fetchSectorData} color="primary">
-            <↻  />
-          </button>
-        </div>
-      </div>
+          <IconButton onClick={fetchSectorData} color="primary">
+            <RefreshIcon />
+          </IconButton>
+        </Box>
+      </Box>
 
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="warning" sx={{ mb: 3 }}>
-          <div  variant="body2">
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
             {String(error)}
-          </div>
-          <div  variant="caption" display="block" sx={{ mt: 1 }}>
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
             Showing mock data for development. Deploy the backend to see live data.
-          </div>
-        </div>
+          </Typography>
+        </Alert>
       )}
 
       {/* Summary Cards */}
-      <div className="grid" container spacing={3} sx={{ mb: 4 }}>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" gap={2}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={2}>
                 <BusinessIcon color="primary" />
-                <div>
-                  <div  variant="h6">{sortedData.length}</div>
-                  <div  variant="body2" color="text.secondary">
+                <Box>
+                  <Typography variant="h6">{sortedData.length}</Typography>
+                  <Typography variant="body2" color="text.secondary">
                     Sectors Analyzed
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" gap={2}>
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={2}>
                 <AssessmentIcon color="success" />
-                <div>
-                  <div  variant="h6">
+                <Box>
+                  <Typography variant="h6">
                     {sortedData.filter(s => parseFloat(s.metrics.performance.monthly_change) > 0).length}
-                  </div>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     Positive Sectors
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" gap={2}>
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={2}>
                 <SpeedIcon color="info" />
-                <div>
-                  <div  variant="h6">
+                <Box>
+                  <Typography variant="h6">
                     {sortedData.filter(s => parseFloat(s.metrics.momentum?.jt_momentum_12_1 || 0) > 0).length}
-                  </div>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     Positive Momentum
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid" item xs={12} sm={6} md={3}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  display="flex" alignItems="center" gap={2}>
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={2}>
                 <TimelineIcon color="warning" />
-                <div>
-                  <div  variant="h6">
+                <Box>
+                  <Typography variant="h6">
                     {lastUpdated ? lastUpdated.toLocaleTimeString() : 'N/A'}
-                  </div>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     Last Updated
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Sector Performance Chart */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 4 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Sector Performance ({timeframe})
-          </div>
-          <div  sx={{ height: 400 }}>
+          </Typography>
+          <Box sx={{ height: 400 }}>
             <ResponsiveContainer>
               <BarChart data={sortedData.slice(0, 15)}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -410,162 +410,162 @@ function SectorAnalysis() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Sector Details Table */}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Detailed Sector Analysis
-          </div>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Sector</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Stocks</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Monthly Return</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Weekly Return</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Daily Return</td>
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Sector</TableCell>
+                  <TableCell align="right">Stocks</TableCell>
+                  <TableCell align="right">Monthly Return</TableCell>
+                  <TableCell align="right">Weekly Return</TableCell>
+                  <TableCell align="right">Daily Return</TableCell>
                   {showMomentum && (
                     <>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">JT Momentum</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Momentum Signal</td>
+                      <TableCell align="right">JT Momentum</TableCell>
+                      <TableCell align="right">Momentum Signal</TableCell>
                     </>
                   )}
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Avg RSI</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Trend</td>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Action</td>
-                </tr>
-              </thead>
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                  <TableCell align="right">Avg RSI</TableCell>
+                  <TableCell align="right">Trend</TableCell>
+                  <TableCell align="center">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {sortedData.map((sector) => {
                   const momentumSignal = getMomentumSignal(sector.metrics.momentum?.jt_momentum_12_1 || 0);
                   
                   return (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow 
+                    <TableRow 
                       key={sector.sector} 
                       hover
                       sx={{ cursor: 'pointer' }}
                       onClick={() => handleSectorClick(sector.sector)}
                     >
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                        <div>
-                          <div  variant="subtitle2" fontWeight="bold">
+                      <TableCell>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight="bold">
                             {sector.sector}
-                          </div>
-                          <div  variant="caption" color="text.secondary">
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
                             {sector.industry}
-                          </div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
                         {sector.metrics.priced_stocks}/{sector.metrics.stock_count}
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
                           {getPerformanceIcon(sector.metrics.performance.monthly_change)}
-                          <div 
+                          <Typography
                             variant="body2"
                             sx={{ color: getChangeColor(sector.metrics.performance.monthly_change) }}
                           >
                             {sector.metrics.performance.monthly_change}%
-                          </div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div 
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
                           variant="body2"
                           sx={{ color: getChangeColor(sector.metrics.performance.weekly_change) }}
                         >
                           {sector.metrics.performance.weekly_change}%
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div 
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
                           variant="body2"
                           sx={{ color: getChangeColor(sector.metrics.performance.daily_change) }}
                         >
                           {sector.metrics.performance.daily_change}%
-                        </div>
-                      </td>
+                        </Typography>
+                      </TableCell>
                       {showMomentum && (
                         <>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <div  variant="body2">
+                          <TableCell align="right">
+                            <Typography variant="body2">
                               {(parseFloat(sector.metrics.momentum?.jt_momentum_12_1 || 0) * 100).toFixed(2)}%
-                            </div>
-                          </td>
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
                               label={momentumSignal.label}
                               color={momentumSignal.color}
                               size="small"
                             />
-                          </td>
+                          </TableCell>
                         </>
                       )}
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2">
+                      <TableCell align="right">
+                        <Typography variant="body2">
                           {parseFloat(sector.metrics.technicals?.avg_rsi || 0).toFixed(1)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  display="flex" justifyContent="flex-end" gap={1}>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box display="flex" justifyContent="flex-end" gap={1}>
+                          <Chip
                             label={`${sector.metrics.technicals?.trend_distribution?.bullish || 0}B`}
                             color="success"
                             size="small"
                             variant="outlined"
                           />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          <Chip
                             label={`${sector.metrics.technicals?.trend_distribution?.bearish || 0}B`}
                             color="error"
                             size="small"
                             variant="outlined"
                           />
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                        <button className="p-2 rounded-full hover:bg-gray-100" size="small" color="primary">
-                          <👁  />
-                        </button>
-                      </td>
-                    </tr>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton size="small" color="primary">
+                          <VisibilityIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
 
       {/* Sector Details Modal/Drawer could be added here */}
       {selectedSector && sectorDetails && (
-        <div className="bg-white shadow-md rounded-lg" sx={{ mt: 4 }}>
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+        <Card sx={{ mt: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               {selectedSector} Sector Details
-            </div>
+            </Typography>
             {detailsLoading ? (
-              <div  display="flex" justifyContent="center" py={4}>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-              </div>
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress />
+              </Box>
             ) : (
-              <div>
-                <div  variant="body2" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="body2" sx={{ mb: 2 }}>
                   {sectorDetails.summary.stock_count} stocks analyzed across {sectorDetails.summary.industry_count} industries
-                </div>
+                </Typography>
                 
                 {/* Industry breakdown */}
-                <div  variant="subtitle2" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom>
                   Industry Performance:
-                </div>
-                <div  display="flex" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
+                </Typography>
+                <Box display="flex" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
                   {sectorDetails.industries?.map((industry) => (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    <Chip
                       key={industry.industry}
                       label={`${industry.industry}: ${industry.avg_return.toFixed(1)}%`}
                       color={industry.avg_return > 0 ? 'success' : 'error'}
@@ -573,28 +573,28 @@ function SectorAnalysis() {
                       size="small"
                     />
                   ))}
-                </div>
+                </Box>
 
                 {/* Top stocks */}
-                <div  variant="subtitle2" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom>
                   Top Performers:
-                </div>
-                <div  display="flex" gap={1} flexWrap="wrap">
+                </Typography>
+                <Box display="flex" gap={1} flexWrap="wrap">
                   {sectorDetails.stocks?.slice(0, 5).map((stock) => (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    <Chip
                       key={stock.symbol}
                       label={`${stock.symbol}: ${stock.performance.monthly_change}%`}
                       color="success"
                       size="small"
                     />
                   ))}
-                </div>
-              </div>
+                </Box>
+              </Box>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
-    </div>
+    </Container>
   );
 }
 

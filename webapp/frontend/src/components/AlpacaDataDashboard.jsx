@@ -310,29 +310,29 @@ const AlpacaDataDashboard = () => {
   };
 
   return (
-    <div  sx={{ p: 3 }}>
-      <div  variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
         Alpaca Real-time Data Dashboard
-      </div>
-      <div  variant="subtitle1" color="text.secondary" gutterBottom>
+      </Typography>
+      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
         Professional-grade market data streaming with HFT capabilities
-      </div>
+      </Typography>
 
       {/* Connection Status & Controls */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <div  sx={{ display: 'flex', alignItems: 'center' }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   {getStatusIcon()}
-                  <div  variant="h6" sx={{ ml: 1 }}>
+                  <Typography variant="h6" sx={{ ml: 1 }}>
                     Connection Status
-                  </div>
-                </div>
-                <div className="mb-4"Label
+                  </Typography>
+                </Box>
+                <FormControlLabel
                   control={
-                    <input type="checkbox" className="toggle"
+                    <Switch
                       checked={autoReconnect}
                       onChange={(e) => setAutoReconnect(e.target.checked)}
                       size="small"
@@ -340,142 +340,142 @@ const AlpacaDataDashboard = () => {
                   }
                   label="Auto-reconnect"
                 />
-              </div>
+              </Box>
               
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+              <Chip 
                 label={connectionStatus} 
                 color={getStatusColor()} 
                 variant="outlined"
                 sx={{ mb: 2 }}
               />
               
-              <div  sx={{ display: 'flex', gap: 1 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
                   variant="contained" 
                   startIcon={<PlayArrow />}
                   onClick={handleConnect}
                   disabled={connectionStatus === 'CONNECTED' || connectionStatus === 'CONNECTING'}
                 >
                   Connect
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   startIcon={<Stop />}
                   onClick={handleDisconnect}
                   disabled={connectionStatus === 'DISCONNECTED'}
                 >
                   Disconnect
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Performance Metrics
-              </div>
-              <div className="grid" container spacing={2}>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Latency (Avg)
-                  </div>
-                  <div  variant="h6" color="primary">
+                  </Typography>
+                  <Typography variant="h6" color="primary">
                     {formatLatency(metrics.avgLatency)}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Messages/sec
-                  </div>
-                  <div  variant="h6" color="primary">
+                  </Typography>
+                  <Typography variant="h6" color="primary">
                     {Math.round((metrics.messagesReceived || 0) / Math.max(1, (metrics.connectionUptime || 1) / 1000))}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Uptime
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {Math.round((metrics.connectionUptime || 0) / 1000)}s
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Subscriptions
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {metrics.subscriptionsCount || 0}
-                  </div>
-                </div>
-              </div>
+                  </Typography>
+                </Grid>
+              </Grid>
               
               {/* Data type specific metrics */}
-              <hr className="border-gray-200" sx={{ my: 1 }} />
-              <div className="grid" container spacing={1}>
-                <div className="grid" item xs={3}>
-                  <div  variant="caption" color="text.secondary">
+              <Divider sx={{ my: 1 }} />
+              <Grid container spacing={1}>
+                <Grid item xs={3}>
+                  <Typography variant="caption" color="text.secondary">
                     Quotes: {metrics.quotesReceived || 0}
-                  </div>
-                </div>
-                <div className="grid" item xs={3}>
-                  <div  variant="caption" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={3}>
+                  <Typography variant="caption" color="text.secondary">
                     Trades: {metrics.tradesReceived || 0}
-                  </div>
-                </div>
-                <div className="grid" item xs={3}>
-                  <div  variant="caption" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={3}>
+                  <Typography variant="caption" color="text.secondary">
                     Bars: {metrics.barsReceived || 0}
-                  </div>
-                </div>
-                <div className="grid" item xs={3}>
-                  <div  variant="caption" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={3}>
+                  <Typography variant="caption" color="text.secondary">
                     News: {metrics.newsReceived || 0}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Main Content Tabs */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="border-b border-gray-200" 
+      <Card sx={{ mb: 3 }}>
+        <Tabs 
           value={activeTab} 
           onChange={(e, newValue) => setActiveTab(newValue)}
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Subscriptions" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Market Data" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Available Feeds" />
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Activity Log" />
-        </div>
+          <Tab label="Subscriptions" />
+          <Tab label="Market Data" />
+          <Tab label="Available Feeds" />
+          <Tab label="Activity Log" />
+        </Tabs>
 
         {/* Subscriptions Tab */}
         {activeTab === 0 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               Manage Data Subscriptions
-            </div>
+            </Typography>
             
             {/* Quick Subscription Buttons */}
-            <div  sx={{ mb: 3 }}>
-              <div  variant="subtitle2" gutterBottom>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
                 Quick Subscriptions:
-              </div>
-              <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {quickSubscriptions.map((quickSub, index) => (
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <Button
                     key={index}
                     variant="outlined"
                     size="small"
@@ -483,14 +483,14 @@ const AlpacaDataDashboard = () => {
                     disabled={connectionStatus !== 'CONNECTED'}
                   >
                     {quickSub.label}
-                  </button>
+                  </Button>
                 ))}
-              </div>
-            </div>
+              </Box>
+            </Box>
 
             {/* Custom Subscription Form */}
-            <div  sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+              <TextField
                 size="small"
                 label="Symbol (e.g., AAPL)"
                 value={newSymbol}
@@ -500,58 +500,58 @@ const AlpacaDataDashboard = () => {
                 sx={{ minWidth: 150 }}
               />
               
-              <div className="mb-4" size="small" sx={{ minWidth: 120 }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Type</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Data Type</InputLabel>
+                <Select
                   value={selectedDataType}
                   onChange={(e) => setSelectedDataType(e.target.value)}
                   label="Data Type"
                 >
-                  <option  value="quotes">Quotes</option>
-                  <option  value="trades">Trades</option>
-                  <option  value="bars">Bars</option>
-                  <option  value="news">News</option>
-                  <option  value="crypto">Crypto</option>
-                </select>
-              </div>
+                  <MenuItem value="quotes">Quotes</MenuItem>
+                  <MenuItem value="trades">Trades</MenuItem>
+                  <MenuItem value="bars">Bars</MenuItem>
+                  <MenuItem value="news">News</MenuItem>
+                  <MenuItem value="crypto">Crypto</MenuItem>
+                </Select>
+              </FormControl>
               
               {selectedDataType === 'bars' && (
-                <div className="mb-4" size="small" sx={{ minWidth: 100 }}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <InputLabel>Frequency</InputLabel>
+                  <Select
                     value={selectedFrequency}
                     onChange={(e) => setSelectedFrequency(e.target.value)}
                     label="Frequency"
                   >
-                    <option  value="1Min">1 Min</option>
-                    <option  value="5Min">5 Min</option>
-                    <option  value="15Min">15 Min</option>
-                    <option  value="1Hour">1 Hour</option>
-                    <option  value="1Day">1 Day</option>
-                  </select>
-                </div>
+                    <MenuItem value="1Min">1 Min</MenuItem>
+                    <MenuItem value="5Min">5 Min</MenuItem>
+                    <MenuItem value="15Min">15 Min</MenuItem>
+                    <MenuItem value="1Hour">1 Hour</MenuItem>
+                    <MenuItem value="1Day">1 Day</MenuItem>
+                  </Select>
+                </FormControl>
               )}
               
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Button 
                 variant="contained" 
                 startIcon={<Add />}
                 onClick={handleSubscribe}
                 disabled={connectionStatus !== 'CONNECTED' || !newSymbol.trim()}
               >
                 Subscribe
-              </button>
-            </div>
+              </Button>
+            </Box>
 
             {/* Active Subscriptions */}
-            <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <div  variant="h6">
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
                 Active Subscriptions ({subscriptions.length})
-              </div>
-              <div>
-                <button className="p-2 rounded-full hover:bg-gray-100" onClick={refreshSubscriptions} size="small">
+              </Typography>
+              <Box>
+                <IconButton onClick={refreshSubscriptions} size="small">
                   <Refresh />
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </IconButton>
+                <Button
                   variant="outlined"
                   size="small"
                   startIcon={<Delete />}
@@ -560,155 +560,155 @@ const AlpacaDataDashboard = () => {
                   sx={{ ml: 1 }}
                 >
                   Unsubscribe All
-                </button>
-              </div>
-            </div>
+                </Button>
+              </Box>
+            </Box>
 
             {subscriptions.length === 0 ? (
-              <div  color="text.secondary">
+              <Typography color="text.secondary">
                 No active subscriptions. Subscribe to symbols to see live data.
-              </div>
+              </Typography>
             ) : (
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbols</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Frequency</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Created</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
-                    </tr>
-                  </thead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Symbols</TableCell>
+                      <TableCell>Frequency</TableCell>
+                      <TableCell>Created</TableCell>
+                      <TableCell align="center">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {subscriptions.map((sub, index) => (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={index}>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                      <TableRow key={index}>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             {getDataTypeIcon(sub.type)}
-                            <div  sx={{ ml: 1 }} variant="body2">
+                            <Typography sx={{ ml: 1 }} variant="body2">
                               {sub.type}
-                            </div>
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" label={sub.symbol} size="small" />
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2">
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={sub.symbol} size="small" />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
                             Real-time
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" color="text.secondary">
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
                             {new Date(sub.createdAt).toLocaleTimeString()}
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                          <button className="p-2 rounded-full hover:bg-gray-100"
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <IconButton
                             size="small"
                             onClick={() => handleUnsubscribe(index)}
                             color="error"
                           >
                             <Delete />
-                          </button>
-                        </td>
-                      </tr>
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
-          </div>
+          </CardContent>
         )}
 
         {/* Market Data Tab */}
         {activeTab === 1 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               Live Market Data
-            </div>
+            </Typography>
             
             {Object.keys(marketData).length === 0 ? (
-              <div  color="text.secondary">
+              <Typography color="text.secondary">
                 No market data available. Subscribe to symbols to see live data.
-              </div>
+              </Typography>
             ) : (
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Type</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Data</td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Last Update</td>
-                    </tr>
-                  </thead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Symbol</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Data</TableCell>
+                      <TableCell>Last Update</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {Object.entries(marketData).map(([key, data]) => (
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" fontWeight="bold">
+                      <TableRow key={key}>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="bold">
                             {data.symbol}
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             {getDataTypeIcon(data.dataType)}
-                            <div  sx={{ ml: 1 }} variant="body2">
+                            <Typography sx={{ ml: 1 }} variant="body2">
                               {data.dataType}
-                            </div>
-                          </div>
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
                           {data.dataType === 'quotes' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               Bid: {formatPrice(data.bid)} | Ask: {formatPrice(data.ask)}
-                            </div>
+                            </Typography>
                           )}
                           {data.dataType === 'trades' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               Price: {formatPrice(data.price)} | Size: {formatNumber(data.size)}
-                            </div>
+                            </Typography>
                           )}
                           {data.dataType === 'bars' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               O: {formatPrice(data.open)} | H: {formatPrice(data.high)} | L: {formatPrice(data.low)} | C: {formatPrice(data.close)}
-                            </div>
+                            </Typography>
                           )}
                           {data.dataType === 'news' && (
-                            <div  variant="body2">
+                            <Typography variant="body2">
                               {data.headline || 'News update'}
-                            </div>
+                            </Typography>
                           )}
-                        </td>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>
-                          <div  variant="body2" color="text.secondary">
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
                             {data.lastUpdate}
-                          </div>
-                        </td>
-                      </tr>
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
-          </div>
+          </CardContent>
         )}
 
         {/* Available Feeds Tab */}
         {activeTab === 2 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               Available Data Feeds
-            </div>
+            </Typography>
             
             {!availableFeeds ? (
-              <div>
-                <div  color="text.secondary" gutterBottom>
+              <Box>
+                <Typography color="text.secondary" gutterBottom>
                   Loading available feeds...
-                </div>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Typography>
+                <Button
                   variant="outlined"
                   onClick={() => setAvailableFeeds({
                     quotes: { description: 'Real-time quotes', symbols: 'All US stocks', frequency: 'Real-time' },
@@ -718,60 +718,60 @@ const AlpacaDataDashboard = () => {
                   disabled={connectionStatus !== 'CONNECTED'}
                 >
                   Load Feeds
-                </button>
-              </div>
+                </Button>
+              </Box>
             ) : (
-              <div className="grid" container spacing={2}>
+              <Grid container spacing={2}>
                 {Object.entries(availableFeeds).map(([feedType, feedInfo]) => (
-                  <div className="grid" item xs={12} md={6} key={feedType}>
-                    <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                      <div className="bg-white shadow-md rounded-lg"Content>
-                        <div  sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <Grid item xs={12} md={6} key={feedType}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                           {getDataTypeIcon(feedType)}
-                          <div  variant="h6" sx={{ ml: 1 }}>
+                          <Typography variant="h6" sx={{ ml: 1 }}>
                             {feedType.charAt(0).toUpperCase() + feedType.slice(1)}
-                          </div>
-                        </div>
+                          </Typography>
+                        </Box>
                         
-                        <div  variant="body2" color="text.secondary" paragraph>
+                        <Typography variant="body2" color="text.secondary" paragraph>
                           {feedInfo.description}
-                        </div>
+                        </Typography>
                         
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           <strong>Symbols:</strong> {feedInfo.symbols}
-                        </div>
+                        </Typography>
                         
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           <strong>Frequency:</strong> {
                             Array.isArray(feedInfo.frequency) 
                               ? feedInfo.frequency.join(', ')
                               : feedInfo.frequency
                           }
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 ))}
-              </div>
+              </Grid>
             )}
-          </div>
+          </CardContent>
         )}
 
         {/* Activity Log Tab */}
         {activeTab === 3 && (
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
               Activity Log
-            </div>
+            </Typography>
             
-            <div  sx={{ height: 400, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
+            <Box sx={{ height: 400, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
               {logs.length === 0 ? (
-                <div  color="text.secondary">
+                <Typography color="text.secondary">
                   No activity yet.
-                </div>
+                </Typography>
               ) : (
                 logs.map((log, index) => (
-                  <div  
+                  <Typography 
                     key={index} 
                     variant="body2" 
                     sx={{ 
@@ -783,14 +783,14 @@ const AlpacaDataDashboard = () => {
                     }}
                   >
                     <strong>{log.timestamp}</strong> {log.message}
-                  </div>
+                  </Typography>
                 ))
               )}
-            </div>
-          </div>
+            </Box>
+          </CardContent>
         )}
-      </div>
-    </div>
+      </Card>
+    </Box>
   );
 };
 

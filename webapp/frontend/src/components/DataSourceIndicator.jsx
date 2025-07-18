@@ -82,13 +82,13 @@ const DataSourceIndicator = ({
 
   if (compact) {
     return (
-      <div  title={`${config.description}${lastUpdated ? ` • Last updated: ${new Date(lastUpdated).toLocaleTimeString()}` : ''}`}>
-        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full"
+      <Tooltip title={`${config.description}${lastUpdated ? ` • Last updated: ${new Date(lastUpdated).toLocaleTimeString()}` : ''}`}>
+        <Badge
           badgeContent={isStale ? '!' : 0}
           color="warning"
           invisible={!isStale}
         >
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+          <Chip
             size="small"
             label={config.label}
             color={config.color}
@@ -103,13 +103,13 @@ const DataSourceIndicator = ({
               }
             }}
           />
-        </span>
-      </div>
+        </Badge>
+      </Tooltip>
     );
   }
 
   return (
-    <div 
+    <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -120,28 +120,28 @@ const DataSourceIndicator = ({
         border: `1px solid ${config.textColor}20`
       }}
     >
-      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full"
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+        <Badge
           badgeContent={!isConnected && dataSource === 'live' ? '!' : 0}
           color="error"
           invisible={isConnected || dataSource !== 'live'}
         >
-          <div  sx={{ color: config.textColor }}>
+          <Box sx={{ color: config.textColor }}>
             {config.icon}
-          </div>
-        </span>
+          </Box>
+        </Badge>
         
-        <div>
-          <div 
+        <Box>
+          <Typography
             variant="body2"
             fontWeight="bold"
             sx={{ color: config.textColor }}
           >
             {config.label}
-          </div>
+          </Typography>
           
           {lastUpdated && (
-            <div 
+            <Typography
               variant="caption"
               sx={{ 
                 color: isStale ? '#f57c00' : config.textColor,
@@ -152,25 +152,25 @@ const DataSourceIndicator = ({
             >
               {isStale && <Warning sx={{ fontSize: 12 }} />}
               Updated: {new Date(lastUpdated).toLocaleTimeString()}
-            </div>
+            </Typography>
           )}
           
           {!lastUpdated && dataSource === 'demo' && (
-            <div 
+            <Typography
               variant="caption"
               sx={{ color: config.textColor }}
             >
               Sample data for testing
-            </div>
+            </Typography>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {showActions && (
-        <div  sx={{ display: 'flex', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
           {dataSource === 'demo' && onSetupClick && (
-            <div  title="Set up API keys for live data">
-              <button className="p-2 rounded-full hover:bg-gray-100"
+            <Tooltip title="Set up API keys for live data">
+              <IconButton
                 size="small"
                 onClick={onSetupClick}
                 sx={{ 
@@ -181,13 +181,13 @@ const DataSourceIndicator = ({
                 }}
               >
                 <Settings fontSize="small" />
-              </button>
-            </div>
+              </IconButton>
+            </Tooltip>
           )}
           
           {(dataSource === 'cached' || dataSource === 'error') && onRefreshClick && (
-            <div  title="Refresh data">
-              <button className="p-2 rounded-full hover:bg-gray-100"
+            <Tooltip title="Refresh data">
+              <IconButton
                 size="small"
                 onClick={onRefreshClick}
                 sx={{ 
@@ -198,13 +198,13 @@ const DataSourceIndicator = ({
                 }}
               >
                 <Refresh fontSize="small" />
-              </button>
-            </div>
+              </IconButton>
+            </Tooltip>
           )}
           
           {dataSource === 'live' && (
-            <div  title={`Connection: ${isConnected ? 'Active' : 'Inactive'}`}>
-              <div 
+            <Tooltip title={`Connection: ${isConnected ? 'Active' : 'Inactive'}`}>
+              <Box
                 sx={{
                   width: 8,
                   height: 8,
@@ -213,11 +213,11 @@ const DataSourceIndicator = ({
                   alignSelf: 'center'
                 }}
               />
-            </div>
+            </Tooltip>
           )}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 

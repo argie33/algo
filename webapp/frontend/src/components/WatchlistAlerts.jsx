@@ -276,28 +276,28 @@ const WatchlistAlerts = ({ watchlistItems, onAlertTriggered }) => {
   }, []);
 
   return (
-    <div>
-      <div  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <div  variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full" badgeContent={alerts.filter(a => a.enabled).length} color="primary">
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Badge badgeContent={alerts.filter(a => a.enabled).length} color="primary">
             <Notifications />
-          </span>
+          </Badge>
           Price Alerts
-        </div>
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        </Typography>
+        <Button
           variant="contained"
           size="small"
           startIcon={<Add />}
           onClick={handleCreateAlert}
         >
           Add Alert
-        </button>
-      </div>
+        </Button>
+      </Box>
 
       {alerts.length === 0 ? (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info" sx={{ mb: 2 }}>
           No price alerts set. Create alerts to get notified when stocks reach your target prices.
-        </div>
+        </Alert>
       ) : (
         <List>
           {alerts.map((alert) => {
@@ -308,63 +308,63 @@ const WatchlistAlerts = ({ watchlistItems, onAlertTriggered }) => {
               <ListItem key={alert.id} divider>
                 <ListItemText
                   primary={
-                    <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {typeInfo.icon}
-                      <div  variant="body2" fontWeight="bold">
+                      <Typography variant="body2" fontWeight="bold">
                         {alert.symbol}
-                      </div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      </Typography>
+                      <Chip
                         label={typeInfo.label}
                         size="small"
                         variant="outlined"
                         color={statusColor}
                       />
                       {alert.type === 'technical_signal' ? (
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           {alert.value}
-                        </div>
+                        </Typography>
                       ) : (
-                        <div  variant="body2">
+                        <Typography variant="body2">
                           {alert.value}
-                        </div>
+                        </Typography>
                       )}
-                    </div>
+                    </Box>
                   }
                   secondary={
-                    <div  sx={{ mt: 1 }}>
-                      <div  variant="caption" color="text.secondary">
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
                         {alert.frequency === 'once' ? 'One-time alert' : 'Recurring alert'} • 
                         {alert.notificationMethod} • 
                         Created {new Date(alert.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
+                      </Typography>
+                    </Box>
                   }
                 />
                 <ListItemSecondaryAction>
-                  <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <input type="checkbox" className="toggle"
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Switch
                       checked={alert.enabled}
                       onChange={() => handleToggleAlert(alert.id)}
                       size="small"
                     />
-                    <div  title="Edit alert">
-                      <button className="p-2 rounded-full hover:bg-gray-100"
+                    <Tooltip title="Edit alert">
+                      <IconButton
                         size="small"
                         onClick={() => handleEditAlert(alert)}
                       >
                         <Edit />
-                      </button>
-                    </div>
-                    <div  title="Delete alert">
-                      <button className="p-2 rounded-full hover:bg-gray-100"
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete alert">
+                      <IconButton
                         size="small"
                         onClick={() => handleDeleteAlert(alert.id)}
                         color="error"
                       >
                         <Delete />
-                      </button>
-                    </div>
-                  </div>
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </ListItemSecondaryAction>
               </ListItem>
             );
@@ -373,63 +373,63 @@ const WatchlistAlerts = ({ watchlistItems, onAlertTriggered }) => {
       )}
 
       {/* Create/Edit Alert Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Title>
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
           {editingAlert ? 'Edit Alert' : 'Create Alert'}
-        </h2>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content>
-          <div className="grid" container spacing={2} sx={{ mt: 1 }}>
-            <div className="grid" item xs={12} sm={6}>
-              <div className="mb-4" fullWidth>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Symbol</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Stock Symbol</InputLabel>
+                <Select
                   value={alertForm.symbol}
                   onChange={(e) => setAlertForm({...alertForm, symbol: e.target.value})}
                 >
                   {watchlistItems?.map(item => (
-                    <option  key={item.symbol} value={item.symbol}>
+                    <MenuItem key={item.symbol} value={item.symbol}>
                       {item.symbol} - {item.short_name}
-                    </option>
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
+                </Select>
+              </FormControl>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={6}>
-              <div className="mb-4" fullWidth>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Alert Type</InputLabel>
+                <Select
                   value={alertForm.type}
                   onChange={(e) => setAlertForm({...alertForm, type: e.target.value})}
                 >
                   {alertTypes.map(type => (
-                    <option  key={type.value} value={type.value}>
-                      <div  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <MenuItem key={type.value} value={type.value}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {type.icon}
                         {type.label}
-                      </div>
-                    </option>
+                      </Box>
+                    </MenuItem>
                   ))}
-                </select>
-              </div>
-            </div>
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <div className="grid" item xs={12}>
+            <Grid item xs={12}>
               {alertForm.type === 'technical_signal' ? (
-                <div className="mb-4" fullWidth>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Signal Type</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <FormControl fullWidth>
+                  <InputLabel>Signal Type</InputLabel>
+                  <Select
                     value={alertForm.value}
                     onChange={(e) => setAlertForm({...alertForm, value: e.target.value})}
                   >
-                    <option  value="oversold">Oversold (RSI ≤ 30)</option>
-                    <option  value="overbought">Overbought (RSI ≥ 70)</option>
-                    <option  value="breakout">Breakout</option>
-                    <option  value="breakdown">Breakdown</option>
-                  </select>
-                </div>
+                    <MenuItem value="oversold">Oversold (RSI ≤ 30)</MenuItem>
+                    <MenuItem value="overbought">Overbought (RSI ≥ 70)</MenuItem>
+                    <MenuItem value="breakout">Breakout</MenuItem>
+                    <MenuItem value="breakdown">Breakdown</MenuItem>
+                  </Select>
+                </FormControl>
               ) : (
-                <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <TextField
                   fullWidth
                   label={
                     alertForm.type === 'price_above' || alertForm.type === 'price_below' ? 'Price' :
@@ -446,70 +446,70 @@ const WatchlistAlerts = ({ watchlistItems, onAlertTriggered }) => {
                   }
                 />
               )}
-            </div>
+            </Grid>
 
-            <div className="grid" item xs={12} sm={6}>
-              <div className="mb-4" fullWidth>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Frequency</InputLabel>
+                <Select
                   value={alertForm.frequency}
                   onChange={(e) => setAlertForm({...alertForm, frequency: e.target.value})}
                 >
-                  <option  value="once">One-time</option>
-                  <option  value="daily">Daily</option>
-                  <option  value="always">Always</option>
-                </select>
-              </div>
-            </div>
+                  <MenuItem value="once">One-time</MenuItem>
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="always">Always</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <div className="grid" item xs={12} sm={6}>
-              <div className="mb-4" fullWidth>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notification Method</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Notification Method</InputLabel>
+                <Select
                   value={alertForm.notificationMethod}
                   onChange={(e) => setAlertForm({...alertForm, notificationMethod: e.target.value})}
                 >
-                  <option  value="browser">Browser Notification</option>
-                  <option  value="email">Email</option>
-                  <option  value="sms">SMS</option>
-                </select>
-              </div>
-            </div>
+                  <MenuItem value="browser">Browser Notification</MenuItem>
+                  <MenuItem value="email">Email</MenuItem>
+                  <MenuItem value="sms">SMS</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <div className="grid" item xs={12}>
-              <div className="mb-4"Label
+            <Grid item xs={12}>
+              <FormControlLabel
                 control={
-                  <input type="checkbox" className="toggle"
+                  <Switch
                     checked={alertForm.enabled}
                     onChange={(e) => setAlertForm({...alertForm, enabled: e.target.checked})}
                   />
                 }
                 label="Enable Alert"
               />
-            </div>
-          </div>
+            </Grid>
+          </Grid>
 
           {Notification.permission === 'default' && (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info" sx={{ mt: 2 }}>
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Button
                 size="small"
                 onClick={requestNotificationPermission}
                 sx={{ mr: 1 }}
               >
                 Enable Notifications
-              </button>
+              </Button>
               Enable browser notifications to receive alerts.
-            </div>
+            </Alert>
           )}
-        </div>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Actions>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setOpenDialog(false)}>Cancel</button>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={handleSaveAlert} variant="contained">
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveAlert} variant="contained">
             {editingAlert ? 'Update' : 'Create'} Alert
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

@@ -181,108 +181,108 @@ const LiveDataDashboard = () => {
   };
 
   return (
-    <div  sx={{ p: 3 }}>
-      <div  variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
         Live Market Data Dashboard
-      </div>
+      </Typography>
 
       {/* Connection Status */}
-      <div className="grid" container spacing={3} sx={{ mb: 3 }}>
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 {getStatusIcon()}
-                <div  variant="h6" sx={{ ml: 1 }}>
+                <Typography variant="h6" sx={{ ml: 1 }}>
                   Connection Status
-                </div>
-              </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                </Typography>
+              </Box>
+              <Chip 
                 label={connectionStatus} 
                 color={getStatusColor()} 
                 variant="outlined"
                 sx={{ mb: 2 }}
               />
-              <div  sx={{ display: 'flex', gap: 1 }}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
                   variant="contained" 
                   onClick={handleConnect}
                   disabled={connectionStatus === 'CONNECTED' || connectionStatus === 'CONNECTING'}
                 >
                   Connect
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                </Button>
+                <Button 
                   variant="outlined" 
                   onClick={handleDisconnect}
                   disabled={connectionStatus === 'DISCONNECTED'}
                 >
                   Disconnect
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="grid" item xs={12} md={6}>
-          <div className="bg-white shadow-md rounded-lg">
-            <div className="bg-white shadow-md rounded-lg"Content>
-              <div  variant="h6" gutterBottom>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
                 Performance Metrics
-              </div>
-              <div className="grid" container spacing={2}>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Latency
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {formatLatency(metrics.lastLatency)}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Messages
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {metrics.messagesReceived || 0}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Avg Latency
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {formatLatency(metrics.avgLatency)}
-                  </div>
-                </div>
-                <div className="grid" item xs={6}>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
                     Uptime
-                  </div>
-                  <div  variant="h6">
+                  </Typography>
+                  <Typography variant="h6">
                     {Math.round((metrics.connectionUptime || 0) / 1000)}s
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Symbol Subscription */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Subscribe to Symbols
-          </div>
-          <div  sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <TextField
               size="small"
               label="Symbol (e.g., AAPL)"
               value={newSymbol}
@@ -290,122 +290,122 @@ const LiveDataDashboard = () => {
               onKeyPress={(e) => e.key === 'Enter' && handleSubscribe()}
               disabled={connectionStatus !== 'CONNECTED'}
             />
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            <Button 
               variant="contained" 
               onClick={handleSubscribe}
               disabled={connectionStatus !== 'CONNECTED' || !newSymbol.trim()}
             >
               Subscribe
-            </button>
-          </div>
-          <div  variant="body2" color="text.secondary">
+            </Button>
+          </Box>
+          <Typography variant="body2" color="text.secondary">
             Active subscriptions: {subscriptions.join(', ') || 'None'}
-          </div>
-        </div>
-      </div>
+          </Typography>
+        </CardContent>
+      </Card>
 
       {/* Market Data Table */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Live Market Data
-          </div>
+          </Typography>
           {Object.keys(marketData).length === 0 ? (
-            <div  color="text.secondary">
+            <Typography color="text.secondary">
               No market data available. Subscribe to symbols to see live data.
-            </div>
+            </Typography>
           ) : (
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer component={Paper} variant="outlined">
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell>Symbol</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Price</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Change %</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Volume</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">Last Update</td>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">Actions</td>
-                  </tr>
-                </thead>
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell align="right">Change</TableCell>
+                    <TableCell align="right">Change %</TableCell>
+                    <TableCell align="right">Volume</TableCell>
+                    <TableCell align="right">Last Update</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {Object.entries(marketData).map(([symbol, data]) => (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={symbol}>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row">
-                        <div  sx={{ display: 'flex', alignItems: 'center' }}>
+                    <TableRow key={symbol}>
+                      <TableCell component="th" scope="row">
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           {data.change > 0 ? (
                             <TrendingUp color="success" fontSize="small" />
                           ) : (
                             <TrendingDown color="error" fontSize="small" />
                           )}
-                          <div  sx={{ ml: 1 }} variant="body2">
+                          <Typography sx={{ ml: 1 }} variant="body2">
                             {symbol}
-                          </div>
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2" fontWeight="bold">
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" fontWeight="bold">
                           {formatPrice(data.price)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography 
                           variant="body2"
                           color={data.change > 0 ? 'success.main' : 'error.main'}
                         >
                           {formatPrice(data.change)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography 
                           variant="body2"
                           color={data.change_percent > 0 ? 'success.main' : 'error.main'}
                         >
                           {formatPercent(data.change_percent)}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2">
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
                           {data.volume?.toLocaleString() || 'N/A'}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right">
-                        <div  variant="body2" color="text.secondary">
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="text.secondary">
                           {data.lastUpdate}
-                        </div>
-                      </td>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="center">
-                        <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Button
                           size="small"
                           onClick={() => handleUnsubscribe(symbol)}
                           color="error"
                         >
                           Unsubscribe
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Activity Log */}
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Activity Log
-          </div>
-          <div  sx={{ height: 200, overflow: 'auto' }}>
+          </Typography>
+          <Box sx={{ height: 200, overflow: 'auto' }}>
             {logs.length === 0 ? (
-              <div  color="text.secondary">
+              <Typography color="text.secondary">
                 No activity yet.
-              </div>
+              </Typography>
             ) : (
               logs.map((log, index) => (
-                <div  
+                <Typography 
                   key={index} 
                   variant="body2" 
                   sx={{ 
@@ -416,13 +416,13 @@ const LiveDataDashboard = () => {
                   }}
                 >
                   <strong>{log.timestamp}</strong>: {log.message}
-                </div>
+                </Typography>
               ))
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 

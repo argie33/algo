@@ -78,9 +78,9 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <div  sx={{ py: 3 }}>
+        <Box sx={{ py: 3 }}>
           {children}
-        </div>
+        </Box>
       )}
     </div>
   )
@@ -187,15 +187,15 @@ function FinancialData() {
     // Handle error response
     if (data?.error) {
       return (
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               <ShowChart />
-              <div  sx={{ ml: 1 }}>Key Metrics</div>
-            </div>
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Error loading key metrics: {data.error}</div>
-          </div>
-        </div>
+              <Box sx={{ ml: 1 }}>Key Metrics</Box>
+            </Typography>
+            <Alert severity="error">Error loading key metrics: {data.error}</Alert>
+          </CardContent>
+        </Card>
       )
     }
     
@@ -204,45 +204,45 @@ function FinancialData() {
     
     if (!metricsData) {
       return (
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               <ShowChart />
-              <div  sx={{ ml: 1 }}>Key Metrics</div>
-            </div>
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">No key metrics data available for {ticker}</div>
-          </div>
-        </div>
+              <Box sx={{ ml: 1 }}>Key Metrics</Box>
+            </Typography>
+            <Alert severity="info">No key metrics data available for {ticker}</Alert>
+          </CardContent>
+        </Card>
       )
     }
 
     // The API returns organized categories, render each category as a separate card
     return (
-      <div>
-        <div  variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <Box>
+        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <ShowChart />
-          <div  sx={{ ml: 1 }}>Key Metrics - {ticker}</div>
-        </div>
+          <Box sx={{ ml: 1 }}>Key Metrics - {ticker}</Box>
+        </Typography>
         
-        <div className="grid" container spacing={3}>
+        <Grid container spacing={3}>
           {Object.entries(metricsData).map(([categoryKey, category]) => (
-            <div className="grid" item xs={12} md={6} lg={4} key={categoryKey}>
-              <div className="bg-white shadow-md rounded-lg">
-                <div className="bg-white shadow-md rounded-lg"Content>
-                  <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+            <Grid item xs={12} md={6} lg={4} key={categoryKey}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                     {/* We can add icons based on category later */}
-                    <div  sx={{ ml: 0 }}>{category.title}</div>
-                  </div>
-                  <hr className="border-gray-200" sx={{ mb: 2 }} />
-                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    <Box sx={{ ml: 0 }}>{category.title}</Box>
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
                         {Object.entries(category.metrics).map(([metricName, value]) => (
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={metricName}>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell component="th" scope="row" sx={{ py: 1, fontSize: '0.875rem' }}>
+                          <TableRow key={metricName}>
+                            <TableCell component="th" scope="row" sx={{ py: 1, fontSize: '0.875rem' }}>
                               {metricName}
-                            </td>
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 1, fontSize: '0.875rem', fontWeight: 'medium' }}>
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 1, fontSize: '0.875rem', fontWeight: 'medium' }}>
                               {value !== null && value !== undefined ? (
                                 typeof value === 'number' ? (
                                   metricName.includes('%') || metricName.includes('Margin') || 
@@ -256,33 +256,33 @@ function FinancialData() {
                                     formatNumber(value)
                                 ) : value
                               ) : 'N/A'}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            </Grid>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Box>
     )
   }
   const renderFinancialTable = (data, title, icon) => {
     // Handle error response
     if (data?.error) {
       return (
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               {icon}
-              <div  sx={{ ml: 1 }}>{title}</div>
-            </div>
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Error loading {title.toLowerCase()}: {data.error}</div>
-          </div>
-        </div>
+              <Box sx={{ ml: 1 }}>{title}</Box>
+            </Typography>
+            <Alert severity="error">Error loading {title.toLowerCase()}: {data.error}</Alert>
+          </CardContent>
+        </Card>
       )
     }
     
@@ -295,15 +295,15 @@ function FinancialData() {
     }
     if (!actualData || !Array.isArray(actualData) || actualData.length === 0) {
       return (
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               {icon}
-              <div  sx={{ ml: 1 }}>{title}</div>
-            </div>
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">No {title.toLowerCase()} data available for {ticker}</div>
-          </div>
-        </div>
+              <Box sx={{ ml: 1 }}>{title}</Box>
+            </Typography>
+            <Alert severity="info">No {title.toLowerCase()} data available for {ticker}</Alert>
+          </CardContent>
+        </Card>
       )
     }
 
@@ -329,54 +329,54 @@ function FinancialData() {
       }));
 
       return (
-        <div className="bg-white shadow-md rounded-lg">
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
               {icon}
-              <div  sx={{ ml: 1 }}>{title} - {ticker}</div>
-            </div>
-            <hr className="border-gray-200" sx={{ mb: 2 }} />
-            <div className="grid" container spacing={3}>
+              <Box sx={{ ml: 1 }}>{title} - {ticker}</Box>
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Grid container spacing={3}>
               {periods.slice(0, 5).map((period, index) => (
-                <div className="grid" item xs={12} md={6} lg={4} key={period.date || index}>
-                  <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                    <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 2 }}>
-                      <div  variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
+                <Grid item xs={12} md={6} lg={4} key={period.date || index}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
                         {period.date ? new Date(period.date).getFullYear() : 'N/A'}
-                      </div>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                      </Typography>
+                      <TableContainer>
+                        <Table size="small">
+                          <TableBody>
                             {period.items && Object.entries(period.items)
                               .slice(0, 10)
                               .map(([key, value]) => (
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ py: 0.5, fontSize: '0.875rem', border: 'none' }}>
+                                <TableRow key={key}>
+                                  <TableCell sx={{ py: 0.5, fontSize: '0.875rem', border: 'none' }}>
                                     {key.replace(/([A-Z])/g, ' $1').trim()}
-                                  </td>
-                                  <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 0.5, fontSize: '0.875rem', fontWeight: 'bold', border: 'none' }}>
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem', fontWeight: 'bold', border: 'none' }}>
                                     {value || value === 0 ? formatCurrency(value, 0) : 'N/A'}
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))}
                             {!period.items && (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell colSpan={2} sx={{ py: 1, fontSize: '0.875rem', border: 'none', textAlign: 'center', color: 'text.secondary' }}>
+                              <TableRow>
+                                <TableCell colSpan={2} sx={{ py: 1, fontSize: '0.875rem', border: 'none', textAlign: 'center', color: 'text.secondary' }}>
                                   No financial data available for this period
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </CardContent>
+                  </Card>
+                </Grid>
               ))}
-            </div>
+            </Grid>
             {/* Trend Chart */}
-            <div  sx={{ mt: 4 }}>
-              <div  variant="h6" gutterBottom>Trend Analysis</div>
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h6" gutterBottom>Trend Analysis</Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={
                   periods.slice(0, 5).reverse().map(period => {
@@ -392,69 +392,69 @@ function FinancialData() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="year" />
                   <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
-                  <div  
+                  <Tooltip 
                     formatter={(value, name) => [formatCurrency(value, 0), 'Value']}
                     labelFormatter={(year) => `Year: ${year}`}
                   />
                   <Line type="monotone" dataKey="value" stroke="#1976d2" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+            </Box>
+          </CardContent>
+        </Card>
       )
     }
 
     // Handle the old structure (periods with items)
     return (
-      <div className="bg-white shadow-md rounded-lg">
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
             {icon}
-            <div  sx={{ ml: 1 }}>{title} - {ticker}</div>
-          </div>
-          <hr className="border-gray-200" sx={{ mb: 2 }} />
-          <div className="grid" container spacing={3}>
+            <Box sx={{ ml: 1 }}>{title} - {ticker}</Box>
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Grid container spacing={3}>
             {actualData.slice(0, 5).map((period, index) => (
-              <div className="grid" item xs={12} md={6} lg={4} key={period.date || index}>
-                <div className="bg-white shadow-md rounded-lg" variant="outlined">
-                  <div className="bg-white shadow-md rounded-lg"Content sx={{ p: 2 }}>
-                    <div  variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
+              <Grid item xs={12} md={6} lg={4} key={period.date || index}>
+                <Card variant="outlined">
+                  <CardContent sx={{ p: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
                       {period.date ? new Date(period.date).getFullYear() : 'N/A'}
-                    </div>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leContainer>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le size="small">
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableBody>
                           {period.items && Object.entries(period.items)
                             .slice(0, 10)
                             .map(([key, value]) => (
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow key={key}>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell sx={{ py: 0.5, fontSize: '0.875rem', border: 'none' }}>
+                              <TableRow key={key}>
+                                <TableCell sx={{ py: 0.5, fontSize: '0.875rem', border: 'none' }}>
                                   {key.replace(/([A-Z])/g, ' $1').trim()}
-                                </td>
-                                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell align="right" sx={{ py: 0.5, fontSize: '0.875rem', fontWeight: 'bold', border: 'none' }}>
+                                </TableCell>
+                                <TableCell align="right" sx={{ py: 0.5, fontSize: '0.875rem', fontWeight: 'bold', border: 'none' }}>
                                   {value || value === 0 ? formatCurrency(value, 0) : 'N/A'}
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
                           {!period.items && (
-                            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
-                              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell colSpan={2} sx={{ py: 1, fontSize: '0.875rem', border: 'none', textAlign: 'center', color: 'text.secondary' }}>
+                            <TableRow>
+                              <TableCell colSpan={2} sx={{ py: 1, fontSize: '0.875rem', border: 'none', textAlign: 'center', color: 'text.secondary' }}>
                                 No financial data available for this period
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
             ))}
-          </div>
+          </Grid>
           {/* Trend Chart */}
-          <div  sx={{ mt: 4 }}>
-            <div  variant="h6" gutterBottom>Trend Analysis</div>
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" gutterBottom>Trend Analysis</Typography>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={
                 actualData.slice(0, 5).reverse().map(period => {
@@ -470,36 +470,36 @@ function FinancialData() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year" />
                 <YAxis tickFormatter={(value) => formatCurrency(value, 0)} />
-                <div  
+                <Tooltip 
                   formatter={(value, name) => [formatCurrency(value, 0), 'Value']}
                   labelFormatter={(year) => `Year: ${year}`}
                 />
                 <Line type="monotone" dataKey="value" stroke="#1976d2" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+          </Box>
+        </CardContent>
+      </Card>
     )
   }
   return (
-    <div className="container mx-auto" maxWidth="xl">
-      <div  sx={{ py: 3 }}>
+    <Container maxWidth="xl">
+      <Box sx={{ py: 3 }}>
         {/* Enhanced Header */}
-        <div  sx={{ mb: 4 }}>
-          <div  variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
             📊 Financial Data Analysis
-          </div>
-          <div  variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
             Comprehensive financial statements, earnings data, and institutional-grade fundamental analysis
-          </div>
-        </div>
+          </Typography>
+        </Box>
         
         {/* Search Section */}
-        <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-          <div className="bg-white shadow-md rounded-lg"Content>
-            <div className="grid" container spacing={2} alignItems="center">
-                <div className="grid" item xs={12} md={4}>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} md={4}>
                 <Autocomplete
                   options={safeCompanies}
                   getOptionLabel={(option) => `${option.ticker} - ${option.short_name || option.ticker}`}
@@ -510,7 +510,7 @@ function FinancialData() {
                     }
                   }}
                   renderInput={(params) => (
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <TextField
                       {...params}
                       label="Select Company"
                       placeholder="Search companies..."
@@ -521,20 +521,20 @@ function FinancialData() {
                     />
                   )}
                   renderOption={(props, option) => (
-                    <div  component="li" {...props}>
-                      <div>
-                        <div  variant="body2" sx={{ fontWeight: 'bold' }}>
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                           {option.ticker}
-                        </div>
-                        <div  variant="caption" color="text.secondary">
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
                           {option.short_name}
-                        </div>
-                      </div>
-                    </div>
+                        </Typography>
+                      </Box>
+                    </Box>
                   )}
                 />
-              </div>
-              <div className="grid" item xs={12} md={4}>
+              </Grid>
+              <Grid item xs={12} md={4}>
                 <ToggleButtonGroup
                   value={period}
                   exclusive
@@ -544,68 +544,68 @@ function FinancialData() {
                   <ToggleButton value="annual">Annual</ToggleButton>
                   <ToggleButton value="quarterly">Quarterly</ToggleButton>
                   <ToggleButton value="ttm">TTM</ToggleButton>                </ToggleButtonGroup>
-              </div>
-            </div>
-          </div>
-        </div>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
-        {/* Tabs */}        <div  sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <div className="border-b border-gray-200" value={tabValue} onChange={handleTabChange}>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Balance Sheet" icon={<AccountBalance />} />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Income Statement" icon={<Analytics />} />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Cash Flow" icon={<Timeline />} />
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" label="Key Metrics" icon={<ShowChart />} />
-          </div>
-        </div>
+        {/* Tabs */}        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs value={tabValue} onChange={handleTabChange}>
+            <Tab label="Balance Sheet" icon={<AccountBalance />} />
+            <Tab label="Income Statement" icon={<Analytics />} />
+            <Tab label="Cash Flow" icon={<Timeline />} />
+            <Tab label="Key Metrics" icon={<ShowChart />} />
+          </Tabs>
+        </Box>
 
         {/* Tab Panels */}
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0}>
           {balanceSheetLoading ? (
-            <div  display="flex" justifyContent="center" p={4}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-            </div>
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
           ) : balanceSheetError ? (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load balance sheet: {balanceSheetError.message}</div>
+            <Alert severity="error">Failed to load balance sheet: {balanceSheetError.message}</Alert>
           ) : (
             renderFinancialTable(balanceSheet, 'Balance Sheet', <AccountBalance />)
           )}
-        </div>
+        </TabPanel>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={1}>
           {incomeStatementLoading ? (
-            <div  display="flex" justifyContent="center" p={4}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-            </div>
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
           ) : incomeStatementError ? (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load income statement: {incomeStatementError.message}</div>
+            <Alert severity="error">Failed to load income statement: {incomeStatementError.message}</Alert>
           ) : (
             renderFinancialTable(incomeStatement, 'Income Statement', <Analytics />)
           )}
-        </div>
+        </TabPanel>
 
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={2}>
           {cashFlowLoading ? (
-            <div  display="flex" justifyContent="center" p={4}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-            </div>
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
           ) : cashFlowError ? (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load cash flow: {cashFlowError.message}</div>          ) : (
+            <Alert severity="error">Failed to load cash flow: {cashFlowError.message}</Alert>          ) : (
             renderFinancialTable(cashFlowStatement, 'Cash Flow Statement', <Timeline />)
           )}
-        </div>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"Panel value={tabValue} index={3}>
+        </TabPanel>
+        <TabPanel value={tabValue} index={3}>
           {keyMetricsLoading ? (
-            <div  display="flex" justifyContent="center" p={4}>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
-            </div>
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
           ) : keyMetricsError ? (
-            <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error">Failed to load key metrics: {keyMetricsError.message}</div>
+            <Alert severity="error">Failed to load key metrics: {keyMetricsError.message}</Alert>
           ) : (
             renderKeyMetrics(keyMetrics)
           )}
-        </div>
-      </div>
-    </div>
+        </TabPanel>
+      </Box>
+    </Container>
   )
 }
 

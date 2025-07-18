@@ -7,6 +7,7 @@ import {
   Typography,
   Alert
 } from '@mui/material';
+import { Close } from '@mui/icons-material';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
 import ConfirmationForm from './ConfirmationForm';
@@ -73,7 +74,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+    <Dialog
       open={open}
       onClose={handleClose}
       maxWidth="sm"
@@ -82,7 +83,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         sx: { borderRadius: 2 }
       }}
     >
-      <div 
+      <Box
         display="flex"
         justifyContent="space-between"
         alignItems="center"
@@ -90,23 +91,23 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
         borderBottom={1}
         borderColor="divider"
       >
-        <div  variant="h6" component="h2">
+        <Typography variant="h6" component="h2">
           {getTitle()}
-        </div>
-        <button className="p-2 rounded-full hover:bg-gray-100"
+        </Typography>
+        <IconButton
           onClick={handleClose}
           size="small"
           aria-label="close"
         >
           <Close />
-        </button>
-      </div>
+        </IconButton>
+      </Box>
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"Content sx={{ p: 0 }}>
+      <DialogContent sx={{ p: 0 }}>
         {successMessage && (
-          <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="success" sx={{ m: 2, mb: 0 }}>
+          <Alert severity="success" sx={{ m: 2, mb: 0 }}>
             {successMessage}
-          </div>
+          </Alert>
         )}
 
         {mode === AUTH_MODES.LOGIN && (
@@ -163,8 +164,8 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
             }}
           />
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

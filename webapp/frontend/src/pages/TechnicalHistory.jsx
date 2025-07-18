@@ -58,7 +58,7 @@ import { formatNumber, formatDate, formatCurrency } from '../utils/formatters';
 function PriceHistory() {
   const { symbol } = useParams();
   const navigate = useNavigate();
-  const theme = { palette: { mode: "light" } };
+  const theme = useTheme();
   
   // Core state
   const [data, setData] = useState([]);
@@ -291,65 +291,65 @@ function PriceHistory() {
     ];
 
     return (
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div  variant="h6" gutterBottom>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
             Latest Data ({formatDate(latest.date)})
-          </div>
-          <div className="grid" container spacing={2}>
+          </Typography>
+          <Grid container spacing={2}>
             {stats.map((stat, index) => (
-              <div className="grid" item xs={6} sm={3} key={index}>
-                <div  textAlign="center">
-                  <div  variant="h6" color={`${stat.color}.main`}>
+              <Grid item xs={6} sm={3} key={index}>
+                <Box textAlign="center">
+                  <Typography variant="h6" color={`${stat.color}.main`}>
                     {stat.value}
-                  </div>
-                  <div  variant="body2" color="text.secondary">
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     {stat.label}
-                  </div>
-                </div>
-              </div>
+                  </Typography>
+                </Box>
+              </Grid>
             ))}
-          </div>
-        </div>
-      </div>
+          </Grid>
+        </CardContent>
+      </Card>
     );
   };
 
   // Render table view
   const renderTableView = () => (
-    <div className="bg-white shadow-md rounded-lg p-4" sx={{ width: '100%', overflow: 'hidden' }}>
-      <div  sx={{ overflowX: 'auto' }}>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"le stickyHeader size="small">
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leHead>
-            <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow>
+    <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+      <Box sx={{ overflowX: 'auto' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
               {displayColumns.map(column => (
-                <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell key={column.id} sx={{ fontWeight: 'bold', minWidth: 100 }}>
+                <TableCell key={column.id} sx={{ fontWeight: 'bold', minWidth: 100 }}>
                   {column.label}
-                </td>
+                </TableCell>
               ))}
-            </tr>
-          </thead>
-          <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leBody>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {filteredData.map((row, index) => (
-              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leRow hover key={`${row.date}-${index}`}>
+              <TableRow hover key={`${row.date}-${index}`}>
                 {displayColumns.map(column => {
                   const value = row[column.id];
                   
                   return (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leCell 
+                    <TableCell 
                       key={column.id} 
                       align={typeof value === 'number' ? 'right' : 'left'}
                     >
                       {column.format ? column.format(value) : (value || 'N/A')}
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+          </TableBody>
+        </Table>
+      </Box>
+      <TablePagination
         component="div"
         count={total}
         page={page}
@@ -358,59 +358,59 @@ function PriceHistory() {
         onRowsPerPageChange={handleRowsPerPageChange}
         rowsPerPageOptions={[10, 25, 50, 100]}
       />
-    </div>
+    </Paper>
   );
 
   // Render card view
   const renderCardView = () => (
-    <div>
-      <div className="grid" container spacing={2}>
+    <Box>
+      <Grid container spacing={2}>
         {filteredData.map((row, index) => (
-          <div className="grid" item xs={12} sm={6} md={4} key={`${row.date}-${index}`}>
-            <div className="bg-white shadow-md rounded-lg">
-              <div className="bg-white shadow-md rounded-lg"Content>
-                <div  variant="h6" gutterBottom>
+          <Grid item xs={12} sm={6} md={4} key={`${row.date}-${index}`}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
                   {formatDate(row.date)}
-                </div>
-                <div className="flex flex-col space-y-2" spacing={1}>
-                  <div  display="flex" justifyContent="space-between">
-                    <div  variant="body2">Close:</div>
-                    <div  variant="body2" fontWeight="bold">
+                </Typography>
+                <Stack spacing={1}>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">Close:</Typography>
+                    <Typography variant="body2" fontWeight="bold">
                       {formatCurrency(row.close)}
-                    </div>
-                  </div>
-                  <div  display="flex" justifyContent="space-between">
-                    <div  variant="body2">Volume:</div>
-                    <div  variant="body2">
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">Volume:</Typography>
+                    <Typography variant="body2">
                       {formatNumber(row.volume, 0)}
-                    </div>
-                  </div>
-                  <div  display="flex" justifyContent="space-between">
-                    <div  variant="body2">Open:</div>
-                    <div  variant="body2">
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">Open:</Typography>
+                    <Typography variant="body2">
                       {formatCurrency(row.open)}
-                    </div>
-                  </div>
-                  <div  display="flex" justifyContent="space-between">
-                    <div  variant="body2">High:</div>
-                    <div  variant="body2" color="success.main">
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">High:</Typography>
+                    <Typography variant="body2" color="success.main">
                       {formatCurrency(row.high)}
-                    </div>
-                  </div>
-                  <div  display="flex" justifyContent="space-between">
-                    <div  variant="body2">Low:</div>
-                    <div  variant="body2" color="error.main">
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">Low:</Typography>
+                    <Typography variant="body2" color="error.main">
                       {formatCurrency(row.low)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </div>
-      <div  display="flex" justifyContent="center" mt={3}>
-        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"lePagination
+      </Grid>
+      <Box display="flex" justifyContent="center" mt={3}>
+        <TablePagination
           component="div"
           count={total}
           page={page}
@@ -419,54 +419,54 @@ function PriceHistory() {
           onRowsPerPageChange={handleRowsPerPageChange}
           rowsPerPageOptions={[6, 12, 24, 48]}
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 
   return (
-    <div className="container mx-auto" maxWidth="xl" sx={{ py: 3 }}>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
       {/* Header */}
-      <div  display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <div  display="flex" alignItems="center" gap={2}>
-          <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => navigate(-1)}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+        <Box display="flex" alignItems="center" gap={2}>
+          <IconButton onClick={() => navigate(-1)}>
             <ArrowBack />
-          </button>
-          <div  variant="h4">
+          </IconButton>
+          <Typography variant="h4">
             Price History - {symbol}
-          </div>
-        </div>
+          </Typography>
+        </Box>
         
-        <div  display="flex" gap={1}>
-          <div  title="Export Data">
-            <button className="p-2 rounded-full hover:bg-gray-100" onClick={exportData} disabled={!data.length}>
+        <Box display="flex" gap={1}>
+          <Tooltip title="Export Data">
+            <IconButton onClick={exportData} disabled={!data.length}>
               <GetApp />
-            </button>
-          </div>
-          <div  title="Toggle View">
-            <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setViewMode(viewMode === 'table' ? 'cards' : 'table')}>
-              {viewMode === 'table' ? <ViewModule /> : <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"leChart />}
-            </button>
-          </div>
-        </div>
-      </div>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Toggle View">
+            <IconButton onClick={() => setViewMode(viewMode === 'table' ? 'cards' : 'table')}>
+              {viewMode === 'table' ? <ViewModule /> : <TableChart />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
 
       {/* Controls */}
-      <div className="bg-white shadow-md rounded-lg" sx={{ mb: 3 }}>
-        <div className="bg-white shadow-md rounded-lg"Content>
-          <div className="grid" container spacing={2} alignItems="center">
-            <div className="grid" item xs={12} sm={6} md={3}>
-              <div className="mb-4" fullWidth size="small">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value={timeframe} onChange={handleTimeframeChange}>
-                  <option  value="daily">Daily</option>
-                  <option  value="weekly">Weekly</option>
-                  <option  value="monthly">Monthly</option>
-                </select>
-              </div>
-            </div>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Timeframe</InputLabel>
+                <Select value={timeframe} onChange={handleTimeframeChange}>
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={6} md={3}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
                 fullWidth
                 size="small"
                 label="Search"
@@ -480,17 +480,17 @@ function PriceHistory() {
                   ),
                   endAdornment: searchTerm && (
                     <InputAdornment position="end">
-                      <button className="p-2 rounded-full hover:bg-gray-100" size="small" onClick={() => setSearchTerm('')}>
+                      <IconButton size="small" onClick={() => setSearchTerm('')}>
                         <Clear />
-                      </button>
+                      </IconButton>
                     </InputAdornment>
                   )
                 }}
               />
-            </div>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={6} md={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
                 fullWidth
                 size="small"
                 type="date"
@@ -499,10 +499,10 @@ function PriceHistory() {
                 onChange={(e) => setDateFrom(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
-            </div>
+            </Grid>
             
-            <div className="grid" item xs={12} sm={6} md={2}>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
                 fullWidth
                 size="small"
                 type="date"
@@ -511,46 +511,46 @@ function PriceHistory() {
                 onChange={(e) => setDateTo(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
-            </div>
+            </Grid>
             
-            <div className="grid" item xs={12} md={2}>
-              <div  display="flex" gap={1}>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <Grid item xs={12} md={2}>
+              <Box display="flex" gap={1}>
+                <Button
                   variant="outlined"
                   startIcon={<FilterList />}
                   onClick={() => setShowFilters(!showFilters)}
                   size="small"
                 >
                   Filters
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                </Button>
+                <Button
                   variant="outlined"
                   startIcon={<Clear />}
                   onClick={clearFilters}
                   size="small"
                 >
                   Clear
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* Advanced Filters */}
       {showFilters && (
         <Accordion expanded={showFilters}>
           <AccordionSummary expandIcon={<ExpandMore />}>
-            <div>Advanced Filters & Column Selection</div>
+            <Typography>Advanced Filters & Column Selection</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <div className="grid" container spacing={3}>
+            <Grid container spacing={3}>
               {/* Price & Volume Filters */}
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Price & Volume Filters</div>
-                <div className="grid" container spacing={2}>
-                  <div className="grid" item xs={6}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Price & Volume Filters</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <TextField
                       fullWidth
                       size="small"
                       label="Min Price"
@@ -559,9 +559,9 @@ function PriceHistory() {
                       value={priceFilters.price_min}
                       onChange={(e) => handlePriceFilterChange('price_min', e.target.value)}
                     />
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
                       fullWidth
                       size="small"
                       label="Max Price"
@@ -570,9 +570,9 @@ function PriceHistory() {
                       value={priceFilters.price_max}
                       onChange={(e) => handlePriceFilterChange('price_max', e.target.value)}
                     />
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
                       fullWidth
                       size="small"
                       label="Min Volume"
@@ -580,9 +580,9 @@ function PriceHistory() {
                       value={priceFilters.volume_min}
                       onChange={(e) => handlePriceFilterChange('volume_min', e.target.value)}
                     />
-                  </div>
-                  <div className="grid" item xs={6}>
-                    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
                       fullWidth
                       size="small"
                       label="Max Volume"
@@ -590,27 +590,27 @@ function PriceHistory() {
                       value={priceFilters.volume_max}
                       onChange={(e) => handlePriceFilterChange('volume_max', e.target.value)}
                     />
-                  </div>
-                </div>
-              </div>
+                  </Grid>
+                </Grid>
+              </Grid>
 
               {/* Column Selection */}
-              <div className="grid" item xs={12} md={6}>
-                <div  variant="h6" gutterBottom>Visible Columns</div>
-                <div className="border-b border-gray-200" value={activeTab} onChange={handleTabChange} variant="scrollable">
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>Visible Columns</Typography>
+                <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable">
                   {Object.keys(columnCategories).map((category, index) => (
-                    <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300" key={category} label={category.charAt(0).toUpperCase() + category.slice(1)} />
+                    <Tab key={category} label={category.charAt(0).toUpperCase() + category.slice(1)} />
                   ))}
-                </div>
-                <div  sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
+                </Tabs>
+                <Box sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
                   {Object.entries(columnCategories).map(([category, columns], categoryIndex) => (
                     activeTab === categoryIndex && (
-                      <div className="grid" container spacing={1} key={category}>
+                      <Grid container spacing={1} key={category}>
                         {columns.map(column => (
-                          <div className="grid" item xs={6} key={column.id}>
-                            <div className="mb-4"Label
+                          <Grid item xs={6} key={column.id}>
+                            <FormControlLabel
                               control={
-                                <input type="checkbox" className="toggle"
+                                <Switch
                                   checked={visibleColumns[column.id] || false}
                                   onChange={() => toggleColumn(column.id)}
                                   size="small"
@@ -618,14 +618,14 @@ function PriceHistory() {
                               }
                               label={column.label}
                             />
-                          </div>
+                          </Grid>
                         ))}
-                      </div>
+                      </Grid>
                     )
                   ))}
-                </div>
-              </div>
-            </div>
+                </Box>
+              </Grid>
+            </Grid>
           </AccordionDetails>
         </Accordion>
       )}
@@ -635,29 +635,29 @@ function PriceHistory() {
 
       {/* Main Content */}
       {loading ? (
-        <div  display="flex" justifyContent="center" alignItems="center" minHeight={400}>
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" size={60} />
-        </div>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
+          <CircularProgress size={60} />
+        </Box>
       ) : error ? (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           {error}
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={fetchData} sx={{ ml: 2 }}>
+          <Button onClick={fetchData} sx={{ ml: 2 }}>
             Retry
-          </button>
-        </div>
+          </Button>
+        </Alert>
       ) : !data.length ? (
-        <div className="p-4 rounded-md bg-blue-50 border border-blue-200" severity="info">
+        <Alert severity="info">
           No technical data found for {symbol} in the {timeframe} timeframe.
-        </div>
+        </Alert>
       ) : (
         <>
-          <div  variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Showing {filteredData.length} of {total} records
-          </div>
+          </Typography>
           {viewMode === 'table' ? renderTableView() : renderCardView()}
         </>
       )}
-    </div>
+    </Container>
   );
 }
 
