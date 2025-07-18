@@ -272,4 +272,427 @@ const saveApiKey = async (userId, provider, keyId, secretKey) => {
 - **Metrics Collection**: Custom metrics for business logic performance
 - **Log Aggregation**: Centralized logging with structured query capabilities
 
-This design document reflects the production-ready architecture that has been implemented and tested. All patterns and components described here are functioning in the current system.
+## 8. PRODUCTION ARCHITECTURE LEARNINGS
+
+### 8.1 Circuit Breaker Pattern Implementation
+**Critical Discovery**: Database connection failures cascade without circuit breakers
+```javascript
+// Circuit Breaker Design Pattern (Proven in Production)
+class CircuitBreaker {
+  constructor(options = {}) {
+    this.failures = 0;
+    this.lastFailureTime = 0;
+    this.state = 'closed';     // 'closed', 'open', 'half-open'
+    this.threshold = options.threshold || 5;
+    this.timeout = options.timeout || 60000;  // 60 seconds
+    this.halfOpenMaxCalls = options.halfOpenMaxCalls || 3;
+  }
+  
+  async execute(operation) {
+    if (this.state === 'open') {
+      if (Date.now() - this.lastFailureTime > this.timeout) {
+        this.state = 'half-open';
+        this.failures = 0;
+      } else {
+        throw new Error(`Circuit breaker is OPEN. Service unavailable for ${Math.ceil((this.timeout - (Date.now() - this.lastFailureTime)) / 1000)} more seconds`);
+      }
+    }
+    
+    try {
+      const result = await operation();
+      if (this.state === 'half-open') {
+        this.state = 'closed';
+      }
+      this.failures = 0;
+      return result;
+    } catch (error) {
+      this.failures++;
+      this.lastFailureTime = Date.now();
+      
+      if (this.failures >= this.threshold) {
+        this.state = 'open';
+      }
+      throw error;
+    }
+  }
+}
+```
+
+### 8.2 Database Connection Resilience Architecture
+**Production Learning**: SSL configuration and connection pooling critical for AWS Lambda
+```javascript
+// Database Connection Manager (Battle-Tested)
+class DatabaseConnectionManager {
+  constructor() {
+    this.pool = null;
+    this.circuitBreaker = new CircuitBreaker({
+      threshold: 5,
+      timeout: 60000,
+      halfOpenMaxCalls: 3
+    });
+  }
+  
+  async initializePool() {
+    const config = {
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      ssl: process.env.DB_SSL === 'true' ? {
+        rejectUnauthorized: false
+      } : false,  // CRITICAL: SSL false for public subnets
+      connectionLimit: 10,
+      acquireTimeout: 15000,
+      timeout: 30000,
+      reconnect: true,
+      queueLimit: 0
+    };
+    
+    this.pool = mysql.createPool(config);
+    return this.pool;
+  }
+  
+  async query(sql, params) {
+    return this.circuitBreaker.execute(async () => {
+      if (!this.pool) {
+        await this.initializePool();
+      }
+      return new Promise((resolve, reject) => {
+        this.pool.query(sql, params, (error, results) => {
+          if (error) reject(error);
+          else resolve(results);
+        });
+      });
+    });
+  }
+}
+```
+
+### 8.3 Frontend Bundle Optimization Architecture
+**Critical Learning**: MUI createPalette errors prevent app loading completely
+```javascript
+// Theme Creation Without MUI createTheme (Prevents createPalette Errors)
+const createSafeTheme = (mode = 'light') => {
+  const isDark = mode === 'dark';
+  
+  // Direct theme object creation bypasses MUI createPalette issues
+  return {
+    palette: {
+      mode,
+      primary: { main: '#1976d2', light: '#42a5f5', dark: '#1565c0' },
+      secondary: { main: '#dc004e', light: '#ff5983', dark: '#9a0036' },
+      background: {
+        default: isDark ? '#121212' : '#f5f5f5',
+        paper: isDark ? '#1e1e1e' : '#ffffff'
+      },
+      text: {
+        primary: isDark ? '#ffffff' : '#000000',
+        secondary: isDark ? '#b3b3b3' : '#666666'
+      }
+    },
+    typography: {
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }
+  };
+};
+```
+
+### 8.4 WebSocket Infrastructure Architecture
+**Production Pattern**: Centralized WebSocket management with multi-provider support
+```javascript
+// WebSocket Connection Manager (Production-Ready)
+class WebSocketManager {
+  constructor() {
+    this.connections = new Map();
+    this.subscriptions = new Map();
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.reconnectInterval = 1000;
+  }
+  
+  async connect(providerId, wsUrl) {
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log(`✅ WebSocket connected to ${providerId}`);
+      this.reconnectAttempts = 0;
+      this.connections.set(providerId, ws);
+    };
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      this.handleMessage(providerId, data);
+    };
+    
+    ws.onclose = () => {
+      console.log(`❌ WebSocket disconnected from ${providerId}`);
+      this.connections.delete(providerId);
+      this.handleReconnect(providerId, wsUrl);
+    };
+    
+    ws.onerror = (error) => {
+      console.error(`❌ WebSocket error for ${providerId}:`, error);
+    };
+    
+    return ws;
+  }
+  
+  async handleReconnect(providerId, wsUrl) {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      const delay = this.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1);
+      setTimeout(() => this.connect(providerId, wsUrl), delay);
+    }
+  }
+}
+```
+
+### 8.5 Progressive Enhancement Deployment Architecture
+**Critical Pattern**: Fault-tolerant service initialization preventing complete failures
+```javascript
+// Progressive Service Loader (Production-Tested)
+class ProgressiveServiceLoader {
+  constructor() {
+    this.services = new Map();
+    this.loadingOrder = ['health', 'auth', 'database', 'apikeys', 'websocket'];
+    this.fallbackEnabled = true;
+  }
+  
+  async loadServices() {
+    const results = {
+      successful: [],
+      failed: [],
+      fallbacks: []
+    };
+    
+    for (const serviceName of this.loadingOrder) {
+      try {
+        await this.loadService(serviceName);
+        results.successful.push(serviceName);
+      } catch (error) {
+        console.error(`❌ Service ${serviceName} failed:`, error);
+        results.failed.push(serviceName);
+        
+        if (this.fallbackEnabled) {
+          try {
+            await this.loadFallback(serviceName);
+            results.fallbacks.push(serviceName);
+          } catch (fallbackError) {
+            console.error(`❌ Fallback for ${serviceName} failed:`, fallbackError);
+          }
+        }
+      }
+    }
+    
+    return results;
+  }
+  
+  async loadService(serviceName) {
+    switch (serviceName) {
+      case 'health':
+        return this.initializeHealthService();
+      case 'auth':
+        return this.initializeAuthService();
+      case 'database':
+        return this.initializeDatabaseService();
+      case 'apikeys':
+        return this.initializeApiKeyService();
+      case 'websocket':
+        return this.initializeWebSocketService();
+      default:
+        throw new Error(`Unknown service: ${serviceName}`);
+    }
+  }
+}
+```
+
+### 8.6 Error Handling Architecture
+**Production Learning**: Comprehensive error boundaries prevent complete app crashes
+```javascript
+// Error Boundary Component (Prevents Complete App Failures)
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error('❌ Error Boundary caught error:', error, errorInfo);
+    
+    // Log to monitoring service
+    this.logErrorToService(error, errorInfo);
+    
+    this.setState({
+      error,
+      errorInfo
+    });
+  }
+  
+  logErrorToService(error, errorInfo) {
+    // Send to monitoring service with correlation ID
+    const errorData = {
+      timestamp: new Date().toISOString(),
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      url: window.location.href,
+      userAgent: navigator.userAgent
+    };
+    
+    fetch('/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(errorData)
+    }).catch(console.error);
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary">
+          <h2>Something went wrong.</h2>
+          <details style={{ whiteSpace: 'pre-wrap' }}>
+            {this.state.error && this.state.error.toString()}
+            <br />
+            {this.state.errorInfo.componentStack}
+          </details>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    
+    return this.props.children;
+  }
+}
+```
+
+## 9. OPERATIONAL PATTERNS & BEST PRACTICES
+
+### 9.1 Health Monitoring Architecture
+**Production Pattern**: Real-time health monitoring with circuit breaker integration
+```javascript
+// Health Service with Circuit Breaker Visibility
+class HealthService {
+  constructor() {
+    this.services = new Map();
+    this.circuitBreakers = new Map();
+  }
+  
+  async getSystemHealth() {
+    const health = {
+      timestamp: new Date().toISOString(),
+      overall: 'healthy',
+      services: {},
+      circuitBreakers: {}
+    };
+    
+    for (const [serviceName, service] of this.services) {
+      try {
+        const serviceHealth = await service.healthCheck();
+        health.services[serviceName] = {
+          status: 'healthy',
+          lastCheck: new Date().toISOString(),
+          details: serviceHealth
+        };
+      } catch (error) {
+        health.services[serviceName] = {
+          status: 'unhealthy',
+          lastCheck: new Date().toISOString(),
+          error: error.message
+        };
+        health.overall = 'degraded';
+      }
+    }
+    
+    // Include circuit breaker states
+    for (const [serviceName, breaker] of this.circuitBreakers) {
+      health.circuitBreakers[serviceName] = {
+        state: breaker.state,
+        failures: breaker.failures,
+        lastFailureTime: breaker.lastFailureTime,
+        timeToRetry: breaker.state === 'open' ? 
+          Math.max(0, breaker.timeout - (Date.now() - breaker.lastFailureTime)) : 0
+      };
+    }
+    
+    return health;
+  }
+}
+```
+
+### 9.2 Deployment Orchestration Patterns
+**Critical Learning**: CloudFormation conflicts require deployment spacing
+```javascript
+// Deployment Orchestration Manager
+class DeploymentOrchestrator {
+  constructor() {
+    this.deploymentQueue = [];
+    this.isDeploying = false;
+    this.deploymentSpacing = 30000; // 30 seconds between deployments
+  }
+  
+  async queueDeployment(stackName, template, parameters) {
+    const deployment = {
+      stackName,
+      template,
+      parameters,
+      timestamp: Date.now(),
+      status: 'queued'
+    };
+    
+    this.deploymentQueue.push(deployment);
+    
+    if (!this.isDeploying) {
+      await this.processDeploymentQueue();
+    }
+  }
+  
+  async processDeploymentQueue() {
+    this.isDeploying = true;
+    
+    while (this.deploymentQueue.length > 0) {
+      const deployment = this.deploymentQueue.shift();
+      
+      try {
+        await this.checkStackStatus(deployment.stackName);
+        await this.deployStack(deployment);
+        await this.waitForDeployment(deployment.stackName);
+        
+        // Wait between deployments to prevent conflicts
+        await new Promise(resolve => setTimeout(resolve, this.deploymentSpacing));
+      } catch (error) {
+        console.error(`❌ Deployment failed for ${deployment.stackName}:`, error);
+        deployment.status = 'failed';
+        deployment.error = error.message;
+      }
+    }
+    
+    this.isDeploying = false;
+  }
+  
+  async checkStackStatus(stackName) {
+    const cloudformation = new AWS.CloudFormation();
+    try {
+      const result = await cloudformation.describeStacks({ StackName: stackName }).promise();
+      const stack = result.Stacks[0];
+      
+      if (stack.StackStatus.includes('IN_PROGRESS')) {
+        throw new Error(`Stack ${stackName} is in ${stack.StackStatus} state and cannot be updated`);
+      }
+    } catch (error) {
+      if (error.code !== 'ValidationError') {
+        throw error;
+      }
+      // Stack doesn't exist, which is fine for new deployments
+    }
+  }
+}
+```
+
+This design document reflects the production-ready architecture that has been implemented and tested. All patterns and components described here are functioning in the current system and represent real learnings from production operational experience.

@@ -18,40 +18,47 @@ Tasks to enhance security, audit capabilities, and regulatory compliance
 
 ---
 
-## 🚨 CRITICAL PRODUCTION ISSUES
+## 🚨 CRITICAL PRODUCTION ISSUES (UPDATED WITH PRODUCTION LEARNINGS)
 
 ### DEPLOY-004: Fix MUI createPalette Runtime Error
-**Requirement**: REQ-008 Modern React Frontend
-**Status**: ❌ Blocking Production (Critical Issue)
+**Requirement**: REQ-022 Frontend Bundle Optimization & Error Prevention
+**Status**: ❌ Blocking Production (Critical Issue - createPalette.js:195 Uncaught TypeError)
+**Root Cause**: MUI createTheme() function causing "Xa is not a function" error
+**Production Learning**: Direct theme object creation bypasses MUI createPalette issues
 **Implementation Steps**:
-1. Identify specific MUI createPalette deprecated API usage
-2. Update to MUI v5 createTheme API pattern
-3. Test theme creation and palette generation
-4. Validate dark/light theme switching
-5. Test production build with fixed MUI implementation
-6. Deploy and validate frontend functionality
+1. Replace all MUI createTheme() calls with direct theme object creation
+2. Implement createSafeTheme() function using manual theme structure
+3. Update ThemeProvider to use direct theme objects without MUI processing
+4. Test theme creation and palette generation with new approach
+5. Validate dark/light theme switching functionality
+6. Test production build with fixed MUI implementation
+7. Deploy and validate frontend functionality
 
 ### DEPLOY-005: Resolve Missing Environment Variables
 **Requirement**: REQ-011 AWS Serverless Architecture
 **Status**: ❌ Causing 503 Service Unavailable Errors
+**Production Learning**: Environment variable fallback to AWS Secrets Manager critical
 **Implementation Steps**:
 1. Audit all required environment variables across Lambda functions
-2. Identify missing variables causing 503 errors
+2. Identify missing variables causing 503 errors (DB_HOST, DB_USER, DB_PASSWORD)
 3. Update CloudFormation templates with missing environment variables
-4. Test Lambda function initialization with complete environment
-5. Deploy with full environment variable configuration
-6. Monitor and validate service availability
+4. Implement AWS Secrets Manager fallback when direct env vars unavailable
+5. Test Lambda function initialization with complete environment
+6. Deploy with full environment variable configuration
+7. Monitor and validate service availability
 
 ### DEPLOY-006: Data Loader SSL/Connection Issues
-**Requirement**: REQ-001 Multi-Provider API Integration
+**Requirement**: REQ-021 Database Connection Resilience
 **Status**: ❌ Preventing Market Data Ingestion
+**Production Learning**: SSL false required for public subnet RDS connections
 **Implementation Steps**:
-1. Diagnose SSL connection issues with external APIs
-2. Update SSL configuration for market data providers
-3. Test API connectivity with all configured providers
+1. Configure SSL: false for database connections in public subnets
+2. Update ECS task definitions to match working configuration patterns
+3. Test database connectivity with SSL-free configuration
 4. Implement connection retry logic with exponential backoff
 5. Validate data ingestion and storage pipeline
 6. Monitor data quality and ingestion rates
+7. Compare working vs failing ECS task configurations
 
 ---
 

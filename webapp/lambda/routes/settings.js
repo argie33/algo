@@ -5,7 +5,7 @@ const schemaValidator = require('../utils/schemaValidator');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../utils/simpleApiKeyService');
 
 const router = express.Router();
 
@@ -421,98 +421,41 @@ router.get('/api-keys', async (req, res) => {
   }
   
   try {
-    console.log('🔄 Attempting to query user_api_keys table...');
-    console.log('🔍 Query params - userId:', userId, 'type:', typeof userId);
+    console.log('🔄 Fetching API keys from Parameter Store...');
     
-    // First, let's check if ANY keys exist in the table
-    const allKeysResult = await query(`SELECT COUNT(*) as total_keys FROM user_api_keys`);
-    console.log('📊 Total API keys in database (all users):', allKeysResult.rows[0]?.total_keys || 0);
+    // Use the new simple API key service
+    const apiKeys = await apiKeyService.listApiKeys(userId);
     
-    // Now check keys for this specific user
-    const result = await query(`
-      SELECT 
-        id,
-        user_id,
-        provider,
-        description,
-        is_sandbox as "isSandbox",
-        is_active as "isActive",
-        created_at as "createdAt",
-        last_used as "lastUsed"
-      FROM user_api_keys 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC
-    `, [userId]);
-
-    console.log('✅ Database query successful');
-    console.log('📊 Found API keys for user', userId, ':', result.rows.length);
-    console.log('🔍 Raw query result:', result.rows.map(row => ({ 
-      id: row.id, 
-      user_id: row.user_id, 
-      provider: row.provider 
-    })));
-
-    // Don't return the actual encrypted keys for security
-    const apiKeys = result.rows.map(row => ({
-      id: row.id,
-      provider: row.provider,
-      description: row.description,
-      isSandbox: row.isSandbox,
-      isActive: row.isActive,
-      createdAt: row.createdAt,
-      lastUsed: row.lastUsed,
-      apiKey: '****' // Masked for security
+    console.log('✅ API keys fetched successfully');
+    console.log('📊 Found API keys for user', userId, ':', apiKeys.length);
+    
+    // Format for frontend compatibility
+    const formattedApiKeys = apiKeys.map(key => ({
+      id: `${key.provider}-${userId}`, // Generate consistent ID
+      provider: key.provider,
+      description: `${key.provider} API Key`,
+      isSandbox: true, // Default for now
+      isActive: true,
+      createdAt: key.created,
+      lastUsed: null,
+      apiKey: key.keyId // Already masked by service
     }));
 
     console.log('🎯 Returning API keys response');
     res.json({ 
       success: true, 
-      apiKeys 
+      apiKeys: formattedApiKeys
     });
   } catch (error) {
-    console.error('❌ Database error in API keys fetch:', error);
-    console.error('🔍 Error details:', {
-      message: error.message,
-      code: error.code,
-      severity: error.severity,
-      detail: error.detail,
-      hint: error.hint,
-      position: error.position,
-      internalPosition: error.internalPosition,
-      internalQuery: error.internalQuery,
-      where: error.where,
-      schema: error.schema,
-      table: error.table,
-      column: error.column,
-      dataType: error.dataType,
-      constraint: error.constraint,
-      file: error.file,
-      line: error.line,
-      routine: error.routine
-    });
+    console.error('❌ API Key service error:', error);
     
-    // Return more specific error information
-    let errorMessage = 'Failed to fetch API keys';
-    let errorCode = 'DATABASE_ERROR';
-    
-    if (error.code === '42P01') {
-      errorMessage = 'Database table does not exist';
-      errorCode = 'TABLE_NOT_FOUND';
-    } else if (error.code === '28000') {
-      errorMessage = 'Database authentication failed';
-      errorCode = 'DB_AUTH_FAILED';
-    } else if (error.code === 'ECONNREFUSED') {
-      errorMessage = 'Cannot connect to database';
-      errorCode = 'DB_CONNECTION_FAILED';
-    }
-    
-    // Instead of returning error, provide fallback empty list
-    console.log('🔄 Database failed, returning empty API keys list as fallback');
+    // Return fallback empty list for better UX
+    console.log('🔄 API Key service failed, returning empty list as fallback');
     res.json({ 
       success: true, 
       apiKeys: [],
-      note: 'Database connectivity issue - API keys may not be visible temporarily',
-      errorCode: errorCode,
+      note: 'API key service temporarily unavailable',
+      errorCode: 'SERVICE_UNAVAILABLE',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -526,39 +469,13 @@ router.post('/api-keys', async (req, res) => {
   console.log(`🔐 [${requestId}] POST /api-keys - Starting API key creation`);
   console.log(`🔐 [${requestId}] Memory at start:`, process.memoryUsage());
   
-  // Check if encryption service is available
+  // Simple service is always enabled (no complex encryption setup needed)
   if (!apiKeyService.isEnabled) {
-    console.error(`❌ [${requestId}] API Key encryption service is disabled`);
-    
-    // Instead of 503, return 422 (Unprocessable Entity) with guidance
-    return res.status(422).json({
+    console.error(`❌ [${requestId}] API Key service is disabled`);
+    return res.status(503).json({
       success: false,
-      error: 'API key encryption service unavailable',
-      message: 'API key storage is currently unavailable. The encryption service needs to be configured.',
-      setupRequired: true,
-      readOnlyMode: true,
-      guidance: {
-        status: 'encryption_service_unavailable',
-        title: 'API Key Storage Unavailable',
-        description: 'The encryption service for secure API key storage is not configured or accessible.',
-        technicalDetails: {
-          secretConfigured: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN,
-          serviceInitialized: false,
-          timestamp: new Date().toISOString()
-        },
-        actions: [
-          'Contact administrator to configure encryption service',
-          'Use manual portfolio tracking in the meantime',
-          'Check deployment status and CloudFormation stacks'
-        ]
-      },
-      capabilities: {
-        canViewPortfolio: false,
-        canAddApiKeys: false,
-        canViewMarketData: true,
-        canUseDemoData: true,
-        encryptionEnabled: false
-      }
+      error: 'API key service unavailable',
+      message: 'API key storage is currently unavailable.'
     });
   }
   
@@ -606,94 +523,13 @@ router.post('/api-keys', async (req, res) => {
     });
   }
 
-  // Check database availability immediately
-  console.log(`🔍 [${requestId}] Testing database connectivity...`);
   try {
-    const dbStart = Date.now();
-    await query('SELECT 1', [], 2000); // 2 second timeout
-    console.log(`✅ [${requestId}] Database available after ${Date.now() - dbStart}ms`);
-  } catch (dbError) {
-    console.error(`❌ [${requestId}] Database unavailable after ${Date.now() - startTime}ms:`, dbError.message);
-    return res.status(503).json({
-      success: false,
-      error: 'Database temporarily unavailable',
-      message: 'Please try again in a few moments',
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  try {
-    console.log(`🧂 [${requestId}] Generating user salt after ${Date.now() - startTime}ms...`);
-    // Generate user-specific salt with error handling
-    let userSalt;
-    try {
-      userSalt = crypto.randomBytes(16).toString('hex');
-      console.log(`✅ [${requestId}] Salt generated after ${Date.now() - startTime}ms`);
-    } catch (cryptoError) {
-      console.error(`❌ [${requestId}] Failed to generate user salt:`, cryptoError);
-      return res.status(500).json({
-        success: false,
-        error: 'Cryptographic operation failed',
-        message: 'Unable to generate secure salt for API key encryption',
-        requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
+    console.log(`🔐 [${requestId}] Storing API key using Parameter Store after ${Date.now() - startTime}ms...`);
     
-    console.log(`🔐 [${requestId}] Encrypting API credentials after ${Date.now() - startTime}ms...`);
-    // Encrypt API credentials with error handling
-    let encryptedApiKey, encryptedApiSecret;
-    try {
-      const encryptionStart = Date.now();
-      encryptedApiKey = await encryptApiKey(apiKey, userSalt, userId, provider);
-      encryptedApiSecret = apiSecret ? await encryptApiKey(apiSecret, userSalt, userId, provider) : null;
-      console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
-    } catch (encryptError) {
-      console.error(`❌ [${requestId}] Failed to encrypt API credentials:`, encryptError);
-      return res.status(500).json({
-        success: false,
-        error: 'Encryption failed',
-        message: 'Unable to securely encrypt API credentials',
-        requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    console.log(`💾 [${requestId}] Attempting database insert after ${Date.now() - startTime}ms...`);
-    // Insert into database
-    const insertStart = Date.now();
-    const result = await query(`
-      INSERT INTO user_api_keys (
-        user_id, 
-        provider, 
-        encrypted_api_key, 
-        key_iv, 
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox, 
-        description,
-        is_active,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW())
-      RETURNING id, provider, description, is_sandbox as "isSandbox", created_at as "createdAt"
-    `, [
-      userId,
-      provider,
-      encryptedApiKey.encrypted,
-      encryptedApiKey.iv,
-      encryptedApiKey.authTag,
-      encryptedApiSecret?.encrypted || null,
-      encryptedApiSecret?.iv || null,
-      encryptedApiSecret?.authTag || null,
-      userSalt,
-      isSandbox,
-      description
-    ], 15000); // 15 second timeout for insert
-    
-    console.log(`✅ [${requestId}] Database insert completed after ${Date.now() - insertStart}ms`);
+    // Store API key using simple Parameter Store service
+    const storeStart = Date.now();
+    await apiKeyService.storeApiKey(userId, provider, apiKey, apiSecret);
+    console.log(`✅ [${requestId}] API key stored successfully after ${Date.now() - storeStart}ms`);
     
     // Trigger portfolio data refresh for this user's portfolio symbols
     console.log(`🔄 [${requestId}] Triggering portfolio data refresh after ${Date.now() - startTime}ms...`);
@@ -710,7 +546,12 @@ router.post('/api-keys', async (req, res) => {
     res.json({
       success: true,
       message: 'API key added successfully',
-      apiKey: result.rows[0]
+      apiKey: {
+        provider,
+        description: description || `${provider} API key`,
+        isSandbox,
+        createdAt: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error(`❌ [${requestId}] Error after ${Date.now() - startTime}ms:`, error.message);
@@ -819,18 +660,43 @@ router.put('/api-keys/:keyId', createValidationMiddleware(settingsValidationSche
 });
 
 // Delete API key
-router.delete('/api-keys/:keyId', async (req, res) => {
+router.delete('/api-keys/:provider', async (req, res) => {
   const userId = req.user.sub;
-  const { keyId } = req.params;
+  const { provider } = req.params;
 
   try {
-    const result = await query(`
-      DELETE FROM user_api_keys 
-      WHERE id = $1 AND user_id = $2
-      RETURNING id, provider
-    `, [keyId, userId]);
+    // Delete from Parameter Store
+    await apiKeyService.deleteApiKey(userId, provider);
 
-    if (result.rows.length === 0) {
+    res.json({
+      success: true,
+      message: 'API key deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    if (error.name === 'ParameterNotFound') {
+      return res.status(404).json({
+        success: false,
+        error: 'API key not found'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete API key',
+      message: error.message
+    });
+  }
+});
+
+// Get API key (without exposing the secret)
+router.get('/api-keys/:provider', async (req, res) => {
+  const userId = req.user.sub;
+  const { provider } = req.params;
+
+  try {
+    const apiKey = await apiKeyService.getApiKey(userId, provider);
+    
+    if (!apiKey) {
       return res.status(404).json({
         success: false,
         error: 'API key not found'
@@ -839,23 +705,30 @@ router.delete('/api-keys/:keyId', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'API key deleted successfully'
+      apiKey: {
+        provider: apiKey.provider,
+        keyId: apiKey.keyId.substring(0, 4) + '***' + apiKey.keyId.slice(-4),
+        hasSecret: !!apiKey.secretKey,
+        created: apiKey.created,
+        version: apiKey.version
+      }
     });
   } catch (error) {
-    console.error('Error deleting API key:', error);
+    console.error('Error retrieving API key:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete API key'
+      error: 'Failed to retrieve API key',
+      message: error.message
     });
   }
 });
 
 // Test API key connection
-router.post('/test-connection/:keyId', async (req, res) => {
+router.post('/test-connection/:provider', async (req, res) => {
   const requestId = crypto.randomUUID().split('-')[0];
   const requestStart = Date.now();
   const userId = req.user.sub;
-  const { keyId } = req.params;
+  const { provider } = req.params;
 
   try {
     console.log(`🚀 [${requestId}] API key connection test initiated`, {

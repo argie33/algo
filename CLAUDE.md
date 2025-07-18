@@ -220,7 +220,7 @@ Frontend configuration now working with real Cognito values:
 2. **✅ COGNITO DEBUGGING ENHANCED** - Comprehensive CloudFormation output extraction with multi-stack fallback
 3. **✅ FRONTEND BUNDLE OPTIMIZED** - Removed 500KB+ unused dependencies, improved code splitting
 4. **✅ INFRASTRUCTURE DEBUGGING METHODOLOGY** - Created systematic diagnostic approach for future issues
-5. **✅ DOCUMENTATION UPDATED** - Enhanced TEST_PLAN.md and FINANCIAL_PLATFORM_BLUEPRINT.md with learnings
+5. **✅ DOCUMENTATION UPDATED** - Enhanced requirements.md and design.md with learned patterns and fixes
 6. **✅ PRODUCTION DEPLOYMENT CHECKLIST** - Comprehensive pre/post deployment validation framework
 
 ### ⏳ ACTIVE DEPLOYMENTS IN PROGRESS:
@@ -279,6 +279,13 @@ The project is driven by 3 core documents that must be continuously updated and 
 - **ONLY work on tasks with status 'pending'**
 - **UPDATE TodoWrite after any status changes**
 
+## ⚠️ CRITICAL DOCUMENTATION RULE ⚠️
+**ONLY USE THESE 3 DOCUMENTS**: requirements.md, design.md, tasks.md
+- **NEVER create**: Any other .md files including STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, etc.
+- **NEVER reference**: Documents that don't exist or conflict with the 3 core documents
+- **ALL project information**: Must be in requirements.md, design.md, or tasks.md ONLY
+- **Task management**: Use TodoRead/TodoWrite tools, not separate markdown files
+
 ## Task Management - CRITICAL WORKFLOW
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
 - **Update todos continuously**: Mark items complete as you finish them, add new items as discovered
@@ -292,8 +299,8 @@ The project is driven by 3 core documents that must be continuously updated and 
 **CRITICAL RULE**: All new features MUST follow test-driven development methodology.
 
 ### TDD Workflow Requirements
-1. **Test First**: Before implementing any new feature, write tests in TEST_PLAN.md
-2. **Test Definition**: Define test cases, expected behaviors, edge cases, and validation criteria
+1. **Test First**: Before implementing any new feature, write tests in requirements.md acceptance criteria
+2. **Test Definition**: Define test cases, expected behaviors, edge cases, and validation criteria in requirements.md
 3. **Implementation**: Only after tests are defined, implement the feature to pass the tests
 4. **Validation**: Run tests to ensure feature works as expected
 5. **Refactor**: Improve code quality while maintaining test compliance
@@ -305,11 +312,11 @@ The project is driven by 3 core documents that must be continuously updated and 
 - **Performance Tests**: Load testing and response time validation
 - **Security Tests**: Authentication, authorization, and input validation testing
 
-### Test Documentation in TEST_PLAN.md
-- Each new feature must have corresponding test section in TEST_PLAN.md
+### Test Documentation in requirements.md
+- Each new feature must have corresponding test requirements in requirements.md acceptance criteria
 - Test cases must be detailed with input data, expected output, and validation steps
-- Performance benchmarks and acceptance criteria must be defined
-- Error handling and edge case testing must be specified
+- Performance benchmarks and acceptance criteria must be defined in requirements.md
+- Error handling and edge case testing must be specified in requirements.md
 
 ## Comprehensive Logging Strategy - TROUBLESHOOTING CRITICAL
 **MANDATORY**: Implement thorough logging for all system components to enable effective troubleshooting.
@@ -568,23 +575,22 @@ const logEntry = {
 - **Request Tracing**: End-to-end correlation IDs for debugging and monitoring
 
 ## Documentation Management - CRITICAL
-⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 4 .MD FILES - NO EXCEPTIONS** ⚠️
+⚠️ **ABSOLUTE RULE: ONLY WORK WITH THESE 3 .MD FILES - NO EXCEPTIONS** ⚠️
 
-### THE ONLY 4 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
-1. **FINANCIAL_PLATFORM_BLUEPRINT.md** - Technical blueprint
-2. **TEST_PLAN.md** - Testing strategy
-3. **DESIGN.md** - System design
-4. **claude-todo.md** - Todo management (auto-managed by TodoRead/TodoWrite)
+### THE ONLY 3 ALLOWED .MD FILES FOR PROJECT MANAGEMENT:
+1. **requirements.md** - Feature requirements & acceptance criteria
+2. **design.md** - Technical design & implementation specifications
+3. **tasks.md** - Implementation tasks & delivery plan
 
 ### STRICT PROHIBITIONS:
 - **NEVER create ANY new .md files** - STATUS.md, PLAN.md, ANALYSIS.md, REPORT.md, SUMMARY.md, DEVELOPMENT_TASKS.md, etc.
 - **NEVER create temporary .md files** - even for "quick notes" or "session summaries"
 - **NEVER create workflow .md files** - deployment guides, fix summaries, etc.
-- **ALL project management MUST happen in the 4 core documents above**
-- **ALL findings, status, plans, analyses MUST be integrated into the 4 core documents**
+- **ALL project management MUST happen in the 3 core documents above**
+- **ALL findings, status, plans, analyses MUST be integrated into the 3 core documents**
 
 ### ENFORCEMENT:
 - If you start creating a new .md file, STOP immediately
 - If you need to document something, choose the appropriate core document
 - If unsure which core document to use, ask the user
-- These 4 documents are the ONLY source of truth for all project information
+- These 3 documents are the ONLY source of truth for all project information

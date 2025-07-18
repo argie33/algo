@@ -231,8 +231,7 @@ Resources:
           DB_CONNECT_TIMEOUT: '30000'
           DB_POOL_MAX: '3'
           DB_POOL_IDLE_TIMEOUT: '30000'
-          # API key encryption secret
-          API_KEY_ENCRYPTION_SECRET_ARN: !ImportValue StocksApp-ApiKeyEncryptionSecretArn
+          # API key management now uses AWS Parameter Store (no encryption secret needed)
       Events:
         ApiProxy:
           Type: Api
@@ -297,7 +296,6 @@ Resources:
                   - secretsmanager:DescribeSecret
                 Resource: 
                   - !Ref DatabaseSecretArn
-                  - !ImportValue StocksApp-ApiKeyEncryptionSecretArn
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
@@ -310,6 +308,23 @@ Resources:
                   - cognito-idp:AdminUpdateUserAttributes
                   - cognito-idp:AdminDeleteUser
                 Resource: !GetAtt UserPool.Arn
+        - PolicyName: ApiKeyManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                  - ssm:GetParametersByPath
+                Resource: 
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/financial-platform/users/*'
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*'
 
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
