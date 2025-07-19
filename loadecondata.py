@@ -395,14 +395,20 @@ def handler(event, context):
     try:
         # 1) Connect
         user, pwd, host, port, db = get_db_creds()
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            dbname=db,
-            user=user,
-            password=pwd,
-            sslmode="require"
-        )
+        
+        # Use proven connection pattern from working loaders
+        ssl_config = {
+            'host': host,
+            'port': port,
+            'user': user,
+            'password': pwd,
+            'dbname': db,
+            'sslmode': 'require',
+            'connect_timeout': 30,
+            'application_name': 'econdata-loader'
+        }
+        
+        conn = psycopg2.connect(**ssl_config)
         cur = conn.cursor()
 
         # 2) Ensure tables exist
