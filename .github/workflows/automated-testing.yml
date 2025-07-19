@@ -2,7 +2,8 @@ name: Automated Testing Suite
 
 on:
   push:
-    branches: [ main, develop, initialbuild ]
+    branches: [ main, develop ]
+    # Note: initialbuild branch testing handled by deploy-webapp.yml
   pull_request:
     branches: [ main, develop ]
   schedule:
@@ -72,11 +73,11 @@ jobs:
           webapp/frontend/test-results/
           webapp/frontend/coverage/
           
-  # Integration Tests
+  # Integration Tests - DISABLED: Now handled by deploy-webapp.yml
   integration-tests:
-    name: Integration Tests
+    name: Integration Tests (Disabled - Use deploy-webapp workflow)
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.test_suite == 'integration' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+    if: false  # Disabled - integration tests now run in deploy-webapp.yml
     
     services:
       postgres:
