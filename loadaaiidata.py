@@ -406,6 +406,23 @@ if __name__ == "__main__":
         except Exception as e:
             logging.warning(f"⚠️ Could not determine container IP: {e}")
         
+        # Download RDS CA certificate if not present
+        import urllib.request
+        import os
+        
+        ca_cert_path = '/tmp/rds-ca-2019-root.pem'
+        if not os.path.exists(ca_cert_path):
+            try:
+                logging.info("📥 Downloading RDS CA certificate...")
+                ca_cert_url = 'https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem'
+                urllib.request.urlretrieve(ca_cert_url, ca_cert_path)
+                logging.info(f"✅ Downloaded RDS CA certificate to {ca_cert_path}")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not download RDS CA certificate: {e}")
+                ca_cert_path = None
+        else:
+            logging.info(f"✅ Using existing RDS CA certificate at {ca_cert_path}")
+
         # Attempt connection with retry logic
         max_retries = 3
         retry_delay = 5
@@ -444,21 +461,30 @@ if __name__ == "__main__":
                         
                 test_socket.close()
                 
-                # Attempt PostgreSQL connection
-                logging.info("🔌 Attempting PostgreSQL connection...")
+                # Attempt PostgreSQL connection with proper SSL configuration
+                logging.info("🔌 Attempting PostgreSQL connection with SSL...")
                 logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
-                conn = psycopg2.connect(
-                    host=cfg["host"], 
-                    port=cfg["port"],
-                    user=cfg["user"], 
-                    password=cfg["password"],
-                    dbname=cfg["dbname"],
-                    sslmode='require',
-                    sslcert=None,
-                    sslkey=None,
-                    sslrootcert=None,
-                    connect_timeout=30
-                )
+                
+                # Use proper SSL configuration for RDS
+                ssl_config = {
+                    'host': cfg["host"], 
+                    'port': cfg["port"],
+                    'user': cfg["user"], 
+                    'password': cfg["password"],
+                    'dbname': cfg["dbname"],
+                    'sslmode': 'require',
+                    'connect_timeout': 30,
+                    'application_name': 'aaii-data-loader'
+                }
+                
+                # Add CA certificate if available
+                if ca_cert_path and os.path.exists(ca_cert_path):
+                    ssl_config['sslrootcert'] = ca_cert_path
+                    logging.info(f"🔐 Using SSL with CA certificate: {ca_cert_path}")
+                else:
+                    logging.info("🔐 Using SSL without CA certificate verification")
+                
+                conn = psycopg2.connect(**ssl_config)
                 
                 logging.info("✅ Database connection established successfully")
                 break

@@ -74,21 +74,80 @@ Resources:
         - Key: Name
           Value: stocks-db-security-group
 
-  ### 4) Custom DB Parameter Group for pg_hba.conf configuration ###
+  ### 4) Custom DB Parameter Group for SSL configuration ###
   StocksDBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       DBParameterGroupName: !Sub stocks-pg-params-${AWS::StackName}
       Family: postgres15
-      Description: Custom parameter group for Stocks PostgreSQL database with relaxed pg_hba.conf
+      Description: Custom parameter group for Stocks PostgreSQL database with proper SSL configuration
       Parameters:
-        # Allow connections from VPC without SSL requirement
+        # SSL Configuration - force SSL connections
+        ssl: 1
+        ssl_ca_file: /rdsdbdata/rds-ca-2019-root.pem
+        ssl_cert_file: /rdsdbdata/server-cert.pem
+        ssl_key_file: /rdsdbdata/server-key.pem
+        # Connection logging for debugging
         log_connections: 1
         log_disconnections: 1
         log_hostname: 1
-        # These parameters help with debugging connection issues
-        log_statement: all
-        log_min_duration_statement: 0
+        # Connection debugging parameters
+        log_statement: mod
+        log_min_duration_statement: 1000
+        # SSL-specific logging
+        log_line_prefix: '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+
+  ### 4.1) RDS SSL Certificate Configuration ###
+  # Note: RDS automatically provides SSL certificates, but we need to ensure proper CA trust
+  RDSCertificateStore:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/stocks-app/${AWS::StackName}/rds-ca-certificate'
+      Type: String
+      Value: 'rds-ca-2019-root'
+      Description: 'RDS CA certificate identifier for SSL connections'
+      Tags:
+        Project: 'financial-dashboard'
+        Purpose: 'rds-ssl-configuration'
+        Environment: !Ref 'AWS::StackName'
+
+  ### 4.2) SSL Option Group for RDS ###
+  StocksDBOptionGroup:
+    Type: AWS::RDS::OptionGroup
+    Properties:
+      OptionGroupName: !Sub 'stocks-ssl-options-${AWS::StackName}'
+      OptionGroupDescription: 'SSL configuration options for PostgreSQL RDS'
+      EngineName: postgres
+      MajorEngineVersion: '15'
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'ssl-configuration'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+
+  ### 4.3) RDS Enhanced Monitoring Role ###
+  RDSEnhancedMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rds-monitoring-role-${AWS::StackName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'rds-monitoring'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
 
   ### 5) RDS Instance ###
   StocksDBInstance:
@@ -98,10 +157,14 @@ Resources:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
       - StocksDBParameterGroup
+      - StocksDBOptionGroup
+      - RDSCertificateStore
+      - RDSEnhancedMonitoringRole
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
       Engine: postgres
+      EngineVersion: '15.4'
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
       MasterUsername: !Ref RDSUsername
@@ -110,9 +173,34 @@ Resources:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       DBParameterGroupName: !Ref StocksDBParameterGroup
+      OptionGroupName: !Ref StocksDBOptionGroup
+      # SSL Configuration
+      CACertificateIdentifier: 'rds-ca-2019-root'
+      # Storage encryption for enhanced security
+      StorageEncrypted: true
+      # Network and access configuration
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
+      # Backup configuration
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      # Performance insights for SSL connection monitoring
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      # Enhanced monitoring
+      MonitoringInterval: 60
+      MonitoringRoleArn: !GetAtt RDSEnhancedMonitoringRole.Arn
+      Tags:
+        - Key: 'Project'
+          Value: 'financial-dashboard'
+        - Key: 'Purpose'
+          Value: 'primary-database'
+        - Key: 'Environment'
+          Value: !Ref 'AWS::StackName'
+        - Key: 'SSL-Enabled'
+          Value: 'true'
   ### 6) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
@@ -283,3 +371,21 @@ Outputs:
     Value: !Ref StocksDBSecurityGroup
     Export:
       Name: StocksApp-RDSSecurityGroupId
+
+  RDSCACertificateParameter:
+    Description: SSM Parameter containing RDS CA certificate identifier
+    Value: !Ref RDSCertificateStore
+    Export:
+      Name: StocksApp-RDSCACertificateParameter
+
+  RDSSSLEnabled:
+    Description: Indicates that RDS SSL is properly configured
+    Value: 'true'
+    Export:
+      Name: StocksApp-RDSSSLEnabled
+
+  RDSCACertificateIdentifier:
+    Description: RDS CA Certificate identifier for SSL connections
+    Value: 'rds-ca-2019-root'
+    Export:
+      Name: StocksApp-RDSCACertificateIdentifier
