@@ -1298,6 +1298,81 @@ router.get('/:ticker/prices', async (req, res) => {
   }
 });
 
+// Historical stock data endpoint for chart components
+router.get('/:ticker/historical', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const period = parseInt(req.query.period) || 30; // Default 30 days
+    const symbol = ticker.toUpperCase();
+    
+    console.log(`📊 [STOCKS] Historical data endpoint called for ${symbol}, period: ${period} days`);
+    
+    // Query historical price data
+    const historicalQuery = `
+      SELECT 
+        date,
+        open::DECIMAL(12,4) as open,
+        high::DECIMAL(12,4) as high,
+        low::DECIMAL(12,4) as low,
+        close::DECIMAL(12,4) as close,
+        adj_close::DECIMAL(12,4) as adj_close,
+        volume::BIGINT as volume
+      FROM price_daily 
+      WHERE UPPER(symbol) = UPPER($1)
+        AND date >= CURRENT_DATE - INTERVAL '${period} days'
+        AND close IS NOT NULL
+      ORDER BY date ASC
+      LIMIT 1000
+    `;
+    
+    const result = await query(historicalQuery, [symbol]);
+    
+    if (result.rows.length === 0) {
+      console.log(`📊 [STOCKS] No historical data found for ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: 'No historical data found',
+        symbol: symbol,
+        message: `Historical data not available for ${symbol}`,
+        data: [],
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Format data for chart component
+    const historicalData = result.rows.map(row => ({
+      date: row.date,
+      open: parseFloat(row.open),
+      high: parseFloat(row.high),
+      low: parseFloat(row.low),
+      close: parseFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    }));
+    
+    console.log(`📊 [STOCKS] Successfully returning ${historicalData.length} historical data points for ${symbol}`);
+    
+    res.json({
+      success: true,
+      data: historicalData,
+      symbol: symbol,
+      period: period,
+      dataPoints: historicalData.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ [STOCKS] Error fetching historical data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch historical data',
+      details: error.message,
+      symbol: req.params.ticker,
+      data: [],
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get recent stock price history (alias for /prices with recent in the path)
 router.get('/:ticker/prices/recent', async (req, res) => {
   try {

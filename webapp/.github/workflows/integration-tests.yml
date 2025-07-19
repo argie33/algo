@@ -1,0 +1,564 @@
+name: Comprehensive Integration Tests
+
+on:
+  # Run on pull requests
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'webapp/frontend/**'
+      - 'webapp/lambda/**'
+      - 'webapp/e2e-testing/**'
+      - '.github/workflows/integration-tests.yml'
+  
+  # Run on pushes to main/develop
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'webapp/frontend/**'
+      - 'webapp/lambda/**'
+      - 'webapp/e2e-testing/**'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'full-suite'
+        type: choice
+        options:
+          - smoke
+          - critical
+          - full-suite
+          - performance
+          - security
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+  
+  # Scheduled runs for monitoring
+  schedule:
+    # Run every 6 hours on production
+    - cron: '0 */6 * * *'
+
+env:
+  NODE_VERSION: '18'
+  PLAYWRIGHT_VERSION: '1.40.0'
+
+jobs:
+  # Pre-deployment smoke tests (fast)
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run smoke tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          npx playwright test --grep="@smoke" --reporter=html,json
+      
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: smoke-test-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 7
+
+  # Critical integration tests
+  critical-tests:
+    name: Critical Integration Tests
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: always() && (needs.smoke-tests.result == 'success' || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        browser: [chromium, firefox]
+        shard: [1/3, 2/3, 3/3]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      
+      - name: Run critical integration tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_ALPACA_KEY: ${{ secrets.E2E_ALPACA_KEY }}
+          E2E_ALPACA_SECRET: ${{ secrets.E2E_ALPACA_SECRET }}
+          E2E_POLYGON_KEY: ${{ secrets.E2E_POLYGON_KEY }}
+          E2E_FINNHUB_KEY: ${{ secrets.E2E_FINNHUB_KEY }}
+        run: |
+          npx playwright test --grep="@critical" --shard=${{ matrix.shard }} --project=${{ matrix.browser }}-desktop --reporter=html,json
+      
+      - name: Upload critical test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: critical-test-results-${{ matrix.browser }}-${{ strategy.job-index }}
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 7
+
+  # Component integration tests
+  component-integration:
+    name: Component Integration Tests
+    runs-on: ubuntu-latest
+    needs: critical-tests
+    if: always() && needs.critical-tests.result == 'success'
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      
+      - name: Run component integration tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          npx playwright test tests/component-integration.spec.js --reporter=html,json
+      
+      - name: Upload component test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: component-integration-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 7
+
+  # API integration tests
+  api-integration:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+    needs: critical-tests
+    if: always() && needs.critical-tests.result == 'success'
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run API integration tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_ALPACA_KEY: ${{ secrets.E2E_ALPACA_KEY }}
+          E2E_ALPACA_SECRET: ${{ secrets.E2E_ALPACA_SECRET }}
+          E2E_POLYGON_KEY: ${{ secrets.E2E_POLYGON_KEY }}
+          E2E_FINNHUB_KEY: ${{ secrets.E2E_FINNHUB_KEY }}
+        run: |
+          npx playwright test tests/api-integration.spec.js --reporter=html,json
+      
+      - name: Upload API test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: api-integration-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 7
+
+  # User journey tests
+  user-journey:
+    name: User Journey Tests
+    runs-on: ubuntu-latest
+    needs: [component-integration, api-integration]
+    if: always() && (needs.component-integration.result == 'success' && needs.api-integration.result == 'success')
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      
+      - name: Run user journey tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_ALPACA_KEY: ${{ secrets.E2E_ALPACA_KEY }}
+          E2E_ALPACA_SECRET: ${{ secrets.E2E_ALPACA_SECRET }}
+        run: |
+          npx playwright test tests/user-journey-integration.spec.js --reporter=html,json
+      
+      - name: Upload journey test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: user-journey-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 7
+
+  # Performance tests (optional, runs on schedule or manual)
+  performance-tests:
+    name: Performance Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.test_type == 'performance')
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run performance tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ github.event_name == 'schedule' && secrets.PROD_URL || secrets.STAGING_URL }}
+          E2E_API_URL: ${{ github.event_name == 'schedule' && secrets.PROD_API_URL || secrets.STAGING_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_LOAD_TEST_USERS: '5'
+          E2E_LOAD_TEST_DURATION: '300'
+        run: |
+          npx playwright test --grep="@performance" --reporter=html,json
+      
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-test-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 30
+
+  # Security tests (runs on schedule)
+  security-tests:
+    name: Security Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.test_type == 'security')
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run security tests
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.STAGING_URL }}
+          E2E_API_URL: ${{ secrets.STAGING_API_URL }}
+          E2E_SECURITY_SCAN: 'true'
+        run: |
+          npx playwright test --grep="@security" --reporter=html,json
+      
+      - name: Upload security test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-test-results
+          path: |
+            webapp/e2e-testing/playwright-report/
+            webapp/e2e-testing/test-results/
+          retention-days: 30
+
+  # Comprehensive test report generation
+  test-report:
+    name: Generate Comprehensive Report
+    runs-on: ubuntu-latest
+    needs: [smoke-tests, critical-tests, component-integration, api-integration, user-journey]
+    if: always()
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: test-artifacts
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: npm ci
+      
+      - name: Generate comprehensive report
+        working-directory: webapp/e2e-testing
+        run: |
+          node scripts/ci-cd-integration.js full-suite staging
+        env:
+          CI: 'true'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+      
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: comprehensive-test-report
+          path: |
+            webapp/e2e-testing/test-results/
+          retention-days: 30
+      
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Read test results summary
+            const resultsDir = 'webapp/e2e-testing/test-results';
+            const reportFiles = fs.readdirSync(resultsDir).filter(f => f.includes('integration-report') && f.endsWith('.json'));
+            
+            if (reportFiles.length > 0) {
+              const reportPath = path.join(resultsDir, reportFiles[0]);
+              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+              
+              const comment = `## 🧪 Integration Test Results
+              
+              | Metric | Value |
+              |--------|-------|
+              | **Status** | ${report.status === 'PASSED' ? '✅ PASSED' : '❌ FAILED'} |
+              | **Pass Rate** | ${report.summary.passRate}% |
+              | **Total Tests** | ${report.summary.totalTests} |
+              | **Passed** | ${report.summary.passedTests} |
+              | **Failed** | ${report.summary.failedTests} |
+              | **Duration** | ${Math.round(report.summary.duration / 1000)}s |
+              
+              ### Test Suites
+              ${report.suites.map(suite => 
+                `- **${suite.name}**: ${suite.passed ? '✅' : '❌'} (${suite.tests.length} tests)`
+              ).join('\n')}
+              
+              ${report.status === 'FAILED' ? '⚠️ **Some tests failed. Please review the detailed reports.**' : ''}
+              `;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+  # Production health check (scheduled)
+  production-health:
+    name: Production Health Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/e2e-testing/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: webapp/e2e-testing
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run production health checks
+        working-directory: webapp/e2e-testing
+        env:
+          E2E_BASE_URL: ${{ secrets.PROD_URL }}
+          E2E_API_URL: ${{ secrets.PROD_API_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_PROD_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_PROD_TEST_PASSWORD }}
+        run: |
+          node scripts/ci-cd-integration.js scheduled production
+      
+      - name: Upload production health results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: production-health-results
+          path: |
+            webapp/e2e-testing/test-results/
+          retention-days: 30
+      
+      - name: Send health alert on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { Octokit } = require("@octokit/rest");
+            
+            // Create GitHub issue for production health failure
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production Health Check Failed - ${new Date().toISOString()}`,
+              body: `Production health check failed during scheduled run.
+              
+              **Details:**
+              - Workflow: ${context.workflow}
+              - Run ID: ${context.runId}
+              - Timestamp: ${new Date().toISOString()}
+              
+              Please investigate immediately.`,
+              labels: ['bug', 'production', 'urgent', 'automated']
+            });
+
+# Cleanup old artifacts
+  cleanup:
+    name: Cleanup Old Artifacts
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Delete old artifacts
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - 7); // Keep artifacts for 7 days
+            
+            for (const artifact of artifacts.data.artifacts) {
+              const createdAt = new Date(artifact.created_at);
+              if (createdAt < cutoffDate) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                console.log(`Deleted artifact: ${artifact.name}`);
+              }
+            }

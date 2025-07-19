@@ -2840,6 +2840,146 @@ router.get('/history', createValidationMiddleware(tradingValidationSchemas.trade
   }
 });
 
+// Get buy signals endpoint 
+router.get('/signals/buy', async (req, res) => {
+  console.log('📈 [TRADING] Fetching buy signals...');
+  try {
+    const { limit = 100, timeframe = 'daily' } = req.query;
+    
+    const tableName = `buy_sell_${timeframe}`;
+    
+    // Check if table exists
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );`,
+      [tableName]
+    );
+    
+    if (!tableExistsResult.rows[0].exists) {
+      console.error(`[TRADING] Table does not exist: ${tableName}`);
+      return res.status(404).json({
+        success: false,
+        error: `Trading signals table ${tableName} not found`,
+        message: 'Buy signals data is not available at this time'
+      });
+    }
+
+    const result = await query(`
+      SELECT 
+        symbol,
+        signal_date as date,
+        current_price as price,
+        performance_percent as changePercent,
+        signal_type as signal,
+        signal_strength as strength,
+        created_at,
+        updated_at
+      FROM ${tableName}
+      WHERE signal_type = 'Buy'
+      ORDER BY signal_date DESC, signal_strength DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    const buySignals = result.rows.map(row => ({
+      symbol: row.symbol,
+      signal: row.signal,
+      date: row.date,
+      price: parseFloat(row.price || 0),
+      changePercent: parseFloat(row.changepercent || 0),
+      strength: row.strength || 'Medium'
+    }));
+
+    console.log(`📈 [TRADING] Returning ${buySignals.length} buy signals`);
+    res.json({
+      success: true,
+      data: buySignals,
+      count: buySignals.length,
+      timeframe
+    });
+
+  } catch (error) {
+    console.error('❌ [TRADING] Buy signals error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch buy signals',
+      message: error.message
+    });
+  }
+});
+
+// Get sell signals endpoint
+router.get('/signals/sell', async (req, res) => {
+  console.log('📉 [TRADING] Fetching sell signals...');
+  try {
+    const { limit = 100, timeframe = 'daily' } = req.query;
+    
+    const tableName = `buy_sell_${timeframe}`;
+    
+    // Check if table exists
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = $1
+      );`,
+      [tableName]
+    );
+    
+    if (!tableExistsResult.rows[0].exists) {
+      console.error(`[TRADING] Table does not exist: ${tableName}`);
+      return res.status(404).json({
+        success: false,
+        error: `Trading signals table ${tableName} not found`,
+        message: 'Sell signals data is not available at this time'
+      });
+    }
+
+    const result = await query(`
+      SELECT 
+        symbol,
+        signal_date as date,
+        current_price as price,
+        performance_percent as changePercent,
+        signal_type as signal,
+        signal_strength as strength,
+        created_at,
+        updated_at
+      FROM ${tableName}
+      WHERE signal_type = 'Sell'
+      ORDER BY signal_date DESC, signal_strength DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    const sellSignals = result.rows.map(row => ({
+      symbol: row.symbol,
+      signal: row.signal,
+      date: row.date,
+      price: parseFloat(row.price || 0),
+      changePercent: parseFloat(row.changepercent || 0),
+      strength: row.strength || 'Medium'
+    }));
+
+    console.log(`📉 [TRADING] Returning ${sellSignals.length} sell signals`);
+    res.json({
+      success: true,
+      data: sellSignals,
+      count: sellSignals.length,
+      timeframe
+    });
+
+  } catch (error) {
+    console.error('❌ [TRADING] Sell signals error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sell signals',
+      message: error.message
+    });
+  }
+});
+
 // Helper function to calculate order cost
 function calculateOrderCost(quantity, price, orderType) {
   let cost = quantity * price;

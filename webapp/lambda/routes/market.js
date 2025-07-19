@@ -300,6 +300,114 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// Market status endpoint for real-time market state
+router.get('/status', async (req, res) => {
+  console.log('[MARKET] Market status endpoint called');
+  
+  try {
+    // Calculate market status based on current time
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const currentTime = hour + minute / 60;
+    
+    // Market hours: Monday-Friday 9:30 AM - 4:00 PM ET
+    const isWeekday = day > 0 && day < 6;
+    const isMarketHours = currentTime >= 9.5 && currentTime < 16;
+    const isOpen = isWeekday && isMarketHours;
+    
+    // Determine session and next change
+    let session = 'Closed';
+    let nextChange = null;
+    
+    if (isWeekday) {
+      if (currentTime < 9.5) {
+        session = 'Pre-Market';
+        nextChange = 'Market opens at 9:30 AM ET';
+      } else if (currentTime < 16) {
+        session = 'Market Open';
+        nextChange = 'Market closes at 4:00 PM ET';
+      } else if (currentTime < 20) {
+        session = 'After Hours';
+        nextChange = 'Market opens tomorrow at 9:30 AM ET';
+      } else {
+        session = 'Closed';
+        nextChange = 'Market opens tomorrow at 9:30 AM ET';
+      }
+    } else {
+      session = 'Weekend';
+      const daysToMonday = day === 0 ? 1 : 8 - day; // Days until next Monday
+      nextChange = `Market opens ${daysToMonday === 1 ? 'Monday' : `in ${daysToMonday} days`} at 9:30 AM ET`;
+    }
+    
+    // Get current major indices data
+    let indices = [];
+    try {
+      const indicesQuery = `
+        SELECT 
+          symbol,
+          COALESCE(price, close, current_price) as current_price,
+          COALESCE(change, price_change) as price_change,
+          COALESCE(change_percent, percent_change) as percent_change
+        FROM market_data 
+        WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM')
+          AND date = (SELECT MAX(date) FROM market_data)
+        ORDER BY symbol
+      `;
+      
+      const indicesResult = await query(indicesQuery);
+      
+      indices = indicesResult.rows.map(row => ({
+        symbol: row.symbol,
+        name: row.symbol === 'SPY' ? 'S&P 500' : 
+              row.symbol === 'QQQ' ? 'NASDAQ' : 
+              row.symbol === 'DIA' ? 'Dow Jones' : 
+              row.symbol === 'IWM' ? 'Russell 2000' : row.symbol,
+        price: parseFloat(row.current_price) || 0,
+        change: parseFloat(row.price_change) || 0,
+        changePercent: parseFloat(row.percent_change) || 0
+      }));
+      
+    } catch (error) {
+      console.warn('[MARKET] Unable to fetch indices data:', error.message);
+      // Provide basic fallback data
+      indices = [
+        { symbol: 'SPY', name: 'S&P 500', price: 0, change: 0, changePercent: 0 },
+        { symbol: 'QQQ', name: 'NASDAQ', price: 0, change: 0, changePercent: 0 },
+        { symbol: 'DIA', name: 'Dow Jones', price: 0, change: 0, changePercent: 0 }
+      ];
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        isOpen,
+        session,
+        nextChange,
+        indices,
+        timezone: 'ET',
+        currentTime: now.toISOString(),
+        marketHours: {
+          open: '9:30 AM',
+          close: '4:00 PM',
+          timezone: 'ET'
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('[MARKET] Error fetching market status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch market status',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get comprehensive market overview with sentiment indicators
 router.get('/overview', async (req, res) => {
   console.log('Market overview endpoint called');

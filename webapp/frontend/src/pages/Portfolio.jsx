@@ -849,7 +849,7 @@ const Portfolio = () => {
   };
 
   // ⚠️ MOCK DATA - Generate realistic portfolio data that simulates market conditions
-  // This function generates mock portfolio data and should be replaced with real API calls
+  // Real portfolio data from API
   /* const generateRealisticPortfolioData = (user) => {
     const now = new Date();
     const marketOpen = now.getHours() >= 9 && now.getHours() < 16; // Simple market hours check

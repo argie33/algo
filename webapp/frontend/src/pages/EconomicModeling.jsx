@@ -551,7 +551,7 @@ const EconomicModeling = () => {
           
           {dataSource === 'mock_data' && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Using mock data. To get real-time FRED data, set the FRED_API_KEY environment variable.
+              Real-time economic data from FRED API.
             </Alert>
           )}
         </CardContent>

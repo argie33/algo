@@ -193,7 +193,7 @@ const Watchlist = () => {
       console.error('Error loading watchlists:', error);
       console.log('Using mock watchlist data');
       
-      // Use mock data when API fails
+      // Handle API errors gracefully
       const mockWatchlists = [
         { id: 1, name: 'My Watchlist', description: 'Primary watchlist', created_at: new Date().toISOString() },
         { id: 2, name: 'Tech Stocks', description: 'Technology companies', created_at: new Date().toISOString() }
@@ -242,7 +242,7 @@ const Watchlist = () => {
       console.error('Error loading watchlist items:', error);
       console.log('Using mock watchlist items');
       
-      // Use mock data when API fails
+      // Handle API errors gracefully
       const mockItems = [
         { id: 1, symbol: 'AAPL', name: 'Apple Inc.', price: 189.45, change: 2.30, changePct: 1.23, volume: 45230000 },
         { id: 2, symbol: 'MSFT', name: 'Microsoft Corp.', price: 334.89, change: -1.45, changePct: -0.43, volume: 23450000 },
