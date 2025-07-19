@@ -133,6 +133,31 @@ def lambda_handler(event, context):
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
+            # Test basic connectivity first to diagnose infrastructure issues
+            logging.info("🔌 Testing basic network connectivity...")
+            import socket
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(10)
+            test_result = test_socket.connect_ex((cfg["host"], cfg["port"]))
+            
+            if test_result == 0:
+                logging.info("✅ Network connectivity test passed")
+                local_addr = test_socket.getsockname()
+                peer_addr = test_socket.getpeername()
+                logging.info(f"🔍 Local socket: {local_addr[0]}:{local_addr[1]}")
+                logging.info(f"🔍 Remote socket: {peer_addr[0]}:{peer_addr[1]}")
+            else:
+                logging.error(f"❌ Network connectivity test failed with code: {test_result}")
+                if test_result == 111:
+                    logging.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL not running or not accepting connections")
+                elif test_result == 113:
+                    logging.error("🔍 DIAGNOSIS: No route to host - network routing or security group issue")
+                elif test_result == 110:
+                    logging.error("🔍 DIAGNOSIS: Connection timeout - security group blocking or RDS not accessible")
+                else:
+                    logging.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
+            test_socket.close()
+            
             conn = psycopg2.connect(
                 host=cfg["host"],
                 port=cfg["port"],

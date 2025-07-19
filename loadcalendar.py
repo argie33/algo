@@ -242,6 +242,31 @@ def main():
             try:
                 logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
                 
+                # Test basic connectivity first to diagnose infrastructure issues
+                logger.info("🔌 Testing basic network connectivity...")
+                import socket
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_socket.settimeout(10)
+                test_result = test_socket.connect_ex((host, port))
+                
+                if test_result == 0:
+                    logger.info("✅ Network connectivity test passed")
+                    local_addr = test_socket.getsockname()
+                    peer_addr = test_socket.getpeername()
+                    logger.info(f"🔍 Local socket: {local_addr[0]}:{local_addr[1]}")
+                    logger.info(f"🔍 Remote socket: {peer_addr[0]}:{peer_addr[1]}")
+                else:
+                    logger.error(f"❌ Network connectivity test failed with code: {test_result}")
+                    if test_result == 111:
+                        logger.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL not running or not accepting connections")
+                    elif test_result == 113:
+                        logger.error("🔍 DIAGNOSIS: No route to host - network routing or security group issue")
+                    elif test_result == 110:
+                        logger.error("🔍 DIAGNOSIS: Connection timeout - security group blocking or RDS not accessible")
+                    else:
+                        logger.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
+                test_socket.close()
+                
                 conn = psycopg2.connect(
                     host=host,
                     port=port,
