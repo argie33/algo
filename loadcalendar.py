@@ -267,18 +267,28 @@ def main():
                         logger.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
                 test_socket.close()
                 
-                # Use same connection pattern as working loadaaiidata.py
+                # Use EXACT connection pattern from working loadaaiidata.py
                 ssl_config = {
                     'host': host,
                     'port': port,
                     'user': user,
                     'password': pwd,
                     'dbname': dbname,
-                    'sslmode': 'allow',
+                    'sslmode': 'disable',
                     'connect_timeout': 30,
                     'application_name': 'calendar-data-loader',
                     'cursor_factory': DictCursor
                 }
+                
+                # SSL FALLBACK STRATEGY: Try multiple SSL approaches like loadaaiidata.py
+                if attempt == 1:
+                    logger.info("🔐 Attempt 1: Using SSL disable mode")
+                elif attempt == 2:
+                    ssl_config['sslmode'] = 'require'
+                    logger.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
+                else:
+                    ssl_config['sslmode'] = 'prefer'
+                    logger.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
                 
                 conn = psycopg2.connect(**ssl_config)
                 logger.info("✅ Database connection established successfully")
