@@ -472,6 +472,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -531,6 +533,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -590,6 +594,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -647,6 +653,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -696,6 +704,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -759,6 +769,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -816,6 +828,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -873,6 +887,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -930,6 +946,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -987,6 +1005,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1036,6 +1056,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1081,6 +1103,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1130,6 +1154,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1187,6 +1213,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1236,6 +1264,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1293,6 +1323,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1342,6 +1374,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1391,6 +1425,8 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1561,6 +1597,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1618,6 +1656,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1675,6 +1715,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1732,6 +1774,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             - Name: ECS_MEMORY_MB
               Value: "512"
             - Name: MEMORY_THRESHOLD_MB
@@ -1795,6 +1839,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1852,6 +1898,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1910,6 +1958,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1964,6 +2014,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2021,6 +2073,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2078,6 +2132,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2135,6 +2191,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2192,6 +2250,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2249,6 +2309,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2306,6 +2368,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2363,6 +2427,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2420,6 +2486,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2477,6 +2545,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2534,6 +2604,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecret
@@ -2596,6 +2668,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecret
@@ -2658,6 +2732,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
           Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecret
@@ -2720,6 +2796,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -2781,6 +2859,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -2842,6 +2922,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -2903,6 +2985,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             # PERIOD_TYPE and SYMBOL_LIMIT will be overridden at runtime
             - Name: PERIOD_TYPE
               Value: "daily"
@@ -2967,6 +3051,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
             # Pattern Recognition Configuration
             - Name: TIMEFRAMES
               Value: "1d"
