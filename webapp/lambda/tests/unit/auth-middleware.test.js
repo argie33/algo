@@ -6,7 +6,6 @@
 
 // Jest globals are automatically available in test environment
 
-const auth = require('../../middleware/auth');
 const jwt = require('jsonwebtoken');
 
 describe('Authentication Middleware Unit Tests', () => {
@@ -14,10 +13,15 @@ describe('Authentication Middleware Unit Tests', () => {
   let mockResponse;
   let nextFunction;
   let originalEnv;
+  let auth; // Load auth module in beforeEach to pick up env changes
   
   beforeEach(() => {
     // Store original environment
     originalEnv = { ...process.env };
+    
+    // Clear module cache to pick up environment changes
+    delete require.cache[require.resolve('../../middleware/auth')];
+    auth = require('../../middleware/auth');
     
     // Mock request object
     mockRequest = {

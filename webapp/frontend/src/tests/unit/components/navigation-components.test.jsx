@@ -201,14 +201,14 @@ const MobileMenu = ({ isOpen, onToggle, onNavigate, user }) => (
       <nav className="mobile-menu-nav">
         <a 
           href="/dashboard" 
-          onClick={() => onNavigate('/dashboard')}
+          onClick={(e) => { e.preventDefault(); onNavigate('/dashboard'); }}
           data-testid="mobile-dashboard"
         >
           📊 Dashboard
         </a>
         <a 
           href="/portfolio" 
-          onClick={() => onNavigate('/portfolio')}
+          onClick={(e) => { e.preventDefault(); onNavigate('/portfolio'); }}
           data-testid="mobile-portfolio"
         >
           💼 Portfolio
