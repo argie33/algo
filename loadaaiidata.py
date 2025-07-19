@@ -219,17 +219,91 @@ if __name__ == "__main__":
         logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
         log_mem("startup")
 
-        # Connect to DB
+        # Connect to DB with enhanced error handling
         logging.info("🔌 Loading database configuration...")
         cfg = get_db_config()
-        logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"],
-            sslmode='disable'
-        )
-        logging.info("✅ Database connection established")
+        
+        # Log detailed connection info for debugging
+        logging.info(f"🔌 DB Connection Details:")
+        logging.info(f"  Host: {cfg['host']}")
+        logging.info(f"  Port: {cfg['port']}")
+        logging.info(f"  Database: {cfg['dbname']}")
+        logging.info(f"  User: {cfg['user']}")
+        logging.info(f"  SSL Mode: disable")
+        
+        # Get container IP for debugging
+        import socket
+        try:
+            container_ip = socket.gethostbyname(socket.gethostname())
+            logging.info(f"🔌 Container IP: {container_ip}")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not determine container IP: {e}")
+        
+        # Attempt connection with retry logic
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+                
+                # Test basic connectivity first
+                logging.info("🔌 Testing basic network connectivity...")
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_socket.settimeout(10)
+                test_result = test_socket.connect_ex((cfg["host"], cfg["port"]))
+                test_socket.close()
+                
+                if test_result == 0:
+                    logging.info("✅ Network connectivity test passed")
+                else:
+                    logging.error(f"❌ Network connectivity test failed with code: {test_result}")
+                
+                # Attempt PostgreSQL connection
+                logging.info("🔌 Attempting PostgreSQL connection...")
+                conn = psycopg2.connect(
+                    host=cfg["host"], 
+                    port=cfg["port"],
+                    user=cfg["user"], 
+                    password=cfg["password"],
+                    dbname=cfg["dbname"],
+                    sslmode='disable',
+                    connect_timeout=30
+                )
+                
+                logging.info("✅ Database connection established successfully")
+                break
+                
+            except psycopg2.OperationalError as e:
+                error_msg = str(e)
+                logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+                
+                # Parse specific error types
+                if "pg_hba.conf" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
+                    if "no encryption" in error_msg:
+                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection but client using sslmode='disable'")
+                elif "Connection refused" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
+                elif "timeout" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: Connection timeout - network or server performance issue")
+                
+                if attempt < max_retries:
+                    logging.info(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logging.error(f"❌ All {max_retries} connection attempts failed")
+                    raise
+                    
+            except Exception as e:
+                logging.error(f"❌ Unexpected connection error (attempt {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    logging.info(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    raise
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
