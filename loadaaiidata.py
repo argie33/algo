@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.9 - Database pg_hba.conf fix test
+# Trigger deploy-app-stocks workflow - loadaaiidata update v6.1 - SSL connection fix + comprehensive diagnostics
 import sys
 import time
 import logging
@@ -218,6 +218,173 @@ if __name__ == "__main__":
     try:
         logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
         log_mem("startup")
+        
+        # Log all environment variables for debugging
+        logging.info("🔍 Environment Variables:")
+        env_vars_to_check = [
+            "DB_SECRET_ARN", "AWS_REGION", "AWS_DEFAULT_REGION", 
+            "NODE_ENV", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER"
+        ]
+        for var in env_vars_to_check:
+            value = os.environ.get(var, "NOT_SET")
+            if "SECRET" in var and value != "NOT_SET":
+                logging.info(f"  {var}: {value[:20]}...***REDACTED***")
+            else:
+                logging.info(f"  {var}: {value}")
+        
+        # Log ECS task metadata if available
+        try:
+            import urllib.request
+            metadata_uri = os.environ.get('ECS_CONTAINER_METADATA_URI_V4')
+            if metadata_uri:
+                logging.info(f"🔍 ECS Metadata URI: {metadata_uri}")
+                try:
+                    with urllib.request.urlopen(f"{metadata_uri}/task", timeout=5) as response:
+                        task_metadata = json.loads(response.read().decode())
+                    logging.info(f"🔍 ECS Task ARN: {task_metadata.get('TaskARN', 'Unknown')}")
+                    logging.info(f"🔍 ECS Cluster: {task_metadata.get('Cluster', 'Unknown')}")
+                    logging.info(f"🔍 ECS Availability Zone: {task_metadata.get('AvailabilityZone', 'Unknown')}")
+                except Exception as e:
+                    logging.warning(f"⚠️ Could not fetch ECS metadata: {e}")
+            else:
+                logging.info("🔍 ECS Metadata URI not available (not running in ECS)")
+        except Exception as e:
+            logging.warning(f"⚠️ Error checking ECS metadata: {e}")
+        
+        # Check AWS configuration
+        logging.info("🔍 AWS Configuration:")
+        logging.info(f"  AWS Region: {boto3.Session().region_name}")
+        try:
+            sts_client = boto3.client('sts')
+            identity = sts_client.get_caller_identity()
+            logging.info(f"  AWS Account: {identity.get('Account', 'Unknown')}")
+            logging.info(f"  AWS User/Role: {identity.get('Arn', 'Unknown')}")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get AWS identity: {e}")
+        
+        # Validate CloudFormation Stack Outputs and Variable Passing
+        logging.info("🔍 CloudFormation Stack Validation:")
+        try:
+            cf_client = boto3.client('cloudformation')
+            
+            # Check main app stack
+            try:
+                main_stack_name = 'stocks-app-stack'
+                main_response = cf_client.describe_stacks(StackName=main_stack_name)
+                main_stack = main_response['Stacks'][0]
+                logging.info(f"  Main Stack Status: {main_stack['StackStatus']}")
+                
+                # Check for required outputs
+                outputs = {output['OutputKey']: output['OutputValue'] for output in main_stack.get('Outputs', [])}
+                required_outputs = ['VpcId', 'PrivateSubnetA', 'PrivateSubnetB', 'DatabaseUrl']
+                for output_key in required_outputs:
+                    if output_key in outputs:
+                        logging.info(f"  ✅ {output_key}: {outputs[output_key]}")
+                    else:
+                        logging.warning(f"  ❌ Missing output: {output_key}")
+                        
+            except Exception as e:
+                logging.warning(f"  ⚠️ Could not access main stack: {e}")
+            
+            # Check webapp stack
+            try:
+                webapp_stack_name = 'stocks-webapp-dev'
+                webapp_response = cf_client.describe_stacks(StackName=webapp_stack_name)
+                webapp_stack = webapp_response['Stacks'][0]
+                logging.info(f"  Webapp Stack Status: {webapp_stack['StackStatus']}")
+                
+            except Exception as e:
+                logging.warning(f"  ⚠️ Could not access webapp stack: {e}")
+                
+        except Exception as e:
+            logging.warning(f"⚠️ CloudFormation validation error: {e}")
+        
+        # Validate Security Groups and Network Configuration
+        logging.info("🔍 Security Group and Network Validation:")
+        try:
+            ec2_client = boto3.client('ec2')
+            
+            # Get VPC information
+            vpc_id = os.environ.get('VPC_ID')
+            if vpc_id:
+                logging.info(f"  VPC ID: {vpc_id}")
+                
+                # Check VPC exists
+                try:
+                    vpc_response = ec2_client.describe_vpcs(VpcIds=[vpc_id])
+                    vpc = vpc_response['Vpcs'][0]
+                    logging.info(f"  ✅ VPC State: {vpc['State']}")
+                    logging.info(f"  ✅ VPC CIDR: {vpc['CidrBlock']}")
+                except Exception as e:
+                    logging.error(f"  ❌ VPC validation error: {e}")
+            else:
+                logging.warning("  ⚠️ VPC_ID environment variable not set")
+            
+            # Check subnet configuration
+            subnet_ids = []
+            for subnet_env in ['SUBNET_A_ID', 'SUBNET_B_ID', 'PRIVATE_SUBNET_A', 'PRIVATE_SUBNET_B']:
+                subnet_id = os.environ.get(subnet_env)
+                if subnet_id:
+                    subnet_ids.append(subnet_id)
+                    logging.info(f"  Subnet {subnet_env}: {subnet_id}")
+            
+            if subnet_ids:
+                try:
+                    subnet_response = ec2_client.describe_subnets(SubnetIds=subnet_ids)
+                    for subnet in subnet_response['Subnets']:
+                        logging.info(f"  ✅ Subnet {subnet['SubnetId']}: {subnet['State']} (AZ: {subnet['AvailabilityZone']})")
+                        logging.info(f"     CIDR: {subnet['CidrBlock']}, VPC: {subnet['VpcId']}")
+                except Exception as e:
+                    logging.error(f"  ❌ Subnet validation error: {e}")
+            
+            # Check security groups
+            sg_ids = []
+            for sg_env in ['SECURITY_GROUP_ID', 'ECS_SECURITY_GROUP', 'RDS_SECURITY_GROUP']:
+                sg_id = os.environ.get(sg_env)
+                if sg_id:
+                    sg_ids.append(sg_id)
+                    logging.info(f"  Security Group {sg_env}: {sg_id}")
+            
+            if sg_ids:
+                try:
+                    sg_response = ec2_client.describe_security_groups(GroupIds=sg_ids)
+                    for sg in sg_response['SecurityGroups']:
+                        logging.info(f"  ✅ Security Group {sg['GroupId']}: {sg['GroupName']}")
+                        
+                        # Check inbound rules for database access
+                        for rule in sg['IpPermissions']:
+                            if rule.get('FromPort') == 5432:  # PostgreSQL port
+                                logging.info(f"     PostgreSQL Rule: Port {rule['FromPort']}, Protocol {rule['IpProtocol']}")
+                                for source_sg in rule.get('UserIdGroupPairs', []):
+                                    logging.info(f"       Source SG: {source_sg['GroupId']}")
+                                for cidr in rule.get('IpRanges', []):
+                                    logging.info(f"       Source CIDR: {cidr['CidrIp']}")
+                                    
+                except Exception as e:
+                    logging.error(f"  ❌ Security group validation error: {e}")
+                    
+        except Exception as e:
+            logging.warning(f"⚠️ Network validation error: {e}")
+        
+        # Network interface information
+        logging.info("🔍 Network Configuration:")
+        try:
+            import netifaces
+            interfaces = netifaces.interfaces()
+            for interface in interfaces:
+                addrs = netifaces.ifaddresses(interface)
+                if netifaces.AF_INET in addrs:
+                    for addr in addrs[netifaces.AF_INET]:
+                        logging.info(f"  Interface {interface}: {addr['addr']}")
+        except ImportError:
+            logging.info("  netifaces not available, using basic socket info")
+            import socket
+            hostname = socket.gethostname()
+            ip_address = socket.gethostbyname(hostname)
+            logging.info(f"  Hostname: {hostname}")
+            logging.info(f"  IP Address: {ip_address}")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not get network info: {e}")
 
         # Connect to DB with enhanced error handling
         logging.info("🔌 Loading database configuration...")
@@ -229,7 +396,7 @@ if __name__ == "__main__":
         logging.info(f"  Port: {cfg['port']}")
         logging.info(f"  Database: {cfg['dbname']}")
         logging.info(f"  User: {cfg['user']}")
-        logging.info(f"  SSL Mode: disable")
+        logging.info(f"  SSL Mode: require")
         
         # Get container IP for debugging
         import socket
@@ -252,22 +419,44 @@ if __name__ == "__main__":
                 test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 test_socket.settimeout(10)
                 test_result = test_socket.connect_ex((cfg["host"], cfg["port"]))
-                test_socket.close()
                 
                 if test_result == 0:
                     logging.info("✅ Network connectivity test passed")
+                    
+                    # Get additional network info for successful connection
+                    local_addr = test_socket.getsockname()
+                    peer_addr = test_socket.getpeername()
+                    logging.info(f"🔍 Local socket: {local_addr[0]}:{local_addr[1]}")
+                    logging.info(f"🔍 Remote socket: {peer_addr[0]}:{peer_addr[1]}")
+                    
                 else:
                     logging.error(f"❌ Network connectivity test failed with code: {test_result}")
+                    
+                    # Diagnose network connectivity issues
+                    if test_result == 111:  # Connection refused
+                        logging.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL may not be running or not accepting connections")
+                    elif test_result == 113:  # No route to host
+                        logging.error("🔍 DIAGNOSIS: No route to host - network routing or security group issue")
+                    elif test_result == 110:  # Connection timed out
+                        logging.error("🔍 DIAGNOSIS: Connection timeout - likely security group blocking or RDS not accessible")
+                    else:
+                        logging.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
+                        
+                test_socket.close()
                 
                 # Attempt PostgreSQL connection
                 logging.info("🔌 Attempting PostgreSQL connection...")
+                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
                 conn = psycopg2.connect(
                     host=cfg["host"], 
                     port=cfg["port"],
                     user=cfg["user"], 
                     password=cfg["password"],
                     dbname=cfg["dbname"],
-                    sslmode='disable',
+                    sslmode='require',
+                    sslcert=None,
+                    sslkey=None,
+                    sslrootcert=None,
                     connect_timeout=30
                 )
                 
@@ -282,7 +471,7 @@ if __name__ == "__main__":
                 if "pg_hba.conf" in error_msg:
                     logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
                     if "no encryption" in error_msg:
-                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection but client using sslmode='disable'")
+                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using sslmode='require'")
                 elif "Connection refused" in error_msg:
                     logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
                 elif "timeout" in error_msg:
