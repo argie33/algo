@@ -1169,6 +1169,19 @@ function extractTableName(sql) {
     }
 }
 
+/**
+ * Reset database state for testing purposes
+ */
+async function resetDatabaseState() {
+    if (pool) {
+        await pool.end();
+        pool = null;
+    }
+    dbInitialized = false;
+    dbConfig = null;
+    console.log('🔄 Database state reset for testing');
+}
+
 module.exports = {
     initializeDatabase,
     initForLambda,
@@ -1183,6 +1196,7 @@ module.exports = {
     transaction,
     closeDatabase,
     healthCheck,
+    resetDatabaseState,
     REQUIRED_SCHEMA,
     extractTableName
 };

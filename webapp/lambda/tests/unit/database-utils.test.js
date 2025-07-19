@@ -124,6 +124,9 @@ describe('Database Utilities Unit Tests', () => {
       delete require.cache[require.resolve('../../utils/database')];
       const db = require('../../utils/database');
       
+      // Reset the internal state to force re-initialization
+      await db.resetDatabaseState();
+      
       await expect(db.initializeDatabase()).rejects.toThrow();
     });
 
@@ -152,6 +155,9 @@ describe('Database Utilities Unit Tests', () => {
     it('initializes connection pool with proper configuration', async () => {
       const db = require('../../utils/database');
       
+      // Reset state first to ensure fresh initialization
+      await db.resetDatabaseState();
+      
       await db.initializeDatabase();
       
       expect(Pool).toHaveBeenCalledWith(
@@ -169,6 +175,9 @@ describe('Database Utilities Unit Tests', () => {
     it('tests database connection during initialization', async () => {
       const db = require('../../utils/database');
       
+      // Reset state first to ensure fresh initialization
+      await db.resetDatabaseState();
+      
       mockClient.query.mockResolvedValue({ rows: [{ test: 1 }] });
       
       await db.initializeDatabase();
@@ -180,6 +189,9 @@ describe('Database Utilities Unit Tests', () => {
 
     it('handles connection pool initialization errors', async () => {
       const db = require('../../utils/database');
+      
+      // Reset state first to ensure fresh initialization
+      await db.resetDatabaseState();
       
       mockPool.connect.mockRejectedValue(new Error('Connection failed'));
       
