@@ -3,9 +3,8 @@
  * Main entry point for test environment setup
  */
 
-import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
+import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import 'whatwg-fetch'
 
 // Global test setup
 beforeAll(async () => {
