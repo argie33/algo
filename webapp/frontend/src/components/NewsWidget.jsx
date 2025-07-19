@@ -176,7 +176,7 @@ const NewsWidget = ({
         {error && (
           <Box sx={{ textAlign: 'center', py: 2 }}>
             <Typography color="error" variant="body2">
-              Failed to load news. Using sample data.
+              Failed to load news. Please check your connection.
             </Typography>
             <Button onClick={handleRefresh} size="small" sx={{ mt: 1 }}>
               Retry

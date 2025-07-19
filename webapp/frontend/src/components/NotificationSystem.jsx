@@ -17,87 +17,65 @@ const NotificationSystem = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Mock notifications - in real app, these would come from API/WebSocket
-  const generateMockNotifications = useCallback(() => {
-    const mockNotifications = [
-      {
-        id: 1,
-        type: 'signal',
-        title: 'New Buy Signal',
-        message: 'AAPL showing strong bullish momentum',
-        time: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-        read: false,
-        priority: 'high',
-        icon: <TrendingUp color="success" />
-      },
-      {
-        id: 2,
-        type: 'portfolio',
-        title: 'Portfolio Update',
-        message: 'Your portfolio gained 2.3% today',
-        time: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
-        read: false,
-        priority: 'medium',
-        icon: <CheckCircle color="success" />
-      },
-      {
-        id: 3,
-        type: 'warning',
-        title: 'Risk Alert',
-        message: 'High volatility detected in TSLA',
-        time: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-        read: true,
-        priority: 'high',
-        icon: <Warning color="warning" />
-      },
-      {
-        id: 4,
-        type: 'info',
-        title: 'Market Update',
-        message: 'S&P 500 approaching resistance level',
-        time: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
-        read: true,
-        priority: 'low',
-        icon: <Info color="info" />
-      },
-      {
-        id: 5,
-        type: 'signal',
-        title: 'Sell Signal',
-        message: 'Consider taking profits on NVDA',
-        time: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        read: false,
-        priority: 'high',
-        icon: <TrendingDown color="error" />
+  // Load real notifications from API
+  const loadNotifications = useCallback(async () => {
+    try {
+      const response = await fetch('/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const formattedNotifications = data.data.map(notification => ({
+            ...notification,
+            time: new Date(notification.timestamp),
+            icon: getNotificationIcon(notification.type, notification.priority)
+          }));
+          
+          setNotifications(formattedNotifications);
+          setUnreadCount(formattedNotifications.filter(n => !n.read).length);
+          return;
+        }
       }
-    ];
-
-    setNotifications(mockNotifications);
-    setUnreadCount(mockNotifications.filter(n => !n.read).length);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+    
+    // If API fails, show empty state instead of mock data
+    setNotifications([]);
+    setUnreadCount(0);
   }, []);
+  
+  // Get appropriate icon for notification type
+  const getNotificationIcon = (type, priority) => {
+    switch (type) {
+      case 'signal':
+        return priority === 'high' ? 
+          <TrendingUp color="success" /> : 
+          <TrendingDown color="error" />;
+      case 'portfolio':
+        return <CheckCircle color="success" />;
+      case 'warning':
+        return <Warning color="warning" />;
+      case 'info':
+      default:
+        return <Info color="info" />;
+    }
+  };
 
   useEffect(() => {
-    generateMockNotifications();
+    loadNotifications();
     
-    // Simulate real-time notifications
+    // Set up real-time notification polling
     const interval = setInterval(() => {
-      const newNotification = {
-        id: Date.now(),
-        type: 'signal',
-        title: 'Live Update',
-        message: 'Market conditions changing',
-        time: new Date(),
-        read: false,
-        priority: 'medium',
-        icon: <Info color="info" />
-      };
-      
-      setNotifications(prev => [newNotification, ...prev].slice(0, 10)); // Keep only latest 10
-      setUnreadCount(prev => prev + 1);
-    }, 30000); // Every 30 seconds
+      loadNotifications();
+    }, 30000); // Check for new notifications every 30 seconds
 
     return () => clearInterval(interval);
-  }, [generateMockNotifications]);
+  }, [loadNotifications]);
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);

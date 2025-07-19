@@ -65,11 +65,9 @@ const DashboardStockChart = ({
           }));
         }
       } catch (error) {
-        console.warn('Using mock data for chart:', error);
+        console.error('Historical data API failed:', error);
+        throw new Error('Chart data unavailable - please check your API connection');
       }
-      
-      // Mock data fallback
-      return generateMockChartData(period);
     },
     staleTime: 60 * 1000, // 1 minute
     refetchInterval: autoRefresh ? 60 * 1000 : false
@@ -143,39 +141,7 @@ const DashboardStockChart = ({
     refetch();
   };
 
-  // Generate mock chart data
-  function generateMockChartData(days) {
-    const data = [];
-    const now = new Date();
-    let price = 450; // Starting price for SPY
-    
-    for (let i = days; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      
-      // Generate realistic OHLCV data
-      const change = (Math.random() - 0.5) * 4;
-      price = Math.max(price + change, 1);
-      
-      const dayVolatility = Math.random() * 2 + 0.5;
-      const open = price + (Math.random() - 0.5) * dayVolatility;
-      const close = price + (Math.random() - 0.5) * dayVolatility;
-      const high = Math.max(open, close) + Math.random() * dayVolatility;
-      const low = Math.min(open, close) - Math.random() * dayVolatility;
-      
-      data.push({
-        date: date.toISOString().split('T')[0],
-        timestamp: date.getTime(),
-        open: parseFloat(open.toFixed(2)),
-        high: parseFloat(high.toFixed(2)),
-        low: parseFloat(low.toFixed(2)),
-        close: parseFloat(close.toFixed(2)),
-        volume: Math.floor(50000000 + Math.random() * 100000000)
-      });
-    }
-    
-    return data;
-  }
+  // Mock data generation removed - now using only real market data
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -236,7 +202,7 @@ const DashboardStockChart = ({
         {/* Chart */}
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
-            Failed to load chart data. Using sample data.
+            Failed to load chart data. Please check your API connection.
           </Alert>
         ) : (
           <StockChart

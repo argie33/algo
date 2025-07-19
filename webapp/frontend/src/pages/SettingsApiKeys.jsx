@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import secureLogger from '../utils/secureLogger.js';
+import withErrorHandler from '../error/ComponentErrorHandler';
+import { useErrorBoundaryState, useErrorBoundaryCallback } from '../hooks/useErrorBoundaryState';
+import ErrorManager from '../error/ErrorManager';
 import {
   Box,
   Container,
@@ -118,9 +121,9 @@ const SettingsApiKeys = () => {
     fetchApiKeys();
   }, []);
 
-  const fetchApiKeys = async () => {
+  const fetchApiKeys = useErrorBoundaryCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const response = await getApiKeys();
       setApiKeys(response?.apiKeys || []);
       
@@ -136,6 +139,8 @@ const SettingsApiKeys = () => {
       } else if (response?.note) {
         console.warn('API Keys note:', response.note);
       }
+      
+      setError(null); // Clear any previous errors on success
     } catch (err) {
       // Handle enhanced error structure
       if (err.response?.data?.setupRequired) {
@@ -147,11 +152,26 @@ const SettingsApiKeys = () => {
       } else {
         setError(err.response?.data?.message || 'Failed to fetch API keys');
       }
-      console.error('API keys fetch error:', err);
+      throw err; // Re-throw for error boundary handling
     } finally {
       setLoading(false);
     }
-  };
+  }, [], {
+    callbackName: 'fetchApiKeys',
+    onError: (error) => {
+      ErrorManager.handleError({
+        type: 'api_keys_fetch_failed',
+        message: 'Failed to fetch API keys in Settings component',
+        error: error,
+        category: ErrorManager.CATEGORIES.API,
+        severity: ErrorManager.SEVERITY.MEDIUM,
+        context: {
+          component: 'SettingsApiKeys',
+          operation: 'fetchApiKeys'
+        }
+      });
+    }
+  });
 
   const handleAddApiKey = async () => {
     try {
@@ -640,4 +660,13 @@ const SettingsApiKeys = () => {
   );
 };
 
-export default SettingsApiKeys;
+export default withErrorHandler(SettingsApiKeys, {
+  componentName: 'SettingsApiKeys',
+  enableLogging: true,
+  enableRecovery: true,
+  maxRetries: 2,
+  onError: (error, errorInfo, enhancedError) => {
+    // Custom error handling for API key management
+    console.error('API Key Management Error:', enhancedError);
+  }
+});

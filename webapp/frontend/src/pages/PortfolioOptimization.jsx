@@ -232,8 +232,7 @@ const generateRealPortfolioData = (symbols, historicalData) => {
   console.log('📊 Generating real portfolio data from historical prices...');
   
   if (!historicalData || Object.keys(historicalData).length === 0) {
-    console.warn('⚠️ No historical data available, using fallback calculations');
-    return generateFallbackData(symbols);
+    throw new Error('Portfolio optimization requires historical data. Please ensure data is loaded for the selected symbols.');
   }
   
   try {
@@ -244,8 +243,7 @@ const generateRealPortfolioData = (symbols, historicalData) => {
     );
     
     if (symbolsWithData.length === 0) {
-      console.warn('⚠️ No symbols with sufficient historical data');
-      return generateFallbackData(symbols);
+      throw new Error('No symbols have sufficient historical data (minimum 30 days required). Please select symbols with available market data.');
     }
     
     // Calculate daily returns for each symbol
@@ -285,35 +283,10 @@ const generateRealPortfolioData = (symbols, historicalData) => {
     
   } catch (error) {
     console.error('❌ Error generating real portfolio data:', error);
-    return generateFallbackData(symbols);
+    throw new Error(`Portfolio data generation failed: ${error.message}`);
   }
 };
 
-// Fallback data when real data is unavailable
-const generateFallbackData = (symbols) => {
-  console.log('📊 Using fallback portfolio data (estimated from market characteristics)');
-  
-  const numAssets = symbols.length;
-  
-  // Use reasonable estimates based on historical market data
-  const returns = symbols.map(() => 0.08 + Math.random() * 0.12); // 8-20% annual return
-  
-  // Generate covariance matrix with realistic correlations
-  const covariance = [];
-  for (let i = 0; i < numAssets; i++) {
-    covariance[i] = [];
-    for (let j = 0; j < numAssets; j++) {
-      if (i === j) {
-        covariance[i][j] = Math.pow(0.15 + Math.random() * 0.25, 2); // 15-40% volatility
-      } else {
-        const correlation = 0.1 + Math.random() * 0.4; // 10-50% correlation
-        covariance[i][j] = correlation * Math.sqrt(covariance[i][i] * (covariance[j] ? covariance[j][j] : covariance[i][i]));
-      }
-    }
-  }
-  
-  return { returns, covariance, isFallback: true };
-};
 
 // Calculate covariance matrix from returns
 const calculateCovarianceFromReturns = (returns) => {
@@ -534,13 +507,8 @@ const PortfolioOptimization = () => {
       await loadMarketData(portfolioSymbols);
       
       // Generate real analysis data from historical prices
-      const { returns, covariance, historicalReturns, isFallback } = generateRealPortfolioData(portfolioSymbols, historicalData);
-      
-      if (isFallback) {
-        console.warn('⚠️ Using fallback portfolio data - historical data insufficient');
-      } else {
-        console.log('✅ Using real portfolio data calculated from historical prices');
-      }
+      const { returns, covariance, historicalReturns } = generateRealPortfolioData(portfolioSymbols, historicalData);
+      console.log('✅ Using real portfolio data calculated from historical prices');
       
       const currentMetrics = calculatePortfolioMetrics(currentWeights, returns, covariance);
       

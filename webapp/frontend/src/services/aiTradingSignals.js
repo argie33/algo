@@ -267,7 +267,8 @@ class AITradingSignals {
         consensus_strength: ensemble.consensus
       };
     } catch (error) {
-      return this.getMockSignal(symbol);
+      console.error(`Ensemble signal failed for ${symbol}:`, error);
+      throw new Error(`AI ensemble analysis unavailable for ${symbol}: ${error.message}`);
     }
   }
 
@@ -282,20 +283,11 @@ class AITradingSignals {
         return response.data.data;
       }
     } catch (error) {
-      console.warn('Using mock technical data:', error);
+      console.error('Technical indicators API failed:', error);
+      throw new Error(`Technical analysis data unavailable for ${symbol}: ${error.message}`);
     }
     
-    // Mock technical indicators
-    return {
-      rsi: 55 + Math.random() * 30,
-      macd: Math.random() * 2 - 1,
-      bb_position: Math.random(),
-      sma_20: 150 + Math.random() * 50,
-      ema_12: 150 + Math.random() * 50,
-      atr: 2 + Math.random() * 3,
-      adx: 20 + Math.random() * 40,
-      volume_ratio: 0.8 + Math.random() * 0.4
-    };
+    throw new Error(`No technical indicators available for ${symbol}`);
   }
 
   // Extract features for ML model
@@ -370,30 +362,47 @@ class AITradingSignals {
 
   // Get news sentiment for symbol
   async getNewsSentiment(symbol) {
-    // This would integrate with the news service
-    return {
-      score: (Math.random() - 0.5) * 2, // -1 to 1
-      confidence: 0.7 + Math.random() * 0.2,
-      article_count: Math.floor(Math.random() * 10) + 1
-    };
+    try {
+      const response = await axios.get(`/api/news/sentiment/${symbol}`);
+      if (response.data.success) {
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error(`News sentiment API failed for ${symbol}:`, error);
+      throw new Error(`News sentiment data unavailable for ${symbol}: ${error.message}`);
+    }
+    
+    throw new Error(`No news sentiment data available for ${symbol}`);
   }
 
   // Get social sentiment
   async getSocialSentiment(symbol) {
-    return {
-      score: (Math.random() - 0.5) * 2,
-      confidence: 0.6 + Math.random() * 0.3,
-      mention_count: Math.floor(Math.random() * 100) + 10
-    };
+    try {
+      const response = await axios.get(`/api/social/sentiment/${symbol}`);
+      if (response.data.success) {
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error(`Social sentiment API failed for ${symbol}:`, error);
+      throw new Error(`Social media sentiment data unavailable for ${symbol}: ${error.message}`);
+    }
+    
+    throw new Error(`No social sentiment data available for ${symbol}`);
   }
 
   // Get analyst sentiment
   async getAnalystSentiment(symbol) {
-    return {
-      score: (Math.random() - 0.5) * 1.5,
-      confidence: 0.8 + Math.random() * 0.15,
-      analyst_count: Math.floor(Math.random() * 20) + 5
-    };
+    try {
+      const response = await axios.get(`/api/analyst/sentiment/${symbol}`);
+      if (response.data.success) {
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error(`Analyst sentiment API failed for ${symbol}:`, error);
+      throw new Error(`Analyst sentiment data unavailable for ${symbol}: ${error.message}`);
+    }
+    
+    throw new Error(`No analyst sentiment data available for ${symbol}`);
   }
 
   // Combine different sentiment sources
@@ -454,27 +463,32 @@ class AITradingSignals {
         }));
       }
     } catch (error) {
-      console.warn('Using mock price data:', error);
+      console.error('Historical price data API failed:', error);
+      throw new Error(`Price data unavailable for ${symbol}: ${error.message}`);
     }
     
-    // Generate mock price data
-    return this.generateMockPriceData(this.getTimeframeDays(timeframe));
+    throw new Error(`No price data available for ${symbol}`);
   }
 
   // Get volume data
   async getVolumeData(symbol, timeframe) {
-    // Mock volume data
-    const days = this.getTimeframeDays(timeframe);
-    const volumes = [];
-    
-    for (let i = 0; i < days; i++) {
-      volumes.push({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        volume: Math.floor(1000000 + Math.random() * 5000000)
+    try {
+      const response = await axios.get(`/api/stocks/${symbol}/historical`, {
+        params: { period: this.getTimeframeDays(timeframe) }
       });
+      
+      if (response.data.success) {
+        return response.data.data.map(d => ({
+          date: d.date,
+          volume: d.volume || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Volume data API failed:', error);
+      throw new Error(`Volume data unavailable for ${symbol}: ${error.message}`);
     }
     
-    return volumes.reverse();
+    throw new Error(`No volume data available for ${symbol}`);
   }
 
   // Calculate momentum indicators
@@ -719,29 +733,6 @@ class AITradingSignals {
     }
   }
 
-  // Generate mock price data
-  generateMockPriceData(days) {
-    const data = [];
-    let price = 150;
-    
-    for (let i = days; i >= 0; i--) {
-      const change = (Math.random() - 0.5) * 4;
-      price = Math.max(price + change, 1);
-      
-      const high = price + Math.random() * 2;
-      const low = price - Math.random() * 2;
-      
-      data.push({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        open: price + (Math.random() - 0.5),
-        high,
-        low,
-        close: price
-      });
-    }
-    
-    return data;
-  }
 
   // Calculate Simple Moving Average
   calculateSMA(prices, period) {

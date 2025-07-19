@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v6.3 - SSL FALLBACK FIX - error handling cleanup
+# Trigger deploy-app-stocks workflow - loadaaiidata update v6.4 - XLRD DEPENDENCY FIX - added xlrd/openpyxl to main Dockerfile
 import sys
 import time
 import logging

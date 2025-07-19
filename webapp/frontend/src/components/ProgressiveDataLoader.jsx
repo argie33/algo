@@ -26,7 +26,7 @@ import {
   Error
 } from '@mui/icons-material';
 import apiHealthService from '../services/apiHealthService';
-import ApiUnavailableFallback from './ApiUnavailableFallback';
+import { ApiUnavailableFallback } from './fallbacks';
 
 const ProgressiveDataLoader = ({
   children,

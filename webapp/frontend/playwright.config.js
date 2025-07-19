@@ -1,66 +1,230 @@
 import { defineConfig, devices } from '@playwright/test';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
-  testDir: './src/tests/e2e',
-  fullyParallel: true,
+  testDir: './src/tests',
+  
+  // Global test configuration for comprehensive integration testing
+  timeout: 90000, // Extended timeout for complex integration tests
+  expect: {
+    timeout: 15000
+  },
+  
+  // Fail on the first test failure in CI
+  fullyParallel: !process.env.CI,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 2 : 1,
+  workers: process.env.CI ? 2 : 4,
+  
+  // Reporter configuration for comprehensive reporting
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
-    ['json', { outputFile: 'test-results/playwright-results.json' }],
-    ['junit', { outputFile: 'test-results/playwright-junit.xml' }],
+    ['html', { outputFolder: 'test-results/html-report' }],
+    ['json', { outputFile: 'test-results/test-results.json' }],
+    ['junit', { outputFile: 'test-results/junit.xml' }],
+    ['list'],
     ['github']
   ],
+  
+  // Global setup and teardown (temporarily disabled for testing)
+  // globalSetup: join(__dirname, 'src/tests/setup/global-setup.js'),
+  // globalTeardown: join(__dirname, 'src/tests/setup/global-teardown.js'),
+  
   use: {
-    baseURL: 'http://localhost:4173',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    // Base URL for all tests - use actual deployment URL
+    baseURL: process.env.E2E_BASE_URL || 'https://d1zb7knau41vl9.cloudfront.net',
+    
+    // Browser context options
+    ignoreHTTPSErrors: true, // Important for SSL testing
+    viewport: { width: 1280, height: 720 },
+    
+    // Trace collection for debugging
+    trace: 'retain-on-failure',
     video: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    
+    // Network options for real integration testing
+    extraHTTPHeaders: {
+      'Accept': 'application/json',
+      'User-Agent': 'Playwright/Integration-Tests'
+    },
+    
+    // Extended timeouts for complex operations
     actionTimeout: 30000,
-    navigationTimeout: 60000,
+    navigationTimeout: 45000,
     headless: true
   },
+  // Test projects configuration for comprehensive integration testing
   projects: [
+    // Setup project to run before all tests
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'setup',
+      testMatch: /.*\.setup\.js/,
+      use: {
+        ...devices['Desktop Chrome']
+      }
     },
+    
+    // Comprehensive Integration Tests
     {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      name: 'integration-comprehensive',
+      testMatch: /integration\/.*comprehensive.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        video: 'on'
+      }
     },
+    
+    // Trading Workflow Tests
     {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      name: 'trading-integration',
+      testMatch: /integration\/trading\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on'
+      }
     },
-    // Mobile testing
+    
+    // Portfolio Management Tests
     {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      name: 'portfolio-integration',
+      testMatch: /integration\/portfolio\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on'
+      }
     },
+    
+    // Security and Authentication Tests
     {
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
+      name: 'security-integration',
+      testMatch: /integration\/security\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        video: 'on' // Important for security test evidence
+      }
     },
+    
+    // Database and Data Loading Tests
+    {
+      name: 'database-integration',
+      testMatch: /integration\/data-loading\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        timeout: 120000 // Extended timeout for database operations
+      }
+    },
+    
+    // External API Services Tests
+    {
+      name: 'api-services-integration',
+      testMatch: /integration\/api-services\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on'
+      }
+    },
+    
+    // Error Handling and Recovery Tests
+    {
+      name: 'error-handling-integration',
+      testMatch: /integration\/error-handling\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        video: 'on'
+      }
+    },
+    
+    // Real-time Data Tests
+    {
+      name: 'realtime-integration',
+      testMatch: /integration\/realtime\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        timeout: 120000 // Extended timeout for real-time operations
+      }
+    },
+    
+    // Component Integration Tests
+    {
+      name: 'component-integration',
+      testMatch: /integration\/component-integration\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome']
+      }
+    },
+    
+    // API Integration Tests
+    {
+      name: 'api-integration',
+      testMatch: /integration\/api\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome']
+      }
+    },
+    
+    // End-to-End User Journey Tests
+    {
+      name: 'e2e-journeys',
+      testMatch: /e2e\/workflows\/.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'on',
+        video: 'on'
+      }
+    },
+    
+    // Cross-browser testing for critical flows (existing projects)
+    {
+      name: 'firefox-critical',
+      testMatch: /integration\/.*comprehensive.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Firefox'],
+        trace: 'retain-on-failure'
+      }
+    },
+    
+    {
+      name: 'webkit-critical',
+      testMatch: /integration\/.*comprehensive.*\.test\.js/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Safari'],
+        trace: 'retain-on-failure'
+      }
+    }
   ],
-  // Run local dev server before starting tests
-  webServer: {
-    command: 'npm run preview',
-    port: 4173,
+  // Output directories
+  outputDir: 'test-results/artifacts',
+  
+  // Web server configuration for local testing only
+  webServer: process.env.CI ? undefined : {
+    command: 'npm run dev',
+    port: 5173,
     reuseExistingServer: !process.env.CI,
     timeout: 120000
   },
-  // Global test setup
-  globalSetup: './src/tests/global-setup.js',
-  // Test timeout
-  timeout: 60000,
-  // Expect timeout
-  expect: {
-    timeout: 10000
-  },
-  // Output directory
-  outputDir: 'test-results/',
+  
   // Maximum failures
   maxFailures: process.env.CI ? 10 : undefined,
 });

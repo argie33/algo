@@ -115,7 +115,7 @@ class PortfolioOptimizer {
           
         } catch (error) {
           console.error('Portfolio optimization failed:', error);
-          return this.getMockOptimization(symbols);
+          throw new Error(`Portfolio optimization failed: ${error.message}`);
         }
       },
       600000, // 10 minutes cache
@@ -138,10 +138,11 @@ class PortfolioOptimizer {
             const prices = response.data.data.map(d => d.close);
             returns[symbol] = this.calculateReturns(prices);
           } else {
-            returns[symbol] = this.generateMockReturns(days);
+            throw new Error(`No historical data available for ${symbol}`);
           }
         } catch (error) {
-          returns[symbol] = this.generateMockReturns(days);
+          console.error(`Failed to get historical data for ${symbol}:`, error.message);
+          throw new Error(`Portfolio optimization requires historical data for ${symbol}`);
         }
       })
     );
@@ -486,53 +487,6 @@ class PortfolioOptimizer {
     return next.toISOString().split('T')[0];
   }
 
-  // Generate mock returns for testing
-  generateMockReturns(days) {
-    const returns = [];
-    for (let i = 0; i < days; i++) {
-      returns.push((Math.random() - 0.5) * 0.04); // ±2% daily return
-    }
-    return returns;
-  }
-
-  // Mock optimization for fallback
-  getMockOptimization(symbols) {
-    const n = symbols.length;
-    const weights = new Array(n).fill(1/n); // Equal weight
-    
-    const allocation = symbols.map((symbol, i) => ({
-      symbol,
-      weight: weights[i],
-      expectedReturn: 0.08 + Math.random() * 0.04, // 8-12% expected return
-      contribution: weights[i] * (0.08 + Math.random() * 0.04)
-    }));
-    
-    return {
-      method: 'equal_weight',
-      allocation,
-      metrics: {
-        expectedReturn: 0.10,
-        volatility: 0.15,
-        sharpeRatio: 0.67,
-        variance: 0.0225
-      },
-      riskAnalysis: {
-        beta: 1.0,
-        maxDrawdown: 0.15,
-        varAnalysis: {
-          var95: 0.025,
-          var99: 0.040,
-          expectedShortfall: 0.035
-        }
-      },
-      rebalancing: {
-        frequency: 'quarterly',
-        nextDate: this.getNextRebalanceDate('quarterly'),
-        threshold: 0.05
-      },
-      timestamp: new Date().toISOString()
-    };
-  }
 
   // Portfolio performance attribution
   async performanceAttribution(portfolio, benchmark = 'SPY') {

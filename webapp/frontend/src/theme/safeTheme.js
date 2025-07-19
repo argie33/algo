@@ -1,7 +1,7 @@
 /**
- * Safe Theme Implementation
- * Bypasses MUI createTheme to prevent createPalette errors
- * Provides direct theme objects without MUI processing
+ * Enhanced Safe Theme Implementation
+ * Advanced production theme that bypasses MUI createTheme to prevent createPalette errors
+ * Provides comprehensive styling with improved performance and visual design
  */
 
 // Direct theme object creation - no MUI createTheme() call
@@ -12,10 +12,20 @@ export const createSafeTheme = (mode = 'light') => {
     palette: {
       mode,
       primary: {
-        main: '#1976d2',
-        light: '#42a5f5',
-        dark: '#1565c0',
-        contrastText: '#ffffff'
+        main: '#0052cc',
+        light: '#4285f4',
+        dark: '#003d99',
+        contrastText: '#ffffff',
+        50: '#e3f2fd',
+        100: '#bbdefb',
+        200: '#90caf9',
+        300: '#64b5f6',
+        400: '#42a5f5',
+        500: '#2196f3',
+        600: '#1e88e5',
+        700: '#1976d2',
+        800: '#1565c0',
+        900: '#0d47a1'
       },
       secondary: {
         main: '#dc004e',
@@ -229,11 +239,14 @@ export const createSafeTheme = (mode = 'light') => {
       MuiCard: {
         styleOverrides: {
           root: {
-            borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            transition: 'box-shadow 0.3s ease-in-out',
+            borderRadius: 16,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}`,
+            background: isLight ? '#ffffff' : '#1a1a1a',
             '&:hover': {
-              boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
+              boxShadow: '0 4px 6px rgba(0,0,0,0.05), 0 10px 20px rgba(0,0,0,0.1)',
+              transform: 'translateY(-1px)'
             }
           }
         }

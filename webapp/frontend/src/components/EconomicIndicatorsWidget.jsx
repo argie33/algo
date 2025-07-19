@@ -194,7 +194,7 @@ const EconomicIndicatorsWidget = ({ height = 400, autoRefresh = true }) => {
         {error && (
           <Box sx={{ textAlign: 'center', py: 2 }}>
             <Typography color="error" variant="body2">
-              Using sample economic data
+              Failed to load economic data
             </Typography>
           </Box>
         )}

@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      chunkSizeWarningLimit: 500,
+      chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -55,6 +55,12 @@ export default defineConfig(({ mode }) => {
             }
             if (id.includes('/components/')) {
               return 'components';
+            }
+            if (id.includes('/services/')) {
+              return 'services';
+            }
+            if (id.includes('/utils/')) {
+              return 'app-utils';
             }
           }
         },

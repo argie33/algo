@@ -1,5 +1,8 @@
 import axios from 'axios' 
 import apiHealthService from './apiHealthService';
+import { enhancedFetch } from '../error/apiErrorHandler';
+import ErrorManager from '../error/ErrorManager';
+import apiWrapper from './apiWrapper';
 
 // Get API configuration - exported for ServiceHealth 
 let configLoggedOnce = false;
@@ -165,15 +168,41 @@ export { api }
 
 // Portfolio API functions
 export const getPortfolioData = async (accountType = 'paper') => {
+  const operation = 'getPortfolioData';
+  
   try {
     const response = await api.get(`/api/portfolio/holdings?accountType=${accountType}`);
+    
+    // Log successful operation
+    ErrorManager.handleError({
+      type: 'api_success',
+      message: `Portfolio data loaded successfully for ${accountType} account`,
+      category: ErrorManager.CATEGORIES.API,
+      severity: ErrorManager.SEVERITY.LOW,
+      context: { accountType, recordCount: response.data?.holdings?.length || 0 }
+    });
+    
     // Extract the data from the response
     if (response.data && response.data.success && response.data.data) {
       return response.data.data;
     }
     return response.data;
   } catch (error) {
-    console.error('Error fetching portfolio data:', error);
+    // Enhanced error handling with context
+    const enhancedError = ErrorManager.handleError({
+      type: 'api_request_failed',
+      message: `Failed to fetch portfolio data: ${error.message}`,
+      error: error,
+      category: ErrorManager.CATEGORIES.API,
+      severity: error.response?.status === 404 ? ErrorManager.SEVERITY.LOW : ErrorManager.SEVERITY.HIGH,
+      context: {
+        operation,
+        accountType,
+        status: error.response?.status,
+        url: `/api/portfolio/holdings?accountType=${accountType}`,
+        timestamp: new Date().toISOString()
+      }
+    });
     
     // Return empty portfolio for 404 (no data found) instead of throwing
     if (error.response?.status === 404) {
@@ -190,42 +219,112 @@ export const getPortfolioData = async (accountType = 'paper') => {
       };
     }
     
-    throw error;
+    // For API configuration errors, provide helpful message
+    if (error.message?.includes('API URL not configured')) {
+      enhancedError.userMessage = 'API configuration is missing. Please check your settings.';
+      enhancedError.suggestedActions = [
+        'Check API settings in Settings page',
+        'Verify environment configuration',
+        'Contact support if problem persists'
+      ];
+    }
+    
+    throw enhancedError;
   }
 };
 
 export const addHolding = async (holding) => {
+  const operation = 'addHolding';
+  
   try {
+    // Validate input
+    if (!holding || !holding.symbol) {
+      throw new Error('Invalid holding data: symbol is required');
+    }
+    
     const response = await api.post('/api/portfolio/holdings', holding);
+    
+    ErrorManager.handleError({
+      type: 'api_success',
+      message: `Holding ${holding.symbol} added successfully`,
+      category: ErrorManager.CATEGORIES.API,
+      severity: ErrorManager.SEVERITY.LOW,
+      context: { operation, symbol: holding.symbol, quantity: holding.quantity }
+    });
+    
     return response.data;
   } catch (error) {
-    console.error('Error adding holding:', error);
-    throw error;
+    const enhancedError = ErrorManager.handleError({
+      type: 'add_holding_failed',
+      message: `Failed to add holding ${holding?.symbol || 'unknown'}: ${error.message}`,
+      error: error,
+      category: ErrorManager.CATEGORIES.API,
+      severity: ErrorManager.SEVERITY.HIGH,
+      context: {
+        operation,
+        symbol: holding?.symbol,
+        status: error.response?.status,
+        validationErrors: error.response?.data?.errors
+      }
+    });
+    
+    // Provide user-friendly messages for common errors
+    if (error.response?.status === 400) {
+      enhancedError.userMessage = 'Invalid holding data. Please check all required fields.';
+    } else if (error.response?.status === 409) {
+      enhancedError.userMessage = 'This holding already exists in your portfolio.';
+    }
+    
+    throw enhancedError;
   }
 };
 
 export const updateHolding = async (holdingId, holding) => {
-  try {
+  return apiWrapper.execute('updateHolding', async () => {
+    if (!holdingId) {
+      throw new Error('Holding ID is required');
+    }
+    if (!holding || !holding.symbol) {
+      throw new Error('Invalid holding data: symbol is required');
+    }
+    
     const response = await api.put(`/api/portfolio/holdings/${holdingId}`, holding);
     return response.data;
-  } catch (error) {
-    console.error('Error updating holding:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      holdingId,
+      symbol: holding?.symbol,
+      operation: 'updateHolding'
+    },
+    successMessage: `Holding ${holding?.symbol || holdingId} updated successfully`,
+    errorMessage: `Failed to update holding ${holding?.symbol || holdingId}`
+  });
 };
 
 export const deleteHolding = async (holdingId) => {
-  try {
+  return apiWrapper.execute('deleteHolding', async () => {
+    if (!holdingId) {
+      throw new Error('Holding ID is required');
+    }
+    
     const response = await api.delete(`/api/portfolio/holdings/${holdingId}`);
     return response.data;
-  } catch (error) {
-    console.error('Error deleting holding:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      holdingId,
+      operation: 'deleteHolding'
+    },
+    successMessage: `Holding ${holdingId} deleted successfully`,
+    errorMessage: `Failed to delete holding ${holdingId}`
+  });
 };
 
 export const importPortfolioFromBroker = async (broker, accountType = 'paper', selectedKeyId = null) => {
-  try {
+  return apiWrapper.execute('importPortfolioFromBroker', async () => {
+    if (!broker) {
+      throw new Error('Broker is required');
+    }
+    
     const params = new URLSearchParams({ accountType });
     if (selectedKeyId) {
       params.append('keyId', selectedKeyId);
@@ -233,391 +332,541 @@ export const importPortfolioFromBroker = async (broker, accountType = 'paper', s
     
     const response = await api.post(`/api/portfolio/import/${broker}?${params.toString()}`);
     return response.data;
-  } catch (error) {
-    console.error('Error importing portfolio from broker:', error);
-    console.error('Error response data:', error.response?.data);
-    console.error('Error response status:', error.response?.status);
-    console.error('Request config:', error.config);
-    throw error;
-  }
+  }, {
+    context: {
+      broker,
+      accountType,
+      selectedKeyId,
+      operation: 'importPortfolioFromBroker'
+    },
+    successMessage: `Portfolio imported successfully from ${broker}`,
+    errorMessage: `Failed to import portfolio from ${broker}`,
+    timeout: 60000 // Longer timeout for import operations
+  });
 };
 
 // Get available account types for user
 export const getAvailableAccounts = async () => {
-  try {
+  return apiWrapper.execute('getAvailableAccounts', async () => {
     const response = await api.get('/api/portfolio/accounts');
     return response.data;
-  } catch (error) {
-    console.error('❌ Error fetching available accounts:', error);
-    
-    // No mock data - throw proper error
-    if (error.response?.status === 404) {
-      throw new Error('Account management API not available - please check your configuration');
+  }, {
+    context: {
+      operation: 'getAvailableAccounts'
+    },
+    successMessage: 'Available accounts loaded successfully',
+    errorMessage: 'Failed to load available accounts',
+    handleErrors: {
+      404: 'Account management API not available - please check your configuration',
+      500: 'Account management service temporarily unavailable'
     }
-    
-    if (error.response?.status === 500) {
-      throw new Error('Account management service temporarily unavailable');
-    }
-    
-    throw error;
-  }
+  });
 };
 
 // Get account information for specific account type
 export const getAccountInfo = async (accountType = 'paper') => {
-  try {
+  return apiWrapper.execute('getAccountInfo', async () => {
     const response = await api.get(`/api/portfolio/account?accountType=${accountType}`);
     // Extract the data from the response
     if (response.data && response.data.success && response.data.data) {
       return response.data.data;
     }
     return response.data;
-  } catch (error) {
-    console.error('Error fetching account info:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      accountType,
+      operation: 'getAccountInfo'
+    },
+    successMessage: `Account info loaded successfully for ${accountType} account`,
+    errorMessage: `Failed to load account info for ${accountType} account`
+  });
 };
 
 export const getPortfolioPerformance = async (timeframe = '1Y') => {
-  try {
+  return apiWrapper.execute('getPortfolioPerformance', async () => {
     // Backend expects 'period' parameter, not 'timeframe'
     const response = await api.get(`/api/portfolio/performance?period=${timeframe}`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching portfolio performance:', error);
-    // No more mock data fallbacks - return real error to surface issues
-    throw error;
-  }
+  }, {
+    context: {
+      timeframe,
+      operation: 'getPortfolioPerformance'
+    },
+    successMessage: `Portfolio performance data loaded for ${timeframe} timeframe`,
+    errorMessage: `Failed to load portfolio performance for ${timeframe} timeframe`
+  });
 };
 
 export const getPortfolioAnalytics = async (timeframe = '1Y') => {
-  try {
+  return apiWrapper.execute('getPortfolioAnalytics', async () => {
     const response = await api.get(`/api/portfolio/analytics?timeframe=${timeframe}`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching portfolio analytics:', error);
-    // No more mock data fallbacks - return real error to surface issues
-    throw error;
-  }
+  }, {
+    context: {
+      timeframe,
+      operation: 'getPortfolioAnalytics'
+    },
+    successMessage: `Portfolio analytics data loaded for ${timeframe} timeframe`,
+    errorMessage: `Failed to load portfolio analytics for ${timeframe} timeframe`
+  });
 };
 
 
 export const getBenchmarkData = async (timeframe = '1Y') => {
-  try {
+  return apiWrapper.execute('getBenchmarkData', async () => {
     const response = await api.get(`/api/portfolio/benchmark?timeframe=${timeframe}`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching benchmark data:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      timeframe,
+      operation: 'getBenchmarkData'
+    },
+    successMessage: `Benchmark data loaded for ${timeframe} timeframe`,
+    errorMessage: `Failed to load benchmark data for ${timeframe} timeframe`
+  });
 };
 
 export const getPortfolioOptimizationData = async () => {
-  try {
+  return apiWrapper.execute('getPortfolioOptimizationData', async () => {
     const response = await api.get('/api/portfolio/optimization');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching optimization data:', error);
-    
-    // Return mock optimization data for 404/500 errors
-    if (error.response?.status === 404 || error.response?.status === 500) {
-      console.warn(`Portfolio optimization API returned ${error.response?.status} - using mock data`);
-      return {
-        success: true,
-        data: {
-          optimizedWeights: [0.2, 0.15, 0.15, 0.1, 0.1, 0.1, 0.1, 0.05, 0.03, 0.02],
-          expectedReturn: 0.12,
-          volatility: 0.16,
-          sharpeRatio: 0.75
-        }
-      };
-    }
-    
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getPortfolioOptimizationData'
+    },
+    successMessage: 'Portfolio optimization data loaded successfully',
+    errorMessage: 'Failed to load portfolio optimization data'
+  });
 };
 
 export const getRebalancingRecommendations = async () => {
-  try {
+  return apiWrapper.execute('getRebalancingRecommendations', async () => {
     const response = await api.get('/api/portfolio/optimization/recommendations');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching rebalancing recommendations:', error);
-    
-    // Return mock recommendations for 404/500 errors
-    if (error.response?.status === 404 || error.response?.status === 500) {
-      console.warn(`Rebalancing recommendations API returned ${error.response?.status} - using mock data`);
-      return {
-        success: true,
-        data: {
-          recommendations: [
-            {
-              type: 'rebalance',
-              priority: 'medium',
-              description: 'Consider rebalancing to reduce concentration risk',
-              action: 'Reduce technology allocation by 5%'
-            }
-          ]
-        }
-      };
-    }
-    
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getRebalancingRecommendations'
+    },
+    successMessage: 'Rebalancing recommendations loaded successfully',
+    errorMessage: 'Failed to load rebalancing recommendations'
+  });
 };
 
 export const getRiskAnalysis = async () => {
-  try {
+  return apiWrapper.execute('getRiskAnalysis', async () => {
     const response = await api.get('/api/portfolio/risk');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching risk analysis:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getRiskAnalysis'
+    },
+    successMessage: 'Risk analysis data loaded successfully',
+    errorMessage: 'Failed to load risk analysis data'
+  });
 };
 
 // AI Assistant API functions
 export const sendChatMessage = async (message, context = {}) => {
-  try {
+  return apiWrapper.execute('sendChatMessage', async () => {
+    if (!message || message.trim().length === 0) {
+      throw new Error('Message cannot be empty');
+    }
+    
     const response = await api.post('/api/ai/chat', { message, context });
     return response.data;
-  } catch (error) {
-    console.error('Error sending chat message:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      messageLength: message?.length || 0,
+      hasContext: Object.keys(context).length > 0,
+      operation: 'sendChatMessage'
+    },
+    successMessage: 'Chat message sent successfully',
+    errorMessage: 'Failed to send chat message',
+    timeout: 30000 // Longer timeout for AI responses
+  });
 };
 
 export const getChatHistory = async (limit = 20) => {
-  try {
+  return apiWrapper.execute('getChatHistory', async () => {
     const response = await api.get(`/api/ai/history?limit=${limit}`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching chat history:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      limit,
+      operation: 'getChatHistory'
+    },
+    successMessage: `Chat history loaded (${limit} messages)`,
+    errorMessage: 'Failed to load chat history'
+  });
 };
 
 export const clearChatHistory = async () => {
-  try {
+  return apiWrapper.execute('clearChatHistory', async () => {
     const response = await api.delete('/api/ai/history');
     return response.data;
-  } catch (error) {
-    console.error('Error clearing chat history:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'clearChatHistory'
+    },
+    successMessage: 'Chat history cleared successfully',
+    errorMessage: 'Failed to clear chat history'
+  });
 };
 
 export const getAIConfig = async () => {
-  try {
+  return apiWrapper.execute('getAIConfig', async () => {
     const response = await api.get('/api/ai/config');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching AI config:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getAIConfig'
+    },
+    successMessage: 'AI configuration loaded successfully',
+    errorMessage: 'Failed to load AI configuration'
+  });
 };
 
 export const updateAIPreferences = async (preferences) => {
-  try {
+  return apiWrapper.execute('updateAIPreferences', async () => {
+    if (!preferences || typeof preferences !== 'object') {
+      throw new Error('Preferences must be a valid object');
+    }
+    
     const response = await api.put('/api/ai/preferences', preferences);
     return response.data;
-  } catch (error) {
-    console.error('Error updating AI preferences:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      preferencesCount: Object.keys(preferences || {}).length,
+      operation: 'updateAIPreferences'
+    },
+    successMessage: 'AI preferences updated successfully',
+    errorMessage: 'Failed to update AI preferences'
+  });
 };
 
 export const getMarketContext = async () => {
-  try {
+  return apiWrapper.execute('getMarketContext', async () => {
     const response = await api.get('/api/ai/market-context');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching market context:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getMarketContext'
+    },
+    successMessage: 'Market context loaded successfully',
+    errorMessage: 'Failed to load market context'
+  });
 };
 
 export const sendVoiceMessage = async (audioData, format = 'webm') => {
-  try {
+  return apiWrapper.execute('sendVoiceMessage', async () => {
+    if (!audioData) {
+      throw new Error('Audio data is required');
+    }
+    
     const response = await api.post('/api/ai/voice', { audioData, format });
     return response.data;
-  } catch (error) {
-    console.error('Error sending voice message:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      format,
+      audioDataSize: audioData?.length || 0,
+      operation: 'sendVoiceMessage'
+    },
+    successMessage: 'Voice message sent successfully',
+    errorMessage: 'Failed to send voice message',
+    timeout: 45000 // Longer timeout for voice processing
+  });
 };
 
 export const requestDigitalHuman = async (message, avatar = 'default') => {
-  try {
+  return apiWrapper.execute('requestDigitalHuman', async () => {
+    if (!message || message.trim().length === 0) {
+      throw new Error('Message cannot be empty');
+    }
+    
     const response = await api.post('/api/ai/digital-human', { message, avatar });
     return response.data;
-  } catch (error) {
-    console.error('Error requesting digital human:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      messageLength: message?.length || 0,
+      avatar,
+      operation: 'requestDigitalHuman'
+    },
+    successMessage: 'Digital human response generated successfully',
+    errorMessage: 'Failed to generate digital human response',
+    timeout: 60000 // Longer timeout for digital human generation
+  });
 };
 
 // API Keys management
 export const getApiKeys = async () => {
-  try {
+  return apiWrapper.execute('getApiKeys', async () => {
     const response = await api.get('/settings/api-keys');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching API keys:', error);
-    // Return empty array for 401 auth errors until backend is deployed
-    if (error.response?.status === 401) {
-      console.warn('Authentication not yet deployed, using empty API keys');
-      return { apiKeys: [] };
+  }, {
+    context: {
+      operation: 'getApiKeys'
+    },
+    successMessage: 'API keys loaded successfully',
+    errorMessage: 'Failed to load API keys',
+    handleErrors: {
+      401: () => {
+        console.warn('Authentication not yet deployed, using empty API keys');
+        return { apiKeys: [] };
+      }
     }
-    throw error;
-  }
+  });
 };
 
 export const addApiKey = async (apiKeyData) => {
-  try {
+  return apiWrapper.execute('addApiKey', async () => {
+    if (!apiKeyData || !apiKeyData.name || !apiKeyData.key) {
+      throw new Error('API key data must include name and key');
+    }
+    
     const response = await api.post('/settings/api-keys', apiKeyData);
     return response.data;
-  } catch (error) {
-    console.error('Error adding API key:', error);
-    // Log error details for debugging
-    console.error('API Key Error Details:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
-    throw error;
-  }
+  }, {
+    context: {
+      keyName: apiKeyData?.name,
+      keyType: apiKeyData?.type,
+      operation: 'addApiKey'
+    },
+    successMessage: `API key '${apiKeyData?.name}' added successfully`,
+    errorMessage: `Failed to add API key '${apiKeyData?.name}'`
+  });
 };
 
 export const updateApiKey = async (keyId, apiKeyData) => {
-  try {
+  return apiWrapper.execute('updateApiKey', async () => {
+    if (!keyId) {
+      throw new Error('Key ID is required');
+    }
+    if (!apiKeyData) {
+      throw new Error('API key data is required');
+    }
+    
     const response = await api.put(`/settings/api-keys/${keyId}`, apiKeyData);
     return response.data;
-  } catch (error) {
-    console.error('Error updating API key:', error);
-    // Return mock success for 500 errors until backend is fixed
-    if (error.response?.status === 500) {
-      console.warn('API key update endpoint not available, simulating success');
-      return {
-        success: true,
-        message: 'API key updated locally (backend not available)'
-      };
+  }, {
+    context: {
+      keyId,
+      keyName: apiKeyData?.name,
+      operation: 'updateApiKey'
+    },
+    successMessage: `API key '${apiKeyData?.name || keyId}' updated successfully`,
+    errorMessage: `Failed to update API key '${apiKeyData?.name || keyId}'`,
+    handleErrors: {
+      500: () => {
+        console.warn('API key update endpoint not available, simulating success');
+        return {
+          success: true,
+          message: 'API key updated locally (backend not available)'
+        };
+      }
     }
-    throw error;
-  }
+  });
 };
 
 export const deleteApiKey = async (keyId) => {
-  try {
+  return apiWrapper.execute('deleteApiKey', async () => {
+    if (!keyId) {
+      throw new Error('Key ID is required');
+    }
+    
     const response = await api.delete(`/settings/api-keys/${keyId}`);
     return response.data;
-  } catch (error) {
-    console.error('Error deleting API key:', error);
-    // Return mock success for 500 errors until backend is fixed
-    if (error.response?.status === 500) {
-      console.warn('API key delete endpoint not available, simulating success');
-      return {
-        success: true,
-        message: 'API key deleted locally (backend not available)'
-      };
+  }, {
+    context: {
+      keyId,
+      operation: 'deleteApiKey'
+    },
+    successMessage: `API key ${keyId} deleted successfully`,
+    errorMessage: `Failed to delete API key ${keyId}`,
+    handleErrors: {
+      500: () => {
+        console.warn('API key delete endpoint not available, simulating success');
+        return {
+          success: true,
+          message: 'API key deleted locally (backend not available)'
+        };
+      }
     }
-    throw error;
-  }
+  });
 };
 
 export const testApiKeyConnection = async (keyId) => {
-  try {
+  return apiWrapper.execute('testApiKeyConnection', async () => {
+    if (!keyId) {
+      throw new Error('Key ID is required');
+    }
+    
     const response = await api.post(`/settings/test-connection/${keyId}`);
     return response.data;
-  } catch (error) {
-    console.error('Error testing API key connection:', error);
-    // No more mock data fallbacks - return real error to surface issues
-    throw error;
-  }
+  }, {
+    context: {
+      keyId,
+      operation: 'testApiKeyConnection'
+    },
+    successMessage: `API key ${keyId} connection test successful`,
+    errorMessage: `API key ${keyId} connection test failed`,
+    timeout: 15000 // Longer timeout for connection tests
+  });
 };
 
 // Watchlist API functions
 export const getWatchlists = async () => {
-  try {
+  return apiWrapper.execute('getWatchlists', async () => {
     const response = await api.get('/api/watchlist');
     return response.data;
-  } catch (error) {
-    console.error('Error fetching watchlists:', error);
-    // No more mock data fallbacks - return real error to surface issues
-    throw error;
-  }
+  }, {
+    context: {
+      operation: 'getWatchlists'
+    },
+    successMessage: 'Watchlists loaded successfully',
+    errorMessage: 'Failed to load watchlists'
+  });
 };
 
 export const createWatchlist = async (watchlistData) => {
-  try {
+  return apiWrapper.execute('createWatchlist', async () => {
+    if (!watchlistData || !watchlistData.name) {
+      throw new Error('Watchlist name is required');
+    }
+    
     const response = await api.post('/api/watchlist', watchlistData);
     return response.data;
-  } catch (error) {
-    console.error('Error creating watchlist:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistName: watchlistData?.name,
+      operation: 'createWatchlist'
+    },
+    successMessage: `Watchlist '${watchlistData?.name}' created successfully`,
+    errorMessage: `Failed to create watchlist '${watchlistData?.name}'`
+  });
 };
 
 export const updateWatchlist = async (watchlistId, watchlistData) => {
-  try {
+  return apiWrapper.execute('updateWatchlist', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    if (!watchlistData) {
+      throw new Error('Watchlist data is required');
+    }
+    
     const response = await api.put(`/api/watchlist/${watchlistId}`, watchlistData);
     return response.data;
-  } catch (error) {
-    console.error('Error updating watchlist:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      watchlistName: watchlistData?.name,
+      operation: 'updateWatchlist'
+    },
+    successMessage: `Watchlist '${watchlistData?.name || watchlistId}' updated successfully`,
+    errorMessage: `Failed to update watchlist '${watchlistData?.name || watchlistId}'`
+  });
 };
 
 export const deleteWatchlist = async (watchlistId) => {
-  try {
+  return apiWrapper.execute('deleteWatchlist', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    
     const response = await api.delete(`/api/watchlist/${watchlistId}`);
     return response.data;
-  } catch (error) {
-    console.error('Error deleting watchlist:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      operation: 'deleteWatchlist'
+    },
+    successMessage: `Watchlist ${watchlistId} deleted successfully`,
+    errorMessage: `Failed to delete watchlist ${watchlistId}`
+  });
 };
 
 export const getWatchlistItems = async (watchlistId) => {
-  try {
+  return apiWrapper.execute('getWatchlistItems', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    
     const response = await api.get(`/api/watchlist/${watchlistId}/items`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching watchlist items:', error);
-    // No more mock data fallbacks - return real error to surface issues
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      operation: 'getWatchlistItems'
+    },
+    successMessage: `Watchlist ${watchlistId} items loaded successfully`,
+    errorMessage: `Failed to load watchlist ${watchlistId} items`
+  });
 };
 
 export const addWatchlistItem = async (watchlistId, itemData) => {
-  try {
+  return apiWrapper.execute('addWatchlistItem', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    if (!itemData || !itemData.symbol) {
+      throw new Error('Item data with symbol is required');
+    }
+    
     const response = await api.post(`/api/watchlist/${watchlistId}/items`, itemData);
     return response.data;
-  } catch (error) {
-    console.error('Error adding watchlist item:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      symbol: itemData?.symbol,
+      operation: 'addWatchlistItem'
+    },
+    successMessage: `${itemData?.symbol} added to watchlist successfully`,
+    errorMessage: `Failed to add ${itemData?.symbol} to watchlist`
+  });
 };
 
 export const deleteWatchlistItem = async (watchlistId, itemId) => {
-  try {
+  return apiWrapper.execute('deleteWatchlistItem', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    if (!itemId) {
+      throw new Error('Item ID is required');
+    }
+    
     const response = await api.delete(`/api/watchlist/${watchlistId}/items/${itemId}`);
     return response.data;
-  } catch (error) {
-    console.error('Error deleting watchlist item:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      itemId,
+      operation: 'deleteWatchlistItem'
+    },
+    successMessage: `Item ${itemId} deleted from watchlist successfully`,
+    errorMessage: `Failed to delete item ${itemId} from watchlist`
+  });
 };
 
 export const reorderWatchlistItems = async (watchlistId, itemIds) => {
-  try {
+  return apiWrapper.execute('reorderWatchlistItems', async () => {
+    if (!watchlistId) {
+      throw new Error('Watchlist ID is required');
+    }
+    if (!itemIds || !Array.isArray(itemIds)) {
+      throw new Error('Item IDs array is required');
+    }
+    
     const response = await api.post(`/api/watchlist/${watchlistId}/items/reorder`, { itemIds });
     return response.data;
-  } catch (error) {
-    console.error('Error reordering watchlist items:', error);
-    throw error;
-  }
+  }, {
+    context: {
+      watchlistId,
+      itemCount: itemIds?.length || 0,
+      operation: 'reorderWatchlistItems'
+    },
+    successMessage: `Watchlist items reordered successfully (${itemIds?.length || 0} items)`,
+    errorMessage: 'Failed to reorder watchlist items'
+  });
 };
 
 // Function to get current base URL
@@ -1626,27 +1875,7 @@ export const screenStocks = async (params) => {
   } catch (error) {
     console.error('❌ [API] Error screening stocks:', error);
     
-    // Handle 500 errors gracefully with mock data
-    if (error.response?.status === 500) {
-      console.warn('Stock screening API returned 500, using mock data');
-      return {
-        success: true,
-        data: [
-          { symbol: 'AAPL', name: 'Apple Inc.', price: 195.89, change: 2.34, changePercent: 1.21, volume: 25000000, marketCap: 3000000000000 },
-          { symbol: 'MSFT', name: 'Microsoft Corp.', price: 415.23, change: 5.67, changePercent: 1.38, volume: 18000000, marketCap: 3100000000000 },
-          { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 2875.45, change: -12.34, changePercent: -0.43, volume: 1200000, marketCap: 1800000000000 }
-        ],
-        total: 3,
-        pagination: {
-          total: 3,
-          page: 1,
-          limit: 25,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        }
-      };
-    }
+    // No fallback to mock data - surface real errors
     
     const errorMessage = handleApiError(error, 'screen stocks');
     return {
@@ -1821,16 +2050,8 @@ export const getAlertTypes = async () => {
 export const getBuySignals = async () => {
   console.log('📈 [API] Fetching buy signals...');
   try {
-    // Mock data for now since backend endpoint might not exist
-    const mockBuySignals = [
-      { symbol: 'AAPL', signal: 'Buy', date: '2024-01-20', price: 150.25, changePercent: 2.15, strength: 'Strong' },
-      { symbol: 'MSFT', signal: 'Buy', date: '2024-01-19', price: 320.50, changePercent: 1.75, strength: 'Medium' },
-      { symbol: 'TSLA', signal: 'Buy', date: '2024-01-17', price: 850.75, changePercent: 3.25, strength: 'Strong' },
-      { symbol: 'NVDA', signal: 'Buy', date: '2024-01-16', price: 450.25, changePercent: 4.10, strength: 'Strong' },
-      { symbol: 'AMZN', signal: 'Buy', date: '2024-01-15', price: 155.80, changePercent: 1.85, strength: 'Medium' }
-    ];
-    console.log('📈 [API] Returning mock buy signals:', mockBuySignals);
-    return { data: mockBuySignals };
+    const response = await api.get('/api/trading/signals/buy');
+    return response.data;
   } catch (error) {
     console.error('❌ [API] Buy signals error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch buy signals'));
@@ -1840,14 +2061,8 @@ export const getBuySignals = async () => {
 export const getSellSignals = async () => {
   console.log('📉 [API] Fetching sell signals...');
   try {
-    // Mock data for now since backend endpoint might not exist
-    const mockSellSignals = [
-      { symbol: 'GOOGL', signal: 'Sell', date: '2024-01-18', price: 2750.00, changePercent: -0.85, strength: 'Medium' },
-      { symbol: 'META', signal: 'Sell', date: '2024-01-17', price: 380.25, changePercent: -1.20, strength: 'Weak' },
-      { symbol: 'NFLX', signal: 'Sell', date: '2024-01-16', price: 485.50, changePercent: -0.95, strength: 'Medium' }
-    ];
-    console.log('📉 [API] Returning mock sell signals:', mockSellSignals);
-    return { data: mockSellSignals };
+    const response = await api.get('/api/trading/signals/sell');
+    return response.data;
   } catch (error) {
     console.error('❌ [API] Sell signals error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch sell signals'));
@@ -3382,18 +3597,8 @@ export const getDashboardEarningsCalendar = async () => {
 export const getDashboardAnalystInsights = async () => {
   console.log('🧠 [API] Fetching dashboard analyst insights...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockInsights = {
-      upgrades: [
-        { symbol: 'AAPL', analyst: 'Goldman Sachs', action: 'Upgrade', from: 'Neutral', to: 'Buy', price_target: 175 },
-        { symbol: 'MSFT', analyst: 'Morgan Stanley', action: 'Upgrade', from: 'Equal Weight', to: 'Overweight', price_target: 350 }
-      ],
-      downgrades: [
-        { symbol: 'TSLA', analyst: 'JP Morgan', action: 'Downgrade', from: 'Overweight', to: 'Neutral', price_target: 800 }
-      ]
-    };
-    console.log('🧠 [API] Returning mock analyst insights:', mockInsights);
-    return { data: mockInsights };
+    const response = await api.get('/api/dashboard/analyst-insights');
+    return response.data;
   } catch (error) {
     console.error('❌ [API] Dashboard analyst insights error:', error);
     throw new Error(handleApiError(error, 'Failed to fetch dashboard analyst insights'));

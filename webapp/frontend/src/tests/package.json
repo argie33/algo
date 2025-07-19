@@ -1,0 +1,29 @@
+{
+  "name": "@financial-dashboard/testing",
+  "version": "1.0.0",
+  "description": "Enterprise testing framework for Financial Dashboard",
+  "scripts": {
+    "test": "node test-master.js",
+    "test:unit": "node test-master.js --category=unit",
+    "test:integration": "node test-master.js --category=integration",
+    "test:e2e": "node test-master.js --category=e2e",
+    "test:security": "node test-master.js --category=security",
+    "test:performance": "node test-master.js --category=performance",
+    "test:all": "node test-master.js --category=all",
+    "test:ci": "node test-master.js --ci",
+    "test:compliance": "node test-master.js --compliance",
+    "test:watch": "node test-master.js --watch",
+    "test:coverage": "node test-master.js --coverage",
+    "test:report": "node scripts/runners/generate-report.js"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/user-event": "^14.4.3",
+    "vitest": "^1.0.0",
+    "jest": "^29.0.0",
+    "axe-core": "^4.7.0",
+    "artillery": "^2.0.0"
+  }
+}

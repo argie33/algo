@@ -13,7 +13,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// SAFE MUI Theme - bypasses createPalette errors
+// ENHANCED MUI Theme - production optimized safe theme
 import { lightTheme } from './theme/safeTheme'
 
 // Enhanced components

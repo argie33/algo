@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/ui/layout'
-import ComprehensiveErrorBoundary from './components/ComprehensiveErrorBoundary'
-import comprehensiveErrorService from './services/comprehensiveErrorService'
+import { GlobalErrorBoundary, ErrorToastContainer } from './error'
 
 // All real page imports
 import Dashboard from './pages/Dashboard'
@@ -20,6 +19,7 @@ import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
 import Portfolio from './pages/Portfolio'
+import PortfolioEnhanced from './pages/PortfolioEnhanced'
 import PortfolioHoldings from './pages/PortfolioHoldings'
 import PortfolioPerformance from './pages/PortfolioPerformance'
 import PortfolioOptimization from './pages/PortfolioOptimization'
@@ -32,6 +32,9 @@ import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+
+// Initialize comprehensive error handling system
+import comprehensiveErrorSystem from './error/ComprehensiveErrorSystem'
 import SectorAnalysis from './pages/SectorAnalysis'
 import TestApiPage from './pages/TestApiPage'
 import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
@@ -78,17 +81,37 @@ import ProtectedTradeHistory from './pages/ProtectedTradeHistory'
 function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   
-  // Initialize error tracking on app start
-  useEffect(() => {
-    console.log('🔧 Comprehensive error handling initialized');
-    
-    // Log initial error stats
-    const stats = comprehensiveErrorService.getErrorStats();
-    console.log('📊 Initial error stats:', stats);
-  }, []);
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Initialize comprehensive error handling system
+  useEffect(() => {
+    // The comprehensive error system auto-initializes on import
+    // We can optionally check status or perform additional setup here
+    const checkSystemStatus = async () => {
+      try {
+        // Wait a moment for initialization to complete
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const status = comprehensiveErrorSystem.getSystemStatus()
+        console.log('🔍 Error Handling System Status:', status)
+        
+        if (!status.isInitialized) {
+          console.warn('⚠️ Error handling system not fully initialized')
+        }
+      } catch (error) {
+        console.error('❌ Error checking system status:', error)
+      }
+    }
+    
+    checkSystemStatus()
+    
+    // Cleanup on unmount
+    return () => {
+      comprehensiveErrorSystem.cleanup()
+    }
+  }, [])
   
 
   const handleLogout = async () => {
@@ -122,12 +145,8 @@ function App() {
   );
 
   return (
-    <ComprehensiveErrorBoundary 
-      name="App" 
-      onError={(error, errorInfo, response) => {
-        console.error('🚨 App-level error caught:', response);
-      }}
-    >
+    <GlobalErrorBoundary name="App">
+      <ErrorToastContainer />
       <AppLayout
         headerTitle="Financial Platform"
         user={user}
@@ -207,6 +226,7 @@ function App() {
           <Route path="/performance-monitoring" element={<PerformanceMonitoring />} />
           <Route path="/trading-signals-enhanced" element={<TradingSignalsEnhanced />} />
           <Route path="/portfolio/holdings" element={<PortfolioHoldings />} />
+          <Route path="/portfolio/enhanced" element={<PortfolioEnhanced />} />
           <Route path="/stocks/detail-lite/:ticker" element={<StockDetailLite />} />
           <Route path="/stocks/detail-simple/:ticker" element={<StockDetailSimple />} />
           <Route path="/settings/api-keys" element={<SettingsApiKeys />} />
@@ -215,6 +235,8 @@ function App() {
           <Route path="/portfolio/protected" element={<ProtectedPortfolio />} />
           <Route path="/settings/protected" element={<ProtectedSettings />} />
           <Route path="/trade-history/protected" element={<ProtectedTradeHistory />} />
+          
+          
         </Routes>
       </div>
       
@@ -224,7 +246,7 @@ function App() {
         onClose={() => setAuthModalOpen(false)}
       />
       </AppLayout>
-    </ComprehensiveErrorBoundary>
+    </GlobalErrorBoundary>
   )
 }
 

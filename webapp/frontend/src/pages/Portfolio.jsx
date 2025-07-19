@@ -305,86 +305,7 @@ const generatePerformanceHistory = (holdings, historicalData) => {
 };
 
 // Fallback mock data for cases where real data is unavailable
-const mockPortfolioData = {
-  isMockData: true,
-  isRealData: false,
-  holdings: [
-    {
-      symbol: 'AAPL',
-      company: 'Apple Inc.',
-      shares: 100,
-      avgCost: 150.00,
-      currentPrice: 189.45,
-      marketValue: 18945,
-      gainLoss: 3945,
-      gainLossPercent: 26.30,
-      sector: 'Technology',
-      allocation: 23.5,
-      beta: 1.2,
-      factorScores: { quality: 85, growth: 60, value: 25, momentum: 75, sentiment: 70, positioning: 45 }
-    },
-    {
-      symbol: 'MSFT',
-      company: 'Microsoft Corporation',
-      shares: 50,
-      avgCost: 300.00,
-      currentPrice: 342.56,
-      marketValue: 17128,
-      gainLoss: 2128,
-      gainLossPercent: 14.19,
-      sector: 'Technology',
-      allocation: 21.3,
-      beta: 0.9,
-      factorScores: { quality: 90, growth: 65, value: 30, momentum: 80, sentiment: 75, positioning: 50 }
-    },
-    {
-      symbol: 'GOOGL',
-      company: 'Alphabet Inc.',
-      shares: 25,
-      avgCost: 120.00,
-      currentPrice: 134.23,
-      marketValue: 3356,
-      gainLoss: 356,
-      gainLossPercent: 11.86,
-      sector: 'Technology',
-      allocation: 4.2,
-      beta: 1.1,
-      factorScores: { quality: 80, growth: 70, value: 40, momentum: 65, sentiment: 60, positioning: 35 }
-    },
-    {
-      symbol: 'JPM',
-      company: 'JPMorgan Chase & Co.',
-      shares: 60,
-      avgCost: 140.00,
-      currentPrice: 167.89,
-      marketValue: 10073,
-      gainLoss: 1673,
-      gainLossPercent: 19.89,
-      sector: 'Financials',
-      allocation: 12.5,
-      beta: 1.3,
-      factorScores: { quality: 75, growth: 40, value: 70, momentum: 55, sentiment: 50, positioning: 60 }
-    }
-  ],
-  sectorAllocation: [
-    { name: 'Technology', value: 48.9, isMockData: true },
-    { name: 'Financials', value: 25.6, isMockData: true },
-    { name: 'Healthcare', value: 14.6, isMockData: true },
-    { name: 'Consumer Staples', value: 7.6, isMockData: true }
-  ],
-  performanceHistory: Array.from({ length: 90 }, (_, i) => ({
-    date: new Date(Date.now() - (90 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    portfolioValue: 65000 + Math.random() * 10000 + i * 15,
-    benchmarkValue: 65000 + Math.random() * 8000 + i * 12,
-    isMockData: true
-  })),
-  stressTests: [
-    { scenario: '2008 Financial Crisis', impact: -37.2, isMockData: true },
-    { scenario: 'COVID-19 Crash', impact: -22.8, isMockData: true },
-    { scenario: 'Tech Bubble Burst', impact: -28.5, isMockData: true },
-    { scenario: 'Interest Rate Shock', impact: -15.3, isMockData: true }
-  ]
-};
+// Mock data removed - now using only real portfolio data from broker APIs
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -909,27 +830,11 @@ const Portfolio = () => {
         originalError: error.message
       });
       
-      // Fallback to demo data with real VaR calculations if API fails
-      if (dataSource !== 'demo') {
-        console.log('🔄 Falling back to demo data with real VaR calculations due to API error');
-        
-        // Generate real portfolio data with VaR calculations from demo holdings
-        const demoHoldings = mockPortfolioData.holdings.map(h => ({ ...h, isMockData: false }));
-        const realPortfolioData = generateRealPortfolioData(demoHoldings, {});
-        
-        setPortfolioData(realPortfolioData || mockPortfolioData);
-        setDataSource('demo');
-        setAccountInfo({ 
-          accountType: 'demo (with real VaR)', 
-          balance: 250000, 
-          equity: 80500, 
-          dayChange: 1250.75, 
-          dayChangePercent: 1.58 
-        });
-        console.log('✅ Fallback to demo data with real VaR calculations successful');
-      } else {
-        console.error('❌ Failed to load even demo data');
-      }
+      // No fallback to demo data - show proper error state
+      console.error('❌ Portfolio data loading failed - showing error state');
+      setPortfolioData(null);
+      setDataSource('error');
+      setAccountInfo(null);
     } finally {
       setLoading(false);
       console.log('🏁 Portfolio data loading finished');
@@ -2472,11 +2377,11 @@ const Portfolio = () => {
             <Card>
               <CardHeader 
                 title="Portfolio Holdings" 
-                subheader={dataSource === 'mock' ? 'Using demo data - Connect your broker for live data' : 'Live data from connected brokers'}
+                subheader={dataSource === 'error' ? 'Portfolio data unavailable - Please check your API connection' : 'Live data from connected brokers'}
                 action={
                   <Chip 
                     label={`${computedPortfolioData.holdings.length} positions`} 
-                    color={dataSource === 'mock' ? 'warning' : 'primary'} 
+                    color={dataSource === 'error' ? 'error' : 'primary'} 
                     variant="outlined" 
                   />
                 }
