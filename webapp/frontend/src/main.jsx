@@ -13,8 +13,8 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// REAL MUI Theme - fixing createPalette errors with proper MUI usage
-import muiTheme from './theme/muiTheme'
+// SAFE MUI Theme - bypasses createPalette errors
+import { lightTheme } from './theme/safeTheme'
 
 // Enhanced components
 import './index.css'
@@ -92,7 +92,7 @@ const queryClient = new QueryClient({
 // Enhanced app wrapper with comprehensive error handling and loading states
 const AppWithProviders = () => {
   return (
-    <ThemeProvider theme={muiTheme}>
+    <ThemeProvider theme={lightTheme}>
       <CssBaseline />
       <LoadingProvider>
         <AuthProvider>

@@ -27,6 +27,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
     "recharts": "^2.15.4",
+    "use-sync-external-store": "^1.5.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
@@ -86,6 +87,11 @@
     "start": "npm run config && npm run setup-dev && npm run dev",
     "build-prod": "npm run config && npm run setup-prod && npm run build",
     "debug:react": "node -e \"console.log('Running React diagnostics...'); import('./src/utils/reactHooksDebugger.js').then(m => m.runReactHooksDiagnostics())\""
+  },
+  "resolutions": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "use-sync-external-store": "^1.5.0"
   },
   "browserslist": {
     "production": [

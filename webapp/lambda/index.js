@@ -1,9 +1,23 @@
-// FINANCIAL DASHBOARD API - FULL VERSION WITH CORS RELIABILITY - FIXED YAML ERROR
-console.log('🚀 Financial Dashboard API Lambda starting - FULL VERSION...');
+// FINANCIAL DASHBOARD API - FULL VERSION WITH COMPREHENSIVE ERROR HANDLING
+console.log('🚀 Financial Dashboard API Lambda starting - FULL VERSION WITH ERROR HANDLING...');
 
 const serverless = require('serverless-http');
 const express = require('express');
+const { 
+    globalErrorHandler, 
+    asyncErrorHandler, 
+    errorMonitoringMiddleware,
+    databaseErrorHandler,
+    apiErrorHandler,
+    networkErrorHandler,
+    configErrorHandler
+} = require('./middleware/comprehensiveErrorMiddleware');
+const comprehensiveErrorHandler = require('./utils/comprehensiveErrorHandler');
+
 const app = express();
+
+// Initialize comprehensive error tracking
+app.use(errorMonitoringMiddleware);
 
 // Trust proxy when running behind API Gateway/CloudFront
 app.set('trust proxy', true);
@@ -995,7 +1009,20 @@ app.use((error, req, res, next) => {
   });
 });
 
-console.log('✅ Financial Dashboard API Lambda ready');
+// Apply comprehensive global error handler LAST
+app.use(globalErrorHandler);
+
+// Add error statistics endpoint for monitoring
+app.get('/api/error-stats', asyncErrorHandler(async (req, res) => {
+  const stats = comprehensiveErrorHandler.getErrorStats();
+  res.json({
+    success: true,
+    data: stats,
+    timestamp: new Date().toISOString()
+  });
+}));
+
+console.log('✅ Financial Dashboard API Lambda ready with comprehensive error handling');
 
 // Export the handler
 module.exports.handler = serverless(app);

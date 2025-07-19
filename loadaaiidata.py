@@ -491,17 +491,25 @@ if __name__ == "__main__":
                 
             except psycopg2.OperationalError as e:
                 error_msg = str(e)
-                logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+                error_code = getattr(e, 'pgcode', 'NO_CODE')
+                logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
+                logging.error(f"🔍 Error Code: {error_code}")
+                logging.error(f"🔍 Error Message: {error_msg}")
                 
-                # Parse specific error types
-                if "pg_hba.conf" in error_msg:
-                    logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
-                    if "no encryption" in error_msg:
-                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using sslmode='require'")
-                elif "Connection refused" in error_msg:
-                    logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
-                elif "timeout" in error_msg:
-                    logging.error("🔍 DIAGNOSIS: Connection timeout - network or server performance issue")
+                # Comprehensive error diagnosis
+                error_diagnosis = self.diagnose_postgres_error(error_msg, error_code, cfg, ssl_config)
+                logging.error(f"🔍 DIAGNOSIS: {error_diagnosis['category']}")
+                logging.error(f"🔍 DETAILS: {error_diagnosis['details']}")
+                logging.error(f"🔍 SUGGESTED FIX: {error_diagnosis['suggested_fix']}")
+                
+                # Log connection attempt details for debugging
+                logging.error(f"🔍 Connection Details:")
+                logging.error(f"   Host: {cfg['host']}")
+                logging.error(f"   Port: {cfg['port']}")
+                logging.error(f"   Database: {cfg['dbname']}")
+                logging.error(f"   User: {cfg['user']}")
+                logging.error(f"   SSL Mode: {ssl_config.get('sslmode', 'unknown')}")
+                logging.error(f"   SSL Cert: {ssl_config.get('sslrootcert', 'none')}")
                 
                 if attempt < max_retries:
                     logging.info(f"⏳ Retrying in {retry_delay} seconds...")
@@ -509,15 +517,25 @@ if __name__ == "__main__":
                     retry_delay *= 2  # Exponential backoff
                 else:
                     logging.error(f"❌ All {max_retries} connection attempts failed")
+                    self.log_final_error_report(e, cfg, ssl_config, attempt)
                     raise
                     
             except Exception as e:
-                logging.error(f"❌ Unexpected connection error (attempt {attempt}/{max_retries}): {e}")
+                logging.error(f"❌ Unexpected connection error (attempt {attempt}/{max_retries})")
+                logging.error(f"🔍 Error Type: {type(e).__name__}")
+                logging.error(f"🔍 Error Message: {str(e)}")
+                
+                # Get full stack trace
+                import traceback
+                full_trace = traceback.format_exc()
+                logging.error(f"🔍 Full Stack Trace:\n{full_trace}")
+                
                 if attempt < max_retries:
                     logging.info(f"⏳ Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 else:
+                    self.log_final_error_report(e, cfg, ssl_config if 'ssl_config' in locals() else {}, attempt)
                     raise
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)

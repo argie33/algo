@@ -8,6 +8,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.js'],
+    env: {
+      VITE_API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+      NODE_ENV: 'test'
+    },
     coverage: {
       reporter: ['text', 'json', 'html', 'lcov'],
       reportsDirectory: './coverage',

@@ -1,0 +1,65 @@
+{
+  "name": "webapp-e2e-testing",
+  "version": "1.0.0",
+  "description": "Comprehensive E2E testing for Financial Dashboard - Real systems, no mocks",
+  "main": "playwright.config.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:auth": "playwright test tests/auth-comprehensive.spec.js",
+    "test:portfolio": "playwright test tests/portfolio-comprehensive.spec.js",
+    "test:market": "playwright test tests/market-comprehensive.spec.js",
+    "test:trading": "playwright test tests/trading-comprehensive.spec.js",
+    "test:error-recovery": "playwright test tests/error-recovery.spec.js",
+    "test:performance": "playwright test tests/performance-load.spec.js",
+    "test:security": "playwright test tests/security-comprehensive.spec.js",
+    "test:user-journey": "playwright test tests/user-journey.spec.js",
+    "test:parallel": "playwright test --workers=3",
+    "test:serial": "playwright test --workers=1",
+    "test:smoke": "playwright test --grep=\"@smoke\"",
+    "test:regression": "playwright test --grep=\"@regression\"",
+    "test:critical": "playwright test --grep=\"@critical\"",
+    "report": "playwright show-report",
+    "report:open": "playwright show-report --host=0.0.0.0",
+    "clean": "rm -rf test-results e2e-reports playwright-report",
+    "setup": "npm install && playwright install",
+    "setup:deps": "playwright install-deps",
+    "validate": "node scripts/validate-environment.js",
+    "monitor": "node scripts/monitor-test-environment.js",
+    "health-check": "node scripts/health-check.js"
+  },
+  "keywords": [
+    "e2e",
+    "testing",
+    "playwright",
+    "financial",
+    "dashboard",
+    "real-systems",
+    "no-mocks",
+    "comprehensive"
+  ],
+  "author": "Financial Dashboard Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/financial-dashboard.git",
+    "directory": "webapp/e2e-testing"
+  },
+  "config": {
+    "testTimeout": 120000,
+    "retries": 2,
+    "workers": 2
+  },
+  "volta": {
+    "node": "18.18.0",
+    "npm": "9.8.1"
+  }
+}

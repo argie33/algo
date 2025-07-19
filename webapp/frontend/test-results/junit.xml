@@ -1,0 +1,1356 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="210" failures="54" errors="0" time="26.693">
+    <testsuite name="src/tests/components.test.jsx" timestamp="2025-07-19T04:33:22.299Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/components.test.jsx" name="src/tests/components.test.jsx" time="0">
+            <failure message="[vitest] No &quot;getApiConfig&quot; export is defined on the &quot;../services/api&quot; mock. Did you forget to return it from &quot;vi.mock&quot;?
+If you need to partially mock a module, you can use &quot;importOriginal&quot; helper inside:
+" type="Error">
+Error: [vitest] No &quot;getApiConfig&quot; export is defined on the &quot;../services/api&quot; mock. Did you forget to return it from &quot;vi.mock&quot;?
+If you need to partially mock a module, you can use &quot;importOriginal&quot; helper inside:
+
+vi.mock(&quot;../services/api&quot;, async (importOriginal) =&gt; {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+ ❯ new ApiKeyService src/services/apiKeyService.js:5:22
+ ❯ src/services/apiKeyService.js:174:16
+ ❯ src/services/simpleAlpacaWebSocket.js:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/services.test.js" timestamp="2025-07-19T04:33:22.301Z" hostname="LAPTOP-J9NJ3854" tests="35" failures="4" errors="0" skipped="0" time="0.339">
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; News Service &gt; should fetch news for symbols successfully" time="0.011">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; News Service &gt; should handle API errors gracefully" time="0.04">
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/services.test.js:61:29
+            </failure>
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/services.test.js:61:29
+            </failure>
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/services.test.js:61:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; News Service &gt; should analyze sentiment correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; News Service &gt; should calculate relevance score for symbols" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; News Service &gt; should deduplicate similar articles" time="0.015">
+            <failure message="expected [ Array(2) ] to have a length of 1 but got 2" type="AssertionError">
+AssertionError: expected [ Array(2) ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/tests/services.test.js:109:28
+            </failure>
+            <failure message="expected [ Array(2) ] to have a length of 1 but got 2" type="AssertionError">
+AssertionError: expected [ Array(2) ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/tests/services.test.js:109:28
+            </failure>
+            <failure message="expected [ Array(2) ] to have a length of 1 but got 2" type="AssertionError">
+AssertionError: expected [ Array(2) ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ src/tests/services.test.js:109:28
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Economic Data Service &gt; should fetch economic indicators successfully" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Economic Data Service &gt; should calculate trend correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Economic Data Service &gt; should return dashboard data with all key indicators" time="0.009">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Economic Data Service &gt; should calculate yield curve with spread" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Portfolio Optimizer &gt; should optimize portfolio with valid symbols" time="0.016">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Portfolio Optimizer &gt; should apply portfolio constraints correctly" time="0.016">
+            <failure message="expected 0.5000000000000001 to be less than or equal to 0.4" type="AssertionError">
+AssertionError: expected 0.5000000000000001 to be less than or equal to 0.4
+ ❯ src/tests/services.test.js:202:24
+ ❯ src/tests/services.test.js:201:26
+            </failure>
+            <failure message="expected 0.5000000000000001 to be less than or equal to 0.4" type="AssertionError">
+AssertionError: expected 0.5000000000000001 to be less than or equal to 0.4
+ ❯ src/tests/services.test.js:202:24
+ ❯ src/tests/services.test.js:201:26
+            </failure>
+            <failure message="expected 0.5000000000000001 to be less than or equal to 0.4" type="AssertionError">
+AssertionError: expected 0.5000000000000001 to be less than or equal to 0.4
+ ❯ src/tests/services.test.js:202:24
+ ❯ src/tests/services.test.js:201:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Portfolio Optimizer &gt; should calculate portfolio variance correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Portfolio Optimizer &gt; should calculate covariance between return series" time="0">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Portfolio Optimizer &gt; should calculate efficient frontier" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should generate trading signals for symbols" time="0.004">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should convert signal to numerical value correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should convert value back to signal correctly" time="0.015">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should calculate RSI correctly" time="0">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should calculate SMA correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; AI Trading Signals &gt; should combine signals with proper weighting" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should fetch top traders leaderboard" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should calculate trader rank correctly" time="0.003">
+            <failure message="expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality
+
+- Expected
++ Received
+
+- DIAMOND
++ PLATINUM
+
+ ❯ src/tests/services.test.js:368:26
+            </failure>
+            <failure message="expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality
+
+- Expected
++ Received
+
+- DIAMOND
++ PLATINUM
+
+ ❯ src/tests/services.test.js:368:26
+            </failure>
+            <failure message="expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;PLATINUM&apos; to be &apos;DIAMOND&apos; // Object.is equality
+
+- Expected
++ Received
+
+- DIAMOND
++ PLATINUM
+
+ ❯ src/tests/services.test.js:368:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should calculate risk score from trades" time="0">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should get trader profile with complete information" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should get community insights with sentiment data" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Social Trading Service &gt; should get social trading statistics" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Cache Service &gt; should cache and retrieve data correctly" time="0">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Cache Service &gt; should generate consistent cache keys" time="0">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Cache Service &gt; should handle cache expiration" time="0.026">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Integration Tests &gt; should handle network failures gracefully across all services" time="0.023">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Integration Tests &gt; should maintain consistent data formats across services" time="0.01">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Financial Services Test Suite &gt; Integration Tests &gt; should handle concurrent requests efficiently" time="0.011">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Performance Tests &gt; should complete portfolio optimization within time limit" time="0.005">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Performance Tests &gt; should handle large dataset efficiently" time="0.007">
+        </testcase>
+        <testcase classname="src/tests/services.test.js" name="Performance Tests &gt; should cache results to improve performance" time="0.101">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/aws/infrastructure.test.js" timestamp="2025-07-19T04:33:22.314Z" hostname="LAPTOP-J9NJ3854" tests="17" failures="5" errors="0" skipped="0" time="0.12">
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; API Gateway Health &gt; should reach API Gateway health endpoint" time="0.069">
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:28:23
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:28:23
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:28:23
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; API Gateway Health &gt; should have CORS headers configured" time="0.003">
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:42:23
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:42:23
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:42:23
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; API Gateway Health &gt; should handle authentication endpoints" time="0.007">
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:59:54
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:59:54
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;status&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;status&apos;)
+ ❯ src/tests/aws/infrastructure.test.js:59:54
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Database Connectivity &gt; should report database status in health check" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Database Connectivity &gt; should handle circuit breaker states" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Environment Configuration &gt; should have environment variables configured" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Environment Configuration &gt; should not expose sensitive environment variables" time="0">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Lambda Function Performance &gt; should respond within acceptable time limits" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; CloudFront Distribution &gt; should serve static assets from CloudFront" time="0">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Security Configuration &gt; should have security headers configured" time="0">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Security Configuration &gt; should not expose server information" time="0">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Data Layer Integration &gt; should handle API key service endpoints" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="AWS Infrastructure Tests &gt; Data Layer Integration &gt; should handle market data endpoints" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="Deployment Validation &gt; Configuration Consistency &gt; should have consistent API URLs across environments" time="0">
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="Deployment Validation &gt; Configuration Consistency &gt; should have build-time configuration available" time="0.012">
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/aws/infrastructure.test.js:285:33
+            </failure>
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/aws/infrastructure.test.js:285:33
+            </failure>
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/aws/infrastructure.test.js:285:33
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="Deployment Validation &gt; Feature Flags and Environment Detection &gt; should correctly identify environment" time="0.014">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/aws/infrastructure.test.js:297:32
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/aws/infrastructure.test.js:297:32
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/aws/infrastructure.test.js:297:32
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/aws/infrastructure.test.js" name="Deployment Validation &gt; Feature Flags and Environment Detection &gt; should have appropriate feature flags for environment" time="0">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/ci-cd/ci-validation.test.js" timestamp="2025-07-19T04:33:22.323Z" hostname="LAPTOP-J9NJ3854" tests="15" failures="0" errors="0" skipped="0" time="23.056">
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Configuration File Compatibility &gt; should have PostCSS config compatible with both ES modules and CommonJS" time="0.013">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Configuration File Compatibility &gt; should have package.json configured for ES modules" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Configuration File Compatibility &gt; should have Vite config without deprecated imports" time="0.007">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Build Process Validation &gt; should complete build without PostCSS errors" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Build Process Validation &gt; should not have ES module conflicts" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Build Process Validation &gt; should handle Chart.js migration properly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Build Process Validation &gt; should have MUI icons properly configured" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; GitHub Actions Environment Simulation &gt; should work with GitHub Actions Node.js environment" time="0.538">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; GitHub Actions Environment Simulation &gt; should handle different Node.js versions" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Dependency Compatibility &gt; should not have conflicting React versions" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Dependency Compatibility &gt; should have testing dependencies compatible with Node 18" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Runtime Configuration &gt; should have proper environment detection" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Runtime Configuration &gt; should have build-time configuration available" time="0">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Security in CI Environment &gt; should not expose sensitive data in build output" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/ci-cd/ci-validation.test.js" name="CI/CD Deployment Validation &gt; Security in CI Environment &gt; should not have hardcoded secrets in configuration files" time="0.001">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/e2e/auth.spec.js" timestamp="2025-07-19T04:33:22.326Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/e2e/auth.spec.js" name="src/tests/e2e/auth.spec.js" time="0">
+            <failure message="Cannot read properties of undefined (reading &apos;node&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;node&apos;)
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/node_modules/playwright-core/index.js:17:45
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/lib/index.js:41:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/e2e/market-data.spec.js" timestamp="2025-07-19T04:33:22.327Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/e2e/market-data.spec.js" name="src/tests/e2e/market-data.spec.js" time="0">
+            <failure message="Cannot read properties of undefined (reading &apos;node&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;node&apos;)
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/node_modules/playwright-core/index.js:17:45
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/lib/index.js:41:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/e2e/portfolio.spec.js" timestamp="2025-07-19T04:33:22.328Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/e2e/portfolio.spec.js" name="src/tests/e2e/portfolio.spec.js" time="0">
+            <failure message="Cannot read properties of undefined (reading &apos;node&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;node&apos;)
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/node_modules/playwright-core/index.js:17:45
+ ❯ Object.&lt;anonymous&gt; node_modules/playwright/lib/index.js:41:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/security/security-validation.test.js" timestamp="2025-07-19T04:33:22.329Z" hostname="LAPTOP-J9NJ3854" tests="13" failures="1" errors="0" skipped="0" time="0.082">
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Input Validation Security &gt; should not contain SQL injection vulnerabilities" time="0.008">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Input Validation Security &gt; should not expose sensitive data in console logs" time="0.01">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Input Validation Security &gt; should use proper input sanitization" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Authentication and Authorization Security &gt; should not store sensitive data in localStorage" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Authentication and Authorization Security &gt; should implement proper JWT token handling" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Authentication and Authorization Security &gt; should use secure API key encryption" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; XSS and Code Injection Prevention &gt; should not use dangerous innerHTML or eval" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; XSS and Code Injection Prevention &gt; should use secure React patterns" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Configuration and Secrets Management &gt; should not contain hardcoded secrets" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Configuration and Secrets Management &gt; should use environment variables for configuration" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Dependency Security &gt; should not have known vulnerable dependencies" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Dependency Security &gt; should use secure dependency versions" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/security/security-validation.test.js" name="Security Testing Framework - TEST-006 &gt; Security Test Results Summary &gt; should meet minimum security standards" time="0.044">
+            <failure message="expected 59.3 to be greater than 70" type="AssertionError">
+AssertionError: expected 59.3 to be greater than 70
+ ❯ src/tests/security/security-validation.test.js:533:45
+            </failure>
+            <failure message="expected 59.3 to be greater than 70" type="AssertionError">
+AssertionError: expected 59.3 to be greater than 70
+ ❯ src/tests/security/security-validation.test.js:533:45
+            </failure>
+            <failure message="expected 59.3 to be greater than 70" type="AssertionError">
+AssertionError: expected 59.3 to be greater than 70
+ ❯ src/tests/security/security-validation.test.js:533:45
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/deployment/build-validation.test.js" timestamp="2025-07-19T04:33:22.332Z" hostname="LAPTOP-J9NJ3854" tests="13" failures="6" errors="0" skipped="0" time="0.089">
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Configuration Files &gt; should have valid package.json with correct module type" time="0.01">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Configuration Files &gt; should have PostCSS config with correct extension" time="0.043">
+            <failure message="expected true to be false // Object.is equality" type="AssertionError">
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/tests/deployment/build-validation.test.js:64:36
+            </failure>
+            <failure message="expected true to be false // Object.is equality" type="AssertionError">
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/tests/deployment/build-validation.test.js:64:36
+            </failure>
+            <failure message="expected true to be false // Object.is equality" type="AssertionError">
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/tests/deployment/build-validation.test.js:64:36
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Configuration Files &gt; should have valid Vite config without deprecated imports" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Configuration Files &gt; should have valid environment configuration" time="0.004">
+            <failure message="expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;
+
+- Expected
++ Received
+
+- VITE_API_URL
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:86:26
+            </failure>
+            <failure message="expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;
+
+- Expected
++ Received
+
+- VITE_API_URL
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:86:26
+            </failure>
+            <failure message="expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;VITE_API_URL&apos;
+
+- Expected
++ Received
+
+- VITE_API_URL
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:86:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Build Process &gt; should build successfully without errors" time="0">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Build Process &gt; should generate expected output files" time="0">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Build Process &gt; should not expose sensitive information in build output" time="0">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Build Process &gt; should have reasonable bundle sizes" time="0">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; ES Module Compatibility &gt; should handle dynamic imports correctly" time="0.004">
+            <failure message="expected &apos;{}&apos; to contain &apos;import(&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;import(&apos;
+
+- Expected
++ Received
+
+- import(
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:143:23
+            </failure>
+            <failure message="expected &apos;{}&apos; to contain &apos;import(&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;import(&apos;
+
+- Expected
++ Received
+
+- import(
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:143:23
+            </failure>
+            <failure message="expected &apos;{}&apos; to contain &apos;import(&apos;" type="AssertionError">
+AssertionError: expected &apos;{}&apos; to contain &apos;import(&apos;
+
+- Expected
++ Received
+
+- import(
++ {}
+
+ ❯ src/tests/deployment/build-validation.test.js:143:23
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; ES Module Compatibility &gt; should not have CommonJS syntax in ES modules" time="0.014">
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Dependency Validation &gt; should not have conflicting React versions" time="0.004">
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:171:44
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:171:44
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:171:44
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Validation Tests &gt; Dependency Validation &gt; should have required testing dependencies" time="0.002">
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:178:43
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:178:43
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/deployment/build-validation.test.js:178:43
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/deployment/build-validation.test.js" name="Build Process" time="0.002">
+            <failure message="process.cwd is not a function" type="TypeError">
+TypeError: process.cwd is not a function
+ ❯ src/tests/deployment/build-validation.test.js:189:20
+ ❯ runBuild src/tests/deployment/build-validation.test.js:187:10
+ ❯ src/tests/deployment/build-validation.test.js:95:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/api-endpoints.test.js" timestamp="2025-07-19T04:33:22.342Z" hostname="LAPTOP-J9NJ3854" tests="22" failures="21" errors="0" skipped="0" time="0.158">
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Core Health and Status Endpoints &gt; should respond to health check endpoint" time="0.067">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:103:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:103:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:103:30
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Core Health and Status Endpoints &gt; should respond to API status endpoint" time="0.011">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:109:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:109:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:109:30
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Core Health and Status Endpoints &gt; should handle CORS preflight requests" time="0.008">
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/integration/api-endpoints.test.js:115:30
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/integration/api-endpoints.test.js:115:30
+            </failure>
+            <failure message="Cannot convert undefined or null to object" type="TypeError">
+TypeError: Cannot convert undefined or null to object
+ ❯ src/tests/integration/api-endpoints.test.js:115:30
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Authentication Endpoints &gt; should respond to auth status endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:122:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:122:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:122:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Authentication Endpoints &gt; should handle auth validation endpoint" time="0.005">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:131:55
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:131:55
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:131:55
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Portfolio Management Endpoints &gt; should respond to portfolio list endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:138:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:138:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:138:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Portfolio Management Endpoints &gt; should respond to portfolio holdings endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:144:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:144:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:144:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Portfolio Management Endpoints &gt; should respond to portfolio performance endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:150:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:150:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:150:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Market Data Endpoints &gt; should respond to live data endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:158:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:158:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:158:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Market Data Endpoints &gt; should respond to stocks endpoint" time="0.002">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:164:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:164:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:164:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Market Data Endpoints &gt; should respond to market data endpoint" time="0.002">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:170:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:170:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:170:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Settings and Configuration Endpoints &gt; should respond to settings endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:178:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:178:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:178:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Settings and Configuration Endpoints &gt; should handle settings update endpoint" time="0.005">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:187:55
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:187:55
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:187:55
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; WebSocket and Real-time Endpoints &gt; should respond to WebSocket endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:194:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:194:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:194:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; WebSocket and Real-time Endpoints &gt; should respond to live streaming endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:200:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:200:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:200:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Financial Data Analysis Endpoints &gt; should respond to technical analysis endpoint" time="0.004">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:208:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:208:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:208:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Financial Data Analysis Endpoints &gt; should respond to sentiment analysis endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:214:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:214:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:214:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Financial Data Analysis Endpoints &gt; should respond to trading signals endpoint" time="0.003">
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:220:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:220:29
+            </failure>
+            <failure message="expected 0 to be greater than or equal to 200" type="AssertionError">
+AssertionError: expected 0 to be greater than or equal to 200
+ ❯ src/tests/integration/api-endpoints.test.js:220:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; API Response Quality and Performance &gt; should have reasonable response times" time="0.004">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:231:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:231:30
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:231:30
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; API Response Quality and Performance &gt; should return proper JSON content type for JSON endpoints" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; API Response Quality and Performance &gt; should handle invalid endpoints gracefully" time="0.007">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:245:50
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:245:50
+            </failure>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/tests/integration/api-endpoints.test.js:245:50
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api-endpoints.test.js" name="API Integration Testing Suite - TEST-002 &gt; Integration Test Results Summary &gt; should provide comprehensive test coverage summary" time="0.001">
+            <failure message="expected 0 to be greater than 0.7" type="AssertionError">
+AssertionError: expected 0 to be greater than 0.7
+ ❯ src/tests/integration/api-endpoints.test.js:261:27
+            </failure>
+            <failure message="expected 0 to be greater than 0.7" type="AssertionError">
+AssertionError: expected 0 to be greater than 0.7
+ ❯ src/tests/integration/api-endpoints.test.js:261:27
+            </failure>
+            <failure message="expected 0 to be greater than 0.7" type="AssertionError">
+AssertionError: expected 0 to be greater than 0.7
+ ❯ src/tests/integration/api-endpoints.test.js:261:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/middleware-integration.test.js" timestamp="2025-07-19T04:33:22.379Z" hostname="LAPTOP-J9NJ3854" tests="21" failures="4" errors="0" skipped="0" time="1.982">
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Authentication Middleware &gt; should validate JWT tokens correctly" time="0.011">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Authentication Middleware &gt; should reject invalid tokens" time="0.468">
+            <failure message="Cannot read properties of undefined (reading &apos;mockImplementation&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;mockImplementation&apos;)
+ ❯ src/tests/integration/middleware-integration.test.js:158:18
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;mockImplementation&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;mockImplementation&apos;)
+ ❯ src/tests/integration/middleware-integration.test.js:158:18
+            </failure>
+            <failure message="Cannot read properties of undefined (reading &apos;mockImplementation&apos;)" type="TypeError">
+TypeError: Cannot read properties of undefined (reading &apos;mockImplementation&apos;)
+ ❯ src/tests/integration/middleware-integration.test.js:158:18
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Authentication Middleware &gt; should handle missing authorization header" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Validation Middleware &gt; should validate input schemas correctly" time="0.008">
+            <failure message="expected &apos;&apos; to be false // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;&apos; to be false // Object.is equality
+
+- Expected: 
+false
+
++ Received: 
+&quot;&quot;
+
+ ❯ src/tests/integration/middleware-integration.test.js:229:33
+ ❯ src/tests/integration/middleware-integration.test.js:211:18
+            </failure>
+            <failure message="expected &apos;&apos; to be false // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;&apos; to be false // Object.is equality
+
+- Expected: 
+false
+
++ Received: 
+&quot;&quot;
+
+ ❯ src/tests/integration/middleware-integration.test.js:229:33
+ ❯ src/tests/integration/middleware-integration.test.js:211:18
+            </failure>
+            <failure message="expected &apos;&apos; to be false // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;&apos; to be false // Object.is equality
+
+- Expected: 
+false
+
++ Received: 
+&quot;&quot;
+
+ ❯ src/tests/integration/middleware-integration.test.js:229:33
+ ❯ src/tests/integration/middleware-integration.test.js:211:18
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Validation Middleware &gt; should sanitize malicious input" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Rate Limiting Middleware &gt; should enforce rate limits correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Rate Limiting Middleware &gt; should handle different rate limit windows" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Error Handler Middleware &gt; should handle different error types appropriately" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Error Handler Middleware &gt; should log errors with appropriate detail levels" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Database Connection Middleware &gt; should handle database connection pooling" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Database Connection Middleware &gt; should handle connection retries" time="0.302">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Database Connection Middleware &gt; should handle transaction rollbacks" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Security Middleware &gt; should prevent SQL injection attacks" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Security Middleware &gt; should implement CORS correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Security Middleware &gt; should implement proper password hashing" time="0.044">
+            <failure message="Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?" type="Error">
+Error: Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51968:17
+            </failure>
+            <failure message="Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?" type="Error">
+Error: Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51968:17
+            </failure>
+            <failure message="Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?" type="Error">
+Error: Failed to load url bcryptjs (resolved id: bcryptjs). Does the file exist?
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51968:17
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Performance Monitoring Middleware &gt; should track request timing accurately" time="0.012">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Performance Monitoring Middleware &gt; should track memory usage" time="0.006">
+            <failure message="process.memoryUsage is not a function" type="TypeError">
+TypeError: process.memoryUsage is not a function
+ ❯ src/tests/integration/middleware-integration.test.js:632:26
+            </failure>
+            <failure message="process.memoryUsage is not a function" type="TypeError">
+TypeError: process.memoryUsage is not a function
+ ❯ src/tests/integration/middleware-integration.test.js:632:26
+            </failure>
+            <failure message="process.memoryUsage is not a function" type="TypeError">
+TypeError: process.memoryUsage is not a function
+ ❯ src/tests/integration/middleware-integration.test.js:632:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Performance Monitoring Middleware &gt; should track database query performance" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="Middleware Integration Tests &gt; Circuit Breaker Integration &gt; should implement circuit breaker pattern correctly" time="1.104">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="End-to-End Middleware Flow Tests &gt; should handle complete request-response cycle" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/integration/middleware-integration.test.js" name="End-to-End Middleware Flow Tests &gt; should handle middleware error propagation" time="0.001">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/mui-fix-validation.test.js" timestamp="2025-07-19T04:33:22.388Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/integration/mui-fix-validation.test.js" name="src/tests/integration/mui-fix-validation.test.js" time="0">
+            <failure message="Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension." type="Error">
+Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64243:14
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/pages-comprehensive.test.js" timestamp="2025-07-19T04:33:22.389Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/integration/pages-comprehensive.test.js" name="src/tests/integration/pages-comprehensive.test.js" time="0">
+            <failure message="Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension." type="Error">
+Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64243:14
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/Portfolio.test.jsx" timestamp="2025-07-19T04:33:22.390Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/Portfolio.test.jsx" name="src/tests/unit/Portfolio.test.jsx" time="0">
+            <failure message="API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL" type="Error">
+Error: API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL
+ ❯ getApiConfig src/services/api.js:20:11
+ ❯ src/services/api.js:47:21
+ ❯ src/components/ApiKeyProvider.jsx:3:31
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/components.test.jsx" timestamp="2025-07-19T04:33:22.391Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/components.test.jsx" name="src/tests/unit/components.test.jsx" time="0">
+            <failure message="[vitest] There was an error when mocking a module. If you are using &quot;vi.mock&quot; factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock" type="Error">
+Error: [vitest] There was an error when mocking a module. If you are using &quot;vi.mock&quot; factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ src/pages/Dashboard.jsx:9:31
+
+Caused by: Caused by: ReferenceError: Cannot access &apos;mockApiService&apos; before initialization
+ ❯ src/tests/unit/components.test.jsx:3:12
+ ❯ src/pages/Dashboard.jsx:9:31
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/comprehensive-component.test.js" timestamp="2025-07-19T04:33:22.392Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/comprehensive-component.test.js" name="src/tests/unit/comprehensive-component.test.js" time="0">
+            <failure message="Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension." type="Error">
+Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64243:14
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/mui-theme.test.js" timestamp="2025-07-19T04:33:22.393Z" hostname="LAPTOP-J9NJ3854" tests="8" failures="0" errors="0" skipped="0" time="0.019">
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Theme Creation Safety &gt; should create theme without calling createPalette directly" time="0.008">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Theme Creation Safety &gt; should handle theme provider without MUI createTheme" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Theme Creation Safety &gt; should validate theme structure without MUI validation" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Error Prevention Tests &gt; should not call createPalette function directly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Error Prevention Tests &gt; should handle theme switching without MUI processing" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Error Prevention Tests &gt; should validate component style overrides without MUI" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Integration Safety Tests &gt; should work with React context without MUI ThemeProvider" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/mui-theme.test.js" name="MUI Theme Safety Tests &gt; Integration Safety Tests &gt; should provide theme values to components safely" time="0.003">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/portfolioMath.test.js" timestamp="2025-07-19T04:33:22.395Z" hostname="LAPTOP-J9NJ3854" tests="22" failures="0" errors="0" skipped="0" time="0.055">
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; VaR (Value at Risk) Calculations &gt; calculates 1-day VaR correctly with parametric method" time="0.006">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; VaR (Value at Risk) Calculations &gt; calculates historical VaR correctly" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; VaR (Value at Risk) Calculations &gt; handles edge cases - empty returns array" time="0.005">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; VaR (Value at Risk) Calculations &gt; handles edge cases - invalid confidence level" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Sharpe Ratio Calculations &gt; calculates Sharpe ratio correctly" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Sharpe Ratio Calculations &gt; handles zero volatility case" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Sharpe Ratio Calculations &gt; handles negative excess returns" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Beta Calculations &gt; calculates beta correctly against market benchmark" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Beta Calculations &gt; handles perfectly correlated returns (beta = 1)" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Beta Calculations &gt; handles uncorrelated returns (beta ≈ 0)" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Correlation Matrix Calculations &gt; calculates correlation matrix for multiple assets" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Correlation Matrix Calculations &gt; handles single asset case" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Portfolio Return Calculations &gt; calculates weighted portfolio return correctly" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Portfolio Return Calculations &gt; handles empty portfolio" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Portfolio Return Calculations &gt; validates position weights sum to 1" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Volatility Calculations &gt; calculates annualized volatility correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Volatility Calculations &gt; handles constant returns (zero volatility)" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Edge Cases and Error Handling &gt; handles NaN values in returns" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Edge Cases and Error Handling &gt; handles infinite values in returns" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Service - Unit Tests &gt; Edge Cases and Error Handling &gt; handles mismatched array lengths" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Performance Tests &gt; VaR calculation performance with large dataset" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/portfolioMath.test.js" name="Portfolio Math Performance Tests &gt; Correlation matrix performance with many assets" time="0.017">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/services-comprehensive.test.js" timestamp="2025-07-19T04:33:22.399Z" hostname="LAPTOP-J9NJ3854" tests="32" failures="1" errors="0" skipped="0" time="1.34">
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Service Tests &gt; should handle GET requests correctly" time="0.688">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Service Tests &gt; should handle POST requests with data" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Service Tests &gt; should handle network errors gracefully" time="0.046">
+            <failure message="expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;" type="AssertionError">
+AssertionError: expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;
+
+- Expected
++ Received
+
+- Network error
++ API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL
+
+ ❯ src/tests/unit/services-comprehensive.test.js:153:29
+            </failure>
+            <failure message="expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;" type="AssertionError">
+AssertionError: expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;
+
+- Expected
++ Received
+
+- Network error
++ API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL
+
+ ❯ src/tests/unit/services-comprehensive.test.js:153:29
+            </failure>
+            <failure message="expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;" type="AssertionError">
+AssertionError: expected &apos;API URL not configured - set VITE_API…&apos; to contain &apos;Network error&apos;
+
+- Expected
++ Received
+
+- Network error
++ API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL
+
+ ❯ src/tests/unit/services-comprehensive.test.js:153:29
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Service Tests &gt; should handle HTTP error responses" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Service Tests &gt; should include authentication headers when token is available" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Portfolio Math Service Tests &gt; should calculate VaR correctly" time="0.268">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Portfolio Math Service Tests &gt; should calculate Sharpe ratio correctly" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Portfolio Math Service Tests &gt; should calculate correlation matrix correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Portfolio Math Service Tests &gt; should handle edge cases in calculations" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Key Service Tests &gt; should store and retrieve API keys securely" time="0.041">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Key Service Tests &gt; should validate API key formats" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Key Service Tests &gt; should handle encryption/decryption of sensitive data" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="API Key Service Tests &gt; should handle missing or corrupted stored data" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Live Data Service Tests &gt; should establish WebSocket connections correctly" time="0.006">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Live Data Service Tests &gt; should handle subscription management" time="0.004">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Live Data Service Tests &gt; should handle connection failures and reconnection" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Live Data Service Tests &gt; should parse real-time data correctly" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Cache Service Tests &gt; should store and retrieve cached data" time="0.019">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Cache Service Tests &gt; should handle cache expiration" time="0.003">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Cache Service Tests &gt; should handle cache size limits" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Settings Service Tests &gt; should manage user preferences" time="0.189">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Settings Service Tests &gt; should handle default settings fallback" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Settings Service Tests &gt; should validate setting values" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="WebSocket Service Tests &gt; should manage multiple WebSocket connections" time="0.022">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="WebSocket Service Tests &gt; should handle message routing" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="WebSocket Service Tests &gt; should implement connection pooling" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Performance and Analytics Services &gt; should track performance metrics" time="0.013">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Performance and Analytics Services &gt; should monitor memory usage" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Performance and Analytics Services &gt; should detect performance bottlenecks" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Error Handling and Resilience &gt; should implement retry logic for failed requests" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Error Handling and Resilience &gt; should implement circuit breaker pattern" time="0.011">
+        </testcase>
+        <testcase classname="src/tests/unit/services-comprehensive.test.js" name="Error Handling and Resilience &gt; should handle graceful degradation" time="0.001">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/utils.test.js" timestamp="2025-07-19T04:33:22.406Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/utils.test.js" name="src/tests/unit/utils.test.js" time="0">
+            <failure message="Failed to resolve import &quot;../utils/helpers&quot; from &quot;src/tests/unit/utils.test.js&quot;. Does the file exist?" type="Error">
+Error: Failed to resolve import &quot;../utils/helpers&quot; from &quot;src/tests/unit/utils.test.js&quot;. Does the file exist?
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ normalizeUrl node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64291:23
+ ❯ async file:/home/stocks/algo/webapp/frontend/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64423:39
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64350:7
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/services/adminLiveDataService.test.js" timestamp="2025-07-19T04:33:22.406Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/services/adminLiveDataService.test.js" name="src/tests/unit/services/adminLiveDataService.test.js" time="0">
+            <failure message="API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL" type="Error">
+Error: API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL
+ ❯ getApiConfig src/services/api.js:20:11
+ ❯ src/services/api.js:47:21
+ ❯ src/services/adminLiveDataService.js:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/unit/services/liveDataService.test.js" timestamp="2025-07-19T04:33:22.407Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/unit/services/liveDataService.test.js" name="src/tests/unit/services/liveDataService.test.js" time="0">
+            <failure message="Cannot assign to read only property &apos;localStorage&apos; of object &apos;#&lt;Object&gt;&apos;" type="TypeError">
+TypeError: Cannot assign to read only property &apos;localStorage&apos; of object &apos;#&lt;Object&gt;&apos;
+ ❯ src/tests/unit/services/liveDataService.test.js:69:21
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

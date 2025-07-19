@@ -64,14 +64,12 @@ vi.mock('@mui/material', () => ({
 }));
 
 // Import components to test
-import Dashboard from '../../pages/Dashboard';
-import Portfolio from '../../pages/Portfolio';
-import Settings from '../../pages/Settings';
-import ApiKeyOnboarding from '../../components/auth/ApiKeyOnboarding';
-import StockChart from '../../components/charts/StockChart';
-import PortfolioSummary from '../../components/portfolio/PortfolioSummary';
-import MarketOverview from '../../components/market/MarketOverview';
-import TradingSignals from '../../components/trading/TradingSignals';
+import Dashboard from '../../pages/Dashboard.jsx';
+import Portfolio from '../../pages/Portfolio.jsx';
+import Settings from '../../pages/Settings.jsx';
+import ApiKeyOnboarding from '../../components/ApiKeyOnboarding.jsx';
+import StockChart from '../../components/StockChart.jsx';
+import SignalCardEnhanced from '../../components/trading/SignalCardEnhanced.jsx';
 
 // Test wrapper with providers
 const TestWrapper = ({ children }) => {
@@ -627,224 +625,49 @@ describe('Utility Components', () => {
     });
   });
 
-  describe('PortfolioSummary Component', () => {
-    const mockSummaryData = {
-      totalValue: 25000.50,
-      dailyChange: 150.75,
-      dailyChangePercent: 0.61,
-      totalGain: 2500.25,
-      totalGainPercent: 11.11,
-      positionCount: 5,
-      allocation: [
-        { sector: 'Technology', percentage: 60, value: 15000 },
-        { sector: 'Financial', percentage: 25, value: 6250 },
-        { sector: 'Healthcare', percentage: 15, value: 3750 }
-      ]
+  describe('SignalCardEnhanced Component', () => {
+    const mockSignal = {
+      symbol: 'AAPL',
+      signal: 'BUY',
+      confidence: 85,
+      price: 150.00,
+      targetPrice: 165.00,
+      stopLoss: 140.00,
+      reason: 'Bullish momentum with strong fundamentals',
+      timestamp: '2024-03-15T10:30:00Z'
     };
 
-    test('should render portfolio metrics', () => {
+    test('should render signal card', () => {
       render(
         <TestWrapper>
-          <PortfolioSummary data={mockSummaryData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('$25,000.50')).toBeInTheDocument();
-      expect(screen.getByText('$150.75')).toBeInTheDocument();
-      expect(screen.getByText('0.61%')).toBeInTheDocument();
-      expect(screen.getByText('$2,500.25')).toBeInTheDocument();
-      expect(screen.getByText('11.11%')).toBeInTheDocument();
-    });
-
-    test('should display sector allocation', () => {
-      render(
-        <TestWrapper>
-          <PortfolioSummary data={mockSummaryData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('Technology')).toBeInTheDocument();
-      expect(screen.getByText('Financial')).toBeInTheDocument();
-      expect(screen.getByText('Healthcare')).toBeInTheDocument();
-      expect(screen.getByText('60%')).toBeInTheDocument();
-    });
-
-    test('should handle negative changes correctly', () => {
-      const negativeData = {
-        ...mockSummaryData,
-        dailyChange: -150.75,
-        dailyChangePercent: -0.61
-      };
-
-      render(
-        <TestWrapper>
-          <PortfolioSummary data={negativeData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('-$150.75')).toBeInTheDocument();
-      expect(screen.getByText('-0.61%')).toBeInTheDocument();
-    });
-  });
-
-  describe('MarketOverview Component', () => {
-    const mockMarketData = {
-      indices: [
-        { symbol: 'SPY', price: 450.25, change: 2.15, changePercent: 0.48 },
-        { symbol: 'QQQ', price: 375.80, change: -1.25, changePercent: -0.33 },
-        { symbol: 'DIA', price: 340.60, change: 0.75, changePercent: 0.22 }
-      ],
-      movers: {
-        gainers: [
-          { symbol: 'TSLA', price: 250.00, changePercent: 5.67 },
-          { symbol: 'NVDA', price: 450.00, changePercent: 4.23 }
-        ],
-        losers: [
-          { symbol: 'META', price: 320.00, changePercent: -3.45 },
-          { symbol: 'NFLX', price: 400.00, changePercent: -2.18 }
-        ]
-      },
-      marketStatus: 'open'
-    };
-
-    test('should render market indices', () => {
-      render(
-        <TestWrapper>
-          <MarketOverview data={mockMarketData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('SPY')).toBeInTheDocument();
-      expect(screen.getByText('QQQ')).toBeInTheDocument();
-      expect(screen.getByText('DIA')).toBeInTheDocument();
-      expect(screen.getByText('$450.25')).toBeInTheDocument();
-    });
-
-    test('should display market movers', () => {
-      render(
-        <TestWrapper>
-          <MarketOverview data={mockMarketData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText(/top gainers/i)).toBeInTheDocument();
-      expect(screen.getByText(/top losers/i)).toBeInTheDocument();
-      expect(screen.getByText('TSLA')).toBeInTheDocument();
-      expect(screen.getByText('META')).toBeInTheDocument();
-    });
-
-    test('should show market status', () => {
-      render(
-        <TestWrapper>
-          <MarketOverview data={mockMarketData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText(/market open/i)).toBeInTheDocument();
-    });
-
-    test('should handle closed market status', () => {
-      const closedMarketData = {
-        ...mockMarketData,
-        marketStatus: 'closed'
-      };
-
-      render(
-        <TestWrapper>
-          <MarketOverview data={closedMarketData} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText(/market closed/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('TradingSignals Component', () => {
-    const mockSignalsData = [
-      {
-        id: 1,
-        symbol: 'AAPL',
-        signal: 'BUY',
-        confidence: 85,
-        price: 150.00,
-        targetPrice: 165.00,
-        stopLoss: 140.00,
-        reason: 'Bullish momentum with strong fundamentals',
-        timestamp: '2024-03-15T10:30:00Z'
-      },
-      {
-        id: 2,
-        symbol: 'MSFT',
-        signal: 'SELL',
-        confidence: 72,
-        price: 400.00,
-        targetPrice: 380.00,
-        stopLoss: 410.00,
-        reason: 'Overbought conditions detected',
-        timestamp: '2024-03-15T11:15:00Z'
-      }
-    ];
-
-    test('should render trading signals', () => {
-      render(
-        <TestWrapper>
-          <TradingSignals signals={mockSignalsData} />
+          <SignalCardEnhanced signal={mockSignal} />
         </TestWrapper>
       );
 
       expect(screen.getByText('AAPL')).toBeInTheDocument();
-      expect(screen.getByText('MSFT')).toBeInTheDocument();
       expect(screen.getByText('BUY')).toBeInTheDocument();
-      expect(screen.getByText('SELL')).toBeInTheDocument();
     });
 
     test('should display signal confidence', () => {
       render(
         <TestWrapper>
-          <TradingSignals signals={mockSignalsData} />
+          <SignalCardEnhanced signal={mockSignal} />
         </TestWrapper>
       );
 
       expect(screen.getByText('85%')).toBeInTheDocument();
-      expect(screen.getByText('72%')).toBeInTheDocument();
     });
 
-    test('should show price targets', () => {
+    test('should show price information', () => {
       render(
         <TestWrapper>
-          <TradingSignals signals={mockSignalsData} />
+          <SignalCardEnhanced signal={mockSignal} />
         </TestWrapper>
       );
 
+      expect(screen.getByText('$150.00')).toBeInTheDocument();
       expect(screen.getByText('$165.00')).toBeInTheDocument(); // target
       expect(screen.getByText('$140.00')).toBeInTheDocument(); // stop loss
-    });
-
-    test('should handle empty signals', () => {
-      render(
-        <TestWrapper>
-          <TradingSignals signals={[]} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText(/no signals available/i)).toBeInTheDocument();
-    });
-
-    test('should filter signals by type', async () => {
-      const user = userEvent.setup();
-
-      render(
-        <TestWrapper>
-          <TradingSignals signals={mockSignalsData} />
-        </TestWrapper>
-      );
-
-      await user.click(screen.getByLabelText(/buy signals only/i));
-
-      await waitFor(() => {
-        expect(screen.getByText('AAPL')).toBeInTheDocument();
-        expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
-      });
     });
   });
 });

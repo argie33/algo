@@ -20,11 +20,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    resolve: {
-      alias: {
-        '@': resolve(__dirname, 'src'),
-      }
-    },
     build: {
       outDir: 'dist',
       sourcemap: true,
@@ -92,7 +87,10 @@ export default defineConfig(({ mode }) => {
       include: [
         'recharts',
         'framer-motion',
-        'react-beautiful-dnd'
+        'react-beautiful-dnd',
+        'react',
+        'react-dom',
+        'react/jsx-runtime'
       ],
       force: true,
       // Reduce the number of files opened during optimization
@@ -101,6 +99,13 @@ export default defineConfig(({ mode }) => {
           '.js': 'jsx',
         },
       },
+    },
+    // Fix React 18 useState/use-sync-external-store conflicts
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, 'src')
+      },
+      dedupe: ['react', 'react-dom', 'use-sync-external-store']
     }
   }
 })

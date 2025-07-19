@@ -1,7 +1,9 @@
-// CRITICAL FIX: Replace ALL MUI components with TailwindCSS to eliminate createPalette error
+// CRITICAL FIX: Replace ALL MUI components with TailwindCSS + Comprehensive Error Handling
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/ui/layout'
+import ComprehensiveErrorBoundary from './components/ComprehensiveErrorBoundary'
+import comprehensiveErrorService from './services/comprehensiveErrorService'
 
 // All real page imports
 import Dashboard from './pages/Dashboard'
@@ -75,6 +77,15 @@ import ProtectedTradeHistory from './pages/ProtectedTradeHistory'
 
 function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  
+  // Initialize error tracking on app start
+  useEffect(() => {
+    console.log('🔧 Comprehensive error handling initialized');
+    
+    // Log initial error stats
+    const stats = comprehensiveErrorService.getErrorStats();
+    console.log('📊 Initial error stats:', stats);
+  }, []);
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -111,15 +122,21 @@ function App() {
   );
 
   return (
-    <AppLayout
-      headerTitle="Financial Platform"
-      user={user}
-      notifications={0}
-      onNotificationClick={handleNotificationClick}
-      onProfileClick={handleProfileClick}
-      showSearch={true}
-      headerChildren={headerChildren}
+    <ComprehensiveErrorBoundary 
+      name="App" 
+      onError={(error, errorInfo, response) => {
+        console.error('🚨 App-level error caught:', response);
+      }}
     >
+      <AppLayout
+        headerTitle="Financial Platform"
+        user={user}
+        notifications={0}
+        onNotificationClick={handleNotificationClick}
+        onProfileClick={handleProfileClick}
+        showSearch={true}
+        headerChildren={headerChildren}
+      >
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -206,7 +223,8 @@ function App() {
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
       />
-    </AppLayout>
+      </AppLayout>
+    </ComprehensiveErrorBoundary>
   )
 }
 
