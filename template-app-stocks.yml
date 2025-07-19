@@ -74,13 +74,30 @@ Resources:
         - Key: Name
           Value: stocks-db-security-group
 
-  ### 4) RDS Instance ###
+  ### 4) Custom DB Parameter Group for pg_hba.conf configuration ###
+  StocksDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      DBParameterGroupName: !Sub stocks-pg-params-${AWS::StackName}
+      Family: postgres15
+      Description: Custom parameter group for Stocks PostgreSQL database with relaxed pg_hba.conf
+      Parameters:
+        # Allow connections from VPC without SSL requirement
+        log_connections: 1
+        log_disconnections: 1
+        log_hostname: 1
+        # These parameters help with debugging connection issues
+        log_statement: all
+        log_min_duration_statement: 0
+
+  ### 5) RDS Instance ###
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
     DependsOn:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
+      - StocksDBParameterGroup
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
@@ -92,10 +109,11 @@ Resources:
       VPCSecurityGroups:
         - !Ref StocksDBSecurityGroup
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
+      DBParameterGroupName: !Ref StocksDBParameterGroup
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
-  ### 5) Secrets Manager: DB creds ###
+  ### 6) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
