@@ -78,6 +78,7 @@ class PatternRecognitionSystem:
         """Initialize database connection and tables"""
         try:
             self.db_config = await self._get_database_config()
+            self.db_config['sslmode'] = 'require'
             self.connection = psycopg2.connect(**self.db_config)
             await self._create_tables()
             logger.info("Database initialized successfully")

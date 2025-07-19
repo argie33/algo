@@ -1,0 +1,80 @@
+/**
+ * Test Setup Configuration
+ * Main entry point for test environment setup
+ */
+
+import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
+import { cleanup } from '@testing-library/react'
+import 'whatwg-fetch'
+
+// Global test setup
+beforeAll(async () => {
+  console.log('🧪 Setting up test environment...')
+  
+  // Set up global test environment variables
+  process.env.NODE_ENV = 'test'
+  process.env.VITE_API_URL = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'
+  
+  // Mock console methods to reduce noise in tests
+  global.console = {
+    ...console,
+    log: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }
+  
+  // Setup DOM globals for JSDOM
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  
+  global.IntersectionObserver = class IntersectionObserver {
+    constructor() {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  
+  // Mock window.matchMedia
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+  
+  // Mock localStorage
+  const localStorageMock = {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  }
+  global.localStorage = localStorageMock
+  
+  console.log('✅ Test environment setup complete')
+})
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+// Global teardown
+afterAll(() => {
+  console.log('🧹 Cleaning up test environment...')
+})
+
+export default {}

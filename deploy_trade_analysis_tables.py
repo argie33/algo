@@ -60,7 +60,8 @@ def get_db_connection():
             database=os.getenv('DB_NAME', 'stocks'),
             user=os.getenv('DB_USER'),
             password=os.getenv('DB_PASSWORD'),
-            port=os.getenv('DB_PORT', 5432)
+            port=os.getenv('DB_PORT', 5432),
+            sslmode="require"
         )
     
     # Try AWS secrets
@@ -77,7 +78,8 @@ def get_db_connection():
                 database=secret.get('dbname', 'postgres'),
                 user=secret['username'],
                 password=secret['password'],
-                port=secret.get('port', 5432)
+                port=secret.get('port', 5432),
+                sslmode="require"
             )
         except Exception as e:
             logger.error(f"Error connecting with AWS secret: {e}")
@@ -89,7 +91,8 @@ def get_db_connection():
         database='stocks',
         user='postgres',
         password='password',
-        port=5432
+        port=5432,
+        sslmode="disable"  # Local development only
     )
 
 def deploy_tables():

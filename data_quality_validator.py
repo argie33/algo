@@ -110,7 +110,8 @@ class DataQualityValidator:
                 port=self.db_config['port'],
                 user=self.db_config['user'],
                 password=self.db_config['password'],
-                database=self.db_config['database']
+                database=self.db_config['database'],
+                sslmode="require"
             )
         return self.connection
     

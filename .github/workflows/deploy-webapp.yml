@@ -394,7 +394,7 @@ jobs:
 
       - name: 📦 Upload test artifacts to GitHub
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-results-${{ github.run_id }}
           path: |

@@ -65,7 +65,7 @@ jobs:
         name: codecov-umbrella
         
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: unit-test-results
@@ -125,7 +125,7 @@ jobs:
         TEST_DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
         
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: integration-test-results
@@ -177,7 +177,7 @@ jobs:
         artillery report load-test-results.json --output performance-report.html
         
     - name: Upload performance results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: performance-test-results
@@ -237,7 +237,7 @@ jobs:
         ./zap.sh -cmd -quickurl http://localhost:4173 -quickprogress -quickout zap-report.html
         
     - name: Upload security results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-test-results
@@ -288,7 +288,7 @@ jobs:
         "
         
     - name: Upload hooks test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: react-hooks-test-results
@@ -338,7 +338,7 @@ jobs:
         npm run test:e2e
         
     - name: Upload E2E test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: e2e-test-results
@@ -355,7 +355,7 @@ jobs:
     
     steps:
     - name: Download all test artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       
     - name: Generate comprehensive test report
       run: |
@@ -419,7 +419,7 @@ jobs:
         cat test-summary.md
         
     - name: Upload test summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-summary
         path: test-summary.md

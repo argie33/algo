@@ -39,7 +39,8 @@ def get_db_connection():
             port=os.getenv('DB_PORT', 5432),
             database=os.getenv('DB_NAME', 'postgres'),
             user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASSWORD', 'password')
+            password=os.getenv('DB_PASSWORD', 'password'),
+            sslmode="require"
         )
         return conn
     except Exception as e:
