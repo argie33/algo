@@ -233,13 +233,15 @@ def main():
     conn = None
     try:
         user, pwd, host, port, dbname = get_db_config()
+        
         conn = psycopg2.connect(
             host=host,
             port=port,
             user=user,
             password=pwd,
             dbname=dbname,
-            sslmode="require",
+            sslmode='require',
+            connect_timeout=30,
             cursor_factory=DictCursor
         )
         

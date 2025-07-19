@@ -123,13 +123,16 @@ def load_analyst_actions(symbols, cur, conn):
 
 def lambda_handler(event, context):
     log_mem("startup")
-    cfg  = get_db_config()
+    cfg = get_db_config()
+    
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+        host=cfg["host"],
+        port=cfg["port"],
+        user=cfg["user"],
+        password=cfg["password"],
+        dbname=cfg["dbname"],
+        sslmode='require',
+        connect_timeout=30
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
