@@ -1024,5 +1024,8 @@ app.get('/api/error-stats', asyncErrorHandler(async (req, res) => {
 
 console.log('✅ Financial Dashboard API Lambda ready with comprehensive error handling');
 
-// Export the handler
+// Export the handler for AWS Lambda
 module.exports.handler = serverless(app);
+
+// Export the app for testing
+module.exports = app;

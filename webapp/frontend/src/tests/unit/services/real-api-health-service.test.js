@@ -123,10 +123,18 @@ describe('🏥 Real API Health Service', () => {
     it('should perform periodic health checks', async () => {
       apiHealthService.startMonitoring();
       
-      // Fast forward to trigger multiple health checks
-      await vi.advanceTimersByTimeAsync(90000); // 3 intervals
+      // Clear the initial call count
+      global.fetch.mockClear();
       
-      expect(global.fetch).toHaveBeenCalledTimes(3);
+      // Fast forward to trigger health check intervals
+      await vi.advanceTimersByTimeAsync(30000); // 1 interval
+      
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      
+      // Advance another interval
+      await vi.advanceTimersByTimeAsync(30000); // 2nd interval
+      
+      expect(global.fetch).toHaveBeenCalledTimes(2);
     });
   });
 

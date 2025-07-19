@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">10.95% </span>
+                <span class="strong">10.79% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>46/420</span>
+                <span class='fraction'>46/426</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">4.43% </span>
+                <span class="strong">4.39% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>9/203</span>
+                <span class='fraction'>9/205</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.89% </span>
+                <span class="strong">6.77% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>4/58</span>
+                <span class='fraction'>4/59</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">11.47% </span>
+                <span class="strong">11.3% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>46/401</span>
+                <span class='fraction'>46/407</span>
             </div>
         
             
@@ -1250,7 +1250,21 @@
 <a name='L1185'></a><a href='#L1185'>1185</a>
 <a name='L1186'></a><a href='#L1186'>1186</a>
 <a name='L1187'></a><a href='#L1187'>1187</a>
-<a name='L1188'></a><a href='#L1188'>1188</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L1188'></a><a href='#L1188'>1188</a>
+<a name='L1189'></a><a href='#L1189'>1189</a>
+<a name='L1190'></a><a href='#L1190'>1190</a>
+<a name='L1191'></a><a href='#L1191'>1191</a>
+<a name='L1192'></a><a href='#L1192'>1192</a>
+<a name='L1193'></a><a href='#L1193'>1193</a>
+<a name='L1194'></a><a href='#L1194'>1194</a>
+<a name='L1195'></a><a href='#L1195'>1195</a>
+<a name='L1196'></a><a href='#L1196'>1196</a>
+<a name='L1197'></a><a href='#L1197'>1197</a>
+<a name='L1198'></a><a href='#L1198'>1198</a>
+<a name='L1199'></a><a href='#L1199'>1199</a>
+<a name='L1200'></a><a href='#L1200'>1200</a>
+<a name='L1201'></a><a href='#L1201'>1201</a>
+<a name='L1202'></a><a href='#L1202'>1202</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2421,7 +2435,21 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -3608,6 +3636,19 @@ function extractTableName(sql) {
     }
 }
 &nbsp;
+/**
+ * Reset database state for testing purposes
+ */
+async function <span class="fstat-no" title="function not covered" >resetDatabaseState(</span>) {
+<span class="cstat-no" title="statement not covered" >    if (pool) {</span>
+<span class="cstat-no" title="statement not covered" >        await pool.end();</span>
+<span class="cstat-no" title="statement not covered" >        pool = null;</span>
+    }
+<span class="cstat-no" title="statement not covered" >    dbInitialized = false;</span>
+<span class="cstat-no" title="statement not covered" >    dbConfig = null;</span>
+<span class="cstat-no" title="statement not covered" >    console.log('🔄 Database state reset for testing');</span>
+}
+&nbsp;
 module.exports = {
     initializeDatabase,
     initForLambda,
@@ -3622,6 +3663,7 @@ module.exports = {
     transaction,
     closeDatabase,
     healthCheck,
+    resetDatabaseState,
     REQUIRED_SCHEMA,
     extractTableName
 };</pre></td></tr></table></pre>
@@ -3631,7 +3673,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-07-19T17:01:50.272Z
+                at 2025-07-19T23:34:43.964Z
             </div>
         <script src="../prettify.js"></script>
         <script>

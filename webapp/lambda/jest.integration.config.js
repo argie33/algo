@@ -31,16 +31,12 @@ module.exports = {
   // Test timeout - longer for CI/CD environments
   testTimeout: 30000,
   
-  // Reporters for CI/CD
+  // Simple reporters for GitHub Actions
   reporters: [
     'default',
     ['jest-junit', {
       outputDirectory: './test-results',
-      outputName: 'ci-cd-integration-junit.xml',
-      classNameTemplate: '{classname}',
-      titleTemplate: '{title}',
-      ancestorSeparator: ' › ',
-      usePathForSuiteName: true
+      outputName: 'integration-junit.xml'
     }]
   ],
   

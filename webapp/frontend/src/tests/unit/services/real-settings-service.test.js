@@ -52,6 +52,8 @@ vi.stubGlobal('localStorage', mockLocalStorage);
 let settingsService;
 
 describe('⚙️ Real Settings Service', () => {
+  let originalGetItem, originalSetItem, originalRemoveItem, originalClear;
+  
   beforeEach(async () => {
     vi.clearAllMocks();
     
@@ -59,6 +61,12 @@ describe('⚙️ Real Settings Service', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Store original Storage methods for restoration
+    originalGetItem = Storage.prototype.getItem;
+    originalSetItem = Storage.prototype.setItem;
+    originalRemoveItem = Storage.prototype.removeItem;
+    originalClear = Storage.prototype.clear;
     
     // Reset localStorage mock
     mockLocalStorage.getItem.mockReturnValue(null);
@@ -72,6 +80,12 @@ describe('⚙️ Real Settings Service', () => {
   });
 
   afterEach(() => {
+    // Restore original Storage methods
+    if (originalGetItem) Storage.prototype.getItem = originalGetItem;
+    if (originalSetItem) Storage.prototype.setItem = originalSetItem;
+    if (originalRemoveItem) Storage.prototype.removeItem = originalRemoveItem;
+    if (originalClear) Storage.prototype.clear = originalClear;
+    
     vi.restoreAllMocks();
   });
 

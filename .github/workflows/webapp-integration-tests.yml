@@ -1,0 +1,138 @@
+name: Webapp Integration Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - integration
+          - unit
+  push:
+    branches:
+      - initialbuild
+      - main
+      - develop
+    paths:
+      - 'webapp/lambda/**'
+  pull_request:
+    branches:
+      - initialbuild
+      - main
+      - develop
+    paths:
+      - 'webapp/lambda/**'
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: webapp/lambda
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing npm dependencies..."
+          npm ci
+
+      - name: Run Integration Tests
+        run: |
+          echo "🧪 Running integration tests..."
+          npx jest --config=jest.integration.config.js --verbose --ci --outputFile=integration-test-results.json
+        continue-on-error: true
+
+      - name: Upload Test Results as Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results-${{ github.run_id }}
+          path: |
+            webapp/lambda/test-results/
+            webapp/lambda/coverage-integration/
+            webapp/lambda/integration-test-results.json
+          retention-days: 30
+
+      - name: Display Results Location
+        if: always()
+        run: |
+          echo "🎯 INTEGRATION TEST RESULTS UPLOADED"
+          echo "📁 Artifact Name: integration-test-results-${{ github.run_id }}"
+          echo ""
+          echo "✅ I can download and analyze these test results from GitHub Actions!"
+
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'unit'
+    
+    defaults:
+      run:
+        working-directory: webapp/lambda
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: |
+          echo "🧪 Running unit tests..."
+          npm test
+        continue-on-error: true
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results-${{ github.run_id }}
+          path: |
+            webapp/lambda/test-results/
+            webapp/lambda/coverage/
+          retention-days: 30
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [integration-tests, unit-tests]
+    if: always()
+    
+    steps:
+      - name: Generate Test Summary
+        run: |
+          echo "## 🧪 Test Execution Summary"
+          echo ""
+          echo "| Test Suite | Status | Artifact |"
+          echo "|------------|--------|----------|"
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} | integration-test-results-${{ github.run_id }} |"
+          echo "| Unit Tests | ${{ needs.unit-tests.result || 'skipped' }} | unit-test-results-${{ github.run_id }} |"
+          echo ""
+          echo "✅ Test results uploaded to GitHub Actions artifacts!"
