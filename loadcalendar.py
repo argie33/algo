@@ -250,11 +250,10 @@ def main():
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
-            # Only get active symbols to reduce processing
+            # Get all symbols for calendar processing
             cur.execute("""
                 SELECT DISTINCT symbol 
                 FROM stock_symbols 
-                WHERE is_active = true
                 ORDER BY symbol;
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]
