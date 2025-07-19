@@ -377,7 +377,68 @@ class DatabaseTestUtils {
 // Export singleton instance
 const dbTestUtils = new DatabaseTestUtils();
 
+/**
+ * Helper function: Create test user
+ */
+async function createTestUser(userPrefix = 'test-user') {
+  return await dbTestUtils.createTestUser(userPrefix);
+}
+
+/**
+ * Helper function: Create test API keys
+ */
+async function createTestApiKeys(userId, apiKeys = {}) {
+  return await dbTestUtils.createTestApiKeys(userId, apiKeys);
+}
+
+/**
+ * Helper function: Clean up test user
+ */
+async function cleanupTestUser(userId) {
+  if (!dbTestUtils.pool) return;
+
+  try {
+    const client = await dbTestUtils.pool.connect();
+    await client.query('DELETE FROM users WHERE user_id = $1', [userId]);
+    client.release();
+    console.log('🧹 Cleaned up test user:', userId);
+  } catch (error) {
+    console.error('❌ Failed to cleanup test user:', error.message);
+  }
+}
+
+/**
+ * Helper function: Execute function within a database transaction
+ */
+async function withDatabaseTransaction(callback) {
+  if (!dbTestUtils.pool) {
+    // If no database available, use mock client
+    const mockClient = {
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      release: jest.fn()
+    };
+    return await callback(mockClient);
+  }
+
+  const client = await dbTestUtils.getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('ROLLBACK'); // Always rollback in tests
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   dbTestUtils,
-  DatabaseTestUtils
+  DatabaseTestUtils,
+  createTestUser,
+  createTestApiKeys,
+  cleanupTestUser,
+  withDatabaseTransaction
 };

@@ -41,7 +41,7 @@ class AdvancedPerformanceAnalytics {
       const sectorAnalysis = await this.calculateSectorAnalysis(userId, startDate, endDate);
       
       // Calculate factor exposure
-      const factorExposure = await this.calculateFactorExposure(userId, startDate, endDate);
+      const factorExposures = await this.calculateFactorExposure(userId, startDate, endDate);
       
       const performanceMetrics = {
         period: {
@@ -55,7 +55,7 @@ class AdvancedPerformanceAnalytics {
         benchmarkMetrics,
         attributionAnalysis,
         sectorAnalysis,
-        factorExposure,
+        factorExposures,
         metadata: {
           calculationTime: Date.now() - startTime,
           timestamp: new Date().toISOString(),
@@ -931,7 +931,10 @@ class AdvancedPerformanceAnalytics {
     }
     
     // Concentration recommendations
-    if (metrics.factorExposures.riskFactors.concentration.top1Weight > 20) {
+    if (metrics.factorExposures && 
+        metrics.factorExposures.riskFactors && 
+        metrics.factorExposures.riskFactors.concentration && 
+        metrics.factorExposures.riskFactors.concentration.top1Weight > 20) {
       recommendations.push({
         type: 'diversification',
         priority: 'medium',

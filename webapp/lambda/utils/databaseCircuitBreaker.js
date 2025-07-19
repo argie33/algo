@@ -86,7 +86,12 @@ class DatabaseCircuitBreaker {
     
     console.warn('⚠️ Database operation failed: ' + operationName + ' - ' + error.message + ' (failure ' + this.failures + '/' + this.failureThreshold + ')');
     
-    if (this.failures >= this.failureThreshold) {
+    // Special handling for half-open state: immediate transition to open on any failure
+    if (this.state === 'half-open') {
+      this.state = 'open';
+      this.successCount = 0;
+      console.error('🚨 Circuit breaker REOPENED from half-open state due to failure. Database access blocked for ' + (this.recoveryTimeout/1000) + ' seconds.');
+    } else if (this.failures >= this.failureThreshold) {
       this.state = 'open';
       console.error('🚨 Circuit breaker OPENED due to ' + this.failures + ' consecutive failures. Database access blocked for ' + (this.recoveryTimeout/1000) + ' seconds.');
     }

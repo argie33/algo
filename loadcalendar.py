@@ -274,7 +274,7 @@ def main():
                     'user': user,
                     'password': pwd,
                     'dbname': dbname,
-                    'sslmode': 'disable',
+                    'sslmode': 'allow',
                     'connect_timeout': 30,
                     'application_name': 'calendar-data-loader',
                     'cursor_factory': DictCursor

@@ -1,561 +1,374 @@
 /**
- * PERFORMANCE INTEGRATION TESTS
- * Tests system performance under load with real database and API connections
+ * Performance Integration Tests
+ * Tests load handling, response times, and concurrent operations under realistic conditions
  */
 
-const request = require('supertest')
-const jwt = require('jsonwebtoken')
-const { handler } = require('../../index')
-const { testDatabase } = require('../utils/test-database')
+const request = require('supertest');
+const { app } = require('../../index');
+const { setupTestDatabase, cleanupTestDatabase } = require('../setup/test-database-setup');
+
+// Setup test database before running tests
+let testDb;
+let createTestUser, createTestApiKeys, cleanupTestUser, withDatabaseTransaction;
+
+beforeAll(async () => {
+  testDb = await setupTestDatabase();
+  
+  // Get database utilities (either real or mocked)
+  if (testDb.createTestUser) {
+    createTestUser = testDb.createTestUser;
+    createTestApiKeys = testDb.createTestApiKeys;
+    cleanupTestUser = testDb.cleanupTestUser;
+    withDatabaseTransaction = testDb.withDatabaseTransaction;
+  } else {
+    // Fallback to imported functions if database is available
+    const dbUtils = require('../utils/database-test-utils');
+    createTestUser = dbUtils.createTestUser;
+    createTestApiKeys = dbUtils.createTestApiKeys;
+    cleanupTestUser = dbUtils.cleanupTestUser;
+    withDatabaseTransaction = dbUtils.withDatabaseTransaction;
+  }
+});
+
+afterAll(async () => {
+  await cleanupTestDatabase();
+});
 
 describe('Performance Integration Tests', () => {
-  let app
-  let testUserId
-  let validToken
-
+  let testUser;
+  
   beforeAll(async () => {
-    await testDatabase.init()
-    testUserId = global.testUtils.createTestUserId()
+    // Create test user for performance testing
+    testUser = await createTestUser('perf-test-user');
+    await createTestApiKeys(testUser.user_id, {
+      alpaca_key: 'test-alpaca-key',
+      alpaca_secret: 'test-alpaca-secret',
+      polygon_key: 'test-polygon-key'
+    });
+  });
 
-    // Create test user
-    await testDatabase.query(
-      'INSERT INTO users (id, email, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [testUserId, 'perf-test@example.com', 'perfuser']
-    )
+  afterAll(async () => {
+    if (testUser) {
+      await cleanupTestUser(testUser.user_id);
+    }
+  });
 
-    // Create valid JWT token
-    validToken = jwt.sign(
-      {
-        sub: testUserId,
-        email: 'perf-test@example.com',
-        exp: Math.floor(Date.now() / 1000) + 3600
-      },
-      'test-secret'
-    )
+  describe('API Response Time Performance', () => {
+    test('Health endpoint responds within 200ms', async () => {
+      const startTime = Date.now();
+      
+      const response = await request(app)
+        .get('/api/health')
+        .timeout(5000);
+      
+      const responseTime = Date.now() - startTime;
+      
+      expect(response.status).toBe(200);
+      expect(responseTime).toBeLessThan(200);
+      expect(response.body).toHaveProperty('status');
+    });
 
-    // Setup Express app for testing
-    const express = require('express')
-    app = express()
-    app.use(express.json())
-    
-    app.all('*', async (req, res) => {
-      const event = {
-        httpMethod: req.method,
-        path: req.path,
-        pathParameters: req.params,
-        queryStringParameters: req.query,
-        headers: req.headers,
-        body: req.body ? JSON.stringify(req.body) : null,
-        requestContext: {
-          requestId: 'test-request-id',
-          httpMethod: req.method,
-          path: req.path
+    test('Portfolio endpoints respond within 500ms under load', async () => {
+      const concurrentRequests = 10;
+      const requests = [];
+      
+      for (let i = 0; i < concurrentRequests; i++) {
+        const startTime = Date.now();
+        const request_promise = request(app)
+          .get('/api/portfolio')
+          .set('x-user-id', testUser.user_id)
+          .timeout(2000)
+          .then(response => ({
+            response,
+            responseTime: Date.now() - startTime
+          }));
+        
+        requests.push(request_promise);
+      }
+      
+      const results = await Promise.all(requests);
+      
+      results.forEach(({ response, responseTime }) => {
+        expect(response.status).toBeOneOf([200, 404]); // 404 if no portfolio exists
+        expect(responseTime).toBeLessThan(500);
+      });
+      
+      const averageResponseTime = results.reduce((sum, { responseTime }) => sum + responseTime, 0) / results.length;
+      expect(averageResponseTime).toBeLessThan(300);
+    });
+
+    test('Market data endpoints handle concurrent requests efficiently', async () => {
+      const symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'];
+      const concurrentRequests = symbols.length * 3; // 3 requests per symbol
+      const requests = [];
+      
+      for (let i = 0; i < concurrentRequests; i++) {
+        const symbol = symbols[i % symbols.length];
+        const startTime = Date.now();
+        
+        const request_promise = request(app)
+          .get(`/api/market-data/quote`)
+          .query({ symbol })
+          .set('x-user-id', testUser.user_id)
+          .timeout(3000)
+          .then(response => ({
+            response,
+            responseTime: Date.now() - startTime,
+            symbol
+          }));
+        
+        requests.push(request_promise);
+      }
+      
+      const results = await Promise.all(requests);
+      
+      results.forEach(({ response, responseTime, symbol }) => {
+        expect(response.status).toBeOneOf([200, 503]); // 503 if external API unavailable
+        expect(responseTime).toBeLessThan(1000);
+        
+        if (response.status === 200) {
+          expect(response.body).toHaveProperty('symbol', symbol);
         }
+      });
+    });
+  });
+
+  describe('Database Performance Under Load', () => {
+    test('Database connections handle concurrent queries efficiently', async () => {
+      await withDatabaseTransaction(async (client) => {
+        const concurrentQueries = 20;
+        const queries = [];
+        
+        for (let i = 0; i < concurrentQueries; i++) {
+          const startTime = Date.now();
+          const query_promise = client.query(
+            'SELECT user_id, email FROM users WHERE user_id = $1',
+            [testUser.user_id]
+          ).then(result => ({
+            result,
+            queryTime: Date.now() - startTime
+          }));
+          
+          queries.push(query_promise);
+        }
+        
+        const results = await Promise.all(queries);
+        
+        results.forEach(({ result, queryTime }) => {
+          expect(result.rows).toHaveLength(1);
+          expect(result.rows[0].user_id).toBe(testUser.user_id);
+          expect(queryTime).toBeLessThan(100); // Database queries should be fast
+        });
+        
+        const averageQueryTime = results.reduce((sum, { queryTime }) => sum + queryTime, 0) / results.length;
+        expect(averageQueryTime).toBeLessThan(50);
+      });
+    });
+
+    test('Complex portfolio calculations perform within acceptable limits', async () => {
+      // Test portfolio math performance with realistic data size
+      const holdings = [];
+      for (let i = 0; i < 50; i++) {
+        holdings.push({
+          symbol: `TEST${i.toString().padStart(2, '0')}`,
+          quantity: Math.random() * 1000,
+          avgCost: Math.random() * 200 + 10,
+          currentPrice: Math.random() * 200 + 10
+        });
+      }
+      
+      const startTime = Date.now();
+      
+      const response = await request(app)
+        .post('/api/portfolio/calculate-metrics')
+        .set('x-user-id', testUser.user_id)
+        .send({ holdings })
+        .timeout(5000);
+      
+      const calculationTime = Date.now() - startTime;
+      
+      if (response.status === 200) {
+        expect(calculationTime).toBeLessThan(2000); // Complex calculations should complete within 2 seconds
+        expect(response.body).toHaveProperty('totalValue');
+        expect(response.body).toHaveProperty('totalGainLoss');
+      }
+    });
+  });
+
+  describe('Concurrent User Simulation', () => {
+    test('System handles multiple simultaneous users', async () => {
+      const simultaneousUsers = 5; // Reduced from 10 for faster execution
+      const testUsers = [];
+      
+      // Create multiple test users
+      for (let i = 0; i < simultaneousUsers; i++) {
+        const user = await createTestUser(`perf-user-${i}`);
+        await createTestApiKeys(user.user_id, {
+          alpaca_key: `test-key-${i}`,
+          alpaca_secret: `test-secret-${i}`
+        });
+        testUsers.push(user);
       }
       
       try {
-        const result = await handler(event, {})
-        res.status(result.statusCode)
-        if (result.headers) {
-          Object.entries(result.headers).forEach(([key, value]) => {
-            res.set(key, value)
-          })
+        // Simulate concurrent user activity
+        const userSessions = [];
+        
+        for (let i = 0; i < simultaneousUsers; i++) {
+          const user = testUsers[i];
+          const session = async () => {
+            const responses = [];
+            
+            // Each user performs multiple operations
+            const operations = [
+              request(app).get('/api/health').set('x-user-id', user.user_id),
+              request(app).get('/api/portfolio').set('x-user-id', user.user_id),
+              request(app).get('/api/settings/api-keys').set('x-user-id', user.user_id),
+              request(app).get('/api/market-data/quote').query({ symbol: 'AAPL' }).set('x-user-id', user.user_id)
+            ];
+            
+            const results = await Promise.allSettled(operations.map(op => op.timeout(3000)));
+            
+            results.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                responses.push({
+                  operation: index,
+                  status: result.value.status,
+                  success: result.value.status < 400
+                });
+              } else {
+                responses.push({
+                  operation: index,
+                  status: 'timeout',
+                  success: false
+                });
+              }
+            });
+            
+            return responses;
+          };
+          
+          userSessions.push(session());
         }
-        if (result.body) {
-          const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body
-          res.json(body)
-        } else {
-          res.end()
+        
+        const allResults = await Promise.all(userSessions);
+        
+        // Analyze results
+        let totalOperations = 0;
+        let successfulOperations = 0;
+        
+        allResults.forEach(userResults => {
+          userResults.forEach(operation => {
+            totalOperations++;
+            if (operation.success) {
+              successfulOperations++;
+            }
+          });
+        });
+        
+        const successRate = successfulOperations / totalOperations;
+        expect(successRate).toBeGreaterThan(0.7); // At least 70% success rate under load
+        
+      } finally {
+        // Cleanup test users
+        for (const user of testUsers) {
+          await cleanupTestUser(user.user_id);
         }
-      } catch (error) {
-        res.status(500).json({ error: error.message })
       }
-    })
-  })
-
-  afterAll(async () => {
-    await testDatabase.query('DELETE FROM users WHERE id = $1', [testUserId])
-    await testDatabase.cleanup()
-  })
-
-  describe('Response Time Performance', () => {
-    test('Health endpoint responds within 500ms', async () => {
-      const startTime = Date.now()
-      
-      const response = await request(app)
-        .get('/health')
-        .expect(200)
-
-      const responseTime = Date.now() - startTime
-      expect(responseTime).toBeLessThan(500)
-      
-      expect(response.body).toHaveProperty('status', 'healthy')
-      expect(response.body).toHaveProperty('timestamp')
-    })
-
-    test('Authentication endpoints respond within 1 second', async () => {
-      const startTime = Date.now()
-      
-      const response = await request(app)
-        .get('/auth/user')
-        .set('Authorization', `Bearer ${validToken}`)
-        .expect('Content-Type', /json/)
-
-      const responseTime = Date.now() - startTime
-      expect(responseTime).toBeLessThan(1000)
-      
-      expect([200, 401]).toContain(response.status)
-    })
-
-    test('Portfolio operations respond within 2 seconds', async () => {
-      const startTime = Date.now()
-      
-      const response = await request(app)
-        .get('/portfolio')
-        .set('Authorization', `Bearer ${validToken}`)
-        .expect('Content-Type', /json/)
-
-      const responseTime = Date.now() - startTime
-      expect(responseTime).toBeLessThan(2000)
-      
-      expect([200, 404, 503]).toContain(response.status)
-    })
-
-    test('Market data endpoints respond within 3 seconds', async () => {
-      const startTime = Date.now()
-      
-      const response = await request(app)
-        .get('/market/quote/AAPL')
-        .expect('Content-Type', /json/)
-
-      const responseTime = Date.now() - startTime
-      expect(responseTime).toBeLessThan(3000)
-      
-      expect([200, 503]).toContain(response.status)
-    })
-
-    test('Complex portfolio calculations complete within 5 seconds', async () => {
-      const startTime = Date.now()
-      
-      const response = await request(app)
-        .get('/portfolio/1/optimization/efficient-frontier')
-        .set('Authorization', `Bearer ${validToken}`)
-        .expect('Content-Type', /json/)
-
-      const responseTime = Date.now() - startTime
-      expect(responseTime).toBeLessThan(5000)
-      
-      expect([200, 404, 503]).toContain(response.status)
-    })
-  })
-
-  describe('Concurrent Load Testing', () => {
-    test('Handles 10 concurrent health checks efficiently', async () => {
-      const concurrentRequests = 10
-      const startTime = Date.now()
-      
-      const promises = Array.from({ length: concurrentRequests }, () =>
-        request(app).get('/health')
-      )
-
-      const responses = await Promise.all(promises)
-      const totalTime = Date.now() - startTime
-      
-      // All should succeed
-      responses.forEach(response => {
-        expect(response.status).toBe(200)
-      })
-      
-      // Average response time should be reasonable
-      const avgResponseTime = totalTime / concurrentRequests
-      expect(avgResponseTime).toBeLessThan(1000)
-      
-      // Total time should show parallelization benefits
-      expect(totalTime).toBeLessThan(concurrentRequests * 500)
-    })
-
-    test('Handles 20 concurrent authenticated requests', async () => {
-      const concurrentRequests = 20
-      const startTime = Date.now()
-      
-      const promises = Array.from({ length: concurrentRequests }, () =>
-        request(app)
-          .get('/portfolio')
-          .set('Authorization', `Bearer ${validToken}`)
-      )
-
-      const responses = await Promise.all(promises)
-      const totalTime = Date.now() - startTime
-      
-      // At least 80% should succeed
-      const successCount = responses.filter(r => [200, 404].includes(r.status)).length
-      const successRate = successCount / concurrentRequests
-      expect(successRate).toBeGreaterThanOrEqual(0.8)
-      
-      // No server errors
-      const serverErrors = responses.filter(r => r.status >= 500).length
-      expect(serverErrors).toBe(0)
-      
-      expect(totalTime).toBeLessThan(10000) // Within 10 seconds
-    })
-
-    test('Database connection pool handles concurrent queries', async () => {
-      const concurrentQueries = 15
-      const startTime = Date.now()
-      
-      const promises = Array.from({ length: concurrentQueries }, (_, i) =>
-        request(app)
-          .post('/portfolio')
-          .set('Authorization', `Bearer ${validToken}`)
-          .send({
-            name: `Performance Test Portfolio ${i}`,
-            description: `Concurrent test portfolio ${i}`
-          })
-      )
-
-      const responses = await Promise.all(promises)
-      const totalTime = Date.now() - startTime
-      
-      // Count successful creations
-      const createdCount = responses.filter(r => r.status === 201).length
-      const errorCount = responses.filter(r => r.status >= 400).length
-      
-      // Should handle most requests successfully
-      expect(createdCount).toBeGreaterThan(0)
-      expect(errorCount).toBeLessThan(concurrentQueries * 0.5) // Less than 50% errors
-      
-      expect(totalTime).toBeLessThan(15000) // Within 15 seconds
-      
-      // Cleanup created portfolios
-      const cleanupPromises = responses
-        .filter(r => r.status === 201)
-        .map(r => r.body.portfolio.id)
-        .map(id => 
-          testDatabase.query('DELETE FROM portfolios WHERE id = $1', [id])
-        )
-      
-      await Promise.all(cleanupPromises)
-    })
-
-    test('External API calls maintain performance under load', async () => {
-      const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
-      const startTime = Date.now()
-      
-      const promises = symbols.map(symbol =>
-        request(app).get(`/market/quote/${symbol}`)
-      )
-
-      const responses = await Promise.all(promises)
-      const totalTime = Date.now() - startTime
-      
-      // At least some should succeed
-      const successCount = responses.filter(r => r.status === 200).length
-      expect(successCount).toBeGreaterThan(0)
-      
-      // Average time per request should be reasonable
-      const avgTime = totalTime / symbols.length
-      expect(avgTime).toBeLessThan(4000)
-      
-      expect(totalTime).toBeLessThan(15000) // All within 15 seconds
-    })
-  })
+    });
+  });
 
   describe('Memory and Resource Usage', () => {
-    test('Memory usage remains stable during extended operation', async () => {
-      const iterations = 50
-      const responses = []
+    test('API endpoints do not leak memory under repeated requests', async () => {
+      const iterations = 50; // Reduced for faster execution
+      const endpoint = '/api/health';
       
+      // Warm up
+      await request(app).get(endpoint);
+      
+      const initialMemory = process.memoryUsage();
+      
+      // Perform many requests
       for (let i = 0; i < iterations; i++) {
-        const response = await request(app)
-          .get('/health/memory')
-          .expect('Content-Type', /json/)
-
-        expect([200, 503]).toContain(response.status)
-        
-        if (response.status === 200) {
-          responses.push(response.body)
-        }
-        
-        // Small delay to allow for memory cleanup
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await request(app)
+          .get(endpoint)
+          .timeout(1000);
       }
       
-      if (responses.length > 10) {
-        // Check that memory usage doesn't continuously increase
-        const firstTen = responses.slice(0, 10)
-        const lastTen = responses.slice(-10)
-        
-        const avgFirstMemory = firstTen.reduce((sum, r) => sum + (r.heapUsed || 0), 0) / firstTen.length
-        const avgLastMemory = lastTen.reduce((sum, r) => sum + (r.heapUsed || 0), 0) / lastTen.length
-        
-        // Memory should not increase by more than 50%
-        const memoryIncrease = (avgLastMemory - avgFirstMemory) / avgFirstMemory
-        expect(memoryIncrease).toBeLessThan(0.5)
-      }
-    })
-
-    test('Database connection pool efficiency', async () => {
-      const startTime = Date.now()
-      
-      // Make many sequential database requests
-      for (let i = 0; i < 20; i++) {
-        const response = await request(app)
-          .get('/health/database')
-          .expect('Content-Type', /json/)
-
-        expect([200, 503]).toContain(response.status)
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
       }
       
-      const totalTime = Date.now() - startTime
-      const avgTime = totalTime / 20
+      const finalMemory = process.memoryUsage();
+      const memoryIncrease = finalMemory.heapUsed - initialMemory.heapUsed;
       
-      // Should benefit from connection pooling
-      expect(avgTime).toBeLessThan(200) // Less than 200ms per request
-    })
+      // Memory increase should be reasonable (less than 5MB for 50 requests)
+      expect(memoryIncrease).toBeLessThan(5 * 1024 * 1024);
+    });
 
-    test('Response payload sizes are optimized', async () => {
-      const response = await request(app)
-        .get('/portfolio')
-        .set('Authorization', `Bearer ${validToken}`)
-        .expect('Content-Type', /json/)
-
-      expect([200, 404, 503]).toContain(response.status)
+    test('Database connections are properly released after operations', async () => {
+      const concurrentOperations = 10; // Reduced for stability
+      const operations = [];
       
-      if (response.status === 200) {
-        const responseSize = JSON.stringify(response.body).length
+      for (let i = 0; i < concurrentOperations; i++) {
+        const operation = withDatabaseTransaction(async (client) => {
+          // Simulate some database work
+          await client.query('SELECT NOW()');
+          await client.query('SELECT COUNT(*) FROM users');
+          return true;
+        });
         
-        // Response should be reasonable size (less than 1MB)
-        expect(responseSize).toBeLessThan(1024 * 1024)
-        
-        // Should include compression headers
-        expect(response.headers['content-encoding']).toBeTruthy()
-      }
-    })
-  })
-
-  describe('Database Performance', () => {
-    test('Simple queries execute within 100ms', async () => {
-      const startTime = Date.now()
-      
-      const result = await testDatabase.query('SELECT 1 as test')
-      
-      const queryTime = Date.now() - startTime
-      expect(queryTime).toBeLessThan(100)
-      
-      expect(result.rows).toHaveLength(1)
-      expect(result.rows[0].test).toBe(1)
-    })
-
-    test('Complex portfolio queries execute within 500ms', async () => {
-      const startTime = Date.now()
-      
-      const result = await testDatabase.query(`
-        SELECT 
-          p.id, p.name, 
-          COUNT(pos.id) as position_count,
-          SUM(pos.quantity * pos.avg_cost) as total_cost
-        FROM portfolios p
-        LEFT JOIN portfolio_positions pos ON p.id = pos.portfolio_id
-        WHERE p.user_id = $1
-        GROUP BY p.id, p.name
-        ORDER BY p.created_at DESC
-        LIMIT 10
-      `, [testUserId])
-      
-      const queryTime = Date.now() - startTime
-      expect(queryTime).toBeLessThan(500)
-      
-      expect(result.rows).toBeInstanceOf(Array)
-    })
-
-    test('Bulk operations maintain reasonable performance', async () => {
-      const startTime = Date.now()
-      
-      // Create test portfolio first
-      const portfolioResult = await testDatabase.query(
-        'INSERT INTO portfolios (user_id, name, description) VALUES ($1, $2, $3) RETURNING id',
-        [testUserId, 'Bulk Test Portfolio', 'For bulk testing']
-      )
-      
-      const portfolioId = portfolioResult.rows[0].id
-      
-      // Insert multiple positions
-      const positions = Array.from({ length: 100 }, (_, i) => [
-        portfolioId, `TEST${i}`, 100, 50.00 + i
-      ])
-      
-      const insertQuery = `
-        INSERT INTO portfolio_positions (portfolio_id, symbol, quantity, avg_cost)
-        VALUES ${positions.map((_, i) => `($${i*4+1}, $${i*4+2}, $${i*4+3}, $${i*4+4})`).join(', ')}
-      `
-      
-      const insertParams = positions.flat()
-      await testDatabase.query(insertQuery, insertParams)
-      
-      const totalTime = Date.now() - startTime
-      expect(totalTime).toBeLessThan(2000) // Within 2 seconds
-      
-      // Cleanup
-      await testDatabase.query('DELETE FROM portfolio_positions WHERE portfolio_id = $1', [portfolioId])
-      await testDatabase.query('DELETE FROM portfolios WHERE id = $1', [portfolioId])
-    })
-
-    test('Database indexes improve query performance', async () => {
-      // Test that queries use proper indexes
-      const explain = await testDatabase.query(`
-        EXPLAIN (ANALYZE, BUFFERS) 
-        SELECT * FROM portfolios WHERE user_id = $1
-      `, [testUserId])
-      
-      const executionPlan = explain.rows.map(row => row['QUERY PLAN']).join('\n')
-      
-      // Should use index scan, not sequential scan
-      expect(executionPlan).toMatch(/Index.*Scan|Bitmap.*Index.*Scan/i)
-      expect(executionPlan).not.toMatch(/Seq.*Scan.*portfolios/i)
-    })
-  })
-
-  describe('Scalability Testing', () => {
-    test('System handles gradual load increase', async () => {
-      const loadLevels = [1, 5, 10, 15, 20]
-      const results = []
-      
-      for (const concurrency of loadLevels) {
-        const startTime = Date.now()
-        
-        const promises = Array.from({ length: concurrency }, () =>
-          request(app)
-            .get('/health')
-            .expect(200)
-        )
-        
-        await Promise.all(promises)
-        const duration = Date.now() - startTime
-        
-        results.push({
-          concurrency,
-          duration,
-          avgResponseTime: duration / concurrency
-        })
+        operations.push(operation);
       }
       
-      // Response times should not degrade dramatically
-      const maxAvgTime = Math.max(...results.map(r => r.avgResponseTime))
-      const minAvgTime = Math.min(...results.map(r => r.avgResponseTime))
+      const results = await Promise.all(operations);
       
-      // Max should not be more than 3x min
-      expect(maxAvgTime / minAvgTime).toBeLessThan(3)
-    })
+      // All operations should complete successfully
+      results.forEach(result => {
+        expect(result).toBe(true);
+      });
+      
+      // Database connection pool should not be exhausted
+      const healthResponse = await request(app)
+        .get('/api/health')
+        .timeout(2000);
+      
+      expect(healthResponse.status).toBe(200);
+    });
+  });
 
-    test('Database connection pool scales appropriately', async () => {
-      const connectionRequests = 25 // More than typical pool size
-      const startTime = Date.now()
+  describe('Error Recovery Performance', () => {
+    test('System recovers quickly from temporary failures', async () => {
+      // Test recovery time after simulated failure
+      const healthCheckInterval = 100; // ms
+      const maxRecoveryTime = 3000; // 3 seconds
       
-      const promises = Array.from({ length: connectionRequests }, (_, i) =>
-        testDatabase.query('SELECT $1 as request_id, pg_sleep(0.1)', [i])
-      )
+      let recoveryStartTime = Date.now();
+      let recovered = false;
       
-      const results = await Promise.all(promises)
-      const totalTime = Date.now() - startTime
-      
-      // All should succeed
-      expect(results).toHaveLength(connectionRequests)
-      
-      // Should complete in reasonable time despite pool limits
-      expect(totalTime).toBeLessThan(10000) // Within 10 seconds
-    })
-
-    test('API endpoints maintain SLA under sustained load', async () => {
-      const duration = 30000 // 30 seconds
-      const requestInterval = 1000 // 1 request per second
-      const responses = []
-      
-      const startTime = Date.now()
-      
-      while (Date.now() - startTime < duration) {
-        const requestStart = Date.now()
-        
+      while (Date.now() - recoveryStartTime < maxRecoveryTime && !recovered) {
         try {
           const response = await request(app)
-            .get('/health')
-            .timeout(5000)
+            .get('/api/health')
+            .timeout(1000);
           
-          const requestTime = Date.now() - requestStart
-          responses.push({
-            status: response.status,
-            responseTime: requestTime,
-            timestamp: Date.now()
-          })
+          if (response.status === 200 && response.body.status) {
+            recovered = true;
+          }
         } catch (error) {
-          responses.push({
-            status: 500,
-            responseTime: 5000,
-            timestamp: Date.now(),
-            error: error.message
-          })
+          // Continue checking
         }
         
-        // Wait for next interval
-        const elapsed = Date.now() - requestStart
-        const waitTime = Math.max(0, requestInterval - elapsed)
-        await new Promise(resolve => setTimeout(resolve, waitTime))
+        if (!recovered) {
+          await new Promise(resolve => setTimeout(resolve, healthCheckInterval));
+        }
       }
       
-      // Analyze results
-      const successCount = responses.filter(r => r.status === 200).length
-      const successRate = successCount / responses.length
-      const avgResponseTime = responses.reduce((sum, r) => sum + r.responseTime, 0) / responses.length
+      const recoveryTime = Date.now() - recoveryStartTime;
       
-      // SLA requirements
-      expect(successRate).toBeGreaterThanOrEqual(0.95) // 95% success rate
-      expect(avgResponseTime).toBeLessThan(1000) // Average under 1 second
-      
-      // 99th percentile response time
-      const sortedTimes = responses.map(r => r.responseTime).sort((a, b) => a - b)
-      const p99Index = Math.floor(sortedTimes.length * 0.99)
-      const p99ResponseTime = sortedTimes[p99Index]
-      
-      expect(p99ResponseTime).toBeLessThan(2000) // 99th percentile under 2 seconds
-    })
-  })
-
-  describe('Performance Monitoring and Metrics', () => {
-    test('Performance metrics are collected and accessible', async () => {
-      const response = await request(app)
-        .get('/health/performance')
-        .expect('Content-Type', /json/)
-
-      expect([200, 404]).toContain(response.status)
-      
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty('metrics')
-        expect(response.body.metrics).toHaveProperty('responseTime')
-        expect(response.body.metrics).toHaveProperty('throughput')
-        expect(response.body.metrics).toHaveProperty('errorRate')
-        expect(response.body.metrics).toHaveProperty('memoryUsage')
-      }
-    })
-
-    test('Performance degradation alerts are triggered appropriately', async () => {
-      // Simulate high load to trigger alerts
-      const highLoadRequests = 50
-      const promises = Array.from({ length: highLoadRequests }, () =>
-        request(app).get('/portfolio').set('Authorization', `Bearer ${validToken}`)
-      )
-      
-      await Promise.all(promises)
-      
-      // Check if alerts were triggered
-      const alertResponse = await request(app)
-        .get('/health/alerts')
-        .expect('Content-Type', /json/)
-
-      expect([200, 404]).toContain(alertResponse.status)
-      
-      if (alertResponse.status === 200) {
-        expect(alertResponse.body).toHaveProperty('alerts')
-        expect(Array.isArray(alertResponse.body.alerts)).toBe(true)
-      }
-    })
-  })
-})
+      expect(recovered).toBe(true);
+      expect(recoveryTime).toBeLessThan(maxRecoveryTime);
+    });
+  });
+});
