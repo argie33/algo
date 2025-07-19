@@ -456,7 +456,7 @@ if __name__ == "__main__":
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"]
         ,
-            sslmode='disable'
+            sslmode="require"
     )
         print("🔍 LOADINFO DEBUG: Database connection established")
         

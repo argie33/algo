@@ -316,7 +316,7 @@ def main():
             dbname=db,
             user=user,
             password=pwd,
-            sslmode='disable'
+            sslmode="require"
         )
         cur = conn.cursor()
 

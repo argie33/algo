@@ -180,7 +180,7 @@ if __name__ == "__main__":
             dbname=cfg["dbname"],
             connect_timeout=30
         ,
-            sslmode='disable'
+            sslmode="require"
     )
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)

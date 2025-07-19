@@ -55,7 +55,7 @@ DB_CONFIG = {
 
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG,
-            sslmode='disable'
+            sslmode="require"
     )
 
 def create_buy_sell_table_if_not_exists(cur):

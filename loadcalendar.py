@@ -239,7 +239,7 @@ def main():
             user=user,
             password=pwd,
             dbname=dbname,
-            sslmode='disable',
+            sslmode="require",
             cursor_factory=DictCursor
         )
         

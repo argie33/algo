@@ -166,7 +166,7 @@ def lambda_handler(event, context):
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     ,
-            sslmode='disable'
+            sslmode="require"
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

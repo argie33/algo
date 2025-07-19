@@ -391,7 +391,7 @@ def main():
         host=PG_HOST, port=PG_PORT,
         user=PG_USER, password=PG_PASSWORD,
         dbname=PG_DB,
-        sslmode="disable"
+        sslmode="require"
     )
     try:
         init_db(conn)

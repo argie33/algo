@@ -293,7 +293,7 @@ def main():
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     ,
-            sslmode='disable'
+            sslmode="require"
     )
     logging.info("✅ Database connection established")
     conn.autocommit = False
