@@ -234,16 +234,38 @@ def main():
     try:
         user, pwd, host, port, dbname = get_db_config()
         
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=pwd,
-            dbname=dbname,
-            sslmode='require',
-            connect_timeout=30,
-            cursor_factory=DictCursor
-        )
+        # Connection with retry logic for timeout handling
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
+                
+                conn = psycopg2.connect(
+                    host=host,
+                    port=port,
+                    user=user,
+                    password=pwd,
+                    dbname=dbname,
+                    sslmode='require',
+                    connect_timeout=30,
+                    cursor_factory=DictCursor
+                )
+                logger.info("✅ Database connection established successfully")
+                break
+                
+            except psycopg2.OperationalError as e:
+                error_msg = str(e)
+                logger.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+                
+                if attempt < max_retries:
+                    logger.info(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    logger.error(f"❌ All {max_retries} connection attempts failed")
+                    raise
         
         # Set a larger cursor size for better performance
         conn.set_session(autocommit=False)

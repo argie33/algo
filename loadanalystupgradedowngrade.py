@@ -125,15 +125,37 @@ def lambda_handler(event, context):
     log_mem("startup")
     cfg = get_db_config()
     
-    conn = psycopg2.connect(
-        host=cfg["host"],
-        port=cfg["port"],
-        user=cfg["user"],
-        password=cfg["password"],
-        dbname=cfg["dbname"],
-        sslmode='require',
-        connect_timeout=30
-    )
+    # Connection with retry logic for timeout handling
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+            
+            conn = psycopg2.connect(
+                host=cfg["host"],
+                port=cfg["port"],
+                user=cfg["user"],
+                password=cfg["password"],
+                dbname=cfg["dbname"],
+                sslmode='require',
+                connect_timeout=30
+            )
+            logging.info("✅ Database connection established successfully")
+            break
+            
+        except psycopg2.OperationalError as e:
+            error_msg = str(e)
+            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+            
+            if attempt < max_retries:
+                logging.info(f"⏳ Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logging.error(f"❌ All {max_retries} connection attempts failed")
+                raise
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
