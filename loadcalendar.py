@@ -234,7 +234,7 @@ def main():
     try:
         user, pwd, host, port, dbname = get_db_config()
         
-        # Connection with retry logic for timeout handling
+        # EXACT copy from working loadaaiidata.py
         max_retries = 3
         retry_delay = 5
         
@@ -242,7 +242,7 @@ def main():
             try:
                 logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
                 
-                # Test basic connectivity first to diagnose infrastructure issues
+                # Test basic connectivity first
                 logger.info("🔌 Testing basic network connectivity...")
                 import socket
                 test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -251,27 +251,37 @@ def main():
                 
                 if test_result == 0:
                     logger.info("✅ Network connectivity test passed")
+                    
+                    # Get additional network info for successful connection
                     local_addr = test_socket.getsockname()
                     peer_addr = test_socket.getpeername()
                     logger.info(f"🔍 Local socket: {local_addr[0]}:{local_addr[1]}")
                     logger.info(f"🔍 Remote socket: {peer_addr[0]}:{peer_addr[1]}")
+                    
                 else:
                     logger.error(f"❌ Network connectivity test failed with code: {test_result}")
-                    if test_result == 111:
-                        logger.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL not running or not accepting connections")
-                    elif test_result == 113:
+                    
+                    # Diagnose network connectivity issues
+                    if test_result == 111:  # Connection refused
+                        logger.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL may not be running or not accepting connections")
+                    elif test_result == 113:  # No route to host
                         logger.error("🔍 DIAGNOSIS: No route to host - network routing or security group issue")
-                    elif test_result == 110:
-                        logger.error("🔍 DIAGNOSIS: Connection timeout - security group blocking or RDS not accessible")
+                    elif test_result == 110:  # Connection timed out
+                        logger.error("🔍 DIAGNOSIS: Connection timeout - likely security group blocking or RDS not accessible")
                     else:
                         logger.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
+                        
                 test_socket.close()
                 
-                # Use EXACT connection pattern from working loadaaiidata.py
+                # Attempt PostgreSQL connection with proper SSL configuration
+                logger.info("🔌 Attempting PostgreSQL connection with SSL...")
+                logger.info(f"🔍 Connection details: user='{user}', database='{dbname}', sslmode='require'")
+                
+                # Use proper SSL configuration for RDS
                 ssl_config = {
-                    'host': host,
+                    'host': host, 
                     'port': port,
-                    'user': user,
+                    'user': user, 
                     'password': pwd,
                     'dbname': dbname,
                     'sslmode': 'disable',
@@ -280,30 +290,39 @@ def main():
                     'cursor_factory': DictCursor
                 }
                 
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches like loadaaiidata.py
+                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
                 if attempt == 1:
+                    # First attempt: Use SSL disable
                     logger.info("🔐 Attempt 1: Using SSL disable mode")
                 elif attempt == 2:
+                    # Second attempt: Use SSL but skip certificate verification
                     ssl_config['sslmode'] = 'require'
                     logger.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
                 else:
+                    # Third attempt: Use SSL prefer mode
                     ssl_config['sslmode'] = 'prefer'
                     logger.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
                 
                 conn = psycopg2.connect(**ssl_config)
+                
                 logger.info("✅ Database connection established successfully")
                 break
                 
             except psycopg2.OperationalError as e:
                 error_msg = str(e)
-                logger.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+                error_code = getattr(e, 'pgcode', 'NO_CODE')
+                logger.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
+                logger.error(f"🔍 Error Code: {error_code}")
+                logger.error(f"🔍 Error Message: {error_msg}")
                 
                 if attempt < max_retries:
                     logger.info(f"⏳ Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
-                    retry_delay *= 2
+                    retry_delay *= 2  # Exponential backoff
                 else:
                     logger.error(f"❌ All {max_retries} connection attempts failed")
+                    logger.error(f"❌ FINAL ERROR: Unable to establish database connection after {max_retries} attempts")
+                    logger.error(f"❌ Last error: {error_msg}")
                     raise
         
         # Set a larger cursor size for better performance
