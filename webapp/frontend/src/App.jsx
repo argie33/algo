@@ -29,7 +29,6 @@ import Settings from './pages/Settings'
 import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
-import AuthFallback from './components/AuthFallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import SectorAnalysis from './pages/SectorAnalysis'
 import TestApiPage from './pages/TestApiPage'
@@ -57,25 +56,29 @@ import LiveDataTailwind from './pages/LiveDataTailwind'
 import UnifiedDataManagement from './pages/UnifiedDataManagement'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 
+// Additional page imports that were missing
+import AdminLiveData from './pages/AdminLiveData'
+import LiveDataEnhanced from './pages/LiveDataEnhanced'
+import LiveDataCentralized from './pages/LiveDataCentralized'
+import RealTimeDashboard from './pages/RealTimeDashboard'
+import CommoditiesEnhanced from './pages/CommoditiesEnhanced'
+import NewsAnalysis from './pages/NewsAnalysis'
+import RiskManagement from './pages/RiskManagement'
+import PerformanceMonitoring from './pages/PerformanceMonitoring'
+import TradingSignalsEnhanced from './pages/TradingSignalsEnhanced'
+import StockDetailLite from './pages/StockDetailLite'
+import StockDetailSimple from './pages/StockDetailSimple'
+import SettingsApiKeys from './pages/SettingsApiKeys'
+import ProtectedPortfolio from './pages/ProtectedPortfolio'
+import ProtectedSettings from './pages/ProtectedSettings'
+import ProtectedTradeHistory from './pages/ProtectedTradeHistory'
+
 function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   
-  // Check if Cognito is misconfigured
-  const cognitoConfig = window.__CONFIG__?.COGNITO;
-  const isCognitoMisconfigured = !cognitoConfig?.USER_POOL_ID || 
-                                cognitoConfig.USER_POOL_ID.includes('MISSING') ||
-                                cognitoConfig.CLIENT_ID.includes('missing');
-  
-  // Show auth fallback if Cognito is broken and user not authenticated
-  if (isCognitoMisconfigured && !isAuthenticated) {
-    return <AuthFallback onLogin={(user) => {
-      // This would trigger the auth context to update
-      window.location.reload();
-    }} />;
-  }
 
   const handleLogout = async () => {
     await logout()
@@ -175,6 +178,26 @@ function App() {
           {/* Cryptocurrency Routes */}
           <Route path="/crypto" element={<CryptoMarketOverview />} />
           <Route path="/crypto/advanced" element={<CryptoAdvancedDashboard />} />
+          
+          {/* Additional Pages Missing From Routes */}
+          <Route path="/admin/live-data" element={<AdminLiveData />} />
+          <Route path="/live-data-enhanced" element={<LiveDataEnhanced />} />
+          <Route path="/live-data-centralized" element={<LiveDataCentralized />} />
+          <Route path="/real-time-dashboard" element={<RealTimeDashboard />} />
+          <Route path="/commodities-enhanced" element={<CommoditiesEnhanced />} />
+          <Route path="/news-analysis" element={<NewsAnalysis />} />
+          <Route path="/risk-management" element={<RiskManagement />} />
+          <Route path="/performance-monitoring" element={<PerformanceMonitoring />} />
+          <Route path="/trading-signals-enhanced" element={<TradingSignalsEnhanced />} />
+          <Route path="/portfolio/holdings" element={<PortfolioHoldings />} />
+          <Route path="/stocks/detail-lite/:ticker" element={<StockDetailLite />} />
+          <Route path="/stocks/detail-simple/:ticker" element={<StockDetailSimple />} />
+          <Route path="/settings/api-keys" element={<SettingsApiKeys />} />
+          
+          {/* Protected Routes */}
+          <Route path="/portfolio/protected" element={<ProtectedPortfolio />} />
+          <Route path="/settings/protected" element={<ProtectedSettings />} />
+          <Route path="/trade-history/protected" element={<ProtectedTradeHistory />} />
         </Routes>
       </div>
       

@@ -76,7 +76,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer
 } from 'recharts';
@@ -428,7 +428,7 @@ const LiveDataCentralized = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <RechartsTooltip />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -447,7 +447,7 @@ const LiveDataCentralized = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="time" />
                       <YAxis label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft' }} />
-                      <Tooltip />
+                      <RechartsTooltip />
                       <Legend />
                       <Line 
                         type="monotone" 

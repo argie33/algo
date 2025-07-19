@@ -40,7 +40,7 @@ import {
   Assessment,
   AccountBalance
 } from '@mui/icons-material';
-import { api } from '../utils/api';
+import api from '../services/api';
 import MarketTimingPanel from '../components/trading/MarketTimingPanel';
 import PositionManager from '../components/trading/PositionManager';
 import SignalCardEnhanced from '../components/trading/SignalCardEnhanced';

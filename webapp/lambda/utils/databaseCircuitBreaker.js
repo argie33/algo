@@ -9,11 +9,11 @@ class DatabaseCircuitBreaker {
     this.successCount = 0;
     this.lastSuccessTime = Date.now();
     
-    // Lambda-optimized thresholds
-    this.failureThreshold = 10; // Increased from 5 to 10
-    this.recoveryTimeout = 30000; // Reduced from 60s to 30s
-    this.halfOpenMaxCalls = 5; // Increased from 3 to 5
-    this.halfOpenSuccessThreshold = 3; // Need 3 successes to close
+    // PRODUCTION FIX: More resilient thresholds  
+    this.failureThreshold = 20; // PRODUCTION FIX: Increased from 10 to 20
+    this.recoveryTimeout = 10000; // PRODUCTION FIX: Reduced from 30s to 10s
+    this.halfOpenMaxCalls = 10; // PRODUCTION FIX: Increased from 5 to 10
+    this.halfOpenSuccessThreshold = 3; // Keep 3 successes to close
     
     // Health tracking
     this.totalRequests = 0;

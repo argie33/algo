@@ -69,7 +69,7 @@ import {
   AttachMoney
 } from '@mui/icons-material';
 // Chart.js replaced with recharts for better React integration
-import adminLiveDataService from '../services/adminLiveDataService';
+import liveDataService from '../services/liveDataService';
 import { useAuth } from '../contexts/AuthContext';
 
 // Chart.js registration removed - using recharts instead
@@ -153,7 +153,7 @@ const AdminLiveData = () => {
   
   const loadSystemMetrics = async () => {
     try {
-      const metrics = await adminLiveDataService.getSystemMetrics();
+      const metrics = await liveDataService.getSystemMetrics();
       setSystemMetrics(metrics);
     } catch (error) {
       console.error('Failed to load system metrics:', error);
@@ -162,7 +162,7 @@ const AdminLiveData = () => {
   
   const loadActiveFeeds = async () => {
     try {
-      const feeds = await adminLiveDataService.getActiveFeeds();
+      const feeds = await liveDataService.getActiveFeeds();
       setActiveFeeds(feeds);
     } catch (error) {
       console.error('Failed to load active feeds:', error);
@@ -171,7 +171,7 @@ const AdminLiveData = () => {
   
   const loadSubscribers = async () => {
     try {
-      const subs = await adminLiveDataService.getSubscribers();
+      const subs = await liveDataService.getSubscribers();
       setSubscribers(subs);
     } catch (error) {
       console.error('Failed to load subscribers:', error);
@@ -181,7 +181,7 @@ const AdminLiveData = () => {
   const startFeed = async (assetType, dataTypes, symbols) => {
     try {
       setFeedStatus('starting');
-      await adminLiveDataService.startFeed({
+      await liveDataService.startFeed({
         assetType,
         dataTypes,
         symbols
@@ -198,7 +198,7 @@ const AdminLiveData = () => {
   const stopFeed = async (feedId) => {
     try {
       setFeedStatus('stopping');
-      await adminLiveDataService.stopFeed(feedId);
+      await liveDataService.stopFeed(feedId);
       setFeedStatus('stopped');
       loadActiveFeeds();
     } catch (error) {
@@ -208,7 +208,7 @@ const AdminLiveData = () => {
   
   const addSymbolToFeed = async (feedId, symbol) => {
     try {
-      await adminLiveDataService.addSymbol(feedId, symbol);
+      await liveDataService.addSymbol(feedId, symbol);
       loadActiveFeeds();
     } catch (error) {
       console.error('Failed to add symbol:', error);
@@ -217,7 +217,7 @@ const AdminLiveData = () => {
   
   const removeSymbolFromFeed = async (feedId, symbol) => {
     try {
-      await adminLiveDataService.removeSymbol(feedId, symbol);
+      await liveDataService.removeSymbol(feedId, symbol);
       loadActiveFeeds();
     } catch (error) {
       console.error('Failed to remove symbol:', error);

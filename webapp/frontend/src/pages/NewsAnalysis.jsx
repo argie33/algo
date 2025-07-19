@@ -24,13 +24,6 @@ import {
   Alert,
   CircularProgress,
   Paper,
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-  TimelineOppositeContent,
   LinearProgress
 } from '@mui/material';
 import {
@@ -171,6 +164,19 @@ const NewsAnalysis = () => {
         return 'success';
       default:
         return 'default';
+    }
+  };
+
+  const getImpactColorValue = (impact) => {
+    switch (impact.toLowerCase()) {
+      case 'high':
+        return '#f44336';
+      case 'medium':
+        return '#ff9800';
+      case 'low':
+        return '#4caf50';
+      default:
+        return '#9e9e9e';
     }
   };
 
@@ -543,40 +549,60 @@ const NewsAnalysis = () => {
             <Card>
               <CardHeader title="Upcoming Market Events" />
               <CardContent>
-                <Timeline>
+                <List>
                   {newsData.upcomingEvents.map((event, index) => (
-                    <TimelineItem key={event.id}>
-                      <TimelineOppositeContent sx={{ m: 'auto 0' }} variant="body2" color="text.secondary">
-                        {format(new Date(event.date), 'MMM dd, HH:mm')}
-                      </TimelineOppositeContent>
-                      <TimelineSeparator>
-                        <TimelineDot color={getImpactColor(event.impact)}>
+                    <ListItem key={event.id} sx={{ py: 2, borderLeft: 3, borderColor: getImpactColorValue(event.impact), mb: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                      <ListItemAvatar>
+                        <Box sx={{ 
+                          bgcolor: getImpactColorValue(event.impact) + '20', 
+                          borderRadius: '50%', 
+                          p: 1, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          minWidth: 40,
+                          minHeight: 40
+                        }}>
                           {getEventTypeIcon(event.type)}
-                        </TimelineDot>
-                        {index < newsData.upcomingEvents.length - 1 && <TimelineConnector />}
-                      </TimelineSeparator>
-                      <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" component="span">
-                          {event.title}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {event.description}
-                        </Typography>
-                        <Box display="flex" gap={1} mt={1}>
-                          <Chip label={event.type} size="small" variant="outlined" />
-                          <Chip 
-                            label={`${event.impact} Impact`} 
-                            color={getImpactColor(event.impact)}
-                            size="small"
-                          />
-                          {event.tickers.map(ticker => (
-                            <Chip key={ticker} label={ticker} size="small" variant="outlined" />
-                          ))}
                         </Box>
-                      </TimelineContent>
-                    </TimelineItem>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                            <Typography variant="h6" component="span">
+                              {event.title}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {format(new Date(event.date), 'MMM dd, HH:mm')}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                              {event.description}
+                            </Typography>
+                            <Box display="flex" gap={1} flexWrap="wrap">
+                              <Chip label={event.type} size="small" variant="outlined" />
+                              <Chip 
+                                label={`${event.impact} Impact`} 
+                                size="small"
+                                sx={{ 
+                                  bgcolor: getImpactColorValue(event.impact) + '20',
+                                  color: getImpactColorValue(event.impact),
+                                  border: `1px solid ${getImpactColorValue(event.impact)}40`
+                                }}
+                              />
+                              {event.tickers.map(ticker => (
+                                <Chip key={ticker} label={ticker} size="small" variant="outlined" />
+                              ))}
+                            </Box>
+                          </Box>
+                        }
+                      />
+                    </ListItem>
                   ))}
-                </Timeline>
+                </List>
               </CardContent>
             </Card>
           </Grid>

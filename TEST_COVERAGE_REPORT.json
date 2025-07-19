@@ -1,0 +1,54 @@
+{
+  "timestamp": "2025-07-18T22:04:56.307Z",
+  "summary": {
+    "totalTests": 0,
+    "totalPassed": 0,
+    "totalFailed": 6,
+    "overallCoverage": 0
+  },
+  "categories": {
+    "backend": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    },
+    "frontend": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    },
+    "integration": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    },
+    "e2e": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    },
+    "performance": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    },
+    "security": {
+      "total": 0,
+      "passed": 0,
+      "failed": 1,
+      "coverage": 0
+    }
+  },
+  "targets": {
+    "overall": 95,
+    "backend": 90,
+    "frontend": 85,
+    "critical": 100
+  },
+  "status": "NEEDS_IMPROVEMENT"
+}

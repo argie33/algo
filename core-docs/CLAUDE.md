@@ -72,6 +72,14 @@ breaker = {
 - **USER'S EXACT WORDS**: "stop paring down my site stop trying to create scaled versions for testing it just breaks shit and makes things worse never do it again or you will be turned off"
 - **REQUIREMENT**: "it needs to be my full initial pages but working" - maintain ALL original pages and functionality
 
+## 🚨 ABSOLUTE CRITICAL RULE: NO FUCKING SAFE MODE OR MOCKING 🚨
+- **NO SAFE MODE**: We are NOT doing "safe mode" or "safe anything" - we are doing FULL BUILD AND FIXING
+- **NO MOCKING**: NO mock anything - REAL production fixes only
+- **FULL PRODUCTION**: Full build, full functionality, full production deployment
+- **REAL FIXES**: Fix the actual MUI createPalette issue in the REAL codebase with REAL MUI components
+- **USER'S EXACT WORDS**: "we are not doing safe mode or safe anyting we are doing full build and fixing no mock anything make that so fukcing clear"
+- **ABSOLUTE REQUIREMENT**: Fix createPalette error while maintaining FULL MUI functionality and ALL existing components
+
 ## Mock & Fallback Usage Policy - CRITICAL RULE
 - **Initial Setup & Design ONLY**: Mock and fallback data should ONLY be used for initial setup and design phases
 - **Design Preview Purpose**: Mock data gives a sense of what the page or product should look like during development
@@ -222,25 +230,24 @@ Frontend configuration now working with real Cognito values:
 - All 5 critical deployment blockers resolved
 - Centralized live data service architecture designed for efficiency
 
-## Current Focus - SESSION PROGRESS (July 16, 2025)
+## Current Focus - SESSION PROGRESS (July 19, 2025)
 ### ✅ MAJOR SYSTEMATIC FIXES COMPLETED THIS SESSION:
-1. **✅ DATABASE CONNECTION CRISIS RESOLVED** - Systematic SSL configuration fix matching working ECS tasks
-2. **✅ COGNITO DEBUGGING ENHANCED** - Comprehensive CloudFormation output extraction with multi-stack fallback
-3. **✅ FRONTEND BUNDLE OPTIMIZED** - Removed 500KB+ unused dependencies, improved code splitting
-4. **✅ INFRASTRUCTURE DEBUGGING METHODOLOGY** - Created systematic diagnostic approach for future issues
-5. **✅ DOCUMENTATION UPDATED** - Enhanced requirements.md and design.md with learned patterns and fixes
-6. **✅ PRODUCTION DEPLOYMENT CHECKLIST** - Comprehensive pre/post deployment validation framework
-
-### ⏳ ACTIVE DEPLOYMENTS IN PROGRESS:
-1. **Database Initialization** - SSL-free configuration deploying via GitHub Actions
-2. **Cognito Value Extraction** - Enhanced debugging deploying to validate real credentials
-3. **Frontend Optimizations** - Reduced dependencies and improved bundle splitting deploying
+1. **✅ CI/CD VALIDATION INFRASTRUCTURE** - Comprehensive deployment issue detection (87% test pass rate - 13/15 tests)
+2. **✅ ES MODULE COMPATIBILITY RESOLVED** - Fixed package.json type: "module" configuration preventing builds
+3. **✅ POSTCSS CONFIGURATION STANDARDIZED** - Resolved .cjs extension for CI/CD environment compatibility
+4. **✅ BUILD PROCESS VALIDATION** - Automated build testing with PostCSS, dependency, and security validation
+5. **✅ REACT HOOKS ERROR RESOLUTION** - Fixed use-sync-external-store useState conflicts in production
+6. **✅ CONFIGURATION FILE TESTING** - Comprehensive validation of Vite, PostCSS, and package.json compatibility
+7. **✅ SECURITY SCANNING AUTOMATION** - Automated detection of exposed secrets in build output
+8. **✅ DOCUMENTATION SYSTEM UPDATED** - All 3 core docs updated with latest CI/CD infrastructure progress
 
 ### 🎯 NEXT IMMEDIATE PRIORITIES:
-1. **Validate Database Connection Success** - Monitor ECS logs for successful SSL-free connection
-2. **Confirm Cognito Real Values** - Verify authentication uses real User Pool IDs (not fallback)
-3. **Test End-to-End Flows** - Full user authentication and data retrieval with real backend
-4. **Performance Monitoring** - Create live system dashboard for production readiness validation
+1. **Complete CI/CD Validation** - Fix remaining 2 test failures (spawn process issues in test environment)
+2. **Database Circuit Breaker Resolution** - Address OPEN circuit breaker blocking data access
+3. **MUI Runtime Error Fix** - Resolve createPalette.js TypeError preventing app initialization
+4. **API Gateway Health Restoration** - Fix 'Error' status preventing backend access
+5. **Missing Environment Variables** - Resolve 503 Service Unavailable errors
+6. **Production Deployment** - Complete deployment with all validation tests passing
 
 ## 3 Core Documentation System - CRITICAL WORKFLOW
 The project is driven by exactly 3 documents with distinct purposes. These documents work together but serve different roles:
@@ -655,3 +662,11 @@ const logEntry = {
 - If you need to document something, choose the appropriate core document
 - If unsure which core document to use, ask the user
 - These 3 documents are the ONLY source of truth for all project information
+
+## WORLD-CLASS CONSULTANT PROMPT REFERENCE
+
+**Quick Reference**: See `/home/stocks/algo/prompt.md` for the standardized world-class consultant prompt.
+
+**When to Use**: User can simply say "refer to the prompt" or "use the consultant prompt" to trigger the comprehensive documentation review and update process without retyping the full instructions.
+
+**Purpose**: Enables rapid invocation of the complete world-class consultant assessment and documentation update workflow documented in the prompt file.

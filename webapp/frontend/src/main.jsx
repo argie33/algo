@@ -13,7 +13,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// MUI Theme to prevent createPalette errors
+// REAL MUI Theme - fixing createPalette errors with proper MUI usage
 import muiTheme from './theme/muiTheme'
 
 // Enhanced components

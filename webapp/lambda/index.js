@@ -411,10 +411,13 @@ const routes = [
   // Essential Infrastructure Routes
   { path: './routes/health', name: 'Health', mount: '/api/health-full' },
   { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/health' },
+  { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },
   { path: './routes/realTimeData', name: 'Real-Time Data', mount: '/api/realtime' },
+  { path: './routes/admin', name: 'Admin', mount: '/api/admin' },
+  { path: './routes/ai-assistant', name: 'AI Assistant', mount: '/api/ai-assistant' },
   
   // Core Financial Data Routes  
   { path: './routes/stocks', name: 'Stocks', mount: '/api/stocks' },
@@ -423,6 +426,9 @@ const routes = [
   { path: './routes/market', name: 'Market', mount: '/api/market' },
   { path: './routes/market-data', name: 'Market Data', mount: '/api/market-data' },
   { path: './routes/data', name: 'Data Management', mount: '/api/data' },
+  { path: './routes/price', name: 'Price Data', mount: '/api/price' },
+  { path: './routes/financials', name: 'Financial Data', mount: '/api/financials' },
+  { path: './routes/economic', name: 'Economic Data', mount: '/api/economic' },
   
   // User & Settings Routes
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
@@ -438,25 +444,45 @@ const routes = [
   { path: './routes/screener', name: 'Stock Screener', mount: '/api/screener' },
   { path: './routes/watchlist', name: 'Watchlist', mount: '/api/watchlist' },
   { path: './routes/metrics', name: 'Metrics', mount: '/api/metrics' },
+  { path: './routes/patterns', name: 'Pattern Recognition', mount: '/api/patterns' },
+  { path: './routes/scores', name: 'Stock Scores', mount: '/api/scores' },
+  { path: './routes/scoring', name: 'Scoring System', mount: '/api/scoring' },
+  { path: './routes/analysts', name: 'Analyst Ratings', mount: '/api/analysts' },
+  
+  // Trading & Risk Management Routes
+  { path: './routes/trading', name: 'Trading', mount: '/api/trading' },
+  { path: './routes/trading_enhanced', name: 'Enhanced Trading', mount: '/api/trading-enhanced' },
+  { path: './routes/trading-strategies', name: 'Trading Strategies', mount: '/api/trading-strategies' },
+  { path: './routes/trades', name: 'Trade History', mount: '/api/trades' },
+  { path: './routes/risk', name: 'Risk Analysis', mount: '/api/risk' },
+  { path: './routes/risk-management', name: 'Risk Management', mount: '/api/risk-management' },
+  
+  // Backtesting & Performance
+  { path: './routes/backtest', name: 'Backtesting', mount: '/api/backtest' },
+  { path: './routes/backtest-new', name: 'New Backtesting', mount: '/api/backtest-new' },
+  { path: './routes/performance', name: 'Performance Analytics', mount: '/api/performance' },
+  { path: './routes/performance-analytics', name: 'Advanced Performance', mount: '/api/performance-analytics' },
   
   // Advanced Features
   { path: './routes/alerts', name: 'Alerts', mount: '/api/alerts' },
   { path: './routes/news', name: 'News', mount: '/api/news' },
   { path: './routes/sentiment', name: 'Sentiment', mount: '/api/sentiment' },
   { path: './routes/signals', name: 'Trading Signals', mount: '/api/signals' },
+  { path: './routes/calendar', name: 'Economic Calendar', mount: '/api/calendar' },
+  { path: './routes/commodities', name: 'Commodities', mount: '/api/commodities' },
+  { path: './routes/sectors', name: 'Sectors', mount: '/api/sectors' },
+  { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' },
+  
+  // Cryptocurrency Routes
   { path: './routes/crypto', name: 'Cryptocurrency', mount: '/api/crypto' },
   { path: './routes/crypto-advanced', name: 'Crypto Advanced Portfolio', mount: '/api/crypto-advanced' },
   { path: './routes/crypto-signals', name: 'Crypto Trading Signals', mount: '/api/crypto-signals' },
   { path: './routes/crypto-risk', name: 'Crypto Risk Management', mount: '/api/crypto-risk' },
   { path: './routes/crypto-analytics', name: 'Crypto Market Analytics', mount: '/api/crypto-analytics' },
-  { path: './routes/advanced', name: 'Advanced Trading', mount: '/api/advanced' },
-  { path: './routes/calendar', name: 'Economic Calendar', mount: '/api/calendar' },
-  { path: './routes/commodities', name: 'Commodities', mount: '/api/commodities' },
-  { path: './routes/sectors', name: 'Sectors', mount: '/api/sectors' },
-  { path: './routes/trading', name: 'Trading', mount: '/api/trading' },
-  { path: './routes/trades', name: 'Trade History', mount: '/api/trades' },
-  { path: './routes/risk', name: 'Risk Analysis', mount: '/api/risk' },
-  { path: './routes/performance', name: 'Performance Analytics', mount: '/api/performance' }
+  
+  // Database & Infrastructure Management
+  { path: './routes/database-optimization', name: 'Database Optimization', mount: '/api/database-optimization' },
+  { path: './routes/pool-management', name: 'Pool Management', mount: '/api/pool-management' }
 ];
 
 let loadedRoutes = 0;

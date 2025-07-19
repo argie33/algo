@@ -252,9 +252,9 @@ class TimeoutHelper {
         failures: 0,
         lastFailureTime: 0,
         state: 'closed',
-        threshold: 5,
-        timeout: 60000, // 1 minute
-        halfOpenMaxCalls: 3,
+        threshold: 15,        // PRODUCTION FIX: Increased from 5 to 15 failures
+        timeout: 15000,       // PRODUCTION FIX: Reduced from 60s to 15s recovery
+        halfOpenMaxCalls: 8,  // PRODUCTION FIX: Increased from 3 to 8 recovery attempts
         totalSuccesses: 0,
         totalFailures: 0,
         history: []
