@@ -158,15 +158,19 @@ def lambda_handler(event, context):
                     logging.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
             test_socket.close()
             
-            conn = psycopg2.connect(
-                host=cfg["host"],
-                port=cfg["port"],
-                user=cfg["user"],
-                password=cfg["password"],
-                dbname=cfg["dbname"],
-                sslmode='require',
-                connect_timeout=30
-            )
+            # Use same connection pattern as working loadaaiidata.py
+            ssl_config = {
+                'host': cfg["host"],
+                'port': cfg["port"],
+                'user': cfg["user"],
+                'password': cfg["password"],
+                'dbname': cfg["dbname"],
+                'sslmode': 'require',
+                'connect_timeout': 30,
+                'application_name': 'analyst-data-loader'
+            }
+            
+            conn = psycopg2.connect(**ssl_config)
             logging.info("✅ Database connection established successfully")
             break
             

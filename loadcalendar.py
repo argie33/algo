@@ -267,16 +267,20 @@ def main():
                         logger.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
                 test_socket.close()
                 
-                conn = psycopg2.connect(
-                    host=host,
-                    port=port,
-                    user=user,
-                    password=pwd,
-                    dbname=dbname,
-                    sslmode='require',
-                    connect_timeout=30,
-                    cursor_factory=DictCursor
-                )
+                # Use same connection pattern as working loadaaiidata.py
+                ssl_config = {
+                    'host': host,
+                    'port': port,
+                    'user': user,
+                    'password': pwd,
+                    'dbname': dbname,
+                    'sslmode': 'require',
+                    'connect_timeout': 30,
+                    'application_name': 'calendar-data-loader',
+                    'cursor_factory': DictCursor
+                }
+                
+                conn = psycopg2.connect(**ssl_config)
                 logger.info("✅ Database connection established successfully")
                 break
                 
