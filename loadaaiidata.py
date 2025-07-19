@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v6.1 - SSL connection fix + comprehensive diagnostics
+# Trigger deploy-app-stocks workflow - loadaaiidata update v6.2 - SSL PRODUCTION TEST - comprehensive SSL certificate validation
 import sys
 import time
 import logging
