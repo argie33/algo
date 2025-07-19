@@ -3,14 +3,15 @@
  * Comprehensive testing of all real authentication components
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Real Auth Components - Import actual production components  
-import { LoginForm } from '../../../components/auth/LoginForm';
-import { SignupForm } from '../../../components/auth/SignupForm';
-import { TwoFactorAuth } from '../../../components/auth/TwoFactorAuth';
+import LoginForm from '../../../components/auth/LoginForm';
+import RegisterForm from '../../../components/auth/RegisterForm';
+import MFASetupModal from '../../../components/auth/MFASetupModal';
 
 describe('🔐 Authentication Components', () => {
   beforeEach(() => {
@@ -61,9 +62,9 @@ describe('🔐 Authentication Components', () => {
     });
   });
 
-  describe('SignupForm Component', () => {
-    it('should render signup form correctly', () => {
-      render(<SignupForm />);
+  describe('RegisterForm Component', () => {
+    it('should render register form correctly', () => {
+      render(<RegisterForm />);
 
       expect(screen.getByText('Create Account')).toBeInTheDocument();
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
@@ -73,7 +74,7 @@ describe('🔐 Authentication Components', () => {
     it('should validate password confirmation', async () => {
       const user = userEvent.setup();
 
-      render(<SignupForm />);
+      render(<RegisterForm />);
 
       const passwordInput = screen.getByLabelText(/^password/i);
       const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
@@ -87,19 +88,18 @@ describe('🔐 Authentication Components', () => {
     });
   });
 
-  describe('TwoFactorAuth Component', () => {
-    it('should render 2FA verification form correctly', () => {
-      render(<TwoFactorAuth method="authenticator" />);
+  describe('MFASetupModal Component', () => {
+    it('should render MFA setup modal correctly', () => {
+      render(<MFASetupModal isOpen={true} />);
 
-      expect(screen.getByText('Two-Factor Authentication')).toBeInTheDocument();
-      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
+      expect(screen.getByText(/Multi-Factor Authentication/i)).toBeInTheDocument();
     });
 
-    it('should handle verification code input', async () => {
+    it('should handle MFA setup', async () => {
       const user = userEvent.setup();
-      const onVerify = vi.fn();
+      const onComplete = vi.fn();
 
-      render(<TwoFactorAuth method="authenticator" onVerify={onVerify} />);
+      render(<MFASetupModal isOpen={true} onComplete={onComplete} />);
 
       const codeInput = screen.getByLabelText(/verification code/i);
       const verifyButton = screen.getByRole('button', { name: /verify/i });

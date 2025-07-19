@@ -60,6 +60,7 @@ describe('🏥 Real API Health Service', () => {
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
     apiHealthService.stopMonitoring();
@@ -95,7 +96,7 @@ describe('🏥 Real API Health Service', () => {
       expect(apiHealthService.healthCheckTimer).not.toBeNull();
       
       // Wait for initial health check
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(1000);
       
       expect(global.fetch).toHaveBeenCalled();
     });

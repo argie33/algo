@@ -6,21 +6,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Real Portfolio Service - Import actual production service
-import { PortfolioService } from '../../../services/PortfolioService';
-import { apiClient } from '../../../services/api';
-import { cacheService } from '../../../services/cache';
-import { calculationEngine } from '../../../services/calculations';
+import portfolioOptimizer from '../../../services/portfolioOptimizer';
+import portfolioMathService from '../../../services/portfolioMathService';
+import api from '../../../services/api';
+import cacheService from '../../../services/cacheService';
 
 // Mock external dependencies but use real service
 vi.mock('../../../services/api');
-vi.mock('../../../services/cache');
-vi.mock('../../../services/calculations');
+vi.mock('../../../services/cacheService');
 
 describe('💼 Portfolio Service', () => {
-  let portfolioService;
   let mockApi;
   let mockCache;
-  let mockCalculations;
 
   beforeEach(() => {
     mockApi = {
@@ -36,18 +33,14 @@ describe('💼 Portfolio Service', () => {
       invalidate: vi.fn()
     };
 
-    mockCalculations = {
-      calculatePortfolioValue: vi.fn(),
-      calculateReturns: vi.fn(),
-      calculateRisk: vi.fn(),
-      calculateAllocation: vi.fn()
-    };
-
-    apiClient.mockReturnValue(mockApi);
-    cacheService.mockReturnValue(mockCache);
-    calculationEngine.mockReturnValue(mockCalculations);
-
-    portfolioService = new PortfolioService();
+    // Configure mocks for external dependencies
+    api.get = mockApi.get;
+    api.post = mockApi.post;
+    
+    cacheService.get = mockCache.get;
+    cacheService.set = mockCache.set;
+    
+    // Using real portfolioOptimizer and portfolioMathService instances
   });
 
   afterEach(() => {

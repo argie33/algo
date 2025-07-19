@@ -6,21 +6,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Real Trading Service - Import actual production service
-import { TradingService } from '../../../services/TradingService';
-import { apiClient } from '../../../services/api';
-import { webSocketService } from '../../../services/webSocket';
-import { validationService } from '../../../services/validation';
+import socialTradingService from '../../../services/socialTradingService';
+import aiTradingSignals from '../../../services/aiTradingSignals';
+import api from '../../../services/api';
+import realTimeDataService from '../../../services/realTimeDataService';
 
 // Mock external dependencies but use real service
 vi.mock('../../../services/api');
-vi.mock('../../../services/webSocket');
-vi.mock('../../../services/validation');
+vi.mock('../../../services/realTimeDataService');
 
-describe('=È Trading Service', () => {
-  let tradingService;
+describe('ðŸ“ˆ Trading Service', () => {
   let mockApi;
-  let mockWebSocket;
-  let mockValidation;
+  let mockRealTimeData;
 
   beforeEach(() => {
     mockApi = {

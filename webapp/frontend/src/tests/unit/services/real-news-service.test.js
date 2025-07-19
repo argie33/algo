@@ -21,15 +21,13 @@ vi.mock('../../../services/cacheService', () => ({
   }
 }));
 
-// Import the REAL NewsService
-const newsServiceModule = await import('../../../services/newsService');
-const NewsService = newsServiceModule.default || newsServiceModule.NewsService;
+// Import the REAL NewsService (singleton instance)
+import newsService from '../../../services/newsService';
 
 // Import mocked dependencies
 import cacheService from '../../../services/cacheService';
 
 describe('📰 Real News Service', () => {
-  let newsService;
   let mockAxios;
 
   beforeEach(() => {
@@ -49,8 +47,7 @@ describe('📰 Real News Service', () => {
       }
     });
 
-    // Create fresh service instance
-    newsService = new NewsService();
+    // Using singleton newsService imported above
 
     // Mock console to avoid noise
     vi.spyOn(console, 'log').mockImplementation(() => {});

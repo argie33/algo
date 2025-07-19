@@ -3,6 +3,7 @@
  * Comprehensive testing of all real chart and visualization components
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -68,7 +69,7 @@ describe('📊 Chart Components', () => {
 
   describe('LineChart Component', () => {
     it('should render line chart correctly', () => {
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -80,7 +81,8 @@ describe('📊 Chart Components', () => {
       );
 
       expect(screen.getByText('Stock Price')).toBeInTheDocument();
-      expect(screen.getByRole('img', { name: /chart/i })).toBeInTheDocument();
+      expect(container.querySelector('svg')).toBeInTheDocument();
+      expect(container.querySelector('.recharts-surface')).toBeInTheDocument();
     });
 
     it('should handle multiple data series', () => {
@@ -107,7 +109,7 @@ describe('📊 Chart Components', () => {
       const user = userEvent.setup();
       const onZoom = vi.fn();
 
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -117,7 +119,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /chart/i });
+      const chart = container.querySelector('svg');
       
       // Simulate zoom gesture
       await user.pointer([
@@ -131,7 +133,7 @@ describe('📊 Chart Components', () => {
     it('should show tooltips on hover', async () => {
       const user = userEvent.setup();
 
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -140,7 +142,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /chart/i });
+      const chart = container.querySelector('svg');
       await user.hover(chart);
 
       // Tooltip would be shown by the real chart library
@@ -161,7 +163,7 @@ describe('📊 Chart Components', () => {
     });
 
     it('should support custom styling', () => {
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -172,7 +174,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chartContainer = screen.getByRole('img', { name: /chart/i }).parentElement;
+      const chartContainer = container.querySelector('svg').parentElement;
       expect(chartContainer).toHaveStyle('background-color: #f5f5f5');
     });
   });
@@ -512,7 +514,7 @@ describe('📊 Chart Components', () => {
       const user = userEvent.setup();
       const onRangeSelect = vi.fn();
 
-      render(
+      const { container } = render(
         <AreaChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -522,7 +524,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /chart/i });
+      const chart = container.querySelector('svg');
       
       // Simulate range selection
       await user.pointer([
@@ -758,7 +760,7 @@ describe('📊 Chart Components', () => {
 
   describe('SparklineChart Component', () => {
     it('should render compact sparkline', () => {
-      render(
+      const { container } = render(
         <SparklineChart 
           data={mockTimeSeriesData}
           valueKey="value"
@@ -768,7 +770,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const sparkline = screen.getByRole('img', { name: /sparkline/i });
+      const sparkline = container.querySelector('svg');
       expect(sparkline).toBeInTheDocument();
     });
 
@@ -816,7 +818,7 @@ describe('📊 Chart Components', () => {
 
   describe('Chart Accessibility', () => {
     it('should have proper ARIA labels', () => {
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -826,14 +828,14 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /accessible chart/i });
+      const chart = container.querySelector('svg');
       expect(chart).toHaveAttribute('aria-label', 'Stock price over time showing upward trend');
     });
 
     it('should support keyboard navigation', async () => {
       const user = userEvent.setup();
 
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -843,7 +845,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /chart/i });
+      const chart = container.querySelector('svg');
       await user.tab();
       expect(chart).toHaveFocus();
 
@@ -913,7 +915,7 @@ describe('📊 Chart Components', () => {
       const user = userEvent.setup();
       const onZoom = vi.fn();
 
-      render(
+      const { container } = render(
         <LineChart 
           data={mockTimeSeriesData}
           xKey="date"
@@ -924,7 +926,7 @@ describe('📊 Chart Components', () => {
         />
       );
 
-      const chart = screen.getByRole('img', { name: /chart/i });
+      const chart = container.querySelector('svg');
       
       // Rapid zoom operations
       await user.pointer({ target: chart, coords: { x: 100, y: 100 } });

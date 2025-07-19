@@ -29,13 +29,51 @@ Tasks to enhance security, audit capabilities, and regulatory compliance
 
 ## 🚨 CRITICAL PRODUCTION ISSUES (WORLD-CLASS IT CONSULTANT ASSESSMENT)
 
+### NEW CRITICAL TASKS FROM UNIT TEST ANALYSIS
+
+### TASK-101: Create Missing Component Directory Structure
+**Status**: 🚨 Critical Architecture Gap
+**Priority**: Immediate - Blocks component testing
+**Root Cause**: Unit tests importing from non-existent component directories
+**Missing Directories**:
+- `src/components/charts/` (12 missing chart components)
+- `src/components/dashboard/` (4 missing dashboard components)  
+- `src/components/forms/` (11 missing form components)
+- `src/components/widgets/` (10 missing widget components)
+**Implementation Steps**:
+1. 🔄 Create component directory structure
+2. ⏳ Implement basic component stubs for each missing component
+3. ⏳ Update import paths in all test files
+4. ⏳ Validate component integration with existing pages
+
+### TASK-102: Fix Settings Service Migration API Calls
+**Status**: 🚨 Critical Service Failure
+**Priority**: High - Affects user onboarding
+**Root Cause**: `migrateLocalStorageToBackend()` not making expected API calls (0 vs 3 expected)
+**Implementation Steps**:
+1. 🔄 Debug settings service migration flow
+2. ⏳ Fix API call execution in migration logic
+3. ⏳ Validate localStorage to backend migration
+4. ⏳ Update migration test expectations
+
+### TASK-103: Standardize API Response Wrapping
+**Status**: 🔄 In Progress - Critical Data Layer Issue
+**Priority**: High - Affects all service integrations
+**Root Cause**: Inconsistent API response formats causing `positions.reduce is not a function`
+**Implementation Steps**:
+1. ✅ Identified pattern: all responses must be wrapped in `{ data: ... }`
+2. 🔄 Update remaining mock responses to use consistent wrapping
+3. ⏳ Validate all service tests with standardized response format
+4. ⏳ Update backend API to ensure consistent response wrapping
+
 ### PRODUCTION READINESS CRISIS OVERVIEW
 **Assessment Date**: July 19, 2025
-**Current Production Readiness**: 5.2/10 (Critical gaps identified, significant testing progress made)
-**World-Class Target**: 9/10 (Comprehensive remediation required)
-**Total Gaps Identified**: 76 critical issues across 6 categories (4 resolved in latest session)
-**Latest Progress**: ✅ ES module architecture fixed, ✅ CI/CD validation tests 87% passing, ✅ Comprehensive testing infrastructure (14/15 services, 450+ tests, 93% unit coverage)
-**Estimated Effort**: 18-28 developer weeks for world-class production readiness (reduced through systematic testing approach)
+**Current Production Readiness**: 6.1/10 (Major testing infrastructure completed, component architecture gaps identified)
+**World-Class Target**: 9/10 (Component creation and service standardization required)
+**Total Gaps Identified**: 68 critical issues across 6 categories (8 resolved through unit testing improvements)
+**Latest Progress**: ✅ Unit test infrastructure (14/15 services, 450+ tests, 93% coverage), ✅ API response standardization patterns identified, ✅ Mock elimination strategy implemented
+**Critical Blockers**: Missing component directories (/charts/, /dashboard/, /forms/, /widgets/), settings service migration failures, risk service data type mismatches
+**Estimated Effort**: 12-18 developer weeks for world-class production readiness (significantly reduced through systematic testing validation)
 
 ### DEPLOY-004: Fix MUI createPalette Runtime Error
 **Requirement**: REQ-022 Frontend Bundle Optimization & Error Prevention

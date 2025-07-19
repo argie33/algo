@@ -18,7 +18,7 @@ vi.mock('../../../services/api', () => ({
   default: mockApi
 }));
 
-// Mock localStorage
+// Mock localStorage globally before any imports
 const mockLocalStorage = {
   getItem: vi.fn(),
   setItem: vi.fn(),
@@ -26,10 +26,27 @@ const mockLocalStorage = {
   clear: vi.fn()
 };
 
+// Create a mock that will work in both browser and Node.js environments
+Object.defineProperty(globalThis, 'localStorage', {
+  value: mockLocalStorage,
+  writable: true,
+  configurable: true
+});
+
 Object.defineProperty(window, 'localStorage', {
   value: mockLocalStorage,
-  writable: true
+  writable: true,
+  configurable: true
 });
+
+Object.defineProperty(global, 'localStorage', {
+  value: mockLocalStorage,
+  writable: true,
+  configurable: true
+});
+
+// Mock via vitest's global mocking
+vi.stubGlobal('localStorage', mockLocalStorage);
 
 // Import the REAL SettingsService after mocking dependencies
 let settingsService;
@@ -42,6 +59,12 @@ describe('⚙️ Real Settings Service', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Reset localStorage mock
+    mockLocalStorage.getItem.mockReturnValue(null);
+    mockLocalStorage.setItem.mockImplementation(() => {});
+    mockLocalStorage.removeItem.mockImplementation(() => {});
+    mockLocalStorage.clear.mockImplementation(() => {});
     
     // Dynamically import to get fresh instance
     const settingsServiceModule = await import('../../../services/settingsService');
@@ -704,7 +727,23 @@ describe('⚙️ Real Settings Service', () => {
         }
       };
       
-      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(localStorageSettings));
+      // Override localStorage.getItem directly in the test
+      Object.defineProperty(Storage.prototype, 'getItem', {
+        value: vi.fn((key) => {
+          if (key === 'app_settings') {
+            return JSON.stringify(localStorageSettings);
+          }
+          return null;
+        }),
+        writable: true,
+        configurable: true
+      });
+      
+      Object.defineProperty(Storage.prototype, 'removeItem', {
+        value: vi.fn(),
+        writable: true,
+        configurable: true
+      });
       
       // Mock successful API key additions
       mockApi.post.mockResolvedValue({
@@ -717,7 +756,9 @@ describe('⚙️ Real Settings Service', () => {
       const result = await settingsService.migrateLocalStorageToBackend();
       
       expect(mockApi.post).toHaveBeenCalledTimes(3); // Three API keys to migrate
-      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('app_settings');
+      expect(result.migrated).toBe(true);
+      expect(result.keys).toEqual(['alpaca', 'polygon', 'finnhub']);
+      expect(localStorage.removeItem).toHaveBeenCalledWith('app_settings');
       expect(result).toEqual({
         migrated: true,
         keys: ['alpaca', 'polygon', 'finnhub']
@@ -743,7 +784,16 @@ describe('⚙️ Real Settings Service', () => {
     });
 
     it('should handle localStorage settings without API keys', async () => {
-      mockLocalStorage.getItem.mockReturnValue(JSON.stringify({ theme: 'dark' }));
+      Object.defineProperty(Storage.prototype, 'getItem', {
+        value: vi.fn((key) => {
+          if (key === 'app_settings') {
+            return JSON.stringify({ theme: 'dark' });
+          }
+          return null;
+        }),
+        writable: true,
+        configurable: true
+      });
       
       const result = await settingsService.migrateLocalStorageToBackend();
       
@@ -766,7 +816,22 @@ describe('⚙️ Real Settings Service', () => {
         }
       };
       
-      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(localStorageSettings));
+      Object.defineProperty(Storage.prototype, 'getItem', {
+        value: vi.fn((key) => {
+          if (key === 'app_settings') {
+            return JSON.stringify(localStorageSettings);
+          }
+          return null;
+        }),
+        writable: true,
+        configurable: true
+      });
+      
+      Object.defineProperty(Storage.prototype, 'removeItem', {
+        value: vi.fn(),
+        writable: true,
+        configurable: true
+      });
       
       // Mock first API key success, second failure
       mockApi.post
@@ -789,7 +854,16 @@ describe('⚙️ Real Settings Service', () => {
     });
 
     it('should handle malformed localStorage data', async () => {
-      mockLocalStorage.getItem.mockReturnValue('invalid json');
+      Object.defineProperty(Storage.prototype, 'getItem', {
+        value: vi.fn((key) => {
+          if (key === 'app_settings') {
+            return 'invalid json';
+          }
+          return null;
+        }),
+        writable: true,
+        configurable: true
+      });
       
       const result = await settingsService.migrateLocalStorageToBackend();
       
@@ -814,7 +888,25 @@ describe('⚙️ Real Settings Service', () => {
         }
       };
       
-      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(localStorageSettings));
+      const mockRemoveItem = vi.fn();
+      
+      Object.defineProperty(Storage.prototype, 'getItem', {
+        value: vi.fn((key) => {
+          if (key === 'app_settings') {
+            return JSON.stringify(localStorageSettings);
+          }
+          return null;
+        }),
+        writable: true,
+        configurable: true
+      });
+      
+      Object.defineProperty(Storage.prototype, 'removeItem', {
+        value: mockRemoveItem,
+        writable: true,
+        configurable: true
+      });
+      
       mockApi.post.mockRejectedValue(new Error('Invalid key format'));
       
       const result = await settingsService.migrateLocalStorageToBackend();
@@ -824,7 +916,7 @@ describe('⚙️ Real Settings Service', () => {
         reason: 'no_valid_keys'
       });
       
-      expect(mockLocalStorage.removeItem).not.toHaveBeenCalled();
+      expect(mockRemoveItem).not.toHaveBeenCalled();
     });
   });
 
