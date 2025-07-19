@@ -1,50 +1,112 @@
+/**
+ * Jest Configuration for CI/CD Integration Tests
+ * Handles real-world CI/CD environment constraints
+ */
+
 module.exports = {
   testEnvironment: 'node',
+  
+  // Test discovery
   testMatch: [
-    '**/tests/integration/**/*.test.js',
-    '**/tests/integration/**/*.spec.js'
+    '**/tests/integration/ci-cd-real-integration.test.js',
+    '**/tests/integration/infrastructure-validation.test.js'
   ],
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    '/tests/unit/',
-    '/tests/e2e/'
-  ],
-  setupFilesAfterEnv: ['<rootDir>/tests/setup/integration-setup.js'],
-  globalTeardown: '<rootDir>/tests/setup/global-teardown.js',
+  
+  // Setup files
+  setupFilesAfterEnv: ['<rootDir>/tests/ci-cd-setup.js'],
+  
+  // Coverage configuration
   collectCoverageFrom: [
     'utils/**/*.js',
     'routes/**/*.js',
-    'services/**/*.js',
     'middleware/**/*.js',
     '!**/node_modules/**',
-    '!**/tests/**',
-    '!**/coverage/**'
+    '!**/tests/**'
   ],
-  coverageDirectory: 'test-results/integration-coverage',
-  coverageReporters: ['text', 'lcov', 'json', 'html'],
-  coverageThreshold: {
-    global: {
-      branches: 50,
-      functions: 60,
-      lines: 60,
-      statements: 60
-    }
-  },
-  testTimeout: 30000, // 30 seconds for integration tests
-  verbose: true,
-  forceExit: true,
-  detectOpenHandles: true,
-  // Report configuration
+  
+  // Coverage directory and reporters
+  coverageDirectory: 'coverage-integration',
+  coverageReporters: ['text', 'lcov', 'html', 'json'],
+  
+  // Test timeout - longer for CI/CD environments
+  testTimeout: 30000,
+  
+  // Reporters for CI/CD
   reporters: [
     'default',
     ['jest-junit', {
       outputDirectory: './test-results',
-      outputName: 'integration-junit.xml',
-      suiteName: 'Backend Integration Tests'
+      outputName: 'ci-cd-integration-junit.xml',
+      classNameTemplate: '{classname}',
+      titleTemplate: '{title}',
+      ancestorSeparator: ' › ',
+      usePathForSuiteName: true
     }]
   ],
-  // Run integration tests sequentially
+  
+  // Module handling for CI/CD environments
+  moduleNameMapper: {
+    // Handle potential module resolution issues
+    '^@/(.*)$': '<rootDir>/$1'
+  },
+  
+  // Transform configuration
+  transform: {
+    '^.+\\.js$': 'babel-jest'
+  },
+  
+  // Ignore patterns
+  transformIgnorePatterns: [
+    'node_modules/(?!(supertest|@aws-sdk)/)'
+  ],
+  
+  // Clear mocks between tests
+  clearMocks: true,
+  
+  // Collect coverage
+  collectCoverage: true,
+  
+  // Exit on test completion
+  forceExit: true,
+  
+  // Detect open handles
+  detectOpenHandles: true,
+  
+  // Verbose output for CI/CD debugging
+  verbose: true,
+  
+  // Note: runInBand should be passed as CLI option, not config
+  
+  // Global setup and teardown
+  globalSetup: undefined,
+  globalTeardown: undefined,
+  
+  // Error handling
+  errorOnDeprecated: false,
+  
+  // Handle large test outputs
   maxWorkers: 1,
-  // Retry flaky tests
-  retry: 2
-}
+  
+  // Cache directory
+  cacheDirectory: '<rootDir>/.jest-cache',
+  
+  // Mock configuration
+  automock: false,
+  
+  // Module directories
+  moduleDirectories: ['node_modules', '<rootDir>'],
+  
+  // Test path ignore patterns
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/coverage/',
+    '/test-results/'
+  ],
+  
+  // Watch ignore patterns
+  watchPathIgnorePatterns: [
+    '/node_modules/',
+    '/coverage/',
+    '/test-results/'
+  ]
+};

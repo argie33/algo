@@ -364,7 +364,7 @@ describe('📡 Real RealTimeDataService', () => {
       realTimeDataService.on('marketData_AAPL', symbolDataListener);
       
       // Trigger initial poll
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTime(1000);
       
       expect(realTimeDataService.stats.messagesReceived).toBe(1);
       expect(realTimeDataService.stats.requestsSent).toBe(1);
@@ -373,7 +373,7 @@ describe('📡 Real RealTimeDataService', () => {
     });
 
     it('should cache market data correctly', async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTime(1000);
       
       const cachedData = realTimeDataService.getMarketData('AAPL');
       
@@ -447,7 +447,7 @@ describe('📡 Real RealTimeDataService', () => {
       // Trigger polls that will fail
       for (let i = 0; i <= realTimeDataService.config.maxRetries; i++) {
         vi.advanceTimersByTime(5000);
-        await vi.runAllTimersAsync();
+        await vi.advanceTimersByTime(1000);
       }
       
       expect(realTimeDataService.retryCount).toBe(realTimeDataService.config.maxRetries);
@@ -512,7 +512,7 @@ describe('📡 Real RealTimeDataService', () => {
     beforeEach(async () => {
       await realTimeDataService.connect();
       await realTimeDataService.subscribeMarketData(['AAPL', 'MSFT']);
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTime(1000);
     });
 
     it('should get cached market data for specific symbol', () => {
@@ -580,7 +580,7 @@ describe('📡 Real RealTimeDataService', () => {
     it('should provide accurate statistics', async () => {
       await realTimeDataService.connect();
       await realTimeDataService.subscribeMarketData(['AAPL', 'MSFT']);
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTime(1000);
       
       const stats = realTimeDataService.getStats();
       

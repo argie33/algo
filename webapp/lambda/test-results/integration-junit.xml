@@ -1,0 +1,1071 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="220" failures="56" errors="0" time="14.567">
+  <testsuite name="Authentication Middleware Unit Tests" errors="0" failures="17" skipped="0" timestamp="2025-07-19T19:46:22" time="1.392" tests="33">
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="allows access without token in development mode" time="0.005">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:61:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="validates development JWT tokens correctly" time="0.003">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:75:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="generates valid development tokens" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="falls back to development mode when Cognito is unavailable" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:104:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="requires authentication token in production mode" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="rejects invalid tokens in production mode" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: 401
+Received: 503
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:134:35)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="handles malformed authorization headers" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles expired JWT tokens" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:168:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="validates JWT token structure and claims" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles malformed JWT tokens gracefully" time="0.002">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:197:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user has required role" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user is in required group" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user lacks required role" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user is not authenticated" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="handles multiple role requirements" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues without authentication when no token provided" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="authenticates when valid token is provided" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:276:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues silently when authentication fails" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:287:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="enriches user object with request context" time="0.001">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+Received has value: undefined
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:303:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="generates request ID when not provided" time="0">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;requestId&apos;)
+    at Object.requestId (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:316:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="handles missing client IP gracefully" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;clientIp&apos;)
+    at Object.clientIp (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:326:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="loads configuration from environment variables" time="0.001">
+      <failure>Error: expect(received).toEqual(expected) // deep equality
+
+Expected: {&quot;clientId&quot;: &quot;test-client-id&quot;, &quot;region&quot;: &quot;us-east-1&quot;, &quot;userPoolId&quot;: &quot;us-east-1_test123&quot;}
+Received: null
+    at Object.toEqual (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:338:22)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="handles missing Cognito configuration gracefully" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="uses default region when not specified" time="0.001">
+      <failure>TypeError: Cannot read properties of null (reading &apos;region&apos;)
+    at Object.region (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:363:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="returns comprehensive authentication status" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: ObjectContaining {&quot;configuration&quot;: ObjectContaining {&quot;developmentBypassAllowed&quot;: true, &quot;developmentMode&quot;: true}, &quot;environment&quot;: ObjectContaining {&quot;NODE_ENV&quot;: &quot;development&quot;, &quot;hasClientId&quot;: true, &quot;hasUserPoolId&quot;: true}, &quot;status&quot;: &quot;healthy&quot;}
+Received: {&quot;cognito&quot;: {&quot;configured&quot;: false}, &quot;configuration&quot;: {&quot;cognitoConfigured&quot;: false, &quot;developmentBypassAllowed&quot;: false, &quot;developmentMode&quot;: false, &quot;verifierAvailable&quot;: false}, &quot;environment&quot;: {&quot;AWS_REGION&quot;: &quot;us-east-1&quot;, &quot;NODE_ENV&quot;: &quot;development&quot;, &quot;hasClientId&quot;: true, &quot;hasSecretArn&quot;: false, &quot;hasUserPoolId&quot;: true}, &quot;status&quot;: &quot;healthy&quot;}
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:384:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="handles status check errors gracefully" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: 500
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:406:30)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles network errors during token verification" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles concurrent authentication requests safely" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 1
+Received number of calls: 0
+    at toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:465:22)
+    at Array.forEach (&lt;anonymous&gt;)
+    at Object.forEach (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:464:13)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="preserves original user data when authentication fails in development" time="0">
+      <failure>Error: expect(received).toBeUndefined()
+
+Received: &quot;preserved&quot;
+    at Object.toBeUndefined (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:476:45)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles missing authorization header gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates tokens with correct expiration" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates unique tokens for different users" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="uses custom JWT secret when provided" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Circuit Breaker Unit Tests" errors="0" failures="1" skipped="0" timestamp="2025-07-19T19:46:22" time="1.38" tests="29">
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="initializes with correct default state" time="0.005">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="sets production-ready configuration values" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="executes operations successfully when circuit is closed" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="records failure but stays closed below threshold" time="0.021">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="decrements failure count on successful operations" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="opens circuit when failure threshold is reached" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="rejects operations immediately when circuit is open" time="0.01">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="includes remaining time in error message" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="transitions to half-open after recovery timeout" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="allows limited operations in half-open state" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="closes circuit after sufficient successes" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="reopens circuit on failure in half-open state" time="0.002">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: &quot;open&quot;
+Received: &quot;half-open&quot;
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/real-database-circuit-breaker.test.js:214:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="tracks success count correctly in half-open state" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="tracks comprehensive metrics" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="maintains request history with limited size" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records operation duration in history" time="0.05">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records error details in failure history" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports healthy when failures are below 50% of threshold" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when failures are above 50% of threshold" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when circuit is not closed" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="calculates time to recovery correctly" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="resets circuit breaker to clean state" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="allows operations after force reset" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles concurrent operations safely" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles mixed concurrent success and failure operations" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that throw non-Error objects" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return undefined" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="maintains state consistency during rapid state transitions" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles timestamp edge cases" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests" errors="0" failures="19" skipped="0" timestamp="2025-07-19T19:46:22" time="1.388" tests="39">
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="loads configuration from complete environment variables" time="0.006">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="calculates optimal pool configuration for Lambda environment" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="handles missing database configuration gracefully" time="0.001">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: {&quot;connect&quot;: [Function mockConstructor], &quot;end&quot;: [Function mockConstructor], &quot;idleCount&quot;: 1, &quot;on&quot;: [Function mockConstructor], &quot;options&quot;: {&quot;max&quot;: 5, &quot;min&quot;: 1}, &quot;query&quot;: [Function mockConstructor], &quot;totalCount&quot;: 3, &quot;waitingCount&quot;: 0}
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:127:13)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="validates SSL configuration settings" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="initializes connection pool with proper configuration" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: ObjectContaining {&quot;connectionTimeoutMillis&quot;: Any&lt;Number&gt;, &quot;host&quot;: &quot;localhost&quot;, &quot;idleTimeoutMillis&quot;: Any&lt;Number&gt;, &quot;max&quot;: Any&lt;Number&gt;, &quot;password&quot;: &quot;testpass&quot;, &quot;user&quot;: &quot;testuser&quot;}
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:157:20)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="tests database connection during initialization" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:176:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles connection pool initialization errors" time="0">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: {&quot;connect&quot;: [Function mockConstructor], &quot;end&quot;: [Function mockConstructor], &quot;idleCount&quot;: 1, &quot;on&quot;: [Function mockConstructor], &quot;options&quot;: {&quot;max&quot;: 5, &quot;min&quot;: 1}, &quot;query&quot;: [Function mockConstructor], &quot;totalCount&quot;: 3, &quot;waitingCount&quot;: 0}
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:186:13)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="provides pool status and metrics" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles pool warming for Lambda optimization" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:217:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="executes queries through database manager with circuit breaker" time="0.008">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles query errors and provides detailed logging" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="extracts table names from SQL queries correctly" time="0.003">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: &quot;scores&quot;
+Received: &quot;unknown&quot;
+    at toBe (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:277:48)
+    at Array.forEach (&lt;anonymous&gt;)
+    at Object.forEach (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:276:17)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles safe queries with table existence validation" time="0.001">
+      <failure>Error: Required tables not found: users
+    at Object.safeQuery (/home/stocks/algo/webapp/lambda/utils/database.js:1057:19)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:290:22)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="rejects safe queries when required tables are missing" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="executes successful transactions with proper commit" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: &quot;BEGIN&quot;
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:332:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="rolls back transactions on errors" time="0">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: undefined
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:349:13)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="ensures client release even on transaction errors" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:375:34)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="validates database schema comprehensively" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks individual table existence" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks multiple table existence efficiently" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="provides detailed schema requirements structure" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="handles schema validation errors gracefully" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: &quot;Database connection lost&quot;
+Received: undefined
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:489:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="performs comprehensive health checks" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="handles circuit breaker open state in health checks" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="reports unhealthy state for database connection failures" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="initializes database optimally for Lambda environment" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:580:32)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="handles Lambda initialization failures gracefully" time="0">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: true
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:591:23)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="calculates appropriate pool sizes for Lambda concurrency" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="closes database connections properly" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:625:28)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="handles connection cleanup errors gracefully" time="0.001">
+      <failure>Error: expect(received).resolves.toBeUndefined()
+
+Received promise rejected instead of resolved
+Rejected to value: [Error: Cleanup failed]
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:636:13)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="provides pool instance access with validation" time="0.001">
+      <failure>Error: expect(received).toThrow(expected)
+
+Expected substring: &quot;Database not initialized&quot;
+
+Received function did not throw
+    at Object.toThrow (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:643:34)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="tracks pool utilization metrics" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="provides adaptive pool sizing recommendations" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="monitors pool events and connections" time="0">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: &quot;connect&quot;, Any&lt;Function&gt;
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:698:27)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles malformed SQL queries gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent initialization requests" time="0.002">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: {&quot;connect&quot;: [Function mockConstructor], &quot;end&quot;: [Function mockConstructor], &quot;idleCount&quot;: 1, &quot;on&quot;: [Function mockConstructor], &quot;options&quot;: {&quot;max&quot;: 5, &quot;min&quot;: 1}, &quot;query&quot;: [Function mockConstructor], &quot;totalCount&quot;: 3, &quot;waitingCount&quot;: 0}
+Received: serializes to the same string
+    at toBe (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:739:24)
+    at Array.forEach (&lt;anonymous&gt;)
+    at Object.forEach (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:738:15)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="validates environment variable data types" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles missing optional configuration gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="preserves state consistency during error recovery" time="0">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: {&quot;connect&quot;: [Function mockConstructor], &quot;end&quot;: [Function mockConstructor], &quot;idleCount&quot;: 1, &quot;on&quot;: [Function mockConstructor], &quot;options&quot;: {&quot;max&quot;: 5, &quot;min&quot;: 1}, &quot;query&quot;: [Function mockConstructor], &quot;totalCount&quot;: 3, &quot;waitingCount&quot;: 0}
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/database-utils.test.js:776:13)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="AdvancedPerformanceAnalytics" errors="0" failures="1" skipped="0" timestamp="2025-07-19T19:46:22" time="1.385" tests="11">
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="calculates basic performance metrics correctly" time="0.007">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="handles empty portfolio history" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateRiskMetrics" name="calculates risk metrics correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateMaxDrawdown" name="calculates maximum drawdown correctly" time="0">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateAttributionAnalysis" name="calculates attribution analysis correctly" time="0.003">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateSectorAnalysis" name="calculates sector analysis correctly" time="0.002">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDiversificationScore" name="calculates diversification score correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › generatePerformanceReport" name="generates comprehensive performance report" time="0.031">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;riskFactors&apos;)
+    at AdvancedPerformanceAnalytics.riskFactors [as generateRecommendations] (/home/stocks/algo/webapp/lambda/utils/advancedPerformanceAnalytics.js:934:33)
+    at AdvancedPerformanceAnalytics.generateRecommendations [as generatePerformanceReport] (/home/stocks/algo/webapp/lambda/utils/advancedPerformanceAnalytics.js:819:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/unit/utils/advancedPerformanceAnalytics.test.js:165:22)</failure>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › getPerformanceGrade" name="assigns correct performance grades" time="0.002">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › assessRiskProfile" name="assesses risk profile correctly" time="0.002">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDaysInPeriod" name="calculates days in period correctly" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Circuit Breaker Utilities Unit Tests" errors="0" failures="1" skipped="0" timestamp="2025-07-19T19:46:22" time="1.421" tests="19">
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should initialize with production-ready thresholds" time="0.018">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should track failure counts correctly" time="0.005">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should transition states correctly (closed -&gt; open -&gt; half-open -&gt; closed)" time="0.011">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should record event history correctly" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate metrics correctly" time="0.006">
+      <failure>Error: expect(received).toBeGreaterThan(expected)
+
+Expected: &gt; 0
+Received:   0
+    at Object.toBeGreaterThan (/home/stocks/algo/webapp/lambda/tests/unit/circuit-breaker-utils.test.js:121:45)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should handle recent activity tracking" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate risk levels accurately" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should initialize with correct production configuration" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should execute operations and track results" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should handle operation failures correctly" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should open circuit after threshold failures" time="0.015">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should provide detailed status information" time="0.006">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should force reset correctly" time="0.023">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset all circuit breakers" time="0.012">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset specific circuit breaker" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should get comprehensive circuit breaker status" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should handle non-existent circuit breaker reset gracefully" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should limit history size to prevent memory leaks" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should handle rapid state changes efficiently" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="Universal Error Handler Unit Tests" errors="0" failures="3" skipped="0" timestamp="2025-07-19T19:46:22" time="2.354" tests="48">
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes circuit breaker errors correctly" time="0.005">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes database errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes timeout errors correctly" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authentication errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authorization errors correctly" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes validation errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes external service errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes rate limit errors correctly" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes business logic errors correctly" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes server errors correctly" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="returns UNKNOWN_ERROR for unrecognized errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns CRITICAL severity to database and server errors" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns HIGH severity to external service and circuit breaker errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns MEDIUM severity to auth and timeout errors" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns LOW severity to validation and rate limit errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="returns UNKNOWN for unrecognized error types" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies recoverable errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies non-recoverable errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="generates appropriate user messages for each category" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="uses custom message for business logic errors" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="falls back to default message for unknown categories" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="enriches error with comprehensive context" time="0.02">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="handles missing user context gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="calculates performance metrics correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="formats error response with correct structure" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes development details when NODE_ENV is development" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="excludes development details in production" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes retry information for recoverable errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="maps status codes correctly by category" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="catches async errors and passes them to next" time="0.001">
+      <failure>Error: Async operation failed
+    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/unit/real-universal-error-handler.test.js:384:25)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles non-promise functions gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles functions that return non-promise values" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="processes error and sends formatted response" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="handles errors without correlation ID gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="executes fallback function when provided" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when fallback fails" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when no fallback provided" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws retry error for retryable errors within retry limit" time="1.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error when retry limit exceeded" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error for non-retryable errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="applies exponential backoff with maximum delay" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="logs errors with appropriate severity levels" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="triggers critical error alert for critical errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="uses fallback logger when request logger not available" time="0">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with undefined message" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with null properties" time="0">
+      <failure>Error: expect(received).toBeDefined()
+
+Received: undefined
+    at Object.toBeDefined (/home/stocks/algo/webapp/lambda/tests/unit/real-universal-error-handler.test.js:617:28)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles request objects with missing properties gracefully" time="0">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;user-agent&apos;)
+    at enrichErrorContext (/home/stocks/algo/webapp/lambda/middleware/universalErrorHandler.js:74:34)
+    at Object.enrichErrorContext (/home/stocks/algo/webapp/lambda/tests/unit/real-universal-error-handler.test.js:625:23)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles circular reference in error objects" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Timeout Helper Unit Tests" errors="0" failures="14" skipped="0" timestamp="2025-07-19T19:46:22" time="13" tests="41">
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="has correct default timeout values" time="0.004">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="initializes with empty circuit breakers map" time="0">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="executes operation successfully within timeout" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="throws timeout error when operation exceeds timeout" time="0.068">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="propagates operation errors correctly" time="0.014">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="uses default timeout when not specified" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="retries failed operations according to retry count" time="0.032">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 3
+Received number of calls: 1
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:111:36)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="succeeds on retry after initial failure" time="0.031">
+      <failure>Error: First failure
+    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:116:32)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="applies exponential backoff for retry delays" time="0.155">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="does not retry without explicit retry count" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records success and resets circuit breaker" time="0.001">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+Received has value: undefined
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:174:41)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records failure and updates circuit breaker" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="opens circuit after threshold failures" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="rejects operations when circuit is open" time="0.001">
+      <failure>Error: expect(jest.fn()).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 1
+
+1: called with 0 arguments
+    at Object.toHaveBeenCalled (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:244:40)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="transitions to half-open after timeout period" time="0">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="makes successful HTTP request with default options" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles POST requests with JSON body" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="throws error for non-OK HTTP responses" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles request timeout with AbortController" time="3.163">
+      <failure>Error: expect(received).rejects.toThrow(expected)
+
+Expected substring: &quot;HTTP request timeout&quot;
+Received message:   &quot;Timeout: http http-request exceeded 50ms&quot;
+
+      48 |           promise,
+      49 |           new Promise((_, reject) =&gt; 
+    &gt; 50 |             setTimeout(() =&gt; reject(new Error(`Timeout: ${service} ${operation} exceeded ${timeout}ms`)), timeout)
+         |                                     ^
+      51 |           )
+      52 |         ]);
+      53 |         
+
+      at Timeout._onTimeout (utils/timeoutHelper.js:50:37)
+    at Object.toThrow (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:218:22)
+    at Object.toThrow (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:349:17)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="executes database query with circuit breaker" time="0">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="applies database-specific timeout" time="1.051">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: &quot;too-slow&quot;
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:370:13)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="retries failed database queries" time="1.001">
+      <failure>Error: Connection lost
+    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:380:32)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="executes Alpaca API call with service-specific settings" time="0">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="uses Alpaca-specific timeout and retry settings" time="6.006">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+Expected number of calls: 3
+Received number of calls: 1
+    at Object.toHaveBeenCalledTimes (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:415:30)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › News API Integration" name="executes news API call without circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="processes items in batches with concurrency limit" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="handles errors in batch processing" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="stops on first error when continueOnError is false" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.all with timeout and fail-fast" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.allSettled for partial success" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="times out batch operations" time="0.102">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides comprehensive circuit breaker status" time="0.006">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 1
++ Received  + 1
+
+@@ -2,7 +2,7 @@
+    &quot;failures&quot;: 1,
+    &quot;state&quot;: &quot;closed&quot;,
+    &quot;threshold&quot;: 15,
+    &quot;timeout&quot;: 15000,
+    &quot;totalFailures&quot;: 1,
+-   &quot;totalSuccesses&quot;: 1,
++   &quot;totalSuccesses&quot;: 0,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:562:29)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides detailed metrics with performance data" time="0.002">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 4
++ Received  + 4
+
+  Object {
+-   &quot;failureRate&quot;: 50,
++   &quot;failureRate&quot;: 100,
+    &quot;isFailed&quot;: false,
+    &quot;isHealthy&quot;: false,
+    &quot;isRecovering&quot;: false,
+    &quot;riskLevel&quot;: &quot;MINIMAL&quot;,
+    &quot;state&quot;: &quot;closed&quot;,
+-   &quot;successRate&quot;: 50,
++   &quot;successRate&quot;: 0,
+    &quot;totalFailures&quot;: 1,
+-   &quot;totalRequests&quot;: 2,
+-   &quot;totalSuccesses&quot;: 1,
++   &quot;totalRequests&quot;: 1,
++   &quot;totalSuccesses&quot;: 0,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:577:30)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="calculates recent activity correctly" time="0.001">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 2
++ Received  + 2
+
+  Object {
+    &quot;failures&quot;: 1,
+    &quot;period&quot;: &quot;5min&quot;,
+-   &quot;requests&quot;: 2,
+-   &quot;successes&quot;: 1,
++   &quot;requests&quot;: 1,
++   &quot;successes&quot;: 0,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:595:45)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides risk level assessment" time="0.002">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: &quot;MEDIUM&quot;
+Received: &quot;LOW&quot;
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:609:51)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides recovery predictions" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Delay Utility" name="provides accurate delay functionality" time="0.052">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return null or undefined" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent access to circuit breakers safely" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;totalSuccesses&apos;)
+    at Object.totalSuccesses (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:676:40)</failure>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="maintains circuit breaker history size limit" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles malformed options gracefully" time="0">
+      <failure>TypeError: Cannot read properties of null (reading &apos;timeout&apos;)
+    at TimeoutHelper.timeout [as withTimeout] (/home/stocks/algo/webapp/lambda/utils/timeoutHelper.js:28:7)
+    at Object.withTimeout (/home/stocks/algo/webapp/lambda/tests/unit/real-timeout-helper.test.js:704:42)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

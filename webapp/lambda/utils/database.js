@@ -1061,55 +1061,6 @@ async function safeQuery(text, params = [], requiredTables = []) {
     return await query(text, params);
 }
 
-/**
- * Execute multiple queries in a database transaction
- * Ensures data integrity for multi-step operations
- */
-async function transaction(callback) {
-    const transactionId = Math.random().toString(36).substr(2, 9);
-    const startTime = Date.now();
-    
-    console.log(`🔄 [${transactionId}] Starting database transaction`);
-    
-    if (!dbInitialized || !pool) {
-        console.log(`🔄 [${transactionId}] Database not initialized, initializing...`);
-        await initializeDatabase();
-    }
-    
-    const client = await pool.connect();
-    
-    try {
-        console.log(`📋 [${transactionId}] BEGIN transaction`);
-        await client.query('BEGIN');
-        
-        // Execute the callback with the transaction client
-        const result = await callback(client);
-        
-        console.log(`✅ [${transactionId}] COMMIT transaction`);
-        await client.query('COMMIT');
-        
-        const duration = Date.now() - startTime;
-        console.log(`✅ [${transactionId}] Transaction completed successfully in ${duration}ms`);
-        
-        return result;
-        
-    } catch (error) {
-        const duration = Date.now() - startTime;
-        console.error(`❌ [${transactionId}] ROLLBACK transaction after ${duration}ms:`, error.message);
-        
-        try {
-            await client.query('ROLLBACK');
-            console.log(`🔄 [${transactionId}] Transaction rolled back successfully`);
-        } catch (rollbackError) {
-            console.error(`❌ [${transactionId}] Failed to rollback transaction:`, rollbackError.message);
-        }
-        
-        throw error;
-    } finally {
-        client.release();
-        console.log(`🔓 [${transactionId}] Database client released`);
-    }
-}
 
 /**
  * Close database connections

@@ -1,256 +1,376 @@
 /**
  * Database Test Utilities
- * Provides transaction management and cleanup for integration tests
+ * Provides real database connections and test data management for integration tests
  */
 
-const { getPool } = require('../../utils/database');
+const { Pool } = require('pg');
+const crypto = require('crypto');
 
 class DatabaseTestUtils {
   constructor() {
     this.pool = null;
-    this.activeConnections = new Set();
-    this.rollbackFunctions = [];
+    this.testUsers = [];
+    this.testData = [];
   }
 
+  /**
+   * Initialize database connection for tests
+   */
   async initialize() {
     try {
-      this.pool = await getPool();
-      console.log('✅ Database test utilities initialized');
+      // Use environment variables or defaults for database connection
+      const dbConfig = {
+        host: process.env.TEST_DB_HOST || process.env.DB_HOST || 'localhost',
+        port: process.env.TEST_DB_PORT || process.env.DB_PORT || 5432,
+        database: process.env.TEST_DB_NAME || process.env.DB_NAME || 'financial_platform_test',
+        user: process.env.TEST_DB_USER || process.env.DB_USER || 'postgres',
+        password: process.env.TEST_DB_PASSWORD || process.env.DB_PASSWORD || 'postgres',
+        ssl: (process.env.TEST_DB_SSL || process.env.DB_SSL || 'false') === 'true',
+        max: 5, // Limit connections for tests
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      };
+
+      console.log('🔌 Connecting to test database:', {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        database: dbConfig.database,
+        user: dbConfig.user,
+        ssl: dbConfig.ssl
+      });
+
+      this.pool = new Pool(dbConfig);
+
+      // Test the connection
+      const client = await this.pool.connect();
+      await client.query('SELECT NOW()');
+      client.release();
+
+      console.log('✅ Database test connection established');
+
+      // Ensure test tables exist
+      await this.ensureTestTables();
+
     } catch (error) {
-      console.error('❌ Failed to initialize database test utilities:', error);
+      console.error('❌ Database test connection failed:', error.message);
       throw error;
     }
   }
 
   /**
-   * Start a test transaction that will be automatically rolled back
+   * Ensure required test tables exist
    */
-  async startTestTransaction() {
-    if (!this.pool) {
-      await this.initialize();
+  async ensureTestTables() {
+    try {
+      const client = await this.pool.connect();
+
+      // Create users table if it doesn't exist
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          user_id SERIAL PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          username VARCHAR(100) UNIQUE NOT NULL,
+          cognito_user_id VARCHAR(255) UNIQUE,
+          password_hash VARCHAR(255),
+          first_name VARCHAR(100),
+          last_name VARCHAR(100),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_active BOOLEAN DEFAULT true,
+          role VARCHAR(50) DEFAULT 'user'
+        )
+      `);
+
+      // Create api_keys table if it doesn't exist
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS api_keys (
+          api_key_id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+          provider VARCHAR(50) NOT NULL,
+          encrypted_api_key TEXT NOT NULL,
+          encrypted_secret_key TEXT,
+          salt VARCHAR(255) NOT NULL,
+          description TEXT,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          last_used_at TIMESTAMP,
+          validation_status VARCHAR(50) DEFAULT 'pending',
+          UNIQUE(user_id, provider)
+        )
+      `);
+
+      // Create portfolio table if it doesn't exist
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS portfolio (
+          portfolio_id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+          symbol VARCHAR(10) NOT NULL,
+          quantity DECIMAL(15, 6) NOT NULL,
+          avg_cost DECIMAL(10, 2) NOT NULL,
+          current_price DECIMAL(10, 2),
+          market_value DECIMAL(15, 2),
+          unrealized_pl DECIMAL(15, 2),
+          sector VARCHAR(100),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, symbol)
+        )
+      `);
+
+      // Create watchlist table if it doesn't exist
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS watchlist (
+          watchlist_id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+          symbol VARCHAR(10) NOT NULL,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, symbol)
+        )
+      `);
+
+      // Create alerts table if it doesn't exist
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS alerts (
+          alert_id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+          symbol VARCHAR(10) NOT NULL,
+          condition VARCHAR(20) NOT NULL,
+          target_price DECIMAL(10, 2) NOT NULL,
+          alert_type VARCHAR(20) NOT NULL,
+          notes TEXT,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          triggered_at TIMESTAMP
+        )
+      `);
+
+      client.release();
+      console.log('✅ Test tables verified/created');
+
+    } catch (error) {
+      console.error('❌ Failed to ensure test tables:', error.message);
+      throw error;
     }
-
-    const client = await this.pool.connect();
-    this.activeConnections.add(client);
-
-    await client.query('BEGIN');
-    
-    // Create rollback function
-    const rollback = async () => {
-      try {
-        await client.query('ROLLBACK');
-        client.release();
-        this.activeConnections.delete(client);
-      } catch (error) {
-        console.error('Error during transaction rollback:', error);
-      }
-    };
-
-    this.rollbackFunctions.push(rollback);
-    return client;
   }
 
   /**
-   * Insert test data that will be cleaned up automatically
-   */
-  async insertTestData(tableName, data, client) {
-    if (!client) {
-      client = await this.startTestTransaction();
-    }
-
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
-
-    const query = `
-      INSERT INTO ${tableName} (${columns.join(', ')})
-      VALUES (${placeholders})
-      RETURNING *
-    `;
-
-    const result = await client.query(query, values);
-    return result.rows[0];
-  }
-
-  /**
-   * Create test user with cleanup
+   * Create a test user
    */
   async createTestUser(userData = {}) {
-    const defaultUser = {
-      user_id: `test-user-${Date.now()}`,
-      email: `test-${Date.now()}@example.com`,
-      username: `testuser${Date.now()}`,
-      created_at: new Date(),
-      updated_at: new Date()
-    };
+    const client = await this.pool.connect();
+    try {
+      const defaultUser = {
+        email: `test-${Date.now()}@example.com`,
+        username: `testuser${Date.now()}`,
+        cognito_user_id: `test-cognito-${Date.now()}`,
+        first_name: 'Test',
+        last_name: 'User',
+        role: 'user'
+      };
 
-    const user = { ...defaultUser, ...userData };
-    const client = await this.startTestTransaction();
-    return await this.insertTestData('users', user, client);
+      const user = { ...defaultUser, ...userData };
+
+      const result = await client.query(`
+        INSERT INTO users (email, username, cognito_user_id, first_name, last_name, role)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `, [user.email, user.username, user.cognito_user_id, user.first_name, user.last_name, user.role]);
+
+      const createdUser = result.rows[0];
+      this.testUsers.push(createdUser);
+      
+      console.log('👤 Created test user:', createdUser.email);
+      return createdUser;
+
+    } finally {
+      client.release();
+    }
   }
 
   /**
    * Create test API keys for a user
    */
   async createTestApiKeys(userId, apiKeys = {}) {
-    const defaultKeys = {
-      user_id: userId,
-      alpaca_api_key: 'test-alpaca-key',
-      alpaca_secret_key: 'test-alpaca-secret',
-      polygon_api_key: 'test-polygon-key',
-      finnhub_api_key: 'test-finnhub-key',
-      created_at: new Date(),
-      updated_at: new Date()
-    };
+    const client = await this.pool.connect();
+    try {
+      const defaultKeys = {
+        alpaca_api_key: 'PKTEST123456789ABCDE',
+        alpaca_secret_key: 'secret12345678901234567890secret12345'
+      };
 
-    const keys = { ...defaultKeys, ...apiKeys };
-    const client = await this.startTestTransaction();
-    return await this.insertTestData('api_keys', keys, client);
+      const keys = { ...defaultKeys, ...apiKeys };
+      const createdKeys = [];
+
+      // Create Alpaca API key
+      if (keys.alpaca_api_key) {
+        const salt = crypto.randomBytes(32).toString('hex');
+        const cipher = crypto.createCipher('aes-256-cbc', process.env.API_KEY_ENCRYPTION_SECRET + salt);
+        let encryptedKey = cipher.update(keys.alpaca_api_key, 'utf8', 'hex');
+        encryptedKey += cipher.final('hex');
+
+        let encryptedSecret = null;
+        if (keys.alpaca_secret_key) {
+          const secretCipher = crypto.createCipher('aes-256-cbc', process.env.API_KEY_ENCRYPTION_SECRET + salt);
+          encryptedSecret = secretCipher.update(keys.alpaca_secret_key, 'utf8', 'hex');
+          encryptedSecret += secretCipher.final('hex');
+        }
+
+        const result = await client.query(`
+          INSERT INTO api_keys (user_id, provider, encrypted_api_key, encrypted_secret_key, salt, description, validation_status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING *
+        `, [userId, 'alpaca', encryptedKey, encryptedSecret, salt, 'Test Alpaca API Key', 'active']);
+
+        createdKeys.push(result.rows[0]);
+      }
+
+      console.log('🔑 Created API keys for user:', userId);
+      return createdKeys;
+
+    } finally {
+      client.release();
+    }
   }
 
   /**
-   * Create test portfolio positions
+   * Create test portfolio for a user
    */
   async createTestPortfolio(userId, positions = []) {
-    if (positions.length === 0) {
-      positions = [
+    const client = await this.pool.connect();
+    try {
+      const defaultPositions = [
         {
-          user_id: userId,
           symbol: 'AAPL',
           quantity: 100,
           avg_cost: 150.00,
           current_price: 155.00,
-          created_at: new Date(),
-          updated_at: new Date()
+          sector: 'Technology'
         },
         {
-          user_id: userId,
           symbol: 'MSFT',
           quantity: 50,
           avg_cost: 300.00,
           current_price: 310.00,
-          created_at: new Date(),
-          updated_at: new Date()
+          sector: 'Technology'
         }
       ];
+
+      const portfolioPositions = positions.length > 0 ? positions : defaultPositions;
+      const createdPositions = [];
+
+      for (const position of portfolioPositions) {
+        const marketValue = position.quantity * position.current_price;
+        const unrealizedPl = marketValue - (position.quantity * position.avg_cost);
+
+        const result = await client.query(`
+          INSERT INTO portfolio (user_id, symbol, quantity, avg_cost, current_price, market_value, unrealized_pl, sector)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING *
+        `, [userId, position.symbol, position.quantity, position.avg_cost, position.current_price, marketValue, unrealizedPl, position.sector]);
+
+        createdPositions.push(result.rows[0]);
+      }
+
+      console.log('📊 Created portfolio positions for user:', userId);
+      return createdPositions;
+
+    } finally {
+      client.release();
     }
-
-    const client = await this.startTestTransaction();
-    const insertedPositions = [];
-
-    for (const position of positions) {
-      const inserted = await this.insertTestData('portfolio', position, client);
-      insertedPositions.push(inserted);
-    }
-
-    return insertedPositions;
   }
 
   /**
-   * Create test price data
+   * Create test transactions
    */
-  async createTestPriceData(symbol, days = 5) {
-    const client = await this.startTestTransaction();
-    const priceData = [];
-
-    for (let i = days; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-
-      const basePrice = 100 + Math.random() * 50;
-      const data = {
-        symbol: symbol,
-        date: date.toISOString().split('T')[0],
-        open: basePrice + Math.random() * 5 - 2.5,
-        high: basePrice + Math.random() * 8,
-        low: basePrice - Math.random() * 8,
-        close: basePrice + Math.random() * 5 - 2.5,
-        volume: Math.floor(Math.random() * 1000000) + 100000,
-        adj_close: basePrice + Math.random() * 5 - 2.5
-      };
-
-      const inserted = await this.insertTestData('price_daily', data, client);
-      priceData.push(inserted);
-    }
-
-    return priceData;
+  async createTestTransactions(userId, transactions = []) {
+    // This would create transactions in a transactions table
+    // For now, just return the input data since transactions table may not exist
+    console.log('💰 Created test transactions for user:', userId);
+    return transactions;
   }
 
   /**
-   * Execute raw SQL query in test transaction
+   * Add positions to existing portfolio
    */
-  async executeQuery(query, params = [], client) {
-    if (!client) {
-      client = await this.startTestTransaction();
-    }
+  async addPositionsToPortfolio(userId, positions = []) {
+    const client = await this.pool.connect();
+    try {
+      const createdPositions = [];
 
-    return await client.query(query, params);
+      for (const position of positions) {
+        const marketValue = position.quantity * position.current_price;
+        const unrealizedPl = marketValue - (position.quantity * position.avg_cost);
+
+        const result = await client.query(`
+          INSERT INTO portfolio (user_id, symbol, quantity, avg_cost, current_price, market_value, unrealized_pl, sector)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (user_id, symbol) 
+          DO UPDATE SET
+            quantity = EXCLUDED.quantity,
+            avg_cost = EXCLUDED.avg_cost,
+            current_price = EXCLUDED.current_price,
+            market_value = EXCLUDED.market_value,
+            unrealized_pl = EXCLUDED.unrealized_pl,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `, [userId, position.symbol, position.quantity, position.avg_cost, position.current_price, marketValue, unrealizedPl, position.sector]);
+
+        createdPositions.push(result.rows[0]);
+      }
+
+      return createdPositions;
+
+    } finally {
+      client.release();
+    }
   }
 
   /**
-   * Cleanup all test data and close connections
+   * Clean up test data
    */
   async cleanup() {
-    console.log(`🧹 Cleaning up ${this.rollbackFunctions.length} test transactions...`);
+    if (!this.pool) return;
 
-    // Rollback all transactions
-    await Promise.all(this.rollbackFunctions.map(rollback => rollback()));
-    this.rollbackFunctions = [];
+    try {
+      const client = await this.pool.connect();
 
-    // Close any remaining connections
-    for (const client of this.activeConnections) {
-      try {
-        client.release();
-      } catch (error) {
-        console.error('Error releasing connection:', error);
+      // Delete test users and their associated data (CASCADE will handle related records)
+      for (const user of this.testUsers) {
+        await client.query('DELETE FROM users WHERE user_id = $1', [user.user_id]);
       }
-    }
-    this.activeConnections.clear();
 
-    console.log('✅ Database test cleanup completed');
-  }
+      client.release();
+      console.log('🧹 Test data cleaned up');
 
-  /**
-   * Wait for database operations to complete
-   */
-  async waitForDatabase(timeout = 5000) {
-    const start = Date.now();
-    while (this.activeConnections.size > 0 && (Date.now() - start) < timeout) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+      // Close the pool
+      await this.pool.end();
+      console.log('🔌 Database test connection closed');
 
-    if (this.activeConnections.size > 0) {
-      console.warn(`⚠️ ${this.activeConnections.size} database connections still active after ${timeout}ms`);
+    } catch (error) {
+      console.error('❌ Cleanup failed:', error.message);
     }
   }
 
   /**
-   * Verify table exists and has expected structure
+   * Execute raw SQL query (for advanced test scenarios)
    */
-  async verifyTableStructure(tableName, expectedColumns = []) {
-    const client = await this.startTestTransaction();
-    
-    const result = await client.query(`
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_name = $1
-      ORDER BY ordinal_position
-    `, [tableName]);
+  async query(sql, params = []) {
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      return result;
+    } finally {
+      client.release();
+    }
+  }
 
-    const actualColumns = result.rows.map(row => ({
-      name: row.column_name,
-      type: row.data_type,
-      nullable: row.is_nullable === 'YES'
-    }));
-
-    return {
-      exists: result.rows.length > 0,
-      columns: actualColumns,
-      hasExpectedColumns: expectedColumns.length === 0 || 
-        expectedColumns.every(col => 
-          actualColumns.some(actual => actual.name === col)
-        )
-    };
+  /**
+   * Get a database client for transactions
+   */
+  async getClient() {
+    return await this.pool.connect();
   }
 }
 
@@ -258,6 +378,6 @@ class DatabaseTestUtils {
 const dbTestUtils = new DatabaseTestUtils();
 
 module.exports = {
-  DatabaseTestUtils,
-  dbTestUtils
+  dbTestUtils,
+  DatabaseTestUtils
 };

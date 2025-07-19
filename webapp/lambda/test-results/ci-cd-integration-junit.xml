@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="21" failures="14" errors="0" time="4.734">
+  <testsuite name="Real CI/CD Integration Tests" errors="0" failures="14" skipped="0" timestamp="2025-07-19T17:01:44" time="4.484" tests="21">
+    <testcase classname="Real CI/CD Integration Tests › Application Health and Availability" name="Application starts and is responsive" time="0.004">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Application Health and Availability" name="Health endpoint responds (even with errors)" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:47:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Application Health and Availability" name="API routes are discoverable" time="0">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:71:12)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Authentication System Testing" name="Protected routes handle missing authentication correctly" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:84:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Authentication System Testing" name="Invalid JWT tokens are rejected" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:98:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Authentication System Testing" name="Cognito configuration availability check" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:109:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Database Integration Testing" name="Database connection error handling" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:127:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Database Integration Testing" name="Database-dependent endpoints handle connection failures" time="0.003">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:153:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › External API Integration Testing" name="API key validation without external calls" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:168:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › External API Integration Testing" name="External service timeout handling" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:180:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Environment Configuration Testing" name="Required environment variables" time="0.002">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Environment Configuration Testing" name="Database configuration detection" time="0.003">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Environment Configuration Testing" name="AWS configuration detection" time="0.001">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Error Handling and Resilience" name="Application handles missing dependencies gracefully" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:258:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Error Handling and Resilience" name="Circuit breaker functionality" time="0">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:270:12)
+    at Array.map (&lt;anonymous&gt;)
+    at Object.map (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:268:44)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Error Handling and Resilience" name="Graceful degradation for API-dependent features" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:286:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Integration Test Infrastructure Validation" name="Test framework is properly configured" time="0.004">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Integration Test Infrastructure Validation" name="Supertest integration is working" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:308:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Integration Test Infrastructure Validation" name="JWT token creation and validation" time="0.003">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Integration Test Infrastructure Validation" name="Test artifacts can be generated" time="0.001">
+    </testcase>
+    <testcase classname="Real CI/CD Integration Tests › Real-World Integration Scenarios" name="Complete user workflow simulation (with expected failures)" time="0.001">
+      <failure>TypeError: app.address is not a function
+    at Test.address [as serverAddress] (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:46:22)
+    at new serverAddress (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:34:14)
+    at Object.obj.&lt;computed&gt; [as get] (/home/stocks/algo/webapp/lambda/node_modules/supertest/index.js:43:18)
+    at Object.get (/home/stocks/algo/webapp/lambda/tests/integration/ci-cd-real-integration.test.js:369:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

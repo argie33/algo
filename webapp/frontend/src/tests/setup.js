@@ -5,6 +5,7 @@
 
 import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import '@testing-library/jest-dom'
 
 // Global test setup
 beforeAll(async () => {

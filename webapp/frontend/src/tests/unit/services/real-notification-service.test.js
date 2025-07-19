@@ -74,8 +74,13 @@ describe('🔔 Real Notification Service', () => {
     mockNotification.permission = 'default';
     mockNotification.requestPermission.mockResolvedValue('granted');
     
-    // Mock localStorage
+    // Mock localStorage globally before importing the service
     mockLocalStorage.getItem.mockReturnValue(null);
+    Object.defineProperty(global, 'localStorage', {
+      value: mockLocalStorage,
+      writable: true,
+      configurable: true
+    });
     
     // Mock console methods
     vi.spyOn(console, 'log').mockImplementation(() => {});
