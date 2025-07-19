@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import secureLogger from '../utils/secureLogger.js';
 import {
   Box,
   Container,
@@ -127,7 +128,9 @@ const SettingsApiKeys = () => {
       if (response?.setupRequired || response?.encryptionEnabled === false) {
         // Clear previous errors and show setup guidance
         setError(null);
-        console.log('API Key service setup required:', response);
+        import('../utils/secureLogger.js').then(({ info }) => 
+          info('API Key service setup required', { setupRequired: response?.setupRequired, encryptionEnabled: response?.encryptionEnabled })
+        );
       } else if (response?.note && response.note.includes('Database connectivity issue')) {
         setError(`API keys may not be visible due to database connectivity issues. ${response.note}`);
       } else if (response?.note) {
@@ -136,7 +139,7 @@ const SettingsApiKeys = () => {
     } catch (err) {
       // Handle enhanced error structure
       if (err.response?.data?.setupRequired) {
-        console.log('Setup required error:', err.response.data);
+        console.log('Setup required error - data received');
         setError(null); // Clear error to show guidance instead
       } else if (err.response?.data?.guidance) {
         const guidance = err.response.data.guidance;

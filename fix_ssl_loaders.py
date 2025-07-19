@@ -11,6 +11,7 @@ from pathlib import Path
 
 # List of files that need SSL configuration fixes
 LOADERS_TO_FIX = [
+    'loadaaiidata.py',
     'loadanalystupgradedowngrade.py',
     'loadannualbalancesheet.py', 
     'loadannualcashflow.py',

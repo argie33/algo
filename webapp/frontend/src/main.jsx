@@ -3,8 +3,8 @@ import './utils/browserCompatibility.js'
 import asyncErrorHandler from './utils/asyncErrorHandler.js'
 import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
 import performanceMonitor from './utils/performanceMonitor.js'
-import debugInit from './utils/debugInit.js'
-import automatedTestFramework from './utils/automatedTestFramework.js'
+
+// Debug utilities - will be loaded conditionally after React initialization
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -37,22 +37,31 @@ import { getSystemHealth } from './utils/asyncErrorHandler.js';
 console.group('🔍 System Status');
 console.log('Browser compatibility:', getCompatibilityReport());
 console.log('Error handling health:', getSystemHealth());
-console.log('🤖 Automated testing framework:', automatedTestFramework ? 'ACTIVE' : 'INACTIVE');
+console.log('🤖 Automated testing framework: LOADING CONDITIONALLY');
 console.groupEnd();
 
-// Initialize automated testing in development
+// Initialize automated testing in development after React is ready
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-  console.log('🧪 Development environment detected - automated testing enabled');
+  console.log('🧪 Development environment detected - loading automated testing...');
   
-  // Run initial automated tests after app loads
-  setTimeout(() => {
-    console.log('🚀 Running initial automated tests...');
-    automatedTestFramework.runReactHooksTests().then(results => {
+  // Load testing framework after React is fully initialized
+  setTimeout(async () => {
+    try {
+      console.log('🚀 Loading automated testing framework...');
+      const testModule = await import('./utils/automatedTestFramework.js');
+      const automatedTestFramework = testModule.default;
+      
+      console.log('🚀 Running initial automated tests...');
+      const results = await automatedTestFramework.runReactHooksTests();
       console.log('✅ Initial React hooks tests completed:', results);
-    }).catch(error => {
-      console.error('❌ Initial React hooks tests failed:', error);
-    });
-  }, 2000);
+      
+      // Expose to window for manual testing
+      window.automatedTestFramework = automatedTestFramework;
+      
+    } catch (error) {
+      console.error('❌ Failed to load automated testing framework:', error);
+    }
+  }, 3000); // Give more time for React to fully initialize
 }
 
 // Configure Amplify for authentication - but don't let it crash the app
