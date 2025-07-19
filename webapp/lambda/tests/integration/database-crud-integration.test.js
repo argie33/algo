@@ -5,12 +5,15 @@
 
 const { Pool } = require('pg')
 const database = require('../../utils/database')
+const { dbTestUtils } = require('../utils/database-test-utils')
 
 describe('Database CRUD Integration Tests', () => {
   let testPool
-  let testUserId
+  let testUser
 
   beforeAll(async () => {
+    await dbTestUtils.initialize()
+    
     // Initialize test database connection
     testPool = new Pool({
       host: process.env.DB_HOST || 'localhost',
@@ -21,48 +24,50 @@ describe('Database CRUD Integration Tests', () => {
       ssl: false,
       max: 3
     })
+  })
 
-    // Create test user
-    testUserId = `test-user-${Date.now()}`
-    await testPool.query(
-      'INSERT INTO users (id, email, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [testUserId, 'test@example.com', 'testuser']
-    )
+  beforeEach(async () => {
+    // Create fresh test user for each test with automatic cleanup
+    testUser = await dbTestUtils.createTestUser({
+      email: `crud-test-${Date.now()}@example.com`,
+      username: `cruduser-${Date.now()}`
+    })
   })
 
   afterAll(async () => {
-    // Cleanup test data
+    // Cleanup all test data via rollback transactions
+    await dbTestUtils.cleanup()
     if (testPool) {
-      await testPool.query('DELETE FROM portfolios WHERE user_id = $1', [testUserId])
-      await testPool.query('DELETE FROM users WHERE id = $1', [testUserId])
       await testPool.end()
     }
   })
 
   describe('User Management CRUD', () => {
     test('CREATE: Insert new user', async () => {
-      const newUserId = `test-user-create-${Date.now()}`
-      const result = await testPool.query(
-        'INSERT INTO users (id, email, username) VALUES ($1, $2, $3) RETURNING *',
-        [newUserId, 'create@test.com', 'createuser']
-      )
+      const userData = {
+        user_id: `test-user-create-${Date.now()}`,
+        email: 'create@test.com',
+        username: 'createuser'
+      }
+      
+      const newUser = await dbTestUtils.insertTestData('users', userData)
 
-      expect(result.rows).toHaveLength(1)
-      expect(result.rows[0].id).toBe(newUserId)
-      expect(result.rows[0].email).toBe('create@test.com')
-
-      // Cleanup
-      await testPool.query('DELETE FROM users WHERE id = $1', [newUserId])
+      expect(newUser).toBeTruthy()
+      expect(newUser.user_id).toBe(userData.user_id)
+      expect(newUser.email).toBe(userData.email)
+      expect(newUser.username).toBe(userData.username)
+      // No cleanup needed - handled by transaction rollback
     })
 
     test('READ: Fetch user by ID', async () => {
-      const result = await testPool.query(
-        'SELECT * FROM users WHERE id = $1',
-        [testUserId]
+      const result = await dbTestUtils.executeQuery(
+        'SELECT * FROM users WHERE user_id = $1',
+        [testUser.user_id]
       )
 
       expect(result.rows).toHaveLength(1)
-      expect(result.rows[0].id).toBe(testUserId)
+      expect(result.rows[0].user_id).toBe(testUser.user_id)
+      expect(result.rows[0].email).toBe(testUser.email)
     })
 
     test('UPDATE: Modify user data', async () => {

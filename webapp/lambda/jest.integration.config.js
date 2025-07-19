@@ -10,6 +10,7 @@ module.exports = {
     '/tests/e2e/'
   ],
   setupFilesAfterEnv: ['<rootDir>/tests/setup/integration-setup.js'],
+  globalTeardown: '<rootDir>/tests/setup/global-teardown.js',
   collectCoverageFrom: [
     'utils/**/*.js',
     'routes/**/*.js',
