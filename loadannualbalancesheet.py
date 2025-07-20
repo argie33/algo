@@ -263,19 +263,14 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            # PATTERN C: PROVEN WORKING (minimal config, no timeout)
-            logging.info("✅ PATTERN C: Proven working minimal config")
+            # Clean connection pattern (auto-negotiate SSL)
+            logging.info("✅ Clean connection pattern: Auto-negotiate SSL")
             
-            db_config = {
-                'host': cfg["host"]
-                'port': cfg["port"]
-                'user': cfg["user"]
-                'password': cfg["password"]
-                'dbname': cfg["dbname"]
-                'sslmode': 'disable'
-            }
-            
-            conn = psycopg2.connect(**db_config)
+            conn = psycopg2.connect(
+                host=cfg["host"], port=cfg["port"],
+                user=cfg["user"], password=cfg["password"],
+                dbname=cfg["dbname"]
+            )
             logging.info("✅ Database connection established successfully")
             break
             

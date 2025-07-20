@@ -260,19 +260,12 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            # Simple, consistent database configuration
-            db_config = {
-                'host': cfg["host"]
-                'port': cfg["port"]
-                'user': cfg["user"]
-                'password': cfg["password"]
-                'dbname': cfg["dbname"]
-                'sslmode': 'disable'
-                'connect_timeout': 10
-                'application_name': 'annual-cashflow-loader'
-            }
-            
-            conn = psycopg2.connect(**db_config)
+            # Clean connection pattern (auto-negotiate SSL)
+            conn = psycopg2.connect(
+                host=cfg["host"], port=cfg["port"],
+                user=cfg["user"], password=cfg["password"],
+                dbname=cfg["dbname"]
+            )
             logging.info("✅ Database connection established successfully")
             break
             
