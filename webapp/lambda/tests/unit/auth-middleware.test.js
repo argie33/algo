@@ -440,6 +440,10 @@ describe('Authentication Middleware Unit Tests', () => {
       process.env.NODE_ENV = 'production';
       process.env.ALLOW_DEV_AUTH_BYPASS = 'false';
       
+      // Set up Cognito config so getVerifier doesn't return null
+      process.env.COGNITO_USER_POOL_ID = 'us-east-1_test123';
+      process.env.COGNITO_CLIENT_ID = 'test-client-id';
+      
       // Clear cache and reload module to pick up environment changes
       delete require.cache[require.resolve('../../middleware/auth')];
       const prodAuth = require('../../middleware/auth');
@@ -456,6 +460,8 @@ describe('Authentication Middleware Unit Tests', () => {
         verify: jest.fn().mockRejectedValue(networkError)
       };
       jest.spyOn(prodAuth, 'getVerifier').mockResolvedValue(mockVerifier);
+      
+      console.log('Mock getVerifier set up, calling authenticateToken...');
       
       await prodAuth.authenticateToken(mockRequest, mockResponse, nextFunction);
       
