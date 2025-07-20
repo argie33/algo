@@ -1,0 +1,82 @@
+
+> financial-dashboard-frontend@1.0.10 test
+> vitest --run --reporter=json
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+
+RangeError: Maximum call stack size exceeded
+
+Exception in PromiseRejectCallback:
+/home/stocks/algo/webapp/frontend/src/utils/testRunner.js:543
+    return await this.runTestSuite(suiteName, suite);
+                      ^
+
+RangeError: Maximum call stack size exceeded
+

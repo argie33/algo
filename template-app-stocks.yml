@@ -82,11 +82,12 @@ Resources:
       Family: postgres15
       Description: Custom parameter group for Stocks PostgreSQL database with proper SSL configuration
       Parameters:
-        # SSL Configuration - force SSL connections
-        ssl: 1
-        ssl_ca_file: /rdsdbdata/rds-ca-2019-root.pem
-        ssl_cert_file: /rdsdbdata/server-cert.pem
-        ssl_key_file: /rdsdbdata/server-key.pem
+        # SSL Configuration - DISABLE SSL for development
+        ssl: 0
+        # Remove SSL certificate files
+        # ssl_ca_file: /rdsdbdata/rds-ca-2019-root.pem
+        # ssl_cert_file: /rdsdbdata/server-cert.pem
+        # ssl_key_file: /rdsdbdata/server-key.pem
         # Connection logging for debugging
         log_connections: 1
         log_disconnections: 1
@@ -174,8 +175,8 @@ Resources:
       DBSubnetGroupName: !Ref StocksDBSubnetGroup
       DBParameterGroupName: !Ref StocksDBParameterGroup
       OptionGroupName: !Ref StocksDBOptionGroup
-      # SSL Configuration
-      CACertificateIdentifier: 'rds-ca-2019-root'
+      # SSL Configuration - DISABLED for development
+      # CACertificateIdentifier: 'rds-ca-2019-root'
       # Storage encryption for enhanced security
       StorageEncrypted: true
       # Network and access configuration

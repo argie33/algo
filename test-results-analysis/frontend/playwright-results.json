@@ -1,0 +1,149 @@
+{
+  "config": {
+    "configFile": "/home/stocks/algo/webapp/frontend/playwright.config.js",
+    "rootDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": "/home/stocks/algo/webapp/frontend/src/tests/global-setup.js",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/playwright-results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "test-results/playwright-junit.xml"
+        }
+      ],
+      [
+        "github",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.54.1",
+    "workers": 16,
+    "webServer": {
+      "command": "npm run preview",
+      "port": 4173,
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [],
+  "errors": [
+    {
+      "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Please install them with the following command:      ║\n║                                                      ║\n║     sudo npx playwright install-deps                 ║\n║                                                      ║\n║ Alternatively, use apt:                              ║\n║     sudo apt-get install libnspr4\\                   ║\n║         libnss3\\                                     ║\n║         libasound2t64                                ║\n║                                                      ║\n║ <3 Playwright Team                                   ║\n╚══════════════════════════════════════════════════════╝",
+      "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Please install them with the following command:      ║\n║                                                      ║\n║     sudo npx playwright install-deps                 ║\n║                                                      ║\n║ Alternatively, use apt:                              ║\n║     sudo apt-get install libnspr4\\                   ║\n║         libnss3\\                                     ║\n║         libasound2t64                                ║\n║                                                      ║\n║ <3 Playwright Team                                   ║\n╚══════════════════════════════════════════════════════╝\n    at globalSetup (/home/stocks/algo/webapp/frontend/src/tests/global-setup.js:7:34)",
+      "location": {
+        "file": "/home/stocks/algo/webapp/frontend/src/tests/global-setup.js",
+        "column": 34,
+        "line": 7
+      },
+      "snippet": "\u001b[90m   at \u001b[39m../global-setup.js:7\n\n   5 |   \n   6 |   // Create a browser instance for global setup\n>  7 |   const browser = await chromium.launch();\n     |                                  ^\n   8 |   const context = await browser.newContext();\n   9 |   const page = await context.newPage();\n  10 |   "
+    }
+  ],
+  "stats": {
+    "startTime": "2025-07-18T22:04:52.119Z",
+    "duration": 911.508,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
