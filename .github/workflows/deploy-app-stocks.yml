@@ -300,7 +300,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 6
     
     timeout-minutes: ${{ matrix.timeout }}
     
