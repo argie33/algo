@@ -162,7 +162,8 @@ def lambda_handler(event, context):
             conn = psycopg2.connect(
                 host=cfg["host"], port=cfg["port"],
                 user=cfg["user"], password=cfg["password"],
-                dbname=cfg["dbname"]
+                dbname=cfg["dbname"],
+                cursor_factory=RealDictCursor
             )
             logging.info("✅ Database connection established successfully")
             break
