@@ -43,8 +43,31 @@ The system currently integrates with two primary financial data providers: Alpac
 ### 3.1 Database Architecture Overview
 The data layer utilizes PostgreSQL as the primary database system with comprehensive schema design supporting user management, portfolio tracking, market data storage, and analytics processing. The database implements advanced connection pooling with adaptive scaling based on Lambda function concurrency, circuit breaker patterns for connection resilience, and comprehensive transaction management for financial data integrity.
 
-### 3.2 Testing Architecture (Updated July 20, 2025)
-Unit testing infrastructure implemented with **Vitest framework now fully functional** providing 93% service coverage. **MAJOR BREAKTHROUGH**: Fixed critical test infrastructure issues including infinite recursion bug in testRunner.js, localStorage/window/document availability in test environment, and proper test setup file execution (130ms+ setup time vs 0ms previously). Test environment now properly configured with jsdom, browser API mocking (localStorage, sessionStorage, window, document), and working Vitest configuration. Critical findings include API response wrapping patterns requiring standardization (all responses must be wrapped in `{ data: ... }` format), mock service elimination in favor of real service testing, and component directory structure gaps requiring immediate attention. Test execution reveals robust core services (speech, notification, API health) with data type mismatches in risk calculation services requiring position array validation. **Current Status**: Test infrastructure operational, component tests run with expected React context provider issues remaining.
+### 3.2 Unit Test Infrastructure Architecture
+**Framework**: Vitest with jsdom environment for comprehensive browser API testing
+**Design Pattern**: Systematic test fixing methodology with todo-driven root cause analysis
+**Infrastructure Requirements**:
+- Browser API mocking (localStorage, sessionStorage, window, document)
+- Module cache clearing for proper test isolation
+- Comprehensive external dependency mocking
+- Real implementation testing (zero mock data policy)
+
+**API Response Standardization Pattern**:
+All service responses must be wrapped in consistent format: `{ data: ... }`
+This pattern ensures uniform data handling across frontend components and prevents array method errors.
+
+**Test Environment Setup**:
+- Setup files must execute properly (>100ms execution time indicates proper initialization)
+- jsdom environment with full browser API availability
+- Mock external dependencies while testing real business logic
+- Component testing requires proper React context provider setup
+
+**Systematic Test Fixing Methodology**:
+1. Use TodoRead to identify current test fixing priorities
+2. Debug with comprehensive logging (console.log, mock inspection)
+3. Fix entire classes of issues, not individual symptoms
+4. Document root causes and prevention patterns
+5. Update TodoWrite with progress and discoveries
 
 ### 3.2 Core Data Entities
 The user management system stores user profiles, authentication information, subscription details, and API key associations with full encryption for sensitive financial credentials. Portfolio management entities include portfolio definitions, holdings tracking with cost basis calculations, performance metrics storage, and historical transaction records for audit compliance. Market data entities encompass real-time price information, historical data storage, technical indicator calculations, and trading signal generation with confidence scoring.

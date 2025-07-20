@@ -1,6 +1,6 @@
 # Project Context: World-Class Finance Application
 
-## 🚀 PRODUCTION-READY DEPLOYMENT & GITHUB WORKFLOW (July 19, 2025)
+## 🚀 PRODUCTION-READY DEPLOYMENT & GITHUB WORKFLOW
 
 ### ⭐ **GITHUB HYGIENE & DEPLOYMENT STRATEGY**
 Following industry best practices used by Netflix, Stripe, GitHub, and other top companies for cost-effective, reliable deployments.
@@ -199,21 +199,28 @@ breaker = {
 3. **Circuit Breaker Purpose**: Protects database from cascading failures by temporarily blocking requests after repeated failures
 4. **Automatic Recovery**: Circuit breaker automatically transitions from 'open' → 'half-open' → 'closed' as service recovers
 
-### Frontend Build Status (July 20, 2025)
-- ✅ **Build Successful**: Frontend builds without errors (13.54s, optimized)
-- ✅ **Runtime Error RESOLVED**: MUI createPalette issue fixed via safeTheme.js implementation
-- ✅ **Tailwind CSS Error RESOLVED**: Fixed bg-blue-600 class availability by adding blue color palette
-- **Bundle Optimization**: 30% reduction achieved (vendor: 547KB → 381KB) through Chart.js to recharts migration
+### Frontend Build & Error Resolution Workflow
 
-### Unit Testing Infrastructure Status (July 20, 2025) - MAJOR BREAKTHROUGH
-- ✅ **Test Infrastructure FUNCTIONAL**: Fixed infinite recursion bug, localStorage/window/document availability
-- ✅ **Test Coverage**: 14/15 services tested with 450+ unit tests achieving 93% coverage  
-- ✅ **Environment Setup**: Test setup files now execute properly (130ms+ setup time vs 0ms before)
-- ✅ **Browser API Mocking**: localStorage, sessionStorage, window, document all properly mocked
-- ✅ **Working Services**: Speech service (52 tests), Notification service, API health service, Real-time data service
-- ✅ **Test Framework**: Vitest properly configured with jsdom environment, conflicts with custom framework resolved
-- 🔄 **Component Testing**: React component tests now run (with expected context provider issues to resolve)
-- ⚠️ **Remaining**: Standard React component testing issues (AuthProvider, ThemeProvider context requirements)
+#### **🎨 Frontend Development Standards**:
+- **Build Requirements**: All MUI components must use verified icon names from @mui/icons-material
+- **Bundle Optimization**: Prefer lighter alternatives (recharts over Chart.js) for better performance
+- **Error Boundaries**: Implement comprehensive error handling to prevent application crashes
+- **Theme Safety**: Use safeTheme.js patterns to prevent MUI createPalette runtime errors
+
+#### **🔧 Frontend Troubleshooting Workflow**:
+```bash
+# Check build errors
+npm run build
+
+# Common fixes for MUI issues:
+# 1. Verify icon imports exist in @mui/icons-material
+# 2. Check theme configuration in safeTheme.js
+# 3. Validate Tailwind CSS color palette availability
+
+# Test frontend changes
+npm run dev  # Verify in development
+npm test     # Run frontend test suite
+```
 
 ### CloudFormation Infrastructure Status (July 20, 2025) - CRITICAL FIXES
 - ✅ **S3 Bucket Policy RESOLVED**: Fixed "Policy has invalid resource" error by using proper CloudFormation ARN references
@@ -420,53 +427,46 @@ Frontend configuration now working with real Cognito values:
 - All 5 critical deployment blockers resolved
 - Centralized live data service architecture designed for efficiency
 
-## Current Focus - SESSION PROGRESS (July 19, 2025)
-### ✅ COMPREHENSIVE INTEGRATION TEST FRAMEWORK COMPLETED THIS SESSION:
-1. **✅ 21 COMPLETE INTEGRATION TEST SUITES** - Covering authentication, API keys, protected components, user journeys, backend endpoints
-2. **✅ 6000+ LINES OF REAL TEST CODE** - 100% real implementation with zero mock data or placeholders
-3. **✅ DATABASE TRANSACTION MANAGEMENT** - Automatic rollback utilities for test isolation and cleanup
-4. **✅ AUTHENTICATION FLOW TESTING** - Complete JWT authentication end-to-end validation with token management
-5. **✅ API KEY LIFECYCLE TESTING** - Upload, encryption, management, validation workflows with AES-256-GCM
-6. **✅ PROTECTED COMPONENT TESTING** - All pages requiring API keys with graceful degradation patterns
-7. **✅ USER JOURNEY VALIDATION** - Complete workflows from new user onboarding to trading functionality
-8. **✅ BACKEND ENDPOINT TESTING** - All routes with real authentication and provider-specific requirements
-9. **✅ STATE MANAGEMENT TESTING** - React Context synchronization and cross-component real-time updates
-10. **✅ PERFORMANCE TESTING** - Concurrent operations, rapid state changes, and system responsiveness validation
+## Systematic Unit Test Fixing Methodology - CRITICAL WORKFLOW
 
-### 🏗️ COMPREHENSIVE TESTING INFRASTRUCTURE BUILT (14 Services Completed):
-**PRODUCTION-GRADE TEST ARCHITECTURE**: 516 JavaScript/JSX files, 8-layer testing framework (Unit → Integration → E2E → Security → Performance → Accessibility → Advanced → Infrastructure)
+### 🧪 **TODO-DRIVEN TEST QUALITY APPROACH**
+**MANDATORY PROCESS**: All test fixes must follow systematic debugging with root cause analysis
 
-**✅ COMPLETED SERVICE TEST SUITES (100% Real Implementation)**:
-1. **apiKeyService.js** - 44 passing tests (API key management, authentication, credential retrieval)
-2. **settingsService.js** - 45 passing tests (backend API integration, settings persistence)
-3. **portfolioOptimizer.js** - 42/51 passing tests (Modern Portfolio Theory, sophisticated financial algorithms)
-4. **realTimeDataService.js** - comprehensive unit tests (WebSocket management, live data streaming)
-5. **api.js** - comprehensive tests (circuit breaker patterns, authentication)
-6. **portfolioMathService.js** - comprehensive tests (VaR calculations, risk metrics)
-7. **apiHealthService.js** - comprehensive tests (health monitoring, status tracking)
-8. **analyticsService.js** - comprehensive tests (tracking, monitoring, event analytics)
-9. **cacheService.js** - comprehensive tests (memory management, performance optimization)
-10. **newsService.js** - comprehensive tests (news API integration, data normalization)
-11. **symbolService.js** - comprehensive tests (symbol lookup, search functionality)
-12. **notificationService.js** - 49/61 passing tests (browser API interactions, permission handling)
-13. **speechService.js** - 52 passing tests (speech-to-text, text-to-speech, browser compatibility)
-14. **apiWrapper.js** - 28/35 passing tests (API standardization, error handling, performance monitoring)
+#### **📋 Unit Test Fixing Workflow**:
+```bash
+# STEP 1: Always start with TodoRead
+TodoRead  # Check current test fixing priorities
 
-**🔄 IN PROGRESS**: Additional service testing for complete coverage (correlationService, webSocketService, etc.)
+# STEP 2: Identify failing test patterns
+npm test -- --testNamePattern="specific failing test"
 
-**📊 CURRENT TESTING METRICS**:
-- **Unit Tests**: 14/15 critical services completed (93% coverage)
-- **Real Implementation Standard**: Zero mocks/placeholders policy enforced
-- **Test Quality**: Comprehensive edge cases, error handling, performance validation
-- **Business Logic Coverage**: Financial calculations, API integrations, user workflows
+# STEP 3: Debug with comprehensive logging
+# Add console.log debugging to understand error root cause
+# Check mock setups, module caching, environment variables
 
-### 🎯 NEXT IMMEDIATE PRIORITIES:
-1. **Complete Unit Test Coverage** - Finish remaining 1 critical service tests
-2. **Database Circuit Breaker Resolution** - Address OPEN circuit breaker blocking data access
-3. **MUI Runtime Error Fix** - Resolve createPalette.js TypeError preventing app initialization
-4. **API Gateway Health Restoration** - Fix 'Error' status preventing backend access
-5. **Integration Test Development** - Begin comprehensive API endpoint testing
-6. **Production Deployment** - Complete deployment with comprehensive test validation
+# STEP 4: Fix entire class of issues, not just individual symptoms
+# If auth test fails, fix all auth testing patterns
+# If database test fails, fix all database testing patterns
+
+# STEP 5: Update TodoWrite with progress
+TodoWrite  # Mark current item in_progress, add new discoveries
+
+# STEP 6: Document learning in appropriate docs
+# Add patterns to design.md, update requirements if needed
+```
+
+#### **🎯 Critical Test Fixing Rules**:
+- **Fix Root Causes**: Don't just make tests pass - understand WHY they failed
+- **Systematic Approach**: Fix entire categories of issues, not individual tests
+- **Comprehensive Debugging**: Use console.log, mock inspection, module cache analysis
+- **Learning Integration**: Document patterns for future prevention
+- **Todo-Driven Progress**: All work tracked through TodoRead/TodoWrite system
+
+#### **🔧 Test Infrastructure Requirements**:
+- **Mock Management**: Proper external dependency mocking with realistic responses
+- **Module Isolation**: Clear module cache between tests to prevent interference
+- **Environment Setup**: Proper browser API mocking (localStorage, window, document)
+- **Error Boundaries**: Comprehensive error handling in test infrastructure
 
 ## 4 Document System - CRITICAL WORKFLOW
 The project uses 4 documents with distinct purposes:
