@@ -88,9 +88,9 @@ def get_aaii_sentiment_data():
     headers = {
         "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36")
-        "Referer": "https://www.aaii.com/"
-        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*"
+                       "Chrome/115.0.0.0 Safari/537.36"),
+        "Referer": "https://www.aaii.com/",
+        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
         "Accept-Language": "en-US,en;q=0.9"
     }
     
