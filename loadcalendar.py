@@ -275,7 +275,7 @@ def main():
                 
                 # Attempt PostgreSQL connection with proper SSL configuration
                 logger.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logger.info(f"🔍 Connection details: user='{user}', database='{dbname}', sslmode='require'")
+                logger.info(f"🔍 Connection details: user='{user}', database='{dbname}', sslmode='allow'")
                 
                 # Use clean SSL configuration for RDS
                 ssl_config = {
@@ -284,7 +284,7 @@ def main():
                     'user': user,
                     'password': pwd,
                     'dbname': dbname,
-                    'sslmode': 'require',
+                    'sslmode': 'allow',
                     'connect_timeout': 30,
                     'application_name': 'calendar-loader'
                 }

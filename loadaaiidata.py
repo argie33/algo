@@ -463,7 +463,7 @@ if __name__ == "__main__":
                 
                 # Attempt PostgreSQL connection with proper SSL configuration
                 logging.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
+                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='allow'")
                 
                 # Use proper SSL configuration for RDS
                 ssl_config = {
@@ -472,7 +472,7 @@ if __name__ == "__main__":
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
-                    'sslmode': 'require',
+                    'sslmode': 'allow',
                     'connect_timeout': 30,
                     'application_name': 'aaii-data-loader'
                 }
