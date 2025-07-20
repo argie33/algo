@@ -134,7 +134,7 @@ jobs:
               
               # All test loaders get normal priority
               PRIORITY="normal"
-              TIMEOUT=60
+              TIMEOUT=120
               
               MATRIX_JSON+="{\"loader\":\"$loader\",\"priority\":\"$PRIORITY\",\"timeout\":$TIMEOUT}"
             done
