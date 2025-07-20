@@ -461,9 +461,9 @@ if __name__ == "__main__":
                         
                 test_socket.close()
                 
-                # Clean connection pattern (auto-negotiate SSL) - Group 1 test
+                # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
                 logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
-                logging.info("✅ Clean connection pattern: Auto-negotiate SSL")
+                logging.info("✅ Clean connection pattern: Auto-negotiate SSL v2")
                 
                 conn = psycopg2.connect(
                     host=cfg["host"], port=cfg["port"],

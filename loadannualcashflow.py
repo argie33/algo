@@ -260,7 +260,7 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            # Clean connection pattern (auto-negotiate SSL) - Group 1 test
+            # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
             conn = psycopg2.connect(
                 host=cfg["host"], port=cfg["port"],
                 user=cfg["user"], password=cfg["password"],
