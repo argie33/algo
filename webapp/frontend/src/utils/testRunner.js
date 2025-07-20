@@ -530,8 +530,8 @@ class TestRunner {
     };
   }
 
-  // Run specific test suite
-  async runTestSuite(suiteName) {
+  // Run specific test suite by name
+  async runTestSuiteByName(suiteName) {
     const suite = this.testSuites.get(suiteName);
     if (!suite) {
       throw new Error(`Test suite '${suiteName}' not found`);
@@ -562,7 +562,7 @@ class TestRunner {
     const results = {};
     
     for (const testSuite of diagnosticTests) {
-      results[testSuite] = await this.runTestSuite(testSuite);
+      results[testSuite] = await this.runTestSuiteByName(testSuite);
     }
     
     return results;
@@ -605,7 +605,7 @@ window.testRunner = testRunner;
 
 // Export utility functions
 export const runAllTests = () => testRunner.runAllTests();
-export const runTestSuite = (suiteName) => testRunner.runTestSuite(suiteName);
+export const runTestSuite = (suiteName) => testRunner.runTestSuiteByName(suiteName);
 export const diagnoseReactError = (error) => testRunner.diagnoseReactError(error);
 export const exportTestResults = () => testRunner.exportTestResults();
 
