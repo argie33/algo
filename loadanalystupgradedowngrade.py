@@ -165,8 +165,8 @@ def lambda_handler(event, context):
                 'user': cfg["user"],
                 'password': cfg["password"],
                 'dbname': cfg["dbname"],
-                'sslmode': 'require',
-                'connect_timeout': 30,
+                'sslmode': 'disable',
+                'connect_timeout': 10,
                 'application_name': 'analyst-data-loader'
             }
             

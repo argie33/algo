@@ -1,4 +1,7 @@
-// Initialize essential utilities FIRST
+// CRITICAL: Load React module preloader FIRST to prevent use-sync-external-store errors
+import './utils/reactModulePreloader.js'
+
+// Initialize essential utilities AFTER React is properly preloaded
 import './utils/browserCompatibility.js'
 import asyncErrorHandler from './utils/asyncErrorHandler.js'
 import memoryLeakPrevention from './utils/memoryLeakPrevention.js'
@@ -6,8 +9,15 @@ import performanceMonitor from './utils/performanceMonitor.js'
 
 // Debug utilities - will be loaded conditionally after React initialization
 
+// Re-import React after preloader (should be the same instance due to module caching)
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+
+console.log('✅ React imported after preloader - hooks available:', {
+  useState: !!React.useState,
+  useEffect: !!React.useEffect,
+  useSyncExternalStore: !!React.useSyncExternalStore
+});
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'

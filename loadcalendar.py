@@ -273,12 +273,11 @@ def main():
                         
                 test_socket.close()
                 
-                # Attempt PostgreSQL connection with proper SSL configuration
-                logger.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logger.info(f"🔍 Connection details: user='{user}', database='{dbname}', sslmode='disable'")
+                # TEST PATTERN B: Medium Simple (30s timeout + app name)
+                logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
+                logger.info("🧪 TEST PATTERN B: Medium config with 30s timeout + application_name")
                 
-                # Use proper SSL configuration for RDS
-                ssl_config = {
+                db_config = {
                     'host': host,
                     'port': port, 
                     'user': user,
@@ -290,20 +289,7 @@ def main():
                     'cursor_factory': DictCursor
                 }
                 
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
-                if attempt == 1:
-                    # First attempt: Use SSL disable
-                    logger.info("🔐 Attempt 1: Using SSL disable mode")
-                elif attempt == 2:
-                    # Second attempt: Use SSL but skip certificate verification
-                    ssl_config['sslmode'] = 'require'
-                    logger.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-                else:
-                    # Third attempt: Use SSL prefer mode
-                    ssl_config['sslmode'] = 'prefer'
-                    logger.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
-                
-                conn = psycopg2.connect(**ssl_config)
+                conn = psycopg2.connect(**db_config)
                 
                 logger.info("✅ Database connection established successfully")
                 break

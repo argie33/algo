@@ -263,33 +263,19 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            ssl_config = {
+            # TEST PATTERN C: No timeout specified (default)
+            logging.info("🧪 TEST PATTERN C: Minimal config with no timeout specified")
+            
+            db_config = {
                 'host': cfg["host"], 
                 'port': cfg["port"],
                 'user': cfg["user"], 
                 'password': cfg["password"],
                 'dbname': cfg["dbname"],
-                'sslmode': 'disable',
-                'connect_timeout': 30,
-                'application_name': 'annual-balance-sheet-loader'
+                'sslmode': 'disable'
             }
             
-            # SSL FALLBACK STRATEGY: Try multiple SSL approaches
-            if attempt == 1:
-                # First attempt: Use SSL disable
-                ssl_config['sslmode'] = 'disable'
-                logging.info("🔐 Attempt 1: Using SSL disable mode")
-            elif attempt == 2:
-                # Second attempt: Use SSL but skip certificate verification
-                ssl_config['sslmode'] = 'require'
-                logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-            else:
-                # Third attempt: Use SSL prefer mode
-                ssl_config['sslmode'] = 'prefer'
-                logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
-            
-            logging.info("🔐 Using SSL with require mode")
-            conn = psycopg2.connect(**ssl_config)
+            conn = psycopg2.connect(**db_config)
             logging.info("✅ Database connection established successfully")
             break
             

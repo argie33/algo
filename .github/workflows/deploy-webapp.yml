@@ -651,15 +651,32 @@ jobs:
           
           echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
           
-          # Try to get bucket name from CloudFormation stack first
-          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+          # Try to get bucket name from CloudFormation stack first with enhanced error handling
+          set +e  # Don't exit on command failure
+          AWS_CLI_OUTPUT=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>&1)
+          AWS_CLI_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           
-          # If CloudFormation query fails, construct bucket name
-          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
-            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
-          else
+          echo "🔍 AWS CLI exit code: ${AWS_CLI_EXIT_CODE}"
+          if [ ${AWS_CLI_EXIT_CODE} -eq 0 ] && [ -n "$AWS_CLI_OUTPUT" ] && [ "$AWS_CLI_OUTPUT" != "None" ]; then
+            BUCKET_NAME="$AWS_CLI_OUTPUT"
             echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          else
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ CloudFormation stack query failed (exit code: ${AWS_CLI_EXIT_CODE}), using constructed bucket name: ${BUCKET_NAME}"
+            echo "⚠️ AWS CLI output: ${AWS_CLI_OUTPUT}"
+            
+            # Check if stack exists at all
+            set +e
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].StackStatus' --output text 2>&1)
+            STACK_CHECK_EXIT=$?
+            set -e
+            
+            if [ ${STACK_CHECK_EXIT} -eq 0 ]; then
+              echo "⚠️ Stack exists but no TestResultsBucketName output found. Stack status: ${STACK_STATUS}"
+            else
+              echo "⚠️ Stack does not exist or is not accessible: ${STACK_STATUS}"
+            fi
           fi
           
           echo "📤 Uploading unit test results to S3 bucket: ${BUCKET_NAME}"
@@ -1124,15 +1141,32 @@ jobs:
           
           echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
           
-          # Try to get bucket name from CloudFormation stack first
-          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+          # Try to get bucket name from CloudFormation stack first with enhanced error handling
+          set +e  # Don't exit on command failure
+          AWS_CLI_OUTPUT=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>&1)
+          AWS_CLI_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           
-          # If CloudFormation query fails, construct bucket name
-          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
-            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
-          else
+          echo "🔍 AWS CLI exit code: ${AWS_CLI_EXIT_CODE}"
+          if [ ${AWS_CLI_EXIT_CODE} -eq 0 ] && [ -n "$AWS_CLI_OUTPUT" ] && [ "$AWS_CLI_OUTPUT" != "None" ]; then
+            BUCKET_NAME="$AWS_CLI_OUTPUT"
             echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          else
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ CloudFormation stack query failed (exit code: ${AWS_CLI_EXIT_CODE}), using constructed bucket name: ${BUCKET_NAME}"
+            echo "⚠️ AWS CLI output: ${AWS_CLI_OUTPUT}"
+            
+            # Check if stack exists at all
+            set +e
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].StackStatus' --output text 2>&1)
+            STACK_CHECK_EXIT=$?
+            set -e
+            
+            if [ ${STACK_CHECK_EXIT} -eq 0 ]; then
+              echo "⚠️ Stack exists but no TestResultsBucketName output found. Stack status: ${STACK_STATUS}"
+            else
+              echo "⚠️ Stack does not exist or is not accessible: ${STACK_STATUS}"
+            fi
           fi
           
           echo "📤 Uploading integration test results to S3 bucket: ${BUCKET_NAME}"

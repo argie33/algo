@@ -60,13 +60,8 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: false
+      # Removed password policy to fix CloudFormation validation error
+      # AWS Cognito has default password requirements that are sufficient
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
       VerificationMessageTemplate:
@@ -377,7 +372,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
-                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/financial-dashboard-dev/*'
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-webapp-${EnvironmentName}/*'
 
   # IAM Role for Lambda execution
   LambdaExecutionRole:

@@ -461,36 +461,21 @@ if __name__ == "__main__":
                         
                 test_socket.close()
                 
-                # Attempt PostgreSQL connection with proper SSL configuration
-                logging.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='disable'")
+                # TEST PATTERN A: Ultra Simple (10s timeout)
+                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+                logging.info("🧪 TEST PATTERN A: Ultra simple config with 10s timeout")
                 
-                # Use proper SSL configuration for RDS
-                ssl_config = {
+                db_config = {
                     'host': cfg["host"], 
                     'port': cfg["port"],
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
                     'sslmode': 'disable',
-                    'connect_timeout': 30,
-                    'application_name': 'aaii-data-loader'
+                    'connect_timeout': 10
                 }
                 
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
-                if attempt == 1:
-                    # First attempt: Use SSL disable
-                    logging.info("🔐 Attempt 1: Using SSL disable mode")
-                elif attempt == 2:
-                    # Second attempt: Use SSL but skip certificate verification
-                    ssl_config['sslmode'] = 'require'
-                    logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-                else:
-                    # Third attempt: Use SSL prefer mode
-                    ssl_config['sslmode'] = 'prefer'
-                    logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
-                
-                conn = psycopg2.connect(**ssl_config)
+                conn = psycopg2.connect(**db_config)
                 
                 logging.info("✅ Database connection established successfully")
                 break
