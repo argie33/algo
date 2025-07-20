@@ -343,6 +343,7 @@ Resources:
   # IAM Role for GitHub Actions to upload test results
   GitHubActionsTestResultsRole:
     Type: AWS::IAM::Role
+    DependsOn: TestResultsBucket
     Properties:
       RoleName: GitHubActionsTestResultsRole
       AssumeRolePolicyDocument:
@@ -368,11 +369,11 @@ Resources:
                   - s3:PutObjectAcl
                   - s3:GetObject
                   - s3:DeleteObject
-                Resource: !Sub '${TestResultsBucket}/*'
+                Resource: !Sub 'arn:aws:s3:::algo-test-results-${EnvironmentName}-${AWS::AccountId}/*'
               - Effect: Allow
                 Action:
                   - s3:ListBucket
-                Resource: !Ref TestResultsBucket
+                Resource: !Sub 'arn:aws:s3:::algo-test-results-${EnvironmentName}-${AWS::AccountId}'
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
@@ -381,6 +382,7 @@ Resources:
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role
+    DependsOn: TestResultsBucket
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -441,11 +443,11 @@ Resources:
                   - s3:PutObjectAcl
                   - s3:GetObject
                   - s3:DeleteObject
-                Resource: !Sub '${TestResultsBucket}/*'
+                Resource: !Sub 'arn:aws:s3:::algo-test-results-${EnvironmentName}-${AWS::AccountId}/*'
               - Effect: Allow
                 Action:
                   - s3:ListBucket
-                Resource: !Ref TestResultsBucket
+                Resource: !Sub 'arn:aws:s3:::algo-test-results-${EnvironmentName}-${AWS::AccountId}'
 
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
