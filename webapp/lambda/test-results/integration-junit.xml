@@ -1,374 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="220" failures="1" errors="0" time="1.659">
-  <testsuite name="Timeout Helper Unit Tests" errors="0" failures="0" skipped="41" timestamp="2025-07-20T17:55:24" time="0.253" tests="41">
-    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="has correct default timeout values" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="initializes with empty circuit breakers map" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="executes operation successfully within timeout" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="throws timeout error when operation exceeds timeout" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="propagates operation errors correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="uses default timeout when not specified" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="retries failed operations according to retry count" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="succeeds on retry after initial failure" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="applies exponential backoff for retry delays" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="does not retry without explicit retry count" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records success and resets circuit breaker" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records failure and updates circuit breaker" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="opens circuit after threshold failures" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="rejects operations when circuit is open" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="transitions to half-open after timeout period" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="makes successful HTTP request with default options" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles POST requests with JSON body" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="throws error for non-OK HTTP responses" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles request timeout with AbortController" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="executes database query with circuit breaker" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="applies database-specific timeout" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="retries failed database queries" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="executes Alpaca API call with service-specific settings" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="uses Alpaca-specific timeout and retry settings" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › News API Integration" name="executes news API call without circuit breaker" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="processes items in batches with concurrency limit" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="handles errors in batch processing" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="stops on first error when continueOnError is false" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.all with timeout and fail-fast" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.allSettled for partial success" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="times out batch operations" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides comprehensive circuit breaker status" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides detailed metrics with performance data" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="calculates recent activity correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides risk level assessment" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides recovery predictions" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Delay Utility" name="provides accurate delay functionality" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return null or undefined" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent access to circuit breakers safely" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="maintains circuit breaker history size limit" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles malformed options gracefully" time="0">
-      <skipped/>
-    </testcase>
-  </testsuite>
-  <testsuite name="Database Utilities Unit Tests" errors="0" failures="0" skipped="39" timestamp="2025-07-20T17:55:24" time="0.271" tests="39">
-    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="loads configuration from complete environment variables" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="calculates optimal pool configuration for Lambda environment" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="handles missing database configuration gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="validates SSL configuration settings" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="initializes connection pool with proper configuration" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="tests database connection during initialization" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles connection pool initialization errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="provides pool status and metrics" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles pool warming for Lambda optimization" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="executes queries through database manager with circuit breaker" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles query errors and provides detailed logging" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="extracts table names from SQL queries correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles safe queries with table existence validation" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="rejects safe queries when required tables are missing" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="executes successful transactions with proper commit" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="rolls back transactions on errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="ensures client release even on transaction errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="validates database schema comprehensively" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks individual table existence" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks multiple table existence efficiently" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="provides detailed schema requirements structure" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="handles schema validation errors gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="performs comprehensive health checks" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="handles circuit breaker open state in health checks" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="reports unhealthy state for database connection failures" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="initializes database optimally for Lambda environment" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="handles Lambda initialization failures gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="calculates appropriate pool sizes for Lambda concurrency" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="closes database connections properly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="handles connection cleanup errors gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="provides pool instance access with validation" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="tracks pool utilization metrics" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="provides adaptive pool sizing recommendations" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="monitors pool events and connections" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles malformed SQL queries gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent initialization requests" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="validates environment variable data types" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles missing optional configuration gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="preserves state consistency during error recovery" time="0">
-      <skipped/>
-    </testcase>
-  </testsuite>
-  <testsuite name="Database Circuit Breaker Unit Tests" errors="0" failures="0" skipped="29" timestamp="2025-07-20T17:55:24" time="0.287" tests="29">
-    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="initializes with correct default state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="sets production-ready configuration values" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="executes operations successfully when circuit is closed" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="records failure but stays closed below threshold" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="decrements failure count on successful operations" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="opens circuit when failure threshold is reached" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="rejects operations immediately when circuit is open" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="includes remaining time in error message" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="transitions to half-open after recovery timeout" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="allows limited operations in half-open state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="closes circuit after sufficient successes" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="reopens circuit on failure in half-open state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="tracks success count correctly in half-open state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="tracks comprehensive metrics" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="maintains request history with limited size" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records operation duration in history" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records error details in failure history" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports healthy when failures are below 50% of threshold" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when failures are above 50% of threshold" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when circuit is not closed" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="calculates time to recovery correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="resets circuit breaker to clean state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="allows operations after force reset" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles concurrent operations safely" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles mixed concurrent success and failure operations" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that throw non-Error objects" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return undefined" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="maintains state consistency during rapid state transitions" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles timestamp edge cases" time="0">
-      <skipped/>
-    </testcase>
-  </testsuite>
-  <testsuite name="AdvancedPerformanceAnalytics" errors="0" failures="0" skipped="11" timestamp="2025-07-20T17:55:24" time="0.314" tests="11">
-    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="calculates basic performance metrics correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="handles empty portfolio history" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateRiskMetrics" name="calculates risk metrics correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateMaxDrawdown" name="calculates maximum drawdown correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateAttributionAnalysis" name="calculates attribution analysis correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateSectorAnalysis" name="calculates sector analysis correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateDiversificationScore" name="calculates diversification score correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › generatePerformanceReport" name="generates comprehensive performance report" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › getPerformanceGrade" name="assigns correct performance grades" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › assessRiskProfile" name="assesses risk profile correctly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="AdvancedPerformanceAnalytics › calculateDaysInPeriod" name="calculates days in period correctly" time="0">
-      <skipped/>
-    </testcase>
-  </testsuite>
-  <testsuite name="Universal Error Handler Unit Tests" errors="0" failures="0" skipped="48" timestamp="2025-07-20T17:55:24" time="0.316" tests="48">
+<testsuites name="jest tests" tests="220" failures="1" errors="0" time="1.751">
+  <testsuite name="Universal Error Handler Unit Tests" errors="0" failures="0" skipped="48" timestamp="2025-07-20T18:00:25" time="0.263" tests="48">
     <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes circuit breaker errors correctly" time="0">
       <skipped/>
     </testcase>
@@ -514,7 +146,375 @@
       <skipped/>
     </testcase>
   </testsuite>
-  <testsuite name="Circuit Breaker Utilities Unit Tests" errors="0" failures="0" skipped="19" timestamp="2025-07-20T17:55:24" time="0.297" tests="19">
+  <testsuite name="Timeout Helper Unit Tests" errors="0" failures="0" skipped="41" timestamp="2025-07-20T18:00:25" time="0.252" tests="41">
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="has correct default timeout values" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="initializes with empty circuit breakers map" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="executes operation successfully within timeout" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="throws timeout error when operation exceeds timeout" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="propagates operation errors correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="uses default timeout when not specified" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="retries failed operations according to retry count" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="succeeds on retry after initial failure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="applies exponential backoff for retry delays" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="does not retry without explicit retry count" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records success and resets circuit breaker" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records failure and updates circuit breaker" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="opens circuit after threshold failures" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="rejects operations when circuit is open" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="transitions to half-open after timeout period" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="makes successful HTTP request with default options" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles POST requests with JSON body" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="throws error for non-OK HTTP responses" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles request timeout with AbortController" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="executes database query with circuit breaker" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="applies database-specific timeout" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="retries failed database queries" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="executes Alpaca API call with service-specific settings" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="uses Alpaca-specific timeout and retry settings" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › News API Integration" name="executes news API call without circuit breaker" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="processes items in batches with concurrency limit" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="handles errors in batch processing" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="stops on first error when continueOnError is false" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.all with timeout and fail-fast" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.allSettled for partial success" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="times out batch operations" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides comprehensive circuit breaker status" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides detailed metrics with performance data" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="calculates recent activity correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides risk level assessment" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides recovery predictions" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Delay Utility" name="provides accurate delay functionality" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return null or undefined" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent access to circuit breakers safely" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="maintains circuit breaker history size limit" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles malformed options gracefully" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="AdvancedPerformanceAnalytics" errors="0" failures="0" skipped="11" timestamp="2025-07-20T18:00:25" time="0.262" tests="11">
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="calculates basic performance metrics correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="handles empty portfolio history" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateRiskMetrics" name="calculates risk metrics correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateMaxDrawdown" name="calculates maximum drawdown correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateAttributionAnalysis" name="calculates attribution analysis correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateSectorAnalysis" name="calculates sector analysis correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDiversificationScore" name="calculates diversification score correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › generatePerformanceReport" name="generates comprehensive performance report" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › getPerformanceGrade" name="assigns correct performance grades" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › assessRiskProfile" name="assesses risk profile correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDaysInPeriod" name="calculates days in period correctly" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests" errors="0" failures="0" skipped="39" timestamp="2025-07-20T18:00:25" time="0.261" tests="39">
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="loads configuration from complete environment variables" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="calculates optimal pool configuration for Lambda environment" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="handles missing database configuration gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="validates SSL configuration settings" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="initializes connection pool with proper configuration" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="tests database connection during initialization" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles connection pool initialization errors" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="provides pool status and metrics" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles pool warming for Lambda optimization" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="executes queries through database manager with circuit breaker" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles query errors and provides detailed logging" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="extracts table names from SQL queries correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles safe queries with table existence validation" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="rejects safe queries when required tables are missing" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="executes successful transactions with proper commit" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="rolls back transactions on errors" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="ensures client release even on transaction errors" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="validates database schema comprehensively" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks individual table existence" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks multiple table existence efficiently" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="provides detailed schema requirements structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="handles schema validation errors gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="performs comprehensive health checks" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="handles circuit breaker open state in health checks" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="reports unhealthy state for database connection failures" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="initializes database optimally for Lambda environment" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="handles Lambda initialization failures gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="calculates appropriate pool sizes for Lambda concurrency" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="closes database connections properly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="handles connection cleanup errors gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="provides pool instance access with validation" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="tracks pool utilization metrics" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="provides adaptive pool sizing recommendations" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="monitors pool events and connections" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles malformed SQL queries gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent initialization requests" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="validates environment variable data types" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles missing optional configuration gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="preserves state consistency during error recovery" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Circuit Breaker Unit Tests" errors="0" failures="0" skipped="29" timestamp="2025-07-20T18:00:25" time="0.269" tests="29">
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="initializes with correct default state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="sets production-ready configuration values" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="executes operations successfully when circuit is closed" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="records failure but stays closed below threshold" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="decrements failure count on successful operations" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="opens circuit when failure threshold is reached" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="rejects operations immediately when circuit is open" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="includes remaining time in error message" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="transitions to half-open after recovery timeout" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="allows limited operations in half-open state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="closes circuit after sufficient successes" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="reopens circuit on failure in half-open state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="tracks success count correctly in half-open state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="tracks comprehensive metrics" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="maintains request history with limited size" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records operation duration in history" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records error details in failure history" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports healthy when failures are below 50% of threshold" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when failures are above 50% of threshold" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when circuit is not closed" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="calculates time to recovery correctly" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="resets circuit breaker to clean state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="allows operations after force reset" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles concurrent operations safely" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles mixed concurrent success and failure operations" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that throw non-Error objects" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return undefined" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="maintains state consistency during rapid state transitions" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles timestamp edge cases" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="Circuit Breaker Utilities Unit Tests" errors="0" failures="0" skipped="19" timestamp="2025-07-20T18:00:25" time="0.274" tests="19">
     <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should initialize with production-ready thresholds" time="0">
       <skipped/>
     </testcase>
@@ -573,7 +573,7 @@
       <skipped/>
     </testcase>
   </testsuite>
-  <testsuite name="Authentication Middleware Unit Tests" errors="0" failures="1" skipped="32" timestamp="2025-07-20T17:55:24" time="1.38" tests="33">
+  <testsuite name="Authentication Middleware Unit Tests" errors="0" failures="1" skipped="32" timestamp="2025-07-20T18:00:25" time="1.487" tests="33">
     <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="allows access without token in development mode" time="0">
       <skipped/>
     </testcase>
@@ -652,14 +652,14 @@
     <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="handles status check errors gracefully" time="0">
       <skipped/>
     </testcase>
-    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles network errors during token verification" time="0.02">
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles network errors during token verification" time="0.032">
       <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
 
 Expected: 503
 Received: 401
 
 Number of calls: 1
-    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:450:35)
+    at Object.toHaveBeenCalledWith (/home/stocks/algo/webapp/lambda/tests/unit/auth-middleware.test.js:466:35)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
     <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles concurrent authentication requests safely" time="0">

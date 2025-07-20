@@ -354,7 +354,16 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Handle network/service errors
-    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+    console.log(`🔍 DEBUG: Checking error:`, {
+      code: error.code,
+      message: error.message,
+      name: error.name,
+      hasCode: 'code' in error,
+      keys: Object.keys(error)
+    });
+    
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || 
+        (error.message && error.message.includes('Network error'))) {
       console.error(`🌐 [${requestId}] Network error during token verification`);
       return res.status(503).json({
         error: 'Authentication service unavailable',

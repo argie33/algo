@@ -463,7 +463,7 @@ if __name__ == "__main__":
                 
                 # Attempt PostgreSQL connection with proper SSL configuration
                 logging.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
+                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', 
                 
                 # Use proper SSL configuration for RDS
                 ssl_config = {
@@ -472,9 +472,9 @@ if __name__ == "__main__":
                     'user': cfg["user"]
                     'password': cfg["password"]
                     'dbname': cfg["dbname"]
-                    'sslmode': 'require'
-                    'connect_timeout': 30
-                    'application_name': 'aaii-data-loader'
+                    '
+                    '
+                    '
                 }
                 
                 # Add CA certificate if available
@@ -497,7 +497,7 @@ if __name__ == "__main__":
                 if "pg_hba.conf" in error_msg:
                     logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
                     if "no encryption" in error_msg:
-                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using sslmode='require'")
+                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using 
                 elif "Connection refused" in error_msg:
                     logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
                 elif "timeout" in error_msg:

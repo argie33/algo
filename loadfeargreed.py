@@ -260,19 +260,11 @@ async def main():
     cfg = get_db_config()
     logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
     
-    # Use proven connection pattern from working loaders
-    ssl_config = {
-        'host': cfg["host"]
-        'port': cfg["port"]
-        'user': cfg["user"]
-        'password': cfg["password"]
-        'dbname': cfg["dbname"]
-        'sslmode': 'require'
-        'connect_timeout': 30
-        'application_name': 'feargreed-data-loader'
-    }
-    
-    conn = psycopg2.connect(**ssl_config)
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
     logging.info("✅ Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

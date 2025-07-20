@@ -50,7 +50,7 @@ DB_CONFIG = {
     "user": creds["username"]
     "password": creds["password"]
     "dbname": creds["dbname"]
-    "sslmode": "require"
+    "
 }
 
 def get_db_connection():

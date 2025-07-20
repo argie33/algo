@@ -177,19 +177,11 @@ def lambda_handler(event, context):
     log_mem("startup")
     cfg = get_db_config()
     
-    # Use proven connection pattern from working loaders
-    ssl_config = {
-        'host': cfg["host"]
-        'port': cfg["port"]
-        'user': cfg["user"]
-        'password': cfg["password"]
-        'dbname': cfg["dbname"]
-        'sslmode': 'require'
-        'connect_timeout': 30
-        'application_name': 'revenue-estimate-loader'
-    }
-    
-    conn = psycopg2.connect(**ssl_config)
+    conn = psycopg2.connect(
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"]
+    )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 

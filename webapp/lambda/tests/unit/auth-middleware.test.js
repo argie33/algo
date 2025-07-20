@@ -433,19 +433,35 @@ describe('Authentication Middleware Unit Tests', () => {
 
   describe('Error Handling and Edge Cases', () => {
     it('handles network errors during token verification', async () => {
+      // Temporarily restore console for debugging
+      console.log.mockRestore();
+      
+      // Set production environment
       process.env.NODE_ENV = 'production';
       process.env.ALLOW_DEV_AUTH_BYPASS = 'false';
       
+      // Clear cache and reload module to pick up environment changes
+      delete require.cache[require.resolve('../../middleware/auth')];
+      const prodAuth = require('../../middleware/auth');
+      prodAuth.clearConfigCache();
+      
       // Mock network error
-      const networkError = new Error('Network error');
+      const networkError = new Error('Network error during token verification');
       networkError.code = 'ENOTFOUND';
       
       mockRequest.headers.authorization = 'Bearer some-token';
       
-      // Mock getVerifier to throw network error
-      jest.spyOn(auth, 'getVerifier').mockRejectedValue(networkError);
+      // Mock getVerifier to return a verifier that throws network error during verify
+      const mockVerifier = {
+        verify: jest.fn().mockRejectedValue(networkError)
+      };
+      jest.spyOn(prodAuth, 'getVerifier').mockResolvedValue(mockVerifier);
       
-      await auth.authenticateToken(mockRequest, mockResponse, nextFunction);
+      await prodAuth.authenticateToken(mockRequest, mockResponse, nextFunction);
+      
+      // Debug: check what was actually called
+      console.log('Status called with:', mockResponse.status.mock.calls);
+      console.log('JSON called with:', mockResponse.json.mock.calls);
       
       expect(mockResponse.status).toHaveBeenCalledWith(503);
       expect(mockResponse.json).toHaveBeenCalledWith(

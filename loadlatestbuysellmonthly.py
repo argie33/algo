@@ -44,18 +44,11 @@ sm_client = boto3.client("secretsmanager")
 secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
 creds = json.loads(secret_resp["SecretString"])
 
-DB_CONFIG = {
-    "host": creds["host"]
-    "port": int(creds.get("port", 5432))
-    "user": creds["username"]
-    "password": creds["password"]
-    "dbname": creds["dbname"]
-    "sslmode": "require"
-}
-
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG
-            
+    return psycopg2.connect(
+        host=creds["host"], port=int(creds.get("port", 5432)),
+        user=creds["username"], password=creds["password"],
+        dbname=creds["dbname"]
     )
 
 def create_buy_sell_table_if_not_exists(cur):

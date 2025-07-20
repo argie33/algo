@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../utils/database');
-const StructuredLogger = require('../utils/structuredLogger');
+const { StructuredLogger } = require('../utils/structuredLogger');
 const logger = new StructuredLogger('crypto-risk');
 
 // Advanced Crypto Risk Management Engine

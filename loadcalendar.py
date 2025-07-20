@@ -234,7 +234,7 @@ def main():
     try:
         user, pwd, host, port, dbname = get_db_config()
         
-        # Clean SSL strategy - consistent sslmode='require'
+        # Clean SSL strategy - consistent 
         max_retries = 3
         retry_delay = 5
         

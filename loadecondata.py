@@ -403,9 +403,9 @@ def handler(event, context):
             'user': user
             'password': pwd
             'dbname': db
-            'sslmode': 'require'
-            'connect_timeout': 30
-            'application_name': 'econdata-loader'
+            '
+            '
+            '
         }
         
         conn = psycopg2.connect(**ssl_config)

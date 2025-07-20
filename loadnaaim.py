@@ -296,9 +296,9 @@ def main():
         'user': cfg["user"]
         'password': cfg["password"]
         'dbname': cfg["dbname"]
-        'sslmode': 'require'
-        'connect_timeout': 30
-        'application_name': 'naaim-data-loader'
+        '
+        '
+        '
     }
     
     conn = psycopg2.connect(**ssl_config)
