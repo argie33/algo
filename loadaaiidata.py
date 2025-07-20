@@ -487,7 +487,7 @@ if __name__ == "__main__":
                 if "pg_hba.conf" in error_msg:
                     logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
                     if "no encryption" in error_msg:
-                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using 
+                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection")
                 elif "Connection refused" in error_msg:
                     logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
                 elif "timeout" in error_msg:
