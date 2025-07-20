@@ -93,12 +93,12 @@ def ensure_tables(conn):
         cur.execute("DROP TABLE IF EXISTS calendar_events;")
         cur.execute("""
             CREATE TABLE calendar_events (
-                id          SERIAL PRIMARY KEY
-                symbol     VARCHAR(10) NOT NULL
-                event_type VARCHAR(50) NOT NULL
-                start_date TIMESTAMPTZ
-                end_date   TIMESTAMPTZ
-                title      TEXT
+                id          SERIAL PRIMARY KEY,
+                symbol     VARCHAR(10) NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                start_date TIMESTAMPTZ,
+                end_date   TIMESTAMPTZ,
+                title      TEXT,
                 fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
@@ -110,7 +110,7 @@ def ensure_tables(conn):
         # last_updated
         cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY
+                script_name VARCHAR(255) PRIMARY KEY,
                 last_run    TIMESTAMPTZ NOT NULL
             );
         """)
