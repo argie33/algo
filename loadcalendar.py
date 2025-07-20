@@ -273,9 +273,9 @@ def main():
                         
                 test_socket.close()
                 
-                # TEST PATTERN B: Medium Simple (30s timeout + app name)
+                # PATTERN C: PROVEN WORKING (minimal config, no timeout)
                 logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
-                logger.info("🧪 TEST PATTERN B: Medium config with 30s timeout + application_name")
+                logger.info("✅ PATTERN C: Proven working minimal config")
                 
                 db_config = {
                     'host': host,
@@ -284,8 +284,6 @@ def main():
                     'password': pwd,
                     'dbname': dbname,
                     'sslmode': 'disable',
-                    'connect_timeout': 30,
-                    'application_name': 'calendar-data-loader',
                     'cursor_factory': DictCursor
                 }
                 

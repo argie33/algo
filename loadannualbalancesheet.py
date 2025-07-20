@@ -263,8 +263,8 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            # TEST PATTERN C: No timeout specified (default)
-            logging.info("🧪 TEST PATTERN C: Minimal config with no timeout specified")
+            # PATTERN C: PROVEN WORKING (minimal config, no timeout)
+            logging.info("✅ PATTERN C: Proven working minimal config")
             
             db_config = {
                 'host': cfg["host"], 

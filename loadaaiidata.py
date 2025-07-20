@@ -461,9 +461,9 @@ if __name__ == "__main__":
                         
                 test_socket.close()
                 
-                # TEST PATTERN A: Ultra Simple (10s timeout)
+                # PATTERN C: PROVEN WORKING (minimal config, no timeout)
                 logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
-                logging.info("🧪 TEST PATTERN A: Ultra simple config with 10s timeout")
+                logging.info("✅ PATTERN C: Proven working minimal config")
                 
                 db_config = {
                     'host': cfg["host"], 
@@ -471,8 +471,7 @@ if __name__ == "__main__":
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
-                    'sslmode': 'disable',
-                    'connect_timeout': 10
+                    'sslmode': 'disable'
                 }
                 
                 conn = psycopg2.connect(**db_config)
