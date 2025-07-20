@@ -106,22 +106,15 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    // Fix React 18 useState/use-sync-external-store conflicts
+    // Fix React 18 useState conflicts - use built-in useSyncExternalStore
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
         // Force React to be resolved from node_modules to prevent duplicates
         'react': resolve(__dirname, 'node_modules/react'),
-        'react-dom': resolve(__dirname, 'node_modules/react-dom'),
-        'use-sync-external-store': resolve(__dirname, 'node_modules/use-sync-external-store'),
-        // Force shim to use proper React resolution
-        'use-sync-external-store/shim': resolve(__dirname, 'node_modules/use-sync-external-store/shim')
+        'react-dom': resolve(__dirname, 'node_modules/react-dom')
       },
-      dedupe: ['react', 'react-dom', 'use-sync-external-store', 'use-sync-external-store/shim']
-    },
-    // Ensure proper module loading order
-    ssr: {
-      noExternal: ['use-sync-external-store']
+      dedupe: ['react', 'react-dom']
     }
   }
 })

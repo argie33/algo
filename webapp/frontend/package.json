@@ -27,7 +27,6 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.8.1",
     "recharts": "^2.15.4",
-    "use-sync-external-store": "^1.5.0",
     "uuid": "^9.0.0",
     "whatwg-fetch": "^3.6.20"
   },
@@ -102,8 +101,7 @@
   },
   "resolutions": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "use-sync-external-store": "^1.5.0"
+    "react-dom": "^18.3.1"
   },
   "browserslist": {
     "production": [

@@ -1,25 +1,52 @@
 /**
  * React Module Preloader
  * Ensures React is properly loaded before any external store synchronization libraries
+ * FIXES: use-sync-external-store TypeError: Cannot read properties of undefined (reading 'useState')
  */
 
 // Import React first and ensure it's available
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-// Set React globally in all possible scopes
+// CRITICAL FIX: Ensure React.useState is explicitly available
+if (!React.useState) {
+  console.error('❌ CRITICAL: React.useState is not available in imported React');
+  throw new Error('React hooks not available - React import failed');
+}
+
+// Set React globally in all possible scopes with full hooks
+const ReactWithHooks = {
+  ...React,
+  // Explicitly ensure all hooks are available
+  useState: React.useState,
+  useEffect: React.useEffect,
+  useLayoutEffect: React.useLayoutEffect,
+  useCallback: React.useCallback,
+  useMemo: React.useMemo,
+  useRef: React.useRef,
+  useContext: React.useContext,
+  useReducer: React.useReducer,
+  useDebugValue: React.useDebugValue,
+  useSyncExternalStore: React.useSyncExternalStore,
+  // Add any missing React 18 hooks
+  useId: React.useId || (() => Math.random().toString(36)),
+  useDeferredValue: React.useDeferredValue || ((value) => value),
+  useTransition: React.useTransition || (() => [false, (fn) => fn()]),
+  useInsertionEffect: React.useInsertionEffect || React.useLayoutEffect
+};
+
 if (typeof window !== 'undefined') {
-  window.React = React;
+  window.React = ReactWithHooks;
   window.ReactDOM = ReactDOM;
 }
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.React = React;
+  globalThis.React = ReactWithHooks;
   globalThis.ReactDOM = ReactDOM;
 }
 
 if (typeof global !== 'undefined') {
-  global.React = React;
+  global.React = ReactWithHooks;
   global.ReactDOM = ReactDOM;
 }
 
@@ -27,7 +54,7 @@ if (typeof global !== 'undefined') {
 if (typeof require !== 'undefined' && typeof require.cache !== 'undefined') {
   // Force React to be available for CommonJS requires
   require.cache['react'] = {
-    exports: React,
+    exports: ReactWithHooks,
     loaded: true,
     id: 'react'
   };
@@ -37,7 +64,7 @@ if (typeof require !== 'undefined' && typeof require.cache !== 'undefined') {
 const createRequireMock = () => {
   const requireMock = (moduleName) => {
     if (moduleName === 'react') {
-      return React;
+      return ReactWithHooks;
     }
     if (moduleName === 'react-dom/client') {
       return ReactDOM;
@@ -73,16 +100,16 @@ if (typeof window !== 'undefined') {
 // Ensure React hooks are available
 export const ensureReactHooks = () => {
   const hooks = {
-    useState: React.useState,
-    useEffect: React.useEffect,
-    useLayoutEffect: React.useLayoutEffect,
-    useDebugValue: React.useDebugValue,
-    useSyncExternalStore: React.useSyncExternalStore,
-    useCallback: React.useCallback,
-    useMemo: React.useMemo,
-    useRef: React.useRef,
-    useContext: React.useContext,
-    useReducer: React.useReducer
+    useState: ReactWithHooks.useState,
+    useEffect: ReactWithHooks.useEffect,
+    useLayoutEffect: ReactWithHooks.useLayoutEffect,
+    useDebugValue: ReactWithHooks.useDebugValue,
+    useSyncExternalStore: ReactWithHooks.useSyncExternalStore,
+    useCallback: ReactWithHooks.useCallback,
+    useMemo: ReactWithHooks.useMemo,
+    useRef: ReactWithHooks.useRef,
+    useContext: ReactWithHooks.useContext,
+    useReducer: ReactWithHooks.useReducer
   };
 
   // Verify all hooks are available
@@ -107,5 +134,5 @@ try {
   console.error('❌ React module preloader failed:', error);
 }
 
-export { React, ReactDOM };
-export default React;
+export { ReactWithHooks as React, ReactDOM };
+export default ReactWithHooks;
