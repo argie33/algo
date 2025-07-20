@@ -273,21 +273,16 @@ def main():
                         
                 test_socket.close()
                 
-                # PATTERN C: PROVEN WORKING (minimal config, no timeout)
+                # Use clean connection pattern (auto-negotiate SSL)
                 logger.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
-                logger.info("✅ PATTERN C: Proven working minimal config")
+                logger.info("✅ Clean connection pattern: Auto-negotiate SSL")
                 
-                db_config = {
-                    'host': host,
-                    'port': port,
-                    'user': user,
-                    'password': pwd,
-                    'dbname': dbname,
-                    'sslmode': 'disable',
-                    'cursor_factory': DictCursor
-                }
-                
-                conn = psycopg2.connect(**db_config)
+                conn = psycopg2.connect(
+                    host=host, port=port,
+                    user=user, password=pwd,
+                    dbname=dbname,
+                    cursor_factory=DictCursor
+                )
                 
                 logger.info("✅ Database connection established successfully")
                 break
