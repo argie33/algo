@@ -24,8 +24,8 @@ from io import BytesIO
 # -------------------------------
 SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -187,9 +187,9 @@ def load_sentiment_data(cur, conn):
         rows = []
         for _, row in df.iterrows():
             rows.append([
-                row["Date"]
-                None if pd.isna(row["Bullish"]) else float(row["Bullish"])
-                None if pd.isna(row["Neutral"]) else float(row["Neutral"])
+                row["Date"],
+                None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
+                None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
                 None if pd.isna(row["Bearish"]) else float(row["Bearish"])
             ])
         
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         # Log all environment variables for debugging
         logging.info("🔍 Environment Variables:")
         env_vars_to_check = [
-            "DB_SECRET_ARN", "AWS_REGION", "AWS_DEFAULT_REGION"
+            "DB_SECRET_ARN", "AWS_REGION", "AWS_DEFAULT_REGION",
             "NODE_ENV", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER"
         ]
         for var in env_vars_to_check:
@@ -512,11 +512,11 @@ if __name__ == "__main__":
         cur.execute("DROP TABLE IF EXISTS aaii_sentiment;")
         cur.execute("""
             CREATE TABLE aaii_sentiment (
-                id          SERIAL PRIMARY KEY
-                date        DATE         NOT NULL UNIQUE
-                bullish     DOUBLE PRECISION
-                neutral     DOUBLE PRECISION
-                bearish     DOUBLE PRECISION
+                id          SERIAL PRIMARY KEY,
+                date        DATE         NOT NULL UNIQUE,
+                bullish     DOUBLE PRECISION,
+                neutral     DOUBLE PRECISION,
+                bearish     DOUBLE PRECISION,
                 fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
