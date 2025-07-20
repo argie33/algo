@@ -26,7 +26,27 @@ import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
   ShareIcon,
-  PrinterIcon
+  PrinterIcon,
+  SunIcon,
+  MoonIcon,
+  BeakerIcon,
+  GlobeAltIcon,
+  SparklesIcon,
+  RocketLaunchIcon,
+  ShieldCheckIcon,
+  LightBulbIcon,
+  BoltIcon,
+  FireIcon,
+  StarIcon,
+  HeartIcon,
+  CubeIcon,
+  CommandLineIcon,
+  ChartBarSquareIcon,
+  PresentationChartLineIcon,
+  CalculatorIcon,
+  ClipboardDocumentListIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
 import { PageLayout, CardLayout, GridLayout } from '../components/ui/layout';
 import { DataNotAvailable, LoadingFallback } from '../components/fallbacks/DataNotAvailable';
@@ -287,6 +307,19 @@ function Portfolio() {
   const [showOptimizationModal, setShowOptimizationModal] = useState(false);
   const [showScreenerModal, setShowScreenerModal] = useState(false);
   const [realTimeData, setRealTimeData] = useState(true);
+  
+  // Enhanced feature states
+  const [darkMode, setDarkMode] = useState(false);
+  const [showESGModal, setShowESGModal] = useState(false);
+  const [showAIInsightsModal, setShowAIInsightsModal] = useState(false);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showRiskMonteCarloModal, setShowRiskMonteCarloModal] = useState(false);
+  const [showRealTimeMonitorModal, setShowRealTimeMonitorModal] = useState(false);
+  const [portfolioAlerts, setPortfolioAlerts] = useState([]);
+  const [realTimeUpdates, setRealTimeUpdates] = useState(true);
+  const [monteCarloScenarios, setMonteCarloScenarios] = useState(1000);
+  const [riskTolerance, setRiskTolerance] = useState('moderate');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
   const [benchmark, setBenchmark] = useState('SPY');
   
@@ -520,7 +553,7 @@ function Portfolio() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Complex tab configuration
+  // Enhanced tab configuration with new features
   const tabs = [
     { id: 'overview', label: 'Overview', icon: ChartBarIcon, badge: null },
     { id: 'holdings', label: 'Holdings', icon: DocumentChartBarIcon, badge: portfolio.holdings.length },
@@ -529,7 +562,12 @@ function Portfolio() {
     { id: 'analytics', label: 'Analytics', icon: ScaleIcon, badge: null },
     { id: 'risk', label: 'Risk Analysis', icon: ExclamationTriangleIcon, badge: null },
     { id: 'optimization', label: 'Optimization', icon: CogIcon, badge: portfolio.optimization?.recommendedChanges?.length || 0 },
-    { id: 'factors', label: 'Factor Analysis', icon: AdjustmentsHorizontalIcon, badge: null }
+    { id: 'factors', label: 'Factor Analysis', icon: AdjustmentsHorizontalIcon, badge: null },
+    { id: 'esg', label: 'ESG Scoring', icon: GlobeAltIcon, badge: 'NEW' },
+    { id: 'ai-insights', label: 'AI Insights', icon: SparklesIcon, badge: 'BETA' },
+    { id: 'monitoring', label: 'Real-time Monitor', icon: BoltIcon, badge: portfolioAlerts.length || null },
+    { id: 'comparison', label: 'Portfolio Compare', icon: ChartBarSquareIcon, badge: null },
+    { id: 'monte-carlo', label: 'Monte Carlo Risk', icon: BeakerIcon, badge: 'PRO' }
   ];
 
   // Holdings table columns
@@ -1294,17 +1332,75 @@ function Portfolio() {
       subtitle="Comprehensive portfolio analytics and management tools"
       action={
         <div className="flex space-x-3">
+          {/* Dark Mode Toggle */}
+          <button 
+            onClick={() => setDarkMode(!darkMode)}
+            className={`inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md transition-colors ${
+              darkMode 
+                ? 'text-yellow-600 bg-yellow-50 border-yellow-200 hover:bg-yellow-100' 
+                : 'text-gray-700 bg-white hover:bg-gray-50'
+            }`}
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+          </button>
+
+          {/* Real-time Monitor Toggle */}
+          <button 
+            onClick={() => setShowRealTimeMonitorModal(true)}
+            className={`inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md transition-colors ${
+              realTimeUpdates 
+                ? 'text-green-600 bg-green-50 border-green-200 hover:bg-green-100' 
+                : 'text-gray-700 bg-white hover:bg-gray-50'
+            }`}
+            title="Real-time Portfolio Monitor"
+          >
+            <BoltIcon className="h-4 w-4" />
+            {portfolioAlerts.length > 0 && (
+              <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {portfolioAlerts.length}
+              </span>
+            )}
+          </button>
+
+          {/* AI Insights */}
+          <button 
+            onClick={() => setShowAIInsightsModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+            title="AI-Powered Portfolio Insights"
+          >
+            <SparklesIcon className="h-4 w-4 mr-2" />
+            AI Insights
+            <span className="ml-2 bg-purple-100 text-purple-800 text-xs font-medium px-2 py-1 rounded-full">
+              BETA
+            </span>
+          </button>
+
+          {/* Enhanced Export */}
+          <button 
+            onClick={() => setShowExportModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+            Export
+          </button>
+
+          {/* Share */}
           <button className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
             <ShareIcon className="h-4 w-4 mr-2" />
             Share
           </button>
-          <button className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-            <PrinterIcon className="h-4 w-4 mr-2" />
-            Export
-          </button>
-          <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-            <ArrowPathIcon className="h-4 w-4 mr-2" />
-            Refresh Data
+
+          {/* Enhanced Refresh with Real-time Data */}
+          <button 
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white transition-colors ${
+              realTimeUpdates 
+                ? 'bg-green-600 hover:bg-green-700' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${realTimeUpdates ? 'animate-spin' : ''}`} />
+            {realTimeUpdates ? 'Live Data' : 'Refresh Data'}
           </button>
         </div>
       }
