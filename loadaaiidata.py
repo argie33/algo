@@ -452,7 +452,7 @@ if __name__ == "__main__":
                         
                 test_socket.close()
                 
-                # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
+                # Clean connection pattern (auto-negotiate SSL) - IDENTICAL to loadcalendar.py
                 logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
                 logging.info("✅ Clean connection pattern: Auto-negotiate SSL v2")
                 

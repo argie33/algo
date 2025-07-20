@@ -263,7 +263,7 @@ if __name__ == "__main__":
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
             
-            # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
+            # Clean connection pattern (auto-negotiate SSL) - IDENTICAL to loadcalendar.py
             logging.info("✅ Clean connection pattern: Auto-negotiate SSL - Group 1 v2")
             
             conn = psycopg2.connect(

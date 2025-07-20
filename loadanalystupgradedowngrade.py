@@ -158,7 +158,7 @@ def lambda_handler(event, context):
                     logging.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
             test_socket.close()
             
-            # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
+            # Clean connection pattern (auto-negotiate SSL) - IDENTICAL to loadcalendar.py
             conn = psycopg2.connect(
                 host=host, port=port,
                 user=user, password=pwd,
