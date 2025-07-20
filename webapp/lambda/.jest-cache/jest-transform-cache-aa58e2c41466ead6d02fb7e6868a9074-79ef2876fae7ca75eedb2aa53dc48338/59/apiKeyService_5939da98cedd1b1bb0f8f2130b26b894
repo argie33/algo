@@ -1,0 +1,54 @@
+5b4686b983d104d24b4da5ce95d8251a
+/* istanbul ignore next */
+function cov_v7kgtu20r() {
+  var path = "/home/stocks/algo/webapp/lambda/utils/apiKeyService.js";
+  var hash = "d7b409fee1c861b5bd88127cd054c65d9aac3b68";
+  var global = new Function("return this")();
+  var gcv = "__coverage__";
+  var coverageData = {
+    path: "/home/stocks/algo/webapp/lambda/utils/apiKeyService.js",
+    statementMap: {
+      "0": {
+        start: {
+          line: 7,
+          column: 0
+        },
+        end: {
+          line: 7,
+          column: 50
+        }
+      }
+    },
+    fnMap: {},
+    branchMap: {},
+    s: {
+      "0": 0
+    },
+    f: {},
+    b: {},
+    _coverageSchema: "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+    hash: "d7b409fee1c861b5bd88127cd054c65d9aac3b68"
+  };
+  var coverage = global[gcv] || (global[gcv] = {});
+  if (!coverage[path] || coverage[path].hash !== hash) {
+    coverage[path] = coverageData;
+  }
+  var actualCoverage = coverage[path];
+  {
+    // @ts-ignore
+    cov_v7kgtu20r = function () {
+      return actualCoverage;
+    };
+  }
+  return actualCoverage;
+}
+cov_v7kgtu20r();
+cov_v7kgtu20r().s[0]++;
+/**
+ * API Key Service - Facade for Simple API Key Service
+ * Provides unified interface for API key management
+ */
+
+// Re-export the simple API key service for compatibility
+module.exports = require('./simpleApiKeyService');
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJjb3ZfdjdrZ3R1MjByIiwiYWN0dWFsQ292ZXJhZ2UiLCJzIiwibW9kdWxlIiwiZXhwb3J0cyIsInJlcXVpcmUiXSwic291cmNlcyI6WyJhcGlLZXlTZXJ2aWNlLmpzIl0sInNvdXJjZXNDb250ZW50IjpbIi8qKlxuICogQVBJIEtleSBTZXJ2aWNlIC0gRmFjYWRlIGZvciBTaW1wbGUgQVBJIEtleSBTZXJ2aWNlXG4gKiBQcm92aWRlcyB1bmlmaWVkIGludGVyZmFjZSBmb3IgQVBJIGtleSBtYW5hZ2VtZW50XG4gKi9cblxuLy8gUmUtZXhwb3J0IHRoZSBzaW1wbGUgQVBJIGtleSBzZXJ2aWNlIGZvciBjb21wYXRpYmlsaXR5XG5tb2R1bGUuZXhwb3J0cyA9IHJlcXVpcmUoJy4vc2ltcGxlQXBpS2V5U2VydmljZScpOyJdLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O0lBZVk7SUFBQUEsYUFBQSxZQUFBQSxDQUFBO01BQUEsT0FBQUMsY0FBQTtJQUFBO0VBQUE7RUFBQSxPQUFBQSxjQUFBO0FBQUE7QUFBQUQsYUFBQTtBQUFBQSxhQUFBLEdBQUFFLENBQUE7QUFmWjtBQUNBO0FBQ0E7QUFDQTs7QUFFQTtBQUNBQyxNQUFNLENBQUNDLE9BQU8sR0FBR0MsT0FBTyxDQUFDLHVCQUF1QixDQUFDIiwiaWdub3JlTGlzdCI6W119

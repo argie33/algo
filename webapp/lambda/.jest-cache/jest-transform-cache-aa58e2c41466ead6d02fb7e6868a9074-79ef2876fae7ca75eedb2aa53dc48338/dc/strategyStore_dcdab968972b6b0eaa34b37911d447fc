@@ -1,0 +1,33 @@
+50e605c0d88d15238c8d65fabcbe5749
+/* istanbul ignore next */
+function cov_7vq319aqu() {
+  var path = "/home/stocks/algo/webapp/lambda/utils/strategyStore.js";
+  var hash = "55eed7a79b8b6b7f1a0428794a23e22fef61791f";
+  var global = new Function("return this")();
+  var gcv = "__coverage__";
+  var coverageData = {
+    path: "/home/stocks/algo/webapp/lambda/utils/strategyStore.js",
+    statementMap: {},
+    fnMap: {},
+    branchMap: {},
+    s: {},
+    f: {},
+    b: {},
+    _coverageSchema: "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+    hash: "55eed7a79b8b6b7f1a0428794a23e22fef61791f"
+  };
+  var coverage = global[gcv] || (global[gcv] = {});
+  if (!coverage[path] || coverage[path].hash !== hash) {
+    coverage[path] = coverageData;
+  }
+  var actualCoverage = coverage[path];
+  {
+    // @ts-ignore
+    cov_7vq319aqu = function () {
+      return actualCoverage;
+    };
+  }
+  return actualCoverage;
+}
+cov_7vq319aqu();
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJjb3ZfN3ZxMzE5YXF1IiwiYWN0dWFsQ292ZXJhZ2UiXSwic291cmNlcyI6WyJzdHJhdGVneVN0b3JlLmpzIl0sInNvdXJjZXNDb250ZW50IjpbIiJdLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7SUFlWTtJQUFBQSxhQUFBLFlBQUFBLENBQUE7TUFBQSxPQUFBQyxjQUFBO0lBQUE7RUFBQTtFQUFBLE9BQUFBLGNBQUE7QUFBQTtBQUFBRCxhQUFBIiwiaWdub3JlTGlzdCI6W119
