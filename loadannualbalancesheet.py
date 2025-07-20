@@ -276,19 +276,16 @@ if __name__ == "__main__":
                 'application_name': 'annual-balance-sheet-loader'
             }
             
-            # SSL FALLBACK STRATEGY: Try multiple SSL approaches
+            # Simple SSL strategy: disable -> prefer -> require
             if attempt == 1:
-                # First attempt: Disable SSL (fastest for internal networks)
                 ssl_config['sslmode'] = 'disable'
                 logging.info("🔐 Attempt 1: Using SSL disable mode")
             elif attempt == 2:
-                # Second attempt: Use SSL but skip certificate verification
-                ssl_config['sslmode'] = 'require'
-                logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-            else:
-                # Third attempt: Use SSL prefer mode
                 ssl_config['sslmode'] = 'prefer'
-                logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
+                logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
+            else:
+                ssl_config['sslmode'] = 'require'
+                logging.info("🔐 Attempt 3: Using SSL require mode")
             
             conn = psycopg2.connect(**ssl_config)
             

@@ -465,38 +465,27 @@ if __name__ == "__main__":
                 logging.info("🔌 Attempting PostgreSQL connection with SSL...")
                 logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
                 
-                # Use proper SSL configuration for RDS
+                # Simplified SSL configuration - try disable first
                 ssl_config = {
                     'host': cfg["host"], 
                     'port': cfg["port"],
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
-                    'sslmode': 'disable',
                     'connect_timeout': 30,
                     'application_name': 'aaii-data-loader'
                 }
                 
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
+                # Simple SSL strategy: disable -> prefer -> require
                 if attempt == 1:
-                    # First attempt: Use CA certificate with verification
-                    if ca_cert_path and os.path.exists(ca_cert_path):
-                        ssl_config['sslrootcert'] = ca_cert_path
-                        logging.info(f"🔐 Attempt 1: Using SSL with CA certificate verification: {ca_cert_path}")
-                    else:
-                        logging.info("🔐 Attempt 1: Using SSL without CA certificate verification")
+                    ssl_config['sslmode'] = 'disable'
+                    logging.info("🔐 Attempt 1: Using SSL disable mode")
                 elif attempt == 2:
-                    # Second attempt: Use SSL but skip certificate verification
-                    ssl_config['sslmode'] = 'require'
-                    if 'sslrootcert' in ssl_config:
-                        del ssl_config['sslrootcert']
-                    logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-                else:
-                    # Third attempt: Disable SSL completely
                     ssl_config['sslmode'] = 'prefer'
-                    if 'sslrootcert' in ssl_config:
-                        del ssl_config['sslrootcert']
-                    logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
+                    logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
+                else:
+                    ssl_config['sslmode'] = 'require'
+                    logging.info("🔐 Attempt 3: Using SSL require mode")
                 
                 conn = psycopg2.connect(**ssl_config)
                 
