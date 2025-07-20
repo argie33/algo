@@ -98,23 +98,23 @@ jobs:
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
             echo "Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
-            # Force all or infrastructure changed - INCLUDING GROUP 1 LOADERS
-            LOADERS_TO_RUN="aaiidata calendar earningsestimate annualbalancesheet analystupgradedowngrade annualcashflow"
-            echo "Running test loaders plus Group 1 (expanded set)"
+            # Force all or infrastructure changed - ONLY GROUP 1 WORKING LOADERS
+            LOADERS_TO_RUN="aaiidata annualbalancesheet analystupgradedowngrade annualcashflow"
+            echo "Running ONLY Group 1 working loaders"
           else
-            # Auto-detect based on file changes - INCLUDING GROUP 1 LOADERS
+            # Auto-detect based on file changes - ONLY GROUP 1 WORKING LOADERS
             CHANGED_LOADERS=$(git diff --name-only HEAD~1 HEAD | grep '^load.*\.py$' | sed 's/load//' | sed 's/\.py$//' | sort || true)
             if [[ -n "$CHANGED_LOADERS" ]]; then
-              # Filter to test loaders plus Group 1
+              # Filter to ONLY Group 1 working loaders
               LOADERS_TO_RUN=""
               for loader in $CHANGED_LOADERS; do
                 case $loader in
-                  aaiidata|calendar|earningsestimate|annualbalancesheet|analystupgradedowngrade|annualcashflow)
+                  aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
                     ;;
                 esac
               done
-              echo "Auto-detected loaders (test + Group 1): $LOADERS_TO_RUN"
+              echo "Auto-detected Group 1 working loaders: $LOADERS_TO_RUN"
             else
               LOADERS_TO_RUN=""
               echo "No loader changes detected"
@@ -336,6 +336,15 @@ jobs:
               ;;
             earningsestimate)
               TASK_DEF_NAME="earningsestimate-loader"
+              ;;
+            analystupgradedowngrade)
+              TASK_DEF_NAME="analyst-upgradedowngrade-loader"
+              ;;
+            annualbalancesheet)
+              TASK_DEF_NAME="annualbalancesheet-loader"
+              ;;
+            annualcashflow)
+              TASK_DEF_NAME="annualcashflow-loader"
               ;;
             *)
               TASK_DEF_NAME="${{ matrix.loader }}-loader"
