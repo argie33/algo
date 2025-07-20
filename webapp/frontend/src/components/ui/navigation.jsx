@@ -1,5 +1,6 @@
 import React, { useState, Fragment } from 'react';
 import { Disclosure, Dialog, Transition } from '@headlessui/react';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Bars3Icon, 
   XMarkIcon,
@@ -14,20 +15,26 @@ import {
 import { useResponsive } from '../../utils/responsive';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Portfolio', href: '/portfolio', icon: CurrencyDollarIcon },
   { name: 'Live Data', href: '/live-data', icon: ChartBarIcon },
-  { name: 'Technical Analysis', href: '/technical-analysis', icon: ChartBarIcon },
-  { name: 'Market Overview', href: '/market-overview', icon: ChartBarIcon },
-  { name: 'Trading Signals', href: '/trading-signals', icon: BellIcon },
-  { name: 'News & Sentiment', href: '/news-sentiment', icon: NewspaperIcon },
+  { name: 'Technical Analysis', href: '/technical', icon: ChartBarIcon },
+  { name: 'Market Overview', href: '/market', icon: ChartBarIcon },
+  { name: 'Trading Signals', href: '/trading', icon: BellIcon },
+  { name: 'News & Sentiment', href: '/sentiment/news', icon: NewspaperIcon },
   { name: 'Watchlist', href: '/watchlist', icon: MagnifyingGlassIcon },
   { name: 'Settings', href: '/settings', icon: CogIcon },
 ];
 
 export function TailwindNavigation({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
   const { isMobile } = useResponsive();
+  
+  const isActivePath = (href) => {
+    if (href === '/') return location.pathname === '/';
+    return location.pathname.startsWith(href);
+  };
 
   return (
     <div className="h-full">
@@ -87,16 +94,25 @@ export function TailwindNavigation({ children }) {
                         <ul role="list" className="-mx-2 space-y-1">
                           {navigation.map((item) => (
                             <li key={item.name}>
-                              <a
-                                href={item.href}
-                                className="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-50"
+                              <Link
+                                to={item.href}
+                                className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
+                                  isActivePath(item.href) 
+                                    ? 'bg-blue-50 text-blue-600' 
+                                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSidebarOpen(false)}
                               >
                                 <item.icon
-                                  className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-blue-600"
+                                  className={`h-6 w-6 shrink-0 ${
+                                    isActivePath(item.href)
+                                      ? 'text-blue-600'
+                                      : 'text-gray-400 group-hover:text-blue-600'
+                                  }`}
                                   aria-hidden="true"
                                 />
                                 {item.name}
-                              </a>
+                              </Link>
                             </li>
                           ))}
                         </ul>
@@ -122,16 +138,24 @@ export function TailwindNavigation({ children }) {
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => (
                     <li key={item.name}>
-                      <a
-                        href={item.href}
-                        className="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-50"
+                      <Link
+                        to={item.href}
+                        className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
+                          isActivePath(item.href) 
+                            ? 'bg-blue-50 text-blue-600' 
+                            : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                        }`}
                       >
                         <item.icon
-                          className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-blue-600"
+                          className={`h-6 w-6 shrink-0 ${
+                            isActivePath(item.href)
+                              ? 'text-blue-600'
+                              : 'text-gray-400 group-hover:text-blue-600'
+                          }`}
                           aria-hidden="true"
                         />
                         {item.name}
-                      </a>
+                      </Link>
                     </li>
                   ))}
                 </ul>
