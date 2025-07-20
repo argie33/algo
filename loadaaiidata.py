@@ -67,10 +67,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"]
-        "port":   int(sec.get("port", 5432))
-        "user":   sec["username"]
-        "password": sec["password"]
+        "host":   sec["host"],
+        "port":   int(sec.get("port", 5432)),
+        "user":   sec["username"],
+        "password": sec["password"],
         "dbname": sec["dbname"]
     }
 
