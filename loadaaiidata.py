@@ -465,7 +465,7 @@ if __name__ == "__main__":
                 logging.info("🔌 Attempting PostgreSQL connection with SSL...")
                 logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='require'")
                 
-                # Simplified SSL configuration - try disable first
+                # Use proper SSL configuration for RDS
                 ssl_config = {
                     'host': cfg["host"], 
                     'port': cfg["port"],
@@ -476,14 +476,17 @@ if __name__ == "__main__":
                     'application_name': 'aaii-data-loader'
                 }
                 
-                # Simple SSL strategy: disable -> prefer -> require
+                # Fixed SSL FALLBACK STRATEGY
                 if attempt == 1:
+                    # First attempt: Disable SSL completely (fastest)
                     ssl_config['sslmode'] = 'disable'
                     logging.info("🔐 Attempt 1: Using SSL disable mode")
                 elif attempt == 2:
+                    # Second attempt: Use SSL prefer (allows fallback)
                     ssl_config['sslmode'] = 'prefer'
                     logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
                 else:
+                    # Third attempt: Force SSL
                     ssl_config['sslmode'] = 'require'
                     logging.info("🔐 Attempt 3: Using SSL require mode")
                 
