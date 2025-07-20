@@ -82,6 +82,7 @@ jobs:
         
     - name: Upload test results to S3
       if: always()
+      continue-on-error: true
       run: |
         cd webapp/frontend
         
@@ -183,19 +184,70 @@ jobs:
         echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/\"}" > "test-upload/latest-run.json"
         
         # Get the actual bucket name from CloudFormation stack
-        STACK_NAME="financial-dashboard-dev"
-        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null || echo "algo-test-results-dev-${AWS_ACCOUNT_ID}")
+        STACK_NAME="stocks-webapp-dev"
+        AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+        
+        echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
+        echo "🆔 AWS Account ID: ${AWS_ACCOUNT_ID}"
+        
+        # Try to get bucket name from CloudFormation stack first
+        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+        
+        # If CloudFormation query fails, construct bucket name based on naming pattern
+        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+          BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+          echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
+        else
+          echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+        fi
         
         echo "📤 Uploading test results to S3 bucket: ${BUCKET_NAME}"
         
-        # Upload the test results
-        aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive --acl public-read
+        # Verify AWS credentials are working
+        echo "🔐 Testing AWS credentials..."
+        aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
+        
+        # Check if bucket exists and is accessible
+        echo "🪣 Checking bucket accessibility..."
+        if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
+          echo "✅ Bucket is accessible"
+        else
+          echo "❌ Bucket is not accessible or does not exist"
+          echo "📝 Attempting to list available buckets..."
+          aws s3 ls
+          exit 1
+        fi
+        
+        # Show what we're about to upload
+        echo "📂 Files to upload:"
+        find test-upload/ -type f | head -20
+        
+        # Upload the test results with error handling
+        echo "📤 Uploading test results directory..."
+        if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+          echo "✅ Test results uploaded successfully"
+        else
+          echo "❌ Failed to upload test results"
+          exit 1
+        fi
         
         # Upload latest pointer
-        aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json" --acl public-read
+        echo "📤 Uploading latest run pointer..."
+        if aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json" --acl public-read; then
+          echo "✅ Latest run pointer uploaded"
+        else
+          echo "❌ Failed to upload latest run pointer"
+          exit 1
+        fi
         
         # Also create a branch-specific latest pointer
-        aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json" --acl public-read
+        echo "📤 Uploading branch-specific pointer..."
+        if aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json" --acl public-read; then
+          echo "✅ Branch-specific pointer uploaded"
+        else
+          echo "❌ Failed to upload branch-specific pointer"
+          exit 1
+        fi
         
         echo "✅ Test results uploaded successfully!"
         echo "📋 Summary available at: https://${BUCKET_NAME}.s3.amazonaws.com/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/SUMMARY.md"

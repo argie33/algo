@@ -72,13 +72,142 @@ jobs:
             webapp/lambda/integration-test-results.json
           retention-days: 30
 
+      - name: Configure AWS credentials for S3 upload
+        if: always()
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsTestResultsRole
+          aws-region: us-east-1
+
+      - name: Upload Integration Test Results to S3
+        if: always()
+        continue-on-error: true
+        run: |
+          # Install jq if not available
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Create timestamped directory for this test run
+          TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+          RUN_ID="${{ github.run_id }}"
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          
+          echo "📊 Preparing integration test results for S3 upload..."
+          echo "Timestamp: ${TIMESTAMP}"
+          echo "Run ID: ${RUN_ID}"
+          echo "Branch: ${BRANCH_NAME}"
+          
+          # Create local directory structure
+          mkdir -p "test-upload/integration-tests-${TIMESTAMP}"
+          
+          # Copy test results if they exist
+          if [ -d "test-results" ]; then
+            cp -r test-results/* "test-upload/integration-tests-${TIMESTAMP}/"
+            echo "✅ Copied test-results directory"
+          else
+            echo "⚠️ No test-results directory found"
+            echo "No integration test results available" > "test-upload/integration-tests-${TIMESTAMP}/NO_RESULTS.txt"
+          fi
+          
+          # Copy coverage if it exists
+          if [ -d "coverage-integration" ]; then
+            mkdir -p "test-upload/integration-coverage-${TIMESTAMP}"
+            cp -r coverage-integration/* "test-upload/integration-coverage-${TIMESTAMP}/"
+            echo "✅ Copied coverage-integration directory"
+          fi
+          
+          # Copy Jest output file
+          if [ -f "integration-test-results.json" ]; then
+            cp "integration-test-results.json" "test-upload/integration-tests-${TIMESTAMP}/"
+            echo "✅ Copied integration-test-results.json"
+          fi
+          
+          # Create comprehensive summary file
+          SUMMARY_FILE="test-upload/integration-tests-${TIMESTAMP}/SUMMARY.md"
+          echo "# Integration Test Results - ${TIMESTAMP}" > "${SUMMARY_FILE}"
+          echo "" >> "${SUMMARY_FILE}"
+          echo "**Test Run:** $(date)" >> "${SUMMARY_FILE}"
+          echo "**Branch:** ${BRANCH_NAME}" >> "${SUMMARY_FILE}"
+          echo "**Commit:** ${GITHUB_SHA}" >> "${SUMMARY_FILE}"
+          echo "**Workflow Run:** ${RUN_ID}" >> "${SUMMARY_FILE}"
+          echo "**GitHub Actor:** ${{ github.actor }}" >> "${SUMMARY_FILE}"
+          echo "" >> "${SUMMARY_FILE}"
+          echo "## Integration Test Summary" >> "${SUMMARY_FILE}"
+          echo "" >> "${SUMMARY_FILE}"
+          
+          # Try to extract info from Jest results
+          if [ -f "integration-test-results.json" ]; then
+            echo "**Raw Results:** Available in \`integration-test-results.json\`" >> "${SUMMARY_FILE}"
+          else
+            echo "⚠️ **No integration-test-results.json found**" >> "${SUMMARY_FILE}"
+          fi
+          
+          echo "" >> "${SUMMARY_FILE}"
+          echo "---" >> "${SUMMARY_FILE}"
+          echo "**S3 Location:** \`s3://algo-test-results-dev-${AWS_ACCOUNT_ID}/integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/\`" >> "${SUMMARY_FILE}"
+          
+          # Create a latest.json pointer file
+          echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/\"}" > "test-upload/latest-integration-run.json"
+          
+          # Get bucket name
+          STACK_NAME="stocks-webapp-dev"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
+          
+          # Try to get bucket name from CloudFormation stack first
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+          
+          # If CloudFormation query fails, construct bucket name
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
+          else
+            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          fi
+          
+          echo "📤 Uploading integration test results to S3 bucket: ${BUCKET_NAME}"
+          
+          # Verify AWS credentials
+          echo "🔐 Testing AWS credentials..."
+          aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
+          
+          # Check if bucket exists
+          echo "🪣 Checking bucket accessibility..."
+          if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
+            echo "✅ Bucket is accessible"
+          else
+            echo "❌ Bucket is not accessible or does not exist"
+            exit 1
+          fi
+          
+          # Upload the integration test results
+          echo "📤 Uploading integration test results..."
+          if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/integration-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+            echo "✅ Integration test results uploaded successfully"
+          else
+            echo "❌ Failed to upload integration test results"
+            exit 1
+          fi
+          
+          # Upload latest pointer
+          echo "📤 Uploading latest integration run pointer..."
+          aws s3 cp "test-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run.json" --acl public-read
+          aws s3 cp "test-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run-${BRANCH_NAME}.json" --acl public-read
+          
+          echo "✅ Integration test results uploaded successfully!"
+          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/SUMMARY.md"
+          echo "🔗 Latest: https://${BUCKET_NAME}.s3.amazonaws.com/latest-integration-test-run.json"
+
       - name: Display Results Location
         if: always()
         run: |
           echo "🎯 INTEGRATION TEST RESULTS UPLOADED"
           echo "📁 Artifact Name: integration-test-results-${{ github.run_id }}"
+          echo "☁️ S3 Location: Available in S3 bucket"
           echo ""
-          echo "✅ I can download and analyze these test results from GitHub Actions!"
+          echo "✅ I can download and analyze these test results from GitHub Actions AND S3!"
 
   unit-tests:
     name: Run Unit Tests
