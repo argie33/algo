@@ -18,7 +18,24 @@ const router = express.Router();
 
 // Initialize live data manager and Alpaca service
 const liveDataManager = new LiveDataManager();
-const alpacaService = new AlpacaService();
+
+// Initialize Alpaca service only if API keys are available
+let alpacaService = null;
+try {
+  // Try to get API keys from environment (for admin/system-level access)
+  const apiKey = process.env.ALPACA_API_KEY;
+  const apiSecret = process.env.ALPACA_API_SECRET;
+  const isPaper = process.env.ALPACA_ENVIRONMENT !== 'live';
+  
+  if (apiKey && apiSecret) {
+    alpacaService = new AlpacaService(apiKey, apiSecret, isPaper);
+    console.log('✅ Alpaca service initialized with system credentials');
+  } else {
+    console.log('⚠️ Alpaca service not initialized - missing system API keys (will use user-specific keys)');
+  }
+} catch (error) {
+  console.warn('⚠️ Alpaca service initialization failed:', error.message);
+}
 
 // Active feeds storage (in production, use Redis)
 const activeFeeds = new Map();
@@ -368,17 +385,21 @@ router.post('/admin/feeds', authenticateToken, isAdmin, async (req, res) => {
     activeFeeds.set(feedId, feedConfig);
     
     try {
-      // Start Alpaca feed
-      await alpacaService.connect();
-      
-      if (dataTypes.includes('trades')) {
-        await alpacaService.subscribeToTrades(feedConfig.symbols);
-      }
-      if (dataTypes.includes('quotes')) {
-        await alpacaService.subscribeToQuotes(feedConfig.symbols);
-      }
-      if (dataTypes.includes('bars')) {
-        await alpacaService.subscribeToBars(feedConfig.symbols);
+      // Start Alpaca feed if service is available
+      if (alpacaService) {
+        await alpacaService.connect();
+        
+        if (dataTypes.includes('trades')) {
+          await alpacaService.subscribeToTrades(feedConfig.symbols);
+        }
+        if (dataTypes.includes('quotes')) {
+          await alpacaService.subscribeToQuotes(feedConfig.symbols);
+        }
+        if (dataTypes.includes('bars')) {
+          await alpacaService.subscribeToBars(feedConfig.symbols);
+        }
+      } else {
+        console.warn('⚠️ Alpaca service not available - using mock data for live feed');
       }
       
       feedConfig.status = 'running';
@@ -423,7 +444,9 @@ router.delete('/admin/feeds/:feedId', authenticateToken, isAdmin, async (req, re
     feed.status = 'stopping';
     
     try {
-      await alpacaService.unsubscribe(feed.symbols);
+      if (alpacaService) {
+        await alpacaService.unsubscribe(feed.symbols);
+      }
       
       activeFeeds.delete(feedId);
       feedMetrics.delete(feedId);
@@ -468,15 +491,17 @@ router.post('/admin/feeds/:feedId/symbols', authenticateToken, isAdmin, async (r
     
     feed.symbols.push(upperSymbol);
     
-    // Subscribe to new symbol
-    if (feed.dataTypes.includes('trades')) {
-      await alpacaService.subscribeToTrades([upperSymbol]);
-    }
-    if (feed.dataTypes.includes('quotes')) {
-      await alpacaService.subscribeToQuotes([upperSymbol]);
-    }
-    if (feed.dataTypes.includes('bars')) {
-      await alpacaService.subscribeToBars([upperSymbol]);
+    // Subscribe to new symbol if service is available
+    if (alpacaService) {
+      if (feed.dataTypes.includes('trades')) {
+        await alpacaService.subscribeToTrades([upperSymbol]);
+      }
+      if (feed.dataTypes.includes('quotes')) {
+        await alpacaService.subscribeToQuotes([upperSymbol]);
+      }
+      if (feed.dataTypes.includes('bars')) {
+        await alpacaService.subscribeToBars([upperSymbol]);
+      }
     }
     
     console.log(`✅ Symbol ${upperSymbol} added to feed ${feedId}`);
@@ -499,6 +524,10 @@ router.get('/admin/symbols/search', authenticateToken, isAdmin, async (req, res)
     
     if (!searchQuery || searchQuery.length < 1) {
       return res.status(400).json(error('Search query is required'));
+    }
+    
+    if (!alpacaService) {
+      return res.status(503).json(error('Alpaca service not available - cannot search symbols'));
     }
     
     const searchResults = await alpacaService.searchSymbols(searchQuery, type);

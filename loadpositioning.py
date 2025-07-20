@@ -49,8 +49,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Script configuration
 SCRIPT_NAME = "loadpositioning.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -67,18 +67,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -101,17 +101,17 @@ class InstitutionalHoldingsAnalyzer:
     def get_institutional_holdings_analysis(self) -> Dict:
         """Get comprehensive institutional holdings analysis"""
         result = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'institutional_ownership_pct': 0.0,
-            'institutional_holders_count': 0,
-            'top_10_institutions_pct': 0.0,
-            'institutional_concentration': 0.0,
-            'recent_institutional_buying': 0.0,
-            'recent_institutional_selling': 0.0,
-            'net_institutional_flow': 0.0,
-            'institutional_momentum': 0.0,
-            'smart_money_score': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'institutional_ownership_pct': 0.0
+            'institutional_holders_count': 0
+            'top_10_institutions_pct': 0.0
+            'institutional_concentration': 0.0
+            'recent_institutional_buying': 0.0
+            'recent_institutional_selling': 0.0
+            'net_institutional_flow': 0.0
+            'institutional_momentum': 0.0
+            'smart_money_score': 0.0
             'institutional_quality_score': 0.0
         }
         
@@ -192,12 +192,12 @@ class InstitutionalHoldingsAnalyzer:
         
         # Define quality tiers for different institution types
         high_quality_keywords = [
-            'berkshire', 'bridgewater', 'blackrock', 'vanguard', 'fidelity',
+            'berkshire', 'bridgewater', 'blackrock', 'vanguard', 'fidelity'
             'renaissance', 'citadel', 'aqr', 'two sigma', 'man group'
         ]
         
         medium_quality_keywords = [
-            'capital', 'management', 'advisors', 'partners', 'investment',
+            'capital', 'management', 'advisors', 'partners', 'investment'
             'funds', 'asset', 'equity', 'growth', 'value'
         ]
         
@@ -263,9 +263,9 @@ class InstitutionalHoldingsAnalyzer:
                 net_selling = max(momentum_selling + abs(contrarian_selling), 0)
                 
                 result.update({
-                    'recent_institutional_buying': net_buying * size_factor,
-                    'recent_institutional_selling': net_selling * size_factor,
-                    'net_institutional_flow': (net_buying - net_selling) * size_factor,
+                    'recent_institutional_buying': net_buying * size_factor
+                    'recent_institutional_selling': net_selling * size_factor
+                    'net_institutional_flow': (net_buying - net_selling) * size_factor
                     'institutional_momentum': (net_buying - net_selling) * size_factor * 0.5
                 })
                 
@@ -292,17 +292,17 @@ class InsiderTradingAnalyzer:
     def get_insider_trading_analysis(self) -> Dict:
         """Get comprehensive insider trading analysis"""
         result = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'insider_ownership_pct': 0.0,
-            'recent_insider_buys': 0,
-            'recent_insider_sells': 0,
-            'insider_buy_value': 0.0,
-            'insider_sell_value': 0.0,
-            'net_insider_trading': 0.0,
-            'insider_sentiment_score': 0.0,
-            'ceo_trading_activity': 0.0,
-            'director_trading_activity': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'insider_ownership_pct': 0.0
+            'recent_insider_buys': 0
+            'recent_insider_sells': 0
+            'insider_buy_value': 0.0
+            'insider_sell_value': 0.0
+            'net_insider_trading': 0.0
+            'insider_sentiment_score': 0.0
+            'ceo_trading_activity': 0.0
+            'director_trading_activity': 0.0
             'insider_concentration': 0.0
         }
         
@@ -345,10 +345,10 @@ class InsiderTradingAnalyzer:
                             continue
                     
                     result.update({
-                        'recent_insider_buys': buys,
-                        'recent_insider_sells': sells,
-                        'insider_buy_value': buy_value,
-                        'insider_sell_value': sell_value,
+                        'recent_insider_buys': buys
+                        'recent_insider_sells': sells
+                        'insider_buy_value': buy_value
+                        'insider_sell_value': sell_value
                         'net_insider_trading': buy_value - sell_value
                     })
                     
@@ -426,10 +426,10 @@ class InsiderTradingAnalyzer:
             sell_value = sells * avg_transaction_value * np.random.uniform(0.5, 2.0)
             
             result.update({
-                'recent_insider_buys': buys,
-                'recent_insider_sells': sells,
-                'insider_buy_value': buy_value,
-                'insider_sell_value': sell_value,
+                'recent_insider_buys': buys
+                'recent_insider_sells': sells
+                'insider_buy_value': buy_value
+                'insider_sell_value': sell_value
                 'net_insider_trading': buy_value - sell_value
             })
             
@@ -459,15 +459,15 @@ class OptionsFlowAnalyzer:
     def get_options_flow_analysis(self) -> Dict:
         """Get options flow and positioning analysis"""
         result = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'put_call_ratio': 0.0,
-            'options_volume': 0,
-            'unusual_options_activity': 0.0,
-            'gamma_exposure': 0.0,
-            'options_sentiment': 0.0,
-            'large_options_trades': 0,
-            'options_skew': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'put_call_ratio': 0.0
+            'options_volume': 0
+            'unusual_options_activity': 0.0
+            'gamma_exposure': 0.0
+            'options_sentiment': 0.0
+            'large_options_trades': 0
+            'options_skew': 0.0
             'max_pain_level': 0.0
         }
         
@@ -586,11 +586,11 @@ class OptionsFlowAnalyzer:
             put_call_ratio = np.random.uniform(0.5, 1.5)
             
             result.update({
-                'options_volume': base_volume,
-                'put_call_ratio': put_call_ratio,
-                'unusual_options_activity': unusual_activity,
+                'options_volume': base_volume
+                'put_call_ratio': put_call_ratio
+                'unusual_options_activity': unusual_activity
                 'options_sentiment': 0.5 - put_call_ratio / 2,  # Convert to sentiment
-                'large_options_trades': max(0, base_volume // 5000),
+                'large_options_trades': max(0, base_volume // 5000)
                 'max_pain_level': current_price * np.random.uniform(0.95, 1.05)
             })
         
@@ -609,13 +609,13 @@ class ShortInterestAnalyzer:
     def get_short_interest_analysis(self) -> Dict:
         """Get short interest and squeeze analysis"""
         result = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'short_interest_pct': 0.0,
-            'short_ratio': 0.0,
-            'days_to_cover': 0.0,
-            'short_squeeze_score': 0.0,
-            'borrow_rate': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'short_interest_pct': 0.0
+            'short_ratio': 0.0
+            'days_to_cover': 0.0
+            'short_squeeze_score': 0.0
+            'borrow_rate': 0.0
             'short_availability': 0.0
         }
         
@@ -759,56 +759,56 @@ def create_positioning_metrics_table(cur, conn):
     
     create_sql = """
     CREATE TABLE IF NOT EXISTS positioning_metrics (
-        symbol VARCHAR(20),
-        date DATE,
+        symbol VARCHAR(20)
+        date DATE
         
         -- Institutional Holdings
-        institutional_ownership_pct DECIMAL(6,4) DEFAULT 0,
-        institutional_holders_count INTEGER DEFAULT 0,
-        top_10_institutions_pct DECIMAL(6,4) DEFAULT 0,
-        institutional_concentration DECIMAL(8,6) DEFAULT 0,
-        recent_institutional_buying DECIMAL(8,6) DEFAULT 0,
-        recent_institutional_selling DECIMAL(8,6) DEFAULT 0,
-        net_institutional_flow DECIMAL(8,6) DEFAULT 0,
-        institutional_momentum DECIMAL(8,6) DEFAULT 0,
-        smart_money_score DECIMAL(6,4) DEFAULT 0,
-        institutional_quality_score DECIMAL(6,4) DEFAULT 0,
+        institutional_ownership_pct DECIMAL(6,4) DEFAULT 0
+        institutional_holders_count INTEGER DEFAULT 0
+        top_10_institutions_pct DECIMAL(6,4) DEFAULT 0
+        institutional_concentration DECIMAL(8,6) DEFAULT 0
+        recent_institutional_buying DECIMAL(8,6) DEFAULT 0
+        recent_institutional_selling DECIMAL(8,6) DEFAULT 0
+        net_institutional_flow DECIMAL(8,6) DEFAULT 0
+        institutional_momentum DECIMAL(8,6) DEFAULT 0
+        smart_money_score DECIMAL(6,4) DEFAULT 0
+        institutional_quality_score DECIMAL(6,4) DEFAULT 0
         
         -- Insider Trading
-        insider_ownership_pct DECIMAL(6,4) DEFAULT 0,
-        recent_insider_buys INTEGER DEFAULT 0,
-        recent_insider_sells INTEGER DEFAULT 0,
-        insider_buy_value DECIMAL(15,2) DEFAULT 0,
-        insider_sell_value DECIMAL(15,2) DEFAULT 0,
-        net_insider_trading DECIMAL(15,2) DEFAULT 0,
-        insider_sentiment_score DECIMAL(6,4) DEFAULT 0,
-        ceo_trading_activity DECIMAL(6,4) DEFAULT 0,
-        director_trading_activity DECIMAL(6,4) DEFAULT 0,
-        insider_concentration DECIMAL(8,6) DEFAULT 0,
+        insider_ownership_pct DECIMAL(6,4) DEFAULT 0
+        recent_insider_buys INTEGER DEFAULT 0
+        recent_insider_sells INTEGER DEFAULT 0
+        insider_buy_value DECIMAL(15,2) DEFAULT 0
+        insider_sell_value DECIMAL(15,2) DEFAULT 0
+        net_insider_trading DECIMAL(15,2) DEFAULT 0
+        insider_sentiment_score DECIMAL(6,4) DEFAULT 0
+        ceo_trading_activity DECIMAL(6,4) DEFAULT 0
+        director_trading_activity DECIMAL(6,4) DEFAULT 0
+        insider_concentration DECIMAL(8,6) DEFAULT 0
         
         -- Options Flow
-        put_call_ratio DECIMAL(8,4) DEFAULT 0,
-        options_volume INTEGER DEFAULT 0,
-        unusual_options_activity DECIMAL(8,4) DEFAULT 0,
-        gamma_exposure DECIMAL(12,2) DEFAULT 0,
-        options_sentiment DECIMAL(6,4) DEFAULT 0,
-        large_options_trades INTEGER DEFAULT 0,
-        options_skew DECIMAL(8,4) DEFAULT 0,
-        max_pain_level DECIMAL(12,4) DEFAULT 0,
+        put_call_ratio DECIMAL(8,4) DEFAULT 0
+        options_volume INTEGER DEFAULT 0
+        unusual_options_activity DECIMAL(8,4) DEFAULT 0
+        gamma_exposure DECIMAL(12,2) DEFAULT 0
+        options_sentiment DECIMAL(6,4) DEFAULT 0
+        large_options_trades INTEGER DEFAULT 0
+        options_skew DECIMAL(8,4) DEFAULT 0
+        max_pain_level DECIMAL(12,4) DEFAULT 0
         
         -- Short Interest
-        short_interest_pct DECIMAL(6,4) DEFAULT 0,
-        short_ratio DECIMAL(8,4) DEFAULT 0,
-        days_to_cover DECIMAL(8,4) DEFAULT 0,
-        short_squeeze_score DECIMAL(6,4) DEFAULT 0,
-        borrow_rate DECIMAL(6,4) DEFAULT 0,
-        short_availability DECIMAL(6,4) DEFAULT 0,
+        short_interest_pct DECIMAL(6,4) DEFAULT 0
+        short_ratio DECIMAL(8,4) DEFAULT 0
+        days_to_cover DECIMAL(8,4) DEFAULT 0
+        short_squeeze_score DECIMAL(6,4) DEFAULT 0
+        borrow_rate DECIMAL(6,4) DEFAULT 0
+        short_availability DECIMAL(6,4) DEFAULT 0
         
         -- Composite Score
-        composite_positioning_score DECIMAL(6,4) DEFAULT 0,
+        composite_positioning_score DECIMAL(6,4) DEFAULT 0
         
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -817,13 +817,13 @@ def create_positioning_metrics_table(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_positioning_symbol ON positioning_metrics(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_date ON positioning_metrics(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_composite ON positioning_metrics(composite_positioning_score DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_institutional ON positioning_metrics(institutional_ownership_pct DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_insider ON positioning_metrics(insider_sentiment_score DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_options ON positioning_metrics(unusual_options_activity DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_positioning_short ON positioning_metrics(short_squeeze_score DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_positioning_symbol ON positioning_metrics(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_date ON positioning_metrics(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_composite ON positioning_metrics(composite_positioning_score DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_institutional ON positioning_metrics(institutional_ownership_pct DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_insider ON positioning_metrics(insider_sentiment_score DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_options ON positioning_metrics(unusual_options_activity DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_positioning_short ON positioning_metrics(short_squeeze_score DESC);"
         "CREATE INDEX IF NOT EXISTS idx_positioning_smart_money ON positioning_metrics(smart_money_score DESC);"
     ]
     
@@ -872,32 +872,32 @@ def load_positioning_batch(symbols: List[str], conn, cur, batch_size: int = 5) -
                 insert_data = []
                 for item in positioning_data:
                     insert_data.append((
-                        item['symbol'], item['date'],
+                        item['symbol'], item['date']
                         
                         # Institutional
-                        item.get('institutional_ownership_pct', 0), item.get('institutional_holders_count', 0),
-                        item.get('top_10_institutions_pct', 0), item.get('institutional_concentration', 0),
-                        item.get('recent_institutional_buying', 0), item.get('recent_institutional_selling', 0),
-                        item.get('net_institutional_flow', 0), item.get('institutional_momentum', 0),
-                        item.get('smart_money_score', 0), item.get('institutional_quality_score', 0),
+                        item.get('institutional_ownership_pct', 0), item.get('institutional_holders_count', 0)
+                        item.get('top_10_institutions_pct', 0), item.get('institutional_concentration', 0)
+                        item.get('recent_institutional_buying', 0), item.get('recent_institutional_selling', 0)
+                        item.get('net_institutional_flow', 0), item.get('institutional_momentum', 0)
+                        item.get('smart_money_score', 0), item.get('institutional_quality_score', 0)
                         
                         # Insider
-                        item.get('insider_ownership_pct', 0), item.get('recent_insider_buys', 0),
-                        item.get('recent_insider_sells', 0), item.get('insider_buy_value', 0),
-                        item.get('insider_sell_value', 0), item.get('net_insider_trading', 0),
-                        item.get('insider_sentiment_score', 0), item.get('ceo_trading_activity', 0),
-                        item.get('director_trading_activity', 0), item.get('insider_concentration', 0),
+                        item.get('insider_ownership_pct', 0), item.get('recent_insider_buys', 0)
+                        item.get('recent_insider_sells', 0), item.get('insider_buy_value', 0)
+                        item.get('insider_sell_value', 0), item.get('net_insider_trading', 0)
+                        item.get('insider_sentiment_score', 0), item.get('ceo_trading_activity', 0)
+                        item.get('director_trading_activity', 0), item.get('insider_concentration', 0)
                         
                         # Options
-                        item.get('put_call_ratio', 0), item.get('options_volume', 0),
-                        item.get('unusual_options_activity', 0), item.get('gamma_exposure', 0),
-                        item.get('options_sentiment', 0), item.get('large_options_trades', 0),
-                        item.get('options_skew', 0), item.get('max_pain_level', 0),
+                        item.get('put_call_ratio', 0), item.get('options_volume', 0)
+                        item.get('unusual_options_activity', 0), item.get('gamma_exposure', 0)
+                        item.get('options_sentiment', 0), item.get('large_options_trades', 0)
+                        item.get('options_skew', 0), item.get('max_pain_level', 0)
                         
                         # Short interest
-                        item.get('short_interest_pct', 0), item.get('short_ratio', 0),
-                        item.get('days_to_cover', 0), item.get('short_squeeze_score', 0),
-                        item.get('borrow_rate', 0), item.get('short_availability', 0),
+                        item.get('short_interest_pct', 0), item.get('short_ratio', 0)
+                        item.get('days_to_cover', 0), item.get('short_squeeze_score', 0)
+                        item.get('borrow_rate', 0), item.get('short_availability', 0)
                         
                         # Composite
                         item.get('composite_positioning_score', 0)
@@ -905,25 +905,25 @@ def load_positioning_batch(symbols: List[str], conn, cur, batch_size: int = 5) -
                 
                 insert_query = """
                     INSERT INTO positioning_metrics (
-                        symbol, date,
-                        institutional_ownership_pct, institutional_holders_count, top_10_institutions_pct,
-                        institutional_concentration, recent_institutional_buying, recent_institutional_selling,
-                        net_institutional_flow, institutional_momentum, smart_money_score, institutional_quality_score,
-                        insider_ownership_pct, recent_insider_buys, recent_insider_sells,
-                        insider_buy_value, insider_sell_value, net_insider_trading,
-                        insider_sentiment_score, ceo_trading_activity, director_trading_activity, insider_concentration,
-                        put_call_ratio, options_volume, unusual_options_activity, gamma_exposure,
-                        options_sentiment, large_options_trades, options_skew, max_pain_level,
-                        short_interest_pct, short_ratio, days_to_cover, short_squeeze_score,
+                        symbol, date
+                        institutional_ownership_pct, institutional_holders_count, top_10_institutions_pct
+                        institutional_concentration, recent_institutional_buying, recent_institutional_selling
+                        net_institutional_flow, institutional_momentum, smart_money_score, institutional_quality_score
+                        insider_ownership_pct, recent_insider_buys, recent_insider_sells
+                        insider_buy_value, insider_sell_value, net_insider_trading
+                        insider_sentiment_score, ceo_trading_activity, director_trading_activity, insider_concentration
+                        put_call_ratio, options_volume, unusual_options_activity, gamma_exposure
+                        options_sentiment, large_options_trades, options_skew, max_pain_level
+                        short_interest_pct, short_ratio, days_to_cover, short_squeeze_score
                         borrow_rate, short_availability, composite_positioning_score
                     ) VALUES %s
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
-                        smart_money_score = EXCLUDED.smart_money_score,
-                        insider_sentiment_score = EXCLUDED.insider_sentiment_score,
-                        options_sentiment = EXCLUDED.options_sentiment,
-                        short_squeeze_score = EXCLUDED.short_squeeze_score,
-                        composite_positioning_score = EXCLUDED.composite_positioning_score,
+                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct
+                        smart_money_score = EXCLUDED.smart_money_score
+                        insider_sentiment_score = EXCLUDED.insider_sentiment_score
+                        options_sentiment = EXCLUDED.options_sentiment
+                        short_squeeze_score = EXCLUDED.short_squeeze_score
+                        composite_positioning_score = EXCLUDED.composite_positioning_score
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -953,11 +953,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1001,8 +1001,8 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT p.symbol, se.company_name,
-               p.institutional_ownership_pct, p.smart_money_score, p.insider_sentiment_score,
+        SELECT p.symbol, se.company_name
+               p.institutional_ownership_pct, p.smart_money_score, p.insider_sentiment_score
                p.options_sentiment, p.short_squeeze_score, p.composite_positioning_score
         FROM positioning_metrics p
         JOIN stock_symbols_enhanced se ON p.symbol = se.symbol

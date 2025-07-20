@@ -24,8 +24,8 @@ from pyppeteer import launch
 # -------------------------------
 SCRIPT_NAME = "loadfeargreed.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -67,10 +67,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -99,42 +99,42 @@ async def get_fear_greed_data():
             
             # Launch browser with comprehensive arguments for containerized environment
             browser_args = [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--disable-gpu",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-renderer-backgrounding",
-                "--disable-web-security",
-                "--disable-features=VizDisplayCompositor",
-                "--memory-pressure-off",
-                "--max_old_space_size=4096",
-                "--disable-background-networking",
-                "--disable-default-apps",
-                "--disable-extensions",
-                "--disable-sync",
-                "--disable-translate",
-                "--hide-scrollbars",
-                "--metrics-recording-only",
-                "--mute-audio",
-                "--no-default-browser-check",
-                "--no-pings",
-                "--password-store=basic",
-                "--use-mock-keychain",
+                "--no-sandbox"
+                "--disable-setuid-sandbox"
+                "--disable-dev-shm-usage"
+                "--disable-accelerated-2d-canvas"
+                "--no-first-run"
+                "--no-zygote"
+                "--disable-gpu"
+                "--disable-background-timer-throttling"
+                "--disable-backgrounding-occluded-windows"
+                "--disable-renderer-backgrounding"
+                "--disable-web-security"
+                "--disable-features=VizDisplayCompositor"
+                "--memory-pressure-off"
+                "--max_old_space_size=4096"
+                "--disable-background-networking"
+                "--disable-default-apps"
+                "--disable-extensions"
+                "--disable-sync"
+                "--disable-translate"
+                "--hide-scrollbars"
+                "--metrics-recording-only"
+                "--mute-audio"
+                "--no-default-browser-check"
+                "--no-pings"
+                "--password-store=basic"
+                "--use-mock-keychain"
                 "--disable-blink-features=AutomationControlled"
             ]
             
             logging.info(f"🚀 Launching browser with {len(browser_args)} arguments")
             browser = await launch(
-                executablePath='/usr/bin/chromium',
-                args=browser_args,
-                headless=True,
+                executablePath='/usr/bin/chromium'
+                args=browser_args
+                headless=True
                 timeout=60000,  # 60 second timeout
-                ignoreHTTPSErrors=True,
+                ignoreHTTPSErrors=True
                 defaultViewport={'width': 1280, 'height': 720}
             )
             
@@ -262,13 +262,13 @@ async def main():
     
     # Use proven connection pattern from working loaders
     ssl_config = {
-        'host': cfg["host"],
-        'port': cfg["port"],
-        'user': cfg["user"],
-        'password': cfg["password"],
-        'dbname': cfg["dbname"],
-        'sslmode': 'require',
-        'connect_timeout': 30,
+        'host': cfg["host"]
+        'port': cfg["port"]
+        'user': cfg["user"]
+        'password': cfg["password"]
+        'dbname': cfg["dbname"]
+        'sslmode': 'require'
+        'connect_timeout': 30
         'application_name': 'feargreed-data-loader'
     }
     
@@ -282,10 +282,10 @@ async def main():
     cur.execute("DROP TABLE IF EXISTS fear_greed_index;")
     cur.execute("""
         CREATE TABLE fear_greed_index (
-            id          SERIAL PRIMARY KEY,
-            date        DATE         NOT NULL UNIQUE,
-            index_value DOUBLE PRECISION,
-            rating      VARCHAR(50),
+            id          SERIAL PRIMARY KEY
+            date        DATE         NOT NULL UNIQUE
+            index_value DOUBLE PRECISION
+            rating      VARCHAR(50)
             fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -293,7 +293,7 @@ async def main():
     # Ensure last_updated table exists
     cur.execute("""
         CREATE TABLE IF NOT EXISTS last_updated (
-            script_name VARCHAR(100) PRIMARY KEY,
+            script_name VARCHAR(100) PRIMARY KEY
             last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)

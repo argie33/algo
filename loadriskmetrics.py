@@ -17,7 +17,7 @@ from scipy import stats
 from sklearn.preprocessing import StandardScaler
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+logging.basicConfig(stream=sys.stdout, level=logging.INFO
                     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
 logger = logging.getLogger()
 
@@ -30,10 +30,10 @@ def get_db_creds():
     resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
     return (
-        sec.get("username", sec.get("user")),
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
+        sec.get("username", sec.get("user"))
+        sec["password"]
+        sec["host"]
+        int(sec["port"])
         sec["dbname"]
     )
 
@@ -179,10 +179,10 @@ class RiskCalculator:
             risk_level = 'low'
         
         return {
-            'herfindahl_index': herfindahl_index,
-            'effective_number_of_holdings': effective_holdings,
-            'concentration_risk_level': risk_level,
-            'largest_holding_weight': max(weights) if weights else 0,
+            'herfindahl_index': herfindahl_index
+            'effective_number_of_holdings': effective_holdings
+            'concentration_risk_level': risk_level
+            'largest_holding_weight': max(weights) if weights else 0
             'top_5_concentration': sum(sorted(weights, reverse=True)[:5])
         }
     
@@ -242,16 +242,16 @@ class RiskCalculator:
                 scenario_pnl += position_pnl
             
             stress_results.append({
-                'scenario_name': scenario_name,
-                'scenario_type': shock_type,
-                'portfolio_pnl': scenario_pnl,
+                'scenario_name': scenario_name
+                'scenario_type': shock_type
+                'portfolio_pnl': scenario_pnl
                 'portfolio_pnl_percent': scenario_pnl * 100
             })
         
         return {
-            'scenarios': stress_results,
-            'worst_case_pnl': min(s['portfolio_pnl'] for s in stress_results),
-            'best_case_pnl': max(s['portfolio_pnl'] for s in stress_results),
+            'scenarios': stress_results
+            'worst_case_pnl': min(s['portfolio_pnl'] for s in stress_results)
+            'best_case_pnl': max(s['portfolio_pnl'] for s in stress_results)
             'average_pnl': np.mean([s['portfolio_pnl'] for s in stress_results])
         }
 
@@ -274,8 +274,8 @@ def get_historical_prices(symbols: List[str], period: str = '1y') -> Dict:
             returns = np.diff(prices) / prices[:-1]
             
             price_data[symbol] = {
-                'prices': prices.tolist(),
-                'returns': returns.tolist(),
+                'prices': prices.tolist()
+                'returns': returns.tolist()
                 'dates': hist.index.tolist()
             }
             
@@ -298,8 +298,8 @@ def get_market_data(period: str = '1y') -> Dict:
         returns = np.diff(prices) / prices[:-1]
         
         return {
-            'prices': prices.tolist(),
-            'returns': returns.tolist(),
+            'prices': prices.tolist()
+            'returns': returns.tolist()
             'dates': hist.index.tolist()
         }
     except Exception as e:
@@ -311,12 +311,12 @@ def main():
         # Connect to database
         user, pwd, host, port, db = get_db_creds()
         conn = psycopg2.connect(
-            host=host,
-            port=port,
-            dbname=db,
-            user=user,
-            password=pwd,
-            sslmode="require"
+            host=host
+            port=port
+            dbname=db
+            user=user
+            password=pwd
+            
         )
         cur = conn.cursor()
 
@@ -326,19 +326,19 @@ def main():
         # Portfolio risk metrics table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS portfolio_risk_metrics (
-                id SERIAL PRIMARY KEY,
-                portfolio_id INTEGER NOT NULL,
-                volatility DECIMAL(10,6),
-                var_95 DECIMAL(10,6),
-                var_99 DECIMAL(10,6),
-                expected_shortfall DECIMAL(10,6),
-                sharpe_ratio DECIMAL(10,6),
-                max_drawdown DECIMAL(10,6),
-                beta DECIMAL(10,6),
-                correlation_data JSONB,
-                concentration_metrics JSONB,
-                sector_exposure JSONB,
-                calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id SERIAL PRIMARY KEY
+                portfolio_id INTEGER NOT NULL
+                volatility DECIMAL(10,6)
+                var_95 DECIMAL(10,6)
+                var_99 DECIMAL(10,6)
+                expected_shortfall DECIMAL(10,6)
+                sharpe_ratio DECIMAL(10,6)
+                max_drawdown DECIMAL(10,6)
+                beta DECIMAL(10,6)
+                correlation_data JSONB
+                concentration_metrics JSONB
+                sector_exposure JSONB
+                calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 UNIQUE(portfolio_id)
             );
         """)
@@ -346,20 +346,20 @@ def main():
         # Risk alerts table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS risk_alerts (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
-                portfolio_id INTEGER,
-                alert_type VARCHAR(50) NOT NULL,
-                severity VARCHAR(20) NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                description TEXT,
-                metric_name VARCHAR(100),
-                current_value DECIMAL(10,6),
-                threshold_value DECIMAL(10,6),
-                symbol VARCHAR(10),
-                status VARCHAR(20) DEFAULT 'active',
-                acknowledged_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id SERIAL PRIMARY KEY
+                user_id VARCHAR(255) NOT NULL
+                portfolio_id INTEGER
+                alert_type VARCHAR(50) NOT NULL
+                severity VARCHAR(20) NOT NULL
+                title VARCHAR(255) NOT NULL
+                description TEXT
+                metric_name VARCHAR(100)
+                current_value DECIMAL(10,6)
+                threshold_value DECIMAL(10,6)
+                symbol VARCHAR(10)
+                status VARCHAR(20) DEFAULT 'active'
+                acknowledged_at TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -367,15 +367,15 @@ def main():
         # Risk limits table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS risk_limits (
-                id SERIAL PRIMARY KEY,
-                portfolio_id INTEGER NOT NULL,
-                metric_name VARCHAR(100) NOT NULL,
-                threshold_value DECIMAL(10,6) NOT NULL,
-                warning_threshold DECIMAL(10,6),
-                threshold_type VARCHAR(20) DEFAULT 'greater_than',
-                is_active BOOLEAN DEFAULT true,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id SERIAL PRIMARY KEY
+                portfolio_id INTEGER NOT NULL
+                metric_name VARCHAR(100) NOT NULL
+                threshold_value DECIMAL(10,6) NOT NULL
+                warning_threshold DECIMAL(10,6)
+                threshold_type VARCHAR(20) DEFAULT 'greater_than'
+                is_active BOOLEAN DEFAULT true
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 UNIQUE(portfolio_id, metric_name)
             );
         """)
@@ -383,12 +383,12 @@ def main():
         # Market risk indicators table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_risk_indicators (
-                id SERIAL PRIMARY KEY,
-                indicator_name VARCHAR(100) NOT NULL,
-                current_value DECIMAL(10,6),
-                risk_level VARCHAR(20),
-                description TEXT,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id SERIAL PRIMARY KEY
+                indicator_name VARCHAR(100) NOT NULL
+                current_value DECIMAL(10,6)
+                risk_level VARCHAR(20)
+                description TEXT
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 UNIQUE(indicator_name)
             );
         """)
@@ -396,12 +396,12 @@ def main():
         # Stress test results table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS stress_test_results (
-                id SERIAL PRIMARY KEY,
-                portfolio_id INTEGER NOT NULL,
-                scenario_name VARCHAR(100) NOT NULL,
-                scenario_type VARCHAR(50),
-                portfolio_pnl DECIMAL(10,6),
-                portfolio_pnl_percent DECIMAL(8,4),
+                id SERIAL PRIMARY KEY
+                portfolio_id INTEGER NOT NULL
+                scenario_name VARCHAR(100) NOT NULL
+                scenario_type VARCHAR(50)
+                portfolio_pnl DECIMAL(10,6)
+                portfolio_pnl_percent DECIMAL(8,4)
                 test_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -446,13 +446,13 @@ def main():
                 # Get portfolio holdings
                 cur.execute("""
                     SELECT 
-                        ph.symbol,
-                        ph.quantity,
-                        ph.average_cost,
-                        ph.current_price,
-                        ph.market_value,
-                        ph.weight,
-                        COALESCE(sse.sector, 'Unknown') as sector,
+                        ph.symbol
+                        ph.quantity
+                        ph.average_cost
+                        ph.current_price
+                        ph.market_value
+                        ph.weight
+                        COALESCE(sse.sector, 'Unknown') as sector
                         COALESCE(sse.industry, 'Unknown') as industry
                     FROM portfolio_holdings ph
                     LEFT JOIN stock_symbols_enhanced sse ON ph.symbol = sse.symbol
@@ -470,13 +470,13 @@ def main():
                 symbols = []
                 for holding in holdings_data:
                     holding_dict = {
-                        'symbol': holding[0],
-                        'quantity': float(holding[1]),
-                        'average_cost': float(holding[2]),
-                        'current_price': float(holding[3]),
-                        'market_value': float(holding[4]),
-                        'weight': float(holding[5]),
-                        'sector': holding[6],
+                        'symbol': holding[0]
+                        'quantity': float(holding[1])
+                        'average_cost': float(holding[2])
+                        'current_price': float(holding[3])
+                        'market_value': float(holding[4])
+                        'weight': float(holding[5])
+                        'sector': holding[6]
                         'industry': holding[7]
                     }
                     holdings.append(holding_dict)
@@ -522,43 +522,43 @@ def main():
                 # Store risk metrics
                 cur.execute("""
                     INSERT INTO portfolio_risk_metrics (
-                        portfolio_id, volatility, var_95, var_99, expected_shortfall,
-                        sharpe_ratio, max_drawdown, beta, correlation_data,
+                        portfolio_id, volatility, var_95, var_99, expected_shortfall
+                        sharpe_ratio, max_drawdown, beta, correlation_data
                         concentration_metrics, sector_exposure, calculated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                     )
                     ON CONFLICT (portfolio_id) DO UPDATE SET
-                        volatility = EXCLUDED.volatility,
-                        var_95 = EXCLUDED.var_95,
-                        var_99 = EXCLUDED.var_99,
-                        expected_shortfall = EXCLUDED.expected_shortfall,
-                        sharpe_ratio = EXCLUDED.sharpe_ratio,
-                        max_drawdown = EXCLUDED.max_drawdown,
-                        beta = EXCLUDED.beta,
-                        correlation_data = EXCLUDED.correlation_data,
-                        concentration_metrics = EXCLUDED.concentration_metrics,
-                        sector_exposure = EXCLUDED.sector_exposure,
+                        volatility = EXCLUDED.volatility
+                        var_95 = EXCLUDED.var_95
+                        var_99 = EXCLUDED.var_99
+                        expected_shortfall = EXCLUDED.expected_shortfall
+                        sharpe_ratio = EXCLUDED.sharpe_ratio
+                        max_drawdown = EXCLUDED.max_drawdown
+                        beta = EXCLUDED.beta
+                        correlation_data = EXCLUDED.correlation_data
+                        concentration_metrics = EXCLUDED.concentration_metrics
+                        sector_exposure = EXCLUDED.sector_exposure
                         calculated_at = EXCLUDED.calculated_at
                 """, (
-                    portfolio_id,
-                    volatility,
-                    var_95,
-                    var_99,
-                    expected_shortfall,
-                    sharpe_ratio,
-                    max_drawdown,
-                    beta,
-                    json.dumps(correlation_matrix),
-                    json.dumps(concentration_metrics),
+                    portfolio_id
+                    volatility
+                    var_95
+                    var_99
+                    expected_shortfall
+                    sharpe_ratio
+                    max_drawdown
+                    beta
+                    json.dumps(correlation_matrix)
+                    json.dumps(concentration_metrics)
                     json.dumps(sector_exposure)
                 ))
                 
                 # Perform stress testing
                 stress_scenarios = [
-                    {'name': 'Market Crash', 'type': 'market_shock', 'magnitude': -0.2},
-                    {'name': 'Sector Rotation', 'type': 'sector_shock', 'magnitude': -0.15, 'affected_sectors': ['Technology', 'Consumer Discretionary']},
-                    {'name': 'Volatility Spike', 'type': 'volatility_shock', 'magnitude': 2.0},
+                    {'name': 'Market Crash', 'type': 'market_shock', 'magnitude': -0.2}
+                    {'name': 'Sector Rotation', 'type': 'sector_shock', 'magnitude': -0.15, 'affected_sectors': ['Technology', 'Consumer Discretionary']}
+                    {'name': 'Volatility Spike', 'type': 'volatility_shock', 'magnitude': 2.0}
                     {'name': 'Interest Rate Shock', 'type': 'market_shock', 'magnitude': -0.1}
                 ]
                 
@@ -570,14 +570,14 @@ def main():
                 for scenario in stress_results['scenarios']:
                     cur.execute("""
                         INSERT INTO stress_test_results (
-                            portfolio_id, scenario_name, scenario_type, 
+                            portfolio_id, scenario_name, scenario_type
                             portfolio_pnl, portfolio_pnl_percent, test_date
                         ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     """, (
-                        portfolio_id,
-                        scenario['scenario_name'],
-                        scenario['scenario_type'],
-                        scenario['portfolio_pnl'],
+                        portfolio_id
+                        scenario['scenario_name']
+                        scenario['scenario_type']
+                        scenario['portfolio_pnl']
                         scenario['portfolio_pnl_percent']
                     ))
                 
@@ -604,13 +604,13 @@ def main():
                         indicator_name, current_value, risk_level, description, last_updated
                     ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (indicator_name) DO UPDATE SET
-                        current_value = EXCLUDED.current_value,
-                        risk_level = EXCLUDED.risk_level,
+                        current_value = EXCLUDED.current_value
+                        risk_level = EXCLUDED.risk_level
                         last_updated = EXCLUDED.last_updated
                 """, (
-                    'VIX',
-                    vix_value,
-                    vix_risk_level,
+                    'VIX'
+                    vix_value
+                    vix_risk_level
                     'CBOE Volatility Index - Market fear gauge'
                 ))
             
@@ -625,13 +625,13 @@ def main():
                         indicator_name, current_value, risk_level, description, last_updated
                     ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (indicator_name) DO UPDATE SET
-                        current_value = EXCLUDED.current_value,
-                        risk_level = EXCLUDED.risk_level,
+                        current_value = EXCLUDED.current_value
+                        risk_level = EXCLUDED.risk_level
                         last_updated = EXCLUDED.last_updated
                 """, (
-                    '10Y_TREASURY',
-                    tnx_value,
-                    tnx_risk_level,
+                    '10Y_TREASURY'
+                    tnx_value
+                    tnx_risk_level
                     '10-Year Treasury Yield - Interest rate risk indicator'
                 ))
             

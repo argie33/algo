@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message><BucketName>algo-test-results-dev-stocks</BucketName><RequestId>D9V7T465SX2DX50C</RequestId><HostId>0BCGPvkZ7XpA5b56ObiG2thUna3JhkAEKnHbAKDbhz5wX3te1Q645u/JxmRG+hvPDlXlzytLzE8=</HostId></Error>

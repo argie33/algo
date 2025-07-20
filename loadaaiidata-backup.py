@@ -24,8 +24,8 @@ from io import BytesIO
 # -------------------------------
 SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -67,10 +67,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -88,10 +88,10 @@ def get_aaii_sentiment_data():
     headers = {
         "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36"),
-        "Referer": "https://www.aaii.com/",
-        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
-        "Accept-Language": "en-US,en;q=0.9",
+                       "Chrome/115.0.0.0 Safari/537.36")
+        "Referer": "https://www.aaii.com/"
+        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*"
+        "Accept-Language": "en-US,en;q=0.9"
     }
     
     for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
@@ -187,9 +187,9 @@ def load_sentiment_data(cur, conn):
         rows = []
         for _, row in df.iterrows():
             rows.append([
-                row["Date"],
-                None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
-                None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
+                row["Date"]
+                None if pd.isna(row["Bullish"]) else float(row["Bullish"])
+                None if pd.isna(row["Neutral"]) else float(row["Neutral"])
                 None if pd.isna(row["Bearish"]) else float(row["Bearish"])
             ])
         
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         # Log all environment variables for debugging
         logging.info("🔍 Environment Variables:")
         env_vars_to_check = [
-            "DB_SECRET_ARN", "AWS_REGION", "AWS_DEFAULT_REGION", 
+            "DB_SECRET_ARN", "AWS_REGION", "AWS_DEFAULT_REGION"
             "NODE_ENV", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER"
         ]
         for var in env_vars_to_check:
@@ -467,13 +467,13 @@ if __name__ == "__main__":
                 
                 # Use proper SSL configuration for RDS
                 ssl_config = {
-                    'host': cfg["host"], 
-                    'port': cfg["port"],
-                    'user': cfg["user"], 
-                    'password': cfg["password"],
-                    'dbname': cfg["dbname"],
-                    'sslmode': 'require',
-                    'connect_timeout': 30,
+                    'host': cfg["host"]
+                    'port': cfg["port"]
+                    'user': cfg["user"]
+                    'password': cfg["password"]
+                    'dbname': cfg["dbname"]
+                    'sslmode': 'require'
+                    'connect_timeout': 30
                     'application_name': 'aaii-data-loader'
                 }
                 
@@ -527,11 +527,11 @@ if __name__ == "__main__":
         cur.execute("DROP TABLE IF EXISTS aaii_sentiment;")
         cur.execute("""
             CREATE TABLE aaii_sentiment (
-                id          SERIAL PRIMARY KEY,
-                date        DATE         NOT NULL UNIQUE,
-                bullish     DOUBLE PRECISION,
-                neutral     DOUBLE PRECISION,
-                bearish     DOUBLE PRECISION,
+                id          SERIAL PRIMARY KEY
+                date        DATE         NOT NULL UNIQUE
+                bullish     DOUBLE PRECISION
+                neutral     DOUBLE PRECISION
+                bearish     DOUBLE PRECISION
                 fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)

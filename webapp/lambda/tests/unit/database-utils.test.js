@@ -220,8 +220,25 @@ describe('Database Utilities Unit Tests', () => {
     });
 
     it('handles pool warming for Lambda optimization', async () => {
+      // Set up environment for database initialization
+      process.env.DB_HOST = 'localhost';
+      process.env.DB_USER = 'testuser';
+      process.env.DB_PASSWORD = 'testpass';
+      process.env.DB_NAME = 'testdb';
+      
+      delete require.cache[require.resolve('../../utils/database')];
       const db = require('../../utils/database');
       
+      // Initialize database first
+      await db.initializeDatabase();
+      
+      // Reset mocks after initialization
+      mockPool.connect.mockClear();
+      mockClient.query.mockClear();
+      mockClient.release.mockClear();
+      
+      // Setup mock implementation
+      mockPool.connect.mockResolvedValue(mockClient);
       mockClient.query.mockResolvedValue({ rows: [{ test: 1 }] });
       
       await db.warmConnections();
@@ -296,7 +313,7 @@ describe('Database Utilities Unit Tests', () => {
       // Mock table existence check
       const databaseManager = require('../../utils/databaseConnectionManager');
       databaseManager.query
-        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // tableExists response
+        .mockResolvedValueOnce({ rows: [{ table_name: 'users', exists: true }] }) // tableExists response
         .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // actual query response
       
       const result = await db.safeQuery('SELECT * FROM users', [], ['users']);
@@ -329,10 +346,17 @@ describe('Database Utilities Unit Tests', () => {
     it('executes successful transactions with proper commit', async () => {
       const db = require('../../utils/database');
       
+      // Reset and setup mock calls for transaction
+      mockClient.query.mockClear();
+      mockClient.release.mockClear();
+      
       mockClient.query
-        .mockResolvedValueOnce() // BEGIN
-        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Transaction operation
-        .mockResolvedValueOnce(); // COMMIT
+        .mockImplementation((sql) => {
+          if (sql === 'BEGIN') return Promise.resolve();
+          if (sql === 'SELECT * FROM test') return Promise.resolve({ rows: [{ id: 1 }] });
+          if (sql === 'COMMIT') return Promise.resolve();
+          return Promise.resolve();
+        });
       
       await db.initializeDatabase();
       
@@ -342,6 +366,7 @@ describe('Database Utilities Unit Tests', () => {
       });
       
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('SELECT * FROM test');
       expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
       expect(mockClient.release).toHaveBeenCalled();
       expect(result.rows).toEqual([{ id: 1 }]);
@@ -350,11 +375,18 @@ describe('Database Utilities Unit Tests', () => {
     it('rolls back transactions on errors', async () => {
       const db = require('../../utils/database');
       
+      // Reset and setup mock calls for transaction rollback
+      mockClient.query.mockClear();
+      mockClient.release.mockClear();
+      
       const transactionError = new Error('Transaction failed');
       mockClient.query
-        .mockResolvedValueOnce() // BEGIN
-        .mockRejectedValueOnce(transactionError) // Transaction operation fails
-        .mockResolvedValueOnce(); // ROLLBACK
+        .mockImplementation((sql) => {
+          if (sql === 'BEGIN') return Promise.resolve();
+          if (sql === 'INVALID SQL') return Promise.reject(transactionError);
+          if (sql === 'ROLLBACK') return Promise.resolve();
+          return Promise.resolve();
+        });
       
       await db.initializeDatabase();
       
@@ -363,6 +395,7 @@ describe('Database Utilities Unit Tests', () => {
       })).rejects.toThrow('Transaction failed');
       
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('INVALID SQL');
       expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
       expect(mockClient.release).toHaveBeenCalled();
     });
@@ -370,9 +403,17 @@ describe('Database Utilities Unit Tests', () => {
     it('ensures client release even on transaction errors', async () => {
       const db = require('../../utils/database');
       
+      // Reset and setup mock calls for client release test
+      mockClient.query.mockClear();
+      mockClient.release.mockClear();
+      
       mockClient.query
-        .mockResolvedValueOnce() // BEGIN
-        .mockRejectedValueOnce(new Error('Query failed')); // Transaction fails
+        .mockImplementation((sql) => {
+          if (sql === 'BEGIN') return Promise.resolve();
+          if (sql === 'FAILING QUERY') return Promise.reject(new Error('Query failed'));
+          if (sql === 'ROLLBACK') return Promise.resolve();
+          return Promise.resolve();
+        });
       
       await db.initializeDatabase();
       
@@ -384,6 +425,9 @@ describe('Database Utilities Unit Tests', () => {
         // Expected error
       }
       
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('FAILING QUERY');
+      expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
       expect(mockClient.release).toHaveBeenCalled();
     });
   });

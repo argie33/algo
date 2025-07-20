@@ -19,8 +19,8 @@ import pandas as pd
 # Enhanced quarterly balance sheet data loader with improved error handling and performance monitoring
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -42,10 +42,10 @@ def get_db_config():
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
+        "host": sec["host"]
+        "port": int(sec.get("port", 5432))
+        "user": sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -85,7 +85,7 @@ def get_quarterly_balance_sheet_data(symbol: str) -> Optional[pd.DataFrame]:
         
         # Try multiple methods in order of preference
         methods_to_try = [
-            ('quarterly_balance_sheet', 'quarterly balance sheet'),
+            ('quarterly_balance_sheet', 'quarterly balance sheet')
         ]
         
         balance_sheet = None
@@ -154,9 +154,9 @@ def process_balance_sheet_data(symbol: str, balance_sheet: pd.DataFrame) -> List
             if safe_value is not None:
                 valid_values += 1
                 processed_data.append((
-                    symbol,
-                    safe_date,
-                    str(item_name),
+                    symbol
+                    safe_date
+                    str(item_name)
                     safe_value
                 ))
     
@@ -196,7 +196,7 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                             INSERT INTO quarterly_balance_sheet (symbol, date, item_name, value)
                             VALUES %s
                             ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                                value = EXCLUDED.value,
+                                value = EXCLUDED.value
                                 updated_at = NOW()
                         """, balance_sheet_data)
                         conn.commit()
@@ -234,11 +234,11 @@ if __name__ == "__main__":
     # Connect to DB
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -251,12 +251,12 @@ if __name__ == "__main__":
 
     create_table_sql = """
         CREATE TABLE quarterly_balance_sheet (
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            item_name TEXT NOT NULL,
-            value DOUBLE PRECISION NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
+            symbol VARCHAR(20) NOT NULL
+            date DATE NOT NULL
+            item_name TEXT NOT NULL
+            value DOUBLE PRECISION NOT NULL
+            created_at TIMESTAMP DEFAULT NOW()
+            updated_at TIMESTAMP DEFAULT NOW()
             PRIMARY KEY(symbol, date, item_name)
         );
         

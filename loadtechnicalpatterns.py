@@ -41,8 +41,8 @@ from scipy.stats import linregress
 # Script configuration
 SCRIPT_NAME = "loadtechnicalpatterns.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -54,18 +54,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -119,17 +119,17 @@ class TechnicalPatternDetector:
         current_price = closes[-1]
         
         # Find nearest levels
-        nearest_resistance = min([r for r in resistance_levels if r > current_price], 
+        nearest_resistance = min([r for r in resistance_levels if r > current_price]
                                 default=None, key=lambda x: abs(x - current_price))
-        nearest_support = max([s for s in support_levels if s < current_price], 
+        nearest_support = max([s for s in support_levels if s < current_price]
                              default=None, key=lambda x: abs(x - current_price))
         
         return {
             'support_levels': support_levels[:5],  # Top 5 support levels
             'resistance_levels': resistance_levels[:5],  # Top 5 resistance levels
-            'nearest_support': nearest_support,
-            'nearest_resistance': nearest_resistance,
-            'support_strength': self._calculate_level_strength(support_levels, lows),
+            'nearest_support': nearest_support
+            'nearest_resistance': nearest_resistance
+            'support_strength': self._calculate_level_strength(support_levels, lows)
             'resistance_strength': self._calculate_level_strength(resistance_levels, highs)
         }
 
@@ -260,14 +260,14 @@ class TechnicalPatternDetector:
                     neckline = (lows[left_trough] + lows[right_trough]) / 2
                     
                     pattern = {
-                        'pattern_type': 'Head and Shoulders',
-                        'pattern_subtype': 'Bearish Reversal',
-                        'start_date': self.data.index[left_shoulder],
-                        'end_date': self.data.index[right_shoulder],
-                        'confidence': self._calculate_hs_confidence(left_shoulder, head, right_shoulder, neckline),
-                        'target_price': neckline - (highs[head] - neckline),
-                        'neckline': neckline,
-                        'breakout_confirmed': self.data['Close'].iloc[-1] < neckline,
+                        'pattern_type': 'Head and Shoulders'
+                        'pattern_subtype': 'Bearish Reversal'
+                        'start_date': self.data.index[left_shoulder]
+                        'end_date': self.data.index[right_shoulder]
+                        'confidence': self._calculate_hs_confidence(left_shoulder, head, right_shoulder, neckline)
+                        'target_price': neckline - (highs[head] - neckline)
+                        'neckline': neckline
+                        'breakout_confirmed': self.data['Close'].iloc[-1] < neckline
                         'volume_confirmation': self._check_volume_confirmation(left_shoulder, right_shoulder)
                     }
                     patterns.append(pattern)
@@ -290,13 +290,13 @@ class TechnicalPatternDetector:
                     trough = np.argmin(lows[peak1:peak2]) + peak1
                     
                     pattern = {
-                        'pattern_type': 'Double Top',
-                        'pattern_subtype': 'Bearish Reversal',
-                        'start_date': self.data.index[peak1],
-                        'end_date': self.data.index[peak2],
-                        'confidence': 0.75,
-                        'support_level': lows[trough],
-                        'breakout_confirmed': self.data['Close'].iloc[-1] < lows[trough],
+                        'pattern_type': 'Double Top'
+                        'pattern_subtype': 'Bearish Reversal'
+                        'start_date': self.data.index[peak1]
+                        'end_date': self.data.index[peak2]
+                        'confidence': 0.75
+                        'support_level': lows[trough]
+                        'breakout_confirmed': self.data['Close'].iloc[-1] < lows[trough]
                         'volume_confirmation': self._check_volume_confirmation(peak1, peak2)
                     }
                     patterns.append(pattern)
@@ -310,13 +310,13 @@ class TechnicalPatternDetector:
                     peak = np.argmax(highs[trough1:trough2]) + trough1
                     
                     pattern = {
-                        'pattern_type': 'Double Bottom',
-                        'pattern_subtype': 'Bullish Reversal',
-                        'start_date': self.data.index[trough1],
-                        'end_date': self.data.index[trough2],
-                        'confidence': 0.75,
-                        'resistance_level': highs[peak],
-                        'breakout_confirmed': self.data['Close'].iloc[-1] > highs[peak],
+                        'pattern_type': 'Double Bottom'
+                        'pattern_subtype': 'Bullish Reversal'
+                        'start_date': self.data.index[trough1]
+                        'end_date': self.data.index[trough2]
+                        'confidence': 0.75
+                        'resistance_level': highs[peak]
+                        'breakout_confirmed': self.data['Close'].iloc[-1] > highs[peak]
                         'volume_confirmation': self._check_volume_confirmation(trough1, trough2)
                     }
                     patterns.append(pattern)
@@ -361,14 +361,14 @@ class TechnicalPatternDetector:
                 return patterns
             
             pattern = {
-                'pattern_type': triangle_type,
-                'pattern_subtype': f'{bias} Continuation',
-                'start_date': self.data.index[-window],
-                'end_date': self.data.index[-1],
-                'confidence': min(abs(peak_r), abs(trough_r)),
-                'upper_trendline_slope': peak_slope,
-                'lower_trendline_slope': trough_slope,
-                'breakout_level': self._calculate_triangle_breakout_level(recent_highs, recent_lows),
+                'pattern_type': triangle_type
+                'pattern_subtype': f'{bias} Continuation'
+                'start_date': self.data.index[-window]
+                'end_date': self.data.index[-1]
+                'confidence': min(abs(peak_r), abs(trough_r))
+                'upper_trendline_slope': peak_slope
+                'lower_trendline_slope': trough_slope
+                'breakout_level': self._calculate_triangle_breakout_level(recent_highs, recent_lows)
                 'volume_confirmation': self._check_triangle_volume_pattern()
             }
             patterns.append(pattern)
@@ -405,11 +405,11 @@ class TechnicalPatternDetector:
                     signal = "Indecision"
                 
                 pattern = {
-                    'pattern_type': doji_type,
-                    'pattern_subtype': f'{signal} Reversal',
-                    'date': self.data.index[i],
-                    'confidence': 0.6,
-                    'signal_strength': self._calculate_doji_strength(body_size, total_range),
+                    'pattern_type': doji_type
+                    'pattern_subtype': f'{signal} Reversal'
+                    'date': self.data.index[i]
+                    'confidence': 0.6
+                    'signal_strength': self._calculate_doji_strength(body_size, total_range)
                     'market_context': self._get_market_context(i)
                 }
                 patterns.append(pattern)
@@ -437,11 +437,11 @@ class TechnicalPatternDetector:
                 curr_body > prev_body):     # Current body engulfs previous
                 
                 pattern = {
-                    'pattern_type': 'Bullish Engulfing',
-                    'pattern_subtype': 'Bullish Reversal',
-                    'date': self.data.index[i],
-                    'confidence': 0.75,
-                    'volume_confirmation': self._check_engulfing_volume(i),
+                    'pattern_type': 'Bullish Engulfing'
+                    'pattern_subtype': 'Bullish Reversal'
+                    'date': self.data.index[i]
+                    'confidence': 0.75
+                    'volume_confirmation': self._check_engulfing_volume(i)
                     'market_context': self._get_market_context(i)
                 }
                 patterns.append(pattern)
@@ -454,11 +454,11 @@ class TechnicalPatternDetector:
                   curr_body > prev_body):     # Current body engulfs previous
                 
                 pattern = {
-                    'pattern_type': 'Bearish Engulfing',
-                    'pattern_subtype': 'Bearish Reversal',
-                    'date': self.data.index[i],
-                    'confidence': 0.75,
-                    'volume_confirmation': self._check_engulfing_volume(i),
+                    'pattern_type': 'Bearish Engulfing'
+                    'pattern_subtype': 'Bearish Reversal'
+                    'date': self.data.index[i]
+                    'confidence': 0.75
+                    'volume_confirmation': self._check_engulfing_volume(i)
                     'market_context': self._get_market_context(i)
                 }
                 patterns.append(pattern)
@@ -595,22 +595,22 @@ def create_patterns_table(cursor):
     """Create the technical_patterns table"""
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS technical_patterns (
-            id SERIAL PRIMARY KEY,
-            symbol VARCHAR(10) NOT NULL,
-            timeframe VARCHAR(20) NOT NULL DEFAULT 'daily',
-            pattern_type VARCHAR(50) NOT NULL,
-            pattern_subtype VARCHAR(50),
-            start_date TIMESTAMP,
-            end_date TIMESTAMP,
-            confidence DECIMAL(3,2),
-            signal_strength DECIMAL(3,2),
-            breakout_confirmed BOOLEAN DEFAULT FALSE,
-            volume_confirmation BOOLEAN DEFAULT FALSE,
-            target_price DECIMAL(10,2),
-            support_level DECIMAL(10,2),
-            resistance_level DECIMAL(10,2),
-            pattern_data JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            id SERIAL PRIMARY KEY
+            symbol VARCHAR(10) NOT NULL
+            timeframe VARCHAR(20) NOT NULL DEFAULT 'daily'
+            pattern_type VARCHAR(50) NOT NULL
+            pattern_subtype VARCHAR(50)
+            start_date TIMESTAMP
+            end_date TIMESTAMP
+            confidence DECIMAL(3,2)
+            signal_strength DECIMAL(3,2)
+            breakout_confirmed BOOLEAN DEFAULT FALSE
+            volume_confirmation BOOLEAN DEFAULT FALSE
+            target_price DECIMAL(10,2)
+            support_level DECIMAL(10,2)
+            resistance_level DECIMAL(10,2)
+            pattern_data JSONB
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -652,11 +652,11 @@ def process_symbol_patterns(symbol: str, timeframe: str = "daily") -> Dict:
         all_patterns = classical_patterns + candlestick_patterns + breakout_patterns
         
         return {
-            'success': True,
-            'symbol': symbol,
-            'timeframe': timeframe,
-            'patterns': all_patterns,
-            'support_resistance': support_resistance,
+            'success': True
+            'symbol': symbol
+            'timeframe': timeframe
+            'patterns': all_patterns
+            'support_resistance': support_resistance
             'total_patterns': len(all_patterns)
         }
         
@@ -680,19 +680,19 @@ def save_patterns_to_db(cursor, pattern_results: List[Dict]):
         
         for pattern in result.get('patterns', []):
             insert_data.append((
-                symbol,
-                timeframe,
-                pattern.get('pattern_type'),
-                pattern.get('pattern_subtype'),
-                pattern.get('start_date'),
-                pattern.get('end_date', pattern.get('date')),
-                pattern.get('confidence'),
-                pattern.get('signal_strength'),
-                pattern.get('breakout_confirmed', False),
-                pattern.get('volume_confirmation', False),
-                pattern.get('target_price'),
-                pattern.get('support_level'),
-                pattern.get('resistance_level'),
+                symbol
+                timeframe
+                pattern.get('pattern_type')
+                pattern.get('pattern_subtype')
+                pattern.get('start_date')
+                pattern.get('end_date', pattern.get('date'))
+                pattern.get('confidence')
+                pattern.get('signal_strength')
+                pattern.get('breakout_confirmed', False)
+                pattern.get('volume_confirmation', False)
+                pattern.get('target_price')
+                pattern.get('support_level')
+                pattern.get('resistance_level')
                 json.dumps(pattern)  # Store full pattern data as JSON
             ))
     
@@ -701,22 +701,22 @@ def save_patterns_to_db(cursor, pattern_results: List[Dict]):
         symbols = list(set([r['symbol'] for r in pattern_results if r.get('success')]))
         if symbols:
             cursor.execute(
-                "DELETE FROM technical_patterns WHERE symbol = ANY(%s)",
+                "DELETE FROM technical_patterns WHERE symbol = ANY(%s)"
                 (symbols,)
             )
         
         # Insert new patterns
         execute_values(
-            cursor,
+            cursor
             """
             INSERT INTO technical_patterns (
-                symbol, timeframe, pattern_type, pattern_subtype, start_date, end_date,
-                confidence, signal_strength, breakout_confirmed, volume_confirmation,
+                symbol, timeframe, pattern_type, pattern_subtype, start_date, end_date
+                confidence, signal_strength, breakout_confirmed, volume_confirmation
                 target_price, support_level, resistance_level, pattern_data
             ) VALUES %s
-            """,
-            insert_data,
-            template=None,
+            """
+            insert_data
+            template=None
             page_size=1000
         )
         
@@ -730,8 +730,8 @@ def main():
     try:
         # Database connection
         db_config = get_db_config()
-        conn = psycopg2.connect(**db_config,
-            sslmode="require"
+        conn = psycopg2.connect(**db_config
+            
     )
         cursor = conn.cursor()
         

@@ -27,8 +27,8 @@ from textblob import TextBlob
 # -------------------------------
 SCRIPT_NAME = "loadnews.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -58,10 +58,10 @@ def get_db_config():
                      .get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
     secret_json = json.loads(secret_str)
     return {
-        "host": secret_json["host"],
-        "port": secret_json["port"],
-        "user": secret_json.get("user", secret_json.get("username")),
-        "password": secret_json["password"],
+        "host": secret_json["host"]
+        "port": secret_json["port"]
+        "user": secret_json.get("user", secret_json.get("username"))
+        "password": secret_json["password"]
         "dbname": secret_json["dbname"]
     }
 
@@ -78,23 +78,23 @@ DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN", "loadfundamentals-secrets")
 class NewsCollector:
     def __init__(self):
         self.sources = {
-            'Reuters': 'https://feeds.reuters.com/reuters/businessNews',
-            'MarketWatch': 'https://feeds.marketwatch.com/marketwatch/realtimeheadlines/',
-            'Yahoo Finance': 'https://feeds.finance.yahoo.com/rss/2.0/headline',
-            'Seeking Alpha': 'https://seekingalpha.com/market_currents.xml',
+            'Reuters': 'https://feeds.reuters.com/reuters/businessNews'
+            'MarketWatch': 'https://feeds.marketwatch.com/marketwatch/realtimeheadlines/'
+            'Yahoo Finance': 'https://feeds.finance.yahoo.com/rss/2.0/headline'
+            'Seeking Alpha': 'https://seekingalpha.com/market_currents.xml'
             'Benzinga': 'https://www.benzinga.com/feed'
         }
         
         self.categories = {
-            'earnings': ['earnings', 'quarterly', 'revenue', 'profit', 'eps', 'guidance'],
-            'merger': ['merger', 'acquisition', 'takeover', 'buyout', 'deal', 'purchase'],
-            'regulatory': ['regulatory', 'sec', 'fda', 'government', 'policy', 'regulation'],
-            'analyst': ['analyst', 'rating', 'upgrade', 'downgrade', 'target', 'recommendation'],
-            'economic': ['economic', 'gdp', 'inflation', 'fed', 'interest', 'employment'],
-            'technology': ['technology', 'tech', 'software', 'hardware', 'ai', 'innovation'],
-            'healthcare': ['healthcare', 'pharma', 'drug', 'medical', 'biotech', 'clinical'],
-            'energy': ['energy', 'oil', 'gas', 'renewable', 'solar', 'petroleum'],
-            'finance': ['bank', 'financial', 'credit', 'loan', 'mortgage', 'banking'],
+            'earnings': ['earnings', 'quarterly', 'revenue', 'profit', 'eps', 'guidance']
+            'merger': ['merger', 'acquisition', 'takeover', 'buyout', 'deal', 'purchase']
+            'regulatory': ['regulatory', 'sec', 'fda', 'government', 'policy', 'regulation']
+            'analyst': ['analyst', 'rating', 'upgrade', 'downgrade', 'target', 'recommendation']
+            'economic': ['economic', 'gdp', 'inflation', 'fed', 'interest', 'employment']
+            'technology': ['technology', 'tech', 'software', 'hardware', 'ai', 'innovation']
+            'healthcare': ['healthcare', 'pharma', 'drug', 'medical', 'biotech', 'clinical']
+            'energy': ['energy', 'oil', 'gas', 'renewable', 'solar', 'petroleum']
+            'finance': ['bank', 'financial', 'credit', 'loan', 'mortgage', 'banking']
             'retail': ['retail', 'consumer', 'sales', 'store', 'shopping', 'ecommerce']
         }
 
@@ -159,17 +159,17 @@ class NewsCollector:
             content_hash = hashlib.md5(f"{title}{url}".encode()).hexdigest()[:16]
             
             return {
-                'id': content_hash,
-                'title': title,
-                'content': description,
-                'source': source,
-                'author': author,
-                'published_at': published_dt.isoformat(),
-                'url': url,
-                'category': self.categorize_news(full_text),
-                'symbol': self.extract_stock_symbol(full_text),
-                'keywords': self.extract_keywords(full_text),
-                'summary': description[:200] + '...' if len(description) > 200 else description,
+                'id': content_hash
+                'title': title
+                'content': description
+                'source': source
+                'author': author
+                'published_at': published_dt.isoformat()
+                'url': url
+                'category': self.categorize_news(full_text)
+                'symbol': self.extract_stock_symbol(full_text)
+                'keywords': self.extract_keywords(full_text)
+                'summary': description[:200] + '...' if len(description) > 200 else description
                 'full_text': full_text
             }
             
@@ -227,14 +227,14 @@ class NewsCollector:
 class SentimentAnalyzer:
     def __init__(self):
         self.positive_words = [
-            'growth', 'profit', 'gain', 'rise', 'surge', 'boost', 'strong', 'beat',
-            'exceed', 'outperform', 'upgrade', 'buy', 'bullish', 'positive', 'good',
+            'growth', 'profit', 'gain', 'rise', 'surge', 'boost', 'strong', 'beat'
+            'exceed', 'outperform', 'upgrade', 'buy', 'bullish', 'positive', 'good'
             'excellent', 'success', 'recovery', 'momentum', 'breakthrough'
         ]
         
         self.negative_words = [
-            'loss', 'decline', 'fall', 'drop', 'plunge', 'crash', 'weak', 'miss',
-            'underperform', 'downgrade', 'sell', 'bearish', 'negative', 'bad',
+            'loss', 'decline', 'fall', 'drop', 'plunge', 'crash', 'weak', 'miss'
+            'underperform', 'downgrade', 'sell', 'bearish', 'negative', 'bad'
             'terrible', 'concern', 'warning', 'risk', 'problem', 'struggle'
         ]
 
@@ -256,16 +256,16 @@ class SentimentAnalyzer:
             confidence = 1 - subjectivity
             
             return {
-                'score': polarity,
-                'label': label,
+                'score': polarity
+                'label': label
                 'confidence': confidence
             }
             
         except Exception as e:
             logging.error(f"Error in sentiment analysis: {e}")
             return {
-                'score': 0.0,
-                'label': 'neutral',
+                'score': 0.0
+                'label': 'neutral'
                 'confidence': 0.5
             }
 
@@ -274,8 +274,8 @@ class SentimentAnalyzer:
         score = 0.5
         
         category_weights = {
-            'earnings': 0.9, 'merger': 0.8, 'regulatory': 0.7, 'analyst': 0.6,
-            'economic': 0.8, 'technology': 0.6, 'healthcare': 0.7, 'energy': 0.6,
+            'earnings': 0.9, 'merger': 0.8, 'regulatory': 0.7, 'analyst': 0.6
+            'economic': 0.8, 'technology': 0.6, 'healthcare': 0.7, 'energy': 0.6
             'finance': 0.7, 'retail': 0.5
         }
         
@@ -296,8 +296,8 @@ class SentimentAnalyzer:
         score = 0.5
         
         category_relevance = {
-            'earnings': 0.9, 'analyst': 0.8, 'merger': 0.7, 'regulatory': 0.6,
-            'economic': 0.7, 'technology': 0.6, 'healthcare': 0.6, 'energy': 0.5,
+            'earnings': 0.9, 'analyst': 0.8, 'merger': 0.7, 'regulatory': 0.6
+            'economic': 0.7, 'technology': 0.6, 'healthcare': 0.6, 'energy': 0.5
             'finance': 0.6, 'retail': 0.5
         }
         
@@ -381,35 +381,35 @@ def load_news_data(symbols, cur, conn):
                         related_tickers = [ticker for ticker in news_item['relatedTickers'] if ticker]
                     
                     news_items.append((
-                        uuid,
-                        orig_sym,
-                        title,
-                        publisher,
-                        link,
-                        publish_datetime,
-                        news_type,
-                        thumbnail,
+                        uuid
+                        orig_sym
+                        title
+                        publisher
+                        link
+                        publish_datetime
+                        news_type
+                        thumbnail
                         json.dumps(related_tickers) if related_tickers else None
                     ))
                 
                 # Insert news items
                 if news_items:
                     execute_values(
-                        cur,
+                        cur
                         """
                         INSERT INTO stock_news (
-                            uuid, ticker, title, publisher, link, 
+                            uuid, ticker, title, publisher, link
                             publish_time, news_type, thumbnail, related_tickers
                         ) VALUES %s
                         ON CONFLICT (uuid) DO UPDATE SET
-                            title = EXCLUDED.title,
-                            publisher = EXCLUDED.publisher,
-                            link = EXCLUDED.link,
-                            publish_time = EXCLUDED.publish_time,
-                            news_type = EXCLUDED.news_type,
-                            thumbnail = EXCLUDED.thumbnail,
+                            title = EXCLUDED.title
+                            publisher = EXCLUDED.publisher
+                            link = EXCLUDED.link
+                            publish_time = EXCLUDED.publish_time
+                            news_type = EXCLUDED.news_type
+                            thumbnail = EXCLUDED.thumbnail
                             related_tickers = EXCLUDED.related_tickers
-                        """,
+                        """
                         news_items
                     )
                     
@@ -440,11 +440,11 @@ if __name__ == "__main__":
     # Connect to DB
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -455,16 +455,16 @@ if __name__ == "__main__":
     # Original stock_news table for yfinance data
     cur.execute("""
         CREATE TABLE IF NOT EXISTS stock_news (
-            id SERIAL PRIMARY KEY,
-            uuid VARCHAR(255) UNIQUE NOT NULL,
-            ticker VARCHAR(10) NOT NULL,
-            title TEXT NOT NULL,
-            publisher VARCHAR(255),
-            link TEXT,
-            publish_time TIMESTAMP,
-            news_type VARCHAR(100),
-            thumbnail TEXT,
-            related_tickers JSONB,
+            id SERIAL PRIMARY KEY
+            uuid VARCHAR(255) UNIQUE NOT NULL
+            ticker VARCHAR(10) NOT NULL
+            title TEXT NOT NULL
+            publisher VARCHAR(255)
+            link TEXT
+            publish_time TIMESTAMP
+            news_type VARCHAR(100)
+            thumbnail TEXT
+            related_tickers JSONB
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)
@@ -472,23 +472,23 @@ if __name__ == "__main__":
     # Enhanced news_articles table for RSS feeds and sentiment analysis
     cur.execute("""
         CREATE TABLE IF NOT EXISTS news_articles (
-            id VARCHAR(50) PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT,
-            source VARCHAR(100) NOT NULL,
-            author VARCHAR(100),
-            published_at TIMESTAMP WITH TIME ZONE NOT NULL,
-            url TEXT,
-            category VARCHAR(50),
-            symbol VARCHAR(10),
-            keywords TEXT[],
-            summary TEXT,
-            sentiment_score DECIMAL(3,2),
-            sentiment_label VARCHAR(20),
-            sentiment_confidence DECIMAL(3,2),
-            impact_score DECIMAL(3,2),
-            relevance_score DECIMAL(3,2),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            id VARCHAR(50) PRIMARY KEY
+            title TEXT NOT NULL
+            content TEXT
+            source VARCHAR(100) NOT NULL
+            author VARCHAR(100)
+            published_at TIMESTAMP WITH TIME ZONE NOT NULL
+            url TEXT
+            category VARCHAR(50)
+            symbol VARCHAR(10)
+            keywords TEXT[]
+            summary TEXT
+            sentiment_score DECIMAL(3,2)
+            sentiment_label VARCHAR(20)
+            sentiment_confidence DECIMAL(3,2)
+            impact_score DECIMAL(3,2)
+            relevance_score DECIMAL(3,2)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -536,53 +536,53 @@ if __name__ == "__main__":
                 
                 # Calculate scores
                 impact_score = sentiment_analyzer.calculate_impact_score(
-                    news_item['title'], 
-                    news_item['content'], 
-                    news_item['category'], 
+                    news_item['title']
+                    news_item['content']
+                    news_item['category']
                     news_item['symbol']
                 )
                 
                 relevance_score = sentiment_analyzer.calculate_relevance_score(
-                    news_item['title'], 
-                    news_item['content'], 
+                    news_item['title']
+                    news_item['content']
                     news_item['category']
                 )
                 
                 # Insert into news_articles table
                 cur.execute("""
                     INSERT INTO news_articles (
-                        id, title, content, source, author, published_at, url,
-                        category, symbol, keywords, summary, sentiment_score,
-                        sentiment_label, sentiment_confidence, impact_score,
+                        id, title, content, source, author, published_at, url
+                        category, symbol, keywords, summary, sentiment_score
+                        sentiment_label, sentiment_confidence, impact_score
                         relevance_score, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                     )
                     ON CONFLICT (id) DO UPDATE SET
-                        title = EXCLUDED.title,
-                        content = EXCLUDED.content,
-                        sentiment_score = EXCLUDED.sentiment_score,
-                        sentiment_label = EXCLUDED.sentiment_label,
-                        sentiment_confidence = EXCLUDED.sentiment_confidence,
-                        impact_score = EXCLUDED.impact_score,
-                        relevance_score = EXCLUDED.relevance_score,
+                        title = EXCLUDED.title
+                        content = EXCLUDED.content
+                        sentiment_score = EXCLUDED.sentiment_score
+                        sentiment_label = EXCLUDED.sentiment_label
+                        sentiment_confidence = EXCLUDED.sentiment_confidence
+                        impact_score = EXCLUDED.impact_score
+                        relevance_score = EXCLUDED.relevance_score
                         updated_at = CURRENT_TIMESTAMP
                 """, (
-                    news_item['id'],
-                    news_item['title'],
-                    news_item['content'],
-                    news_item['source'],
-                    news_item['author'],
-                    news_item['published_at'],
-                    news_item['url'],
-                    news_item['category'],
-                    news_item['symbol'],
-                    news_item['keywords'],
-                    news_item['summary'],
-                    sentiment['score'],
-                    sentiment['label'],
-                    sentiment['confidence'],
-                    impact_score,
+                    news_item['id']
+                    news_item['title']
+                    news_item['content']
+                    news_item['source']
+                    news_item['author']
+                    news_item['published_at']
+                    news_item['url']
+                    news_item['category']
+                    news_item['symbol']
+                    news_item['keywords']
+                    news_item['summary']
+                    sentiment['score']
+                    sentiment['label']
+                    sentiment['confidence']
+                    impact_score
                     relevance_score
                 ))
                 

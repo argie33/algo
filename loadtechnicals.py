@@ -50,8 +50,8 @@ except ImportError:
 # Script configuration
 SCRIPT_NAME = "loadtechnicals.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -68,18 +68,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -399,9 +399,9 @@ class TechnicalIndicatorCalculator:
             return None
         
         result = {
-            'symbol': self.symbol,
-            'date': self.data.index[-1].date() if hasattr(self.data.index[-1], 'date') else date.today(),
-            'price': safe_float(self.data['Close'].iloc[-1]),
+            'symbol': self.symbol
+            'date': self.data.index[-1].date() if hasattr(self.data.index[-1], 'date') else date.today()
+            'price': safe_float(self.data['Close'].iloc[-1])
             'volume': safe_float(self.data['Volume'].iloc[-1])
         }
         
@@ -477,64 +477,64 @@ def create_technical_indicators_table(cur, conn):
     
     create_sql = """
     CREATE TABLE IF NOT EXISTS technical_indicators (
-        symbol VARCHAR(20),
-        date DATE,
-        price DECIMAL(12,4),
-        volume BIGINT,
+        symbol VARCHAR(20)
+        date DATE
+        price DECIMAL(12,4)
+        volume BIGINT
         
         -- Moving Averages
-        sma_5 DECIMAL(12,4),
-        sma_10 DECIMAL(12,4),
-        sma_20 DECIMAL(12,4),
-        sma_50 DECIMAL(12,4),
-        sma_100 DECIMAL(12,4),
-        sma_200 DECIMAL(12,4),
-        ema_12 DECIMAL(12,4),
-        ema_26 DECIMAL(12,4),
-        ema_50 DECIMAL(12,4),
-        vwap DECIMAL(12,4),
+        sma_5 DECIMAL(12,4)
+        sma_10 DECIMAL(12,4)
+        sma_20 DECIMAL(12,4)
+        sma_50 DECIMAL(12,4)
+        sma_100 DECIMAL(12,4)
+        sma_200 DECIMAL(12,4)
+        ema_12 DECIMAL(12,4)
+        ema_26 DECIMAL(12,4)
+        ema_50 DECIMAL(12,4)
+        vwap DECIMAL(12,4)
         
         -- Price vs Moving Averages
-        price_vs_sma_20 DECIMAL(8,4),
-        price_vs_sma_50 DECIMAL(8,4),
-        price_vs_sma_200 DECIMAL(8,4),
-        price_vs_vwap DECIMAL(8,4),
+        price_vs_sma_20 DECIMAL(8,4)
+        price_vs_sma_50 DECIMAL(8,4)
+        price_vs_sma_200 DECIMAL(8,4)
+        price_vs_vwap DECIMAL(8,4)
         
         -- Momentum Indicators
-        rsi_14 DECIMAL(6,2),
-        macd DECIMAL(12,4),
-        macd_signal DECIMAL(12,4),
-        macd_histogram DECIMAL(12,4),
-        stoch_k DECIMAL(6,2),
-        stoch_d DECIMAL(6,2),
-        williams_r DECIMAL(6,2),
+        rsi_14 DECIMAL(6,2)
+        macd DECIMAL(12,4)
+        macd_signal DECIMAL(12,4)
+        macd_histogram DECIMAL(12,4)
+        stoch_k DECIMAL(6,2)
+        stoch_d DECIMAL(6,2)
+        williams_r DECIMAL(6,2)
         
         -- Volatility Indicators
-        bb_upper DECIMAL(12,4),
-        bb_middle DECIMAL(12,4),
-        bb_lower DECIMAL(12,4),
-        bb_position DECIMAL(6,4),
-        bb_width DECIMAL(6,4),
-        atr_14 DECIMAL(12,4),
-        atr_percent DECIMAL(6,4),
-        historical_volatility_20d DECIMAL(6,4),
+        bb_upper DECIMAL(12,4)
+        bb_middle DECIMAL(12,4)
+        bb_lower DECIMAL(12,4)
+        bb_position DECIMAL(6,4)
+        bb_width DECIMAL(6,4)
+        atr_14 DECIMAL(12,4)
+        atr_percent DECIMAL(6,4)
+        historical_volatility_20d DECIMAL(6,4)
         
         -- Volume Indicators
-        obv BIGINT,
-        volume_ma_20 BIGINT,
-        volume_ratio DECIMAL(6,2),
-        mfi_14 DECIMAL(6,2),
+        obv BIGINT
+        volume_ma_20 BIGINT
+        volume_ratio DECIMAL(6,2)
+        mfi_14 DECIMAL(6,2)
         
         -- Trend Indicators
-        adx_14 DECIMAL(6,2),
-        plus_di DECIMAL(6,2),
-        minus_di DECIMAL(6,2),
-        parabolic_sar DECIMAL(12,4),
-        sar_signal INTEGER,
-        cci_20 DECIMAL(8,2),
+        adx_14 DECIMAL(6,2)
+        plus_di DECIMAL(6,2)
+        minus_di DECIMAL(6,2)
+        parabolic_sar DECIMAL(12,4)
+        sar_signal INTEGER
+        cci_20 DECIMAL(8,2)
         
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -543,13 +543,13 @@ def create_technical_indicators_table(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_technical_symbol ON technical_indicators(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_date ON technical_indicators(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_rsi ON technical_indicators(rsi_14);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_macd ON technical_indicators(macd_histogram);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_bb_position ON technical_indicators(bb_position);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_volume_ratio ON technical_indicators(volume_ratio DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_technical_adx ON technical_indicators(adx_14 DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_technical_symbol ON technical_indicators(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_date ON technical_indicators(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_rsi ON technical_indicators(rsi_14);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_macd ON technical_indicators(macd_histogram);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_bb_position ON technical_indicators(bb_position);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_volume_ratio ON technical_indicators(volume_ratio DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_technical_adx ON technical_indicators(adx_14 DESC);"
         "CREATE INDEX IF NOT EXISTS idx_technical_sma_position ON technical_indicators(price_vs_sma_20);"
     ]
     
@@ -598,57 +598,57 @@ def load_technicals_batch(symbols: List[str], conn, cur, batch_size: int = 5) ->
                 insert_data = []
                 for item in technical_data:
                     insert_data.append((
-                        item['symbol'], item['date'], item.get('price'), item.get('volume'),
+                        item['symbol'], item['date'], item.get('price'), item.get('volume')
                         
                         # Moving averages
-                        item.get('sma_5'), item.get('sma_10'), item.get('sma_20'),
-                        item.get('sma_50'), item.get('sma_100'), item.get('sma_200'),
-                        item.get('ema_12'), item.get('ema_26'), item.get('ema_50'),
-                        item.get('vwap'),
+                        item.get('sma_5'), item.get('sma_10'), item.get('sma_20')
+                        item.get('sma_50'), item.get('sma_100'), item.get('sma_200')
+                        item.get('ema_12'), item.get('ema_26'), item.get('ema_50')
+                        item.get('vwap')
                         
                         # Price vs MAs
-                        item.get('price_vs_sma_20'), item.get('price_vs_sma_50'),
-                        item.get('price_vs_sma_200'), item.get('price_vs_vwap'),
+                        item.get('price_vs_sma_20'), item.get('price_vs_sma_50')
+                        item.get('price_vs_sma_200'), item.get('price_vs_vwap')
                         
                         # Momentum
-                        item.get('rsi_14'), item.get('macd'), item.get('macd_signal'),
-                        item.get('macd_histogram'), item.get('stoch_k'), item.get('stoch_d'),
-                        item.get('williams_r'),
+                        item.get('rsi_14'), item.get('macd'), item.get('macd_signal')
+                        item.get('macd_histogram'), item.get('stoch_k'), item.get('stoch_d')
+                        item.get('williams_r')
                         
                         # Volatility
-                        item.get('bb_upper'), item.get('bb_middle'), item.get('bb_lower'),
-                        item.get('bb_position'), item.get('bb_width'), item.get('atr_14'),
-                        item.get('atr_percent'), item.get('historical_volatility_20d'),
+                        item.get('bb_upper'), item.get('bb_middle'), item.get('bb_lower')
+                        item.get('bb_position'), item.get('bb_width'), item.get('atr_14')
+                        item.get('atr_percent'), item.get('historical_volatility_20d')
                         
                         # Volume
-                        item.get('obv'), item.get('volume_ma_20'), item.get('volume_ratio'),
-                        item.get('mfi_14'),
+                        item.get('obv'), item.get('volume_ma_20'), item.get('volume_ratio')
+                        item.get('mfi_14')
                         
                         # Trend
-                        item.get('adx_14'), item.get('plus_di'), item.get('minus_di'),
+                        item.get('adx_14'), item.get('plus_di'), item.get('minus_di')
                         item.get('parabolic_sar'), item.get('sar_signal'), item.get('cci_20')
                     ))
                 
                 insert_query = """
                     INSERT INTO technical_indicators (
-                        symbol, date, price, volume,
-                        sma_5, sma_10, sma_20, sma_50, sma_100, sma_200,
-                        ema_12, ema_26, ema_50, vwap,
-                        price_vs_sma_20, price_vs_sma_50, price_vs_sma_200, price_vs_vwap,
-                        rsi_14, macd, macd_signal, macd_histogram, stoch_k, stoch_d, williams_r,
-                        bb_upper, bb_middle, bb_lower, bb_position, bb_width, atr_14,
-                        atr_percent, historical_volatility_20d,
-                        obv, volume_ma_20, volume_ratio, mfi_14,
+                        symbol, date, price, volume
+                        sma_5, sma_10, sma_20, sma_50, sma_100, sma_200
+                        ema_12, ema_26, ema_50, vwap
+                        price_vs_sma_20, price_vs_sma_50, price_vs_sma_200, price_vs_vwap
+                        rsi_14, macd, macd_signal, macd_histogram, stoch_k, stoch_d, williams_r
+                        bb_upper, bb_middle, bb_lower, bb_position, bb_width, atr_14
+                        atr_percent, historical_volatility_20d
+                        obv, volume_ma_20, volume_ratio, mfi_14
                         adx_14, plus_di, minus_di, parabolic_sar, sar_signal, cci_20
                     ) VALUES %s
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        price = EXCLUDED.price,
-                        volume = EXCLUDED.volume,
-                        rsi_14 = EXCLUDED.rsi_14,
-                        macd_histogram = EXCLUDED.macd_histogram,
-                        bb_position = EXCLUDED.bb_position,
-                        volume_ratio = EXCLUDED.volume_ratio,
-                        adx_14 = EXCLUDED.adx_14,
+                        price = EXCLUDED.price
+                        volume = EXCLUDED.volume
+                        rsi_14 = EXCLUDED.rsi_14
+                        macd_histogram = EXCLUDED.macd_histogram
+                        bb_position = EXCLUDED.bb_position
+                        volume_ratio = EXCLUDED.volume_ratio
+                        adx_14 = EXCLUDED.adx_14
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -675,9 +675,9 @@ def load_technicals_batch(symbols: List[str], conn, cur, batch_size: int = 5) ->
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Load technical indicators for stocks')
-    parser.add_argument('--historical', action='store_true', 
+    parser.add_argument('--historical', action='store_true'
                        help='Load full historical technical indicators')
-    parser.add_argument('--incremental', action='store_true',
+    parser.add_argument('--incremental', action='store_true'
                        help='Load recent technical indicators only')
     args = parser.parse_args()
 
@@ -697,11 +697,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -745,8 +745,8 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT t.symbol, se.company_name,
-               t.price, t.rsi_14, t.macd_histogram, t.bb_position,
+        SELECT t.symbol, se.company_name
+               t.price, t.rsi_14, t.macd_histogram, t.bb_position
                t.volume_ratio, t.adx_14, t.price_vs_sma_20
         FROM technical_indicators t
         JOIN stock_symbols_enhanced se ON t.symbol = se.symbol

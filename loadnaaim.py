@@ -24,8 +24,8 @@ from bs4 import BeautifulSoup
 # -------------------------------
 SCRIPT_NAME = "loadnaaim.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -67,10 +67,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -88,13 +88,13 @@ def get_naaim_data():
     headers = {
         "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36"),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
+                       "Chrome/115.0.0.0 Safari/537.36")
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        "Accept-Language": "en-US,en;q=0.9"
         "Accept-Encoding": "identity",  # Request uncompressed content
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+        "Upgrade-Insecure-Requests": "1"
+        "Cache-Control": "no-cache"
         "Pragma": "no-cache"
     }
     
@@ -245,13 +245,13 @@ def load_naaim_data(cur, conn):
         for _, row in df.iterrows():
             try:
                 rows.append([
-                    row['Date'],
-                    None if pd.isna(row['NAAIM Number Mean/Average']) else float(row['NAAIM Number Mean/Average']),
-                    None if pd.isna(row['Bearish']) else float(row['Bearish']),
-                    None if pd.isna(row['Quart1']) else float(row['Quart1']),
-                    None if pd.isna(row['Quart2']) else float(row['Quart2']),
-                    None if pd.isna(row['Quart3']) else float(row['Quart3']),
-                    None if pd.isna(row['Bullish']) else float(row['Bullish']),
+                    row['Date']
+                    None if pd.isna(row['NAAIM Number Mean/Average']) else float(row['NAAIM Number Mean/Average'])
+                    None if pd.isna(row['Bearish']) else float(row['Bearish'])
+                    None if pd.isna(row['Quart1']) else float(row['Quart1'])
+                    None if pd.isna(row['Quart2']) else float(row['Quart2'])
+                    None if pd.isna(row['Quart3']) else float(row['Quart3'])
+                    None if pd.isna(row['Bullish']) else float(row['Bullish'])
                     None if pd.isna(row['Deviation']) else float(row['Deviation'])
                 ])
             except Exception as e:
@@ -291,13 +291,13 @@ def main():
     
     # Use proven connection pattern from working loaders
     ssl_config = {
-        'host': cfg["host"],
-        'port': cfg["port"],
-        'user': cfg["user"],
-        'password': cfg["password"],
-        'dbname': cfg["dbname"],
-        'sslmode': 'require',
-        'connect_timeout': 30,
+        'host': cfg["host"]
+        'port': cfg["port"]
+        'user': cfg["user"]
+        'password': cfg["password"]
+        'dbname': cfg["dbname"]
+        'sslmode': 'require'
+        'connect_timeout': 30
         'application_name': 'naaim-data-loader'
     }
     
@@ -311,15 +311,15 @@ def main():
     cur.execute("DROP TABLE IF EXISTS naaim;")
     cur.execute("""
         CREATE TABLE naaim (
-            id                  SERIAL PRIMARY KEY,
-            date                DATE         NOT NULL UNIQUE,
-            naaim_number_mean   DOUBLE PRECISION,
-            bearish             DOUBLE PRECISION,
-            quart1              DOUBLE PRECISION,
-            quart2              DOUBLE PRECISION,
-            quart3              DOUBLE PRECISION,
-            bullish             DOUBLE PRECISION,
-            deviation           DOUBLE PRECISION,
+            id                  SERIAL PRIMARY KEY
+            date                DATE         NOT NULL UNIQUE
+            naaim_number_mean   DOUBLE PRECISION
+            bearish             DOUBLE PRECISION
+            quart1              DOUBLE PRECISION
+            quart2              DOUBLE PRECISION
+            quart3              DOUBLE PRECISION
+            bullish             DOUBLE PRECISION
+            deviation           DOUBLE PRECISION
             fetched_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -327,7 +327,7 @@ def main():
     # Ensure last_updated table exists
     cur.execute("""
         CREATE TABLE IF NOT EXISTS last_updated (
-            script_name VARCHAR(100) PRIMARY KEY,
+            script_name VARCHAR(100) PRIMARY KEY
             last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)

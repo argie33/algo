@@ -30,8 +30,8 @@ class OptimizedPriceDailyLoader:
     def __init__(self):
         """Initialize the optimized price daily loader."""
         self.loader = DataLoaderOptimizer(
-            loader_name="price_daily_optimized",
-            table_name="price_daily",
+            loader_name="price_daily_optimized"
+            table_name="price_daily"
             batch_size=1500  # Optimized batch size for price data
         )
         
@@ -52,14 +52,14 @@ class OptimizedPriceDailyLoader:
         
         # Create enhanced data validator
         self.data_validator = create_data_validator(
-            required_fields=['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'],
+            required_fields=['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']
             field_validators={
-                'symbol': self._validate_symbol,
-                'date': self._validate_date,
-                'open': self._validate_price,
-                'high': self._validate_price,
-                'low': self._validate_price,
-                'close': self._validate_price,
+                'symbol': self._validate_symbol
+                'date': self._validate_date
+                'open': self._validate_price
+                'high': self._validate_price
+                'low': self._validate_price
+                'close': self._validate_price
                 'volume': self._validate_volume
             }
         )
@@ -157,14 +157,14 @@ class OptimizedPriceDailyLoader:
                 logger.info(f"🔽 Downloading data for {len(yf_symbols)} symbols (attempt {attempt}/{self.download_retry_count})")
                 
                 df = yf.download(
-                    tickers=yf_symbols,
-                    period="max",
-                    interval="1d",
-                    group_by="ticker",
-                    auto_adjust=True,
-                    actions=True,
-                    threads=True,
-                    progress=False,
+                    tickers=yf_symbols
+                    period="max"
+                    interval="1d"
+                    group_by="ticker"
+                    auto_adjust=True
+                    actions=True
+                    threads=True
+                    progress=False
                     timeout=self.download_timeout
                 )
                 
@@ -229,15 +229,15 @@ class OptimizedPriceDailyLoader:
                     continue
                 
                 yield {
-                    'symbol': symbol,
-                    'date': date_index.date(),
-                    'open': open_price,
-                    'high': high_price,
-                    'low': low_price,
-                    'close': close_price,
-                    'adj_close': adj_close,
-                    'volume': volume,
-                    'dividends': dividends,
+                    'symbol': symbol
+                    'date': date_index.date()
+                    'open': open_price
+                    'high': high_price
+                    'low': low_price
+                    'close': close_price
+                    'adj_close': adj_close
+                    'volume': volume
+                    'dividends': dividends
                     'stock_splits': stock_splits
                 }
                 
@@ -350,15 +350,15 @@ class OptimizedPriceDailyLoader:
     def validate_table_schema(self) -> bool:
         """Validate that the price_daily table has the required schema."""
         required_columns = [
-            {'name': 'symbol', 'type': 'varchar'},
-            {'name': 'date', 'type': 'date'},
-            {'name': 'open', 'type': 'double precision'},
-            {'name': 'high', 'type': 'double precision'},
-            {'name': 'low', 'type': 'double precision'},
-            {'name': 'close', 'type': 'double precision'},
-            {'name': 'adj_close', 'type': 'double precision'},
-            {'name': 'volume', 'type': 'bigint'},
-            {'name': 'dividends', 'type': 'double precision'},
+            {'name': 'symbol', 'type': 'varchar'}
+            {'name': 'date', 'type': 'date'}
+            {'name': 'open', 'type': 'double precision'}
+            {'name': 'high', 'type': 'double precision'}
+            {'name': 'low', 'type': 'double precision'}
+            {'name': 'close', 'type': 'double precision'}
+            {'name': 'adj_close', 'type': 'double precision'}
+            {'name': 'volume', 'type': 'bigint'}
+            {'name': 'dividends', 'type': 'double precision'}
             {'name': 'stock_splits', 'type': 'double precision'}
         ]
         
@@ -372,7 +372,7 @@ class OptimizedPriceDailyLoader:
             Processing results and metrics
         """
         log_data_loader_start(
-            "OptimizedPriceDailyLoader",
+            "OptimizedPriceDailyLoader"
             "Load daily price data (OHLCV) for all stock symbols with enhanced optimization"
         )
         
@@ -385,8 +385,8 @@ class OptimizedPriceDailyLoader:
             
             # Process data with optimization
             result = self.loader.process_data_with_validation(
-                data_source_func=self.price_data_source,
-                data_validator_func=self.data_validator,
+                data_source_func=self.price_data_source
+                data_validator_func=self.data_validator
                 conflict_columns=['symbol', 'date'],  # Unique constraint on symbol + date
                 update_columns=['open', 'high', 'low', 'close', 'adj_close', 'volume', 'dividends', 'stock_splits']
             )
@@ -405,8 +405,8 @@ class OptimizedPriceDailyLoader:
                 logger.info(f"   💾 Peak Memory: {self._get_memory_usage_mb():.1f} MB")
             
             log_data_loader_end(
-                "OptimizedPriceDailyLoader",
-                result['success'],
+                "OptimizedPriceDailyLoader"
+                result['success']
                 result.get('metrics')
             )
             

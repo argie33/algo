@@ -19,9 +19,14 @@ let configLoadPromise = null;
 let verifier = null;
 let verifierPromise = null;
 
-// Development authentication settings
-const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
-const allowDevBypass = process.env.ALLOW_DEV_AUTH_BYPASS === 'true' || isDevelopment;
+// Development authentication settings - check dynamically for tests
+function isDevelopment() {
+  return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
+}
+
+function allowDevBypass() {
+  return process.env.ALLOW_DEV_AUTH_BYPASS === 'true' || isDevelopment();
+}
 
 /**
  * Load Cognito configuration from Secrets Manager or environment
@@ -162,7 +167,7 @@ function validateDevToken(token) {
 const authenticateToken = async (req, res, next) => {
   const startTime = Date.now();
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();
-  const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
   const userAgent = req.headers['user-agent'] || 'unknown';
   
   try {
@@ -176,7 +181,7 @@ const authenticateToken = async (req, res, next) => {
     
     // If no token provided, check if we're in development mode
     if (!token) {
-      if (allowDevBypass) {
+      if (allowDevBypass()) {
         console.log(`🔧 [${requestId}] No token provided, using development bypass`);
         
         // Create development user
@@ -214,7 +219,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Try to validate as development token first (if allowed)
-    if (allowDevBypass) {
+    if (allowDevBypass()) {
       const devValidation = validateDevToken(token);
       if (devValidation.valid) {
         console.log(`🔧 [${requestId}] Valid development token detected`);
@@ -247,7 +252,7 @@ const authenticateToken = async (req, res, next) => {
 
     if (!jwtVerifier) {
       // No Cognito verifier available
-      if (allowDevBypass) {
+      if (allowDevBypass()) {
         console.log(`🔧 [${requestId}] Cognito not available, allowing development access`);
         
         // Create development user even with invalid token
@@ -272,15 +277,7 @@ const authenticateToken = async (req, res, next) => {
         return next();
       } else {
         console.error(`❌ [${requestId}] Cognito verifier not available and development bypass disabled`);
-        return res.status(503).json({
-          error: 'Authentication service unavailable',
-          message: 'Unable to verify authentication tokens. Please check Cognito configuration.',
-          details: {
-            requestId,
-            cognitoConfigured: false,
-            developmentMode: isDevelopment
-          }
-        });
+        throw new Error('Authentication service unavailable - Cognito verifier not configured');
       }
     }
 
@@ -367,7 +364,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Development fallback for authentication errors
-    if (allowDevBypass) {
+    if (allowDevBypass()) {
       console.warn(`🔧 [${requestId}] Authentication failed, using development fallback`);
       
       req.user = {
@@ -448,11 +445,29 @@ const optionalAuth = async (req, res, next) => {
       return next();
     }
 
+    // Create a mock next function to capture auth results
+    let authSucceeded = false;
+    const mockNext = (error) => {
+      if (!error) {
+        authSucceeded = true;
+      }
+    };
+
     // Try to authenticate, but don't fail if it doesn't work
-    await authenticateToken(req, res, next);
+    await authenticateToken(req, res, mockNext);
+    
+    // Only continue if auth succeeded, otherwise silently continue without user
+    if (!authSucceeded) {
+      // Remove any user object that might have been set
+      delete req.user;
+    }
+    
+    next();
   } catch (error) {
     // Silently continue without authentication
     console.log('Optional auth failed:', error.message);
+    // Ensure no user object is set
+    delete req.user;
     next();
   }
 };
@@ -462,6 +477,16 @@ const optionalAuth = async (req, res, next) => {
  */
 const generateTestToken = (userId = 'test-user', email = 'test@example.com') => {
   return generateDevToken(userId, email);
+};
+
+/**
+ * Clear cached configuration (for testing)
+ */
+const clearConfigCache = () => {
+  cognitoConfig = null;
+  configLoadPromise = null;
+  verifier = null;
+  verifierPromise = null;
 };
 
 /**
@@ -477,8 +502,8 @@ const getAuthStatus = async (req, res) => {
       configuration: {
         cognitoConfigured: !!cognitoConfig,
         verifierAvailable: !!verifier,
-        developmentMode: isDevelopment,
-        developmentBypassAllowed: allowDevBypass
+        developmentMode: isDevelopment(),
+        developmentBypassAllowed: allowDevBypass()
       },
       cognito: cognitoConfig ? {
         userPoolId: cognitoConfig.userPoolId,
@@ -496,11 +521,16 @@ const getAuthStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    try {
+      res.status(500).json({
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    } catch (responseError) {
+      // If even the error response fails, log it
+      console.error('Failed to send error response:', responseError);
+    }
   }
 };
 
@@ -511,5 +541,6 @@ module.exports = {
   generateTestToken,
   getAuthStatus,
   loadCognitoConfig,
-  getVerifier
+  getVerifier,
+  clearConfigCache
 };

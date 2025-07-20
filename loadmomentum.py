@@ -38,8 +38,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Script configuration
 SCRIPT_NAME = "loadmomentum.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -56,18 +56,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -105,8 +105,8 @@ class MomentumCalculator:
             current_price = hist['Close'].iloc[-1]
             
             result = {
-                'symbol': self.symbol,
-                'date': latest_date.date() if hasattr(latest_date, 'date') else date.today(),
+                'symbol': self.symbol
+                'date': latest_date.date() if hasattr(latest_date, 'date') else date.today()
                 'current_price': safe_float(current_price)
             }
             
@@ -395,7 +395,7 @@ class MomentumCalculator:
     def get_fundamental_momentum(self) -> Optional[Dict]:
         """Get fundamental momentum based on earnings revisions and estimates"""
         result = {
-            'symbol': self.symbol,
+            'symbol': self.symbol
             'date': date.today()
         }
         
@@ -508,58 +508,58 @@ def create_momentum_metrics_table(cur, conn):
     
     create_sql = """
     CREATE TABLE IF NOT EXISTS momentum_metrics (
-        symbol VARCHAR(20),
-        date DATE,
-        current_price DECIMAL(12,4),
+        symbol VARCHAR(20)
+        date DATE
+        current_price DECIMAL(12,4)
         
         -- Jegadeesh-Titman Momentum (Academic Standard)
-        jt_momentum_12_1 DECIMAL(8,6),
-        jt_momentum_sharpe DECIMAL(8,4),
-        jt_momentum_volatility DECIMAL(8,4),
+        jt_momentum_12_1 DECIMAL(8,6)
+        jt_momentum_sharpe DECIMAL(8,4)
+        jt_momentum_volatility DECIMAL(8,4)
         
         -- Alternative Momentum Horizons
-        momentum_6_1 DECIMAL(8,6),
-        momentum_9_1 DECIMAL(8,6),
-        momentum_3_1 DECIMAL(8,6),
-        momentum_12_3 DECIMAL(8,6),
+        momentum_6_1 DECIMAL(8,6)
+        momentum_9_1 DECIMAL(8,6)
+        momentum_3_1 DECIMAL(8,6)
+        momentum_12_3 DECIMAL(8,6)
         
         -- Risk-Adjusted Momentum
-        risk_adjusted_momentum DECIMAL(8,4),
-        sortino_momentum DECIMAL(8,4),
+        risk_adjusted_momentum DECIMAL(8,4)
+        sortino_momentum DECIMAL(8,4)
         
         -- Short to Medium Term Momentum
-        momentum_1w DECIMAL(8,6),
-        momentum_1m DECIMAL(8,6),
-        momentum_3m DECIMAL(8,6),
-        momentum_6m DECIMAL(8,6),
+        momentum_1w DECIMAL(8,6)
+        momentum_1m DECIMAL(8,6)
+        momentum_3m DECIMAL(8,6)
+        momentum_6m DECIMAL(8,6)
         
         -- Momentum Quality Metrics
-        momentum_persistence DECIMAL(6,4),
-        momentum_consistency DECIMAL(8,4),
-        momentum_max_drawdown DECIMAL(8,6),
-        momentum_recovery_factor DECIMAL(8,4),
-        momentum_skewness DECIMAL(8,4),
-        momentum_kurtosis DECIMAL(8,4),
-        momentum_strength DECIMAL(6,4),
-        momentum_smoothness DECIMAL(6,4),
-        momentum_acceleration DECIMAL(8,6),
+        momentum_persistence DECIMAL(6,4)
+        momentum_consistency DECIMAL(8,4)
+        momentum_max_drawdown DECIMAL(8,6)
+        momentum_recovery_factor DECIMAL(8,4)
+        momentum_skewness DECIMAL(8,4)
+        momentum_kurtosis DECIMAL(8,4)
+        momentum_strength DECIMAL(6,4)
+        momentum_smoothness DECIMAL(6,4)
+        momentum_acceleration DECIMAL(8,6)
         
         -- Volume-Based Momentum
-        volume_weighted_momentum DECIMAL(8,6),
-        obv_momentum DECIMAL(8,6),
-        volume_trend DECIMAL(8,6),
-        volume_price_correlation DECIMAL(6,4),
+        volume_weighted_momentum DECIMAL(8,6)
+        obv_momentum DECIMAL(8,6)
+        volume_trend DECIMAL(8,6)
+        volume_price_correlation DECIMAL(6,4)
         
         -- Fundamental Momentum
-        expected_eps_growth DECIMAL(8,6),
-        recommendation_momentum DECIMAL(6,4),
-        price_target_momentum DECIMAL(8,6),
-        price_target_dispersion DECIMAL(8,6),
-        earnings_momentum_qoq DECIMAL(8,6),
-        earnings_acceleration DECIMAL(8,6),
+        expected_eps_growth DECIMAL(8,6)
+        recommendation_momentum DECIMAL(6,4)
+        price_target_momentum DECIMAL(8,6)
+        price_target_dispersion DECIMAL(8,6)
+        earnings_momentum_qoq DECIMAL(8,6)
+        earnings_acceleration DECIMAL(8,6)
         
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -568,13 +568,13 @@ def create_momentum_metrics_table(cur, conn):
     
     # Create indexes for performance
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_momentum_symbol ON momentum_metrics(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_date ON momentum_metrics(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_jt_12_1 ON momentum_metrics(jt_momentum_12_1 DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_risk_adj ON momentum_metrics(risk_adjusted_momentum DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_persistence ON momentum_metrics(momentum_persistence DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_volume ON momentum_metrics(volume_weighted_momentum DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_momentum_fundamental ON momentum_metrics(earnings_acceleration DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_momentum_symbol ON momentum_metrics(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_date ON momentum_metrics(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_jt_12_1 ON momentum_metrics(jt_momentum_12_1 DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_risk_adj ON momentum_metrics(risk_adjusted_momentum DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_persistence ON momentum_metrics(momentum_persistence DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_volume ON momentum_metrics(volume_weighted_momentum DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_momentum_fundamental ON momentum_metrics(earnings_acceleration DESC);"
         "CREATE INDEX IF NOT EXISTS idx_momentum_quality ON momentum_metrics(momentum_strength DESC);"
     ]
     
@@ -623,61 +623,61 @@ def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 5) -> T
                 insert_data = []
                 for item in momentum_data:
                     insert_data.append((
-                        item['symbol'], item['date'], item.get('current_price'),
+                        item['symbol'], item['date'], item.get('current_price')
                         
                         # Jegadeesh-Titman momentum
-                        item.get('jt_momentum_12_1'), item.get('jt_momentum_sharpe'), 
-                        item.get('jt_momentum_volatility'),
+                        item.get('jt_momentum_12_1'), item.get('jt_momentum_sharpe')
+                        item.get('jt_momentum_volatility')
                         
                         # Alternative horizons
-                        item.get('momentum_6_1'), item.get('momentum_9_1'),
-                        item.get('momentum_3_1'), item.get('momentum_12_3'),
+                        item.get('momentum_6_1'), item.get('momentum_9_1')
+                        item.get('momentum_3_1'), item.get('momentum_12_3')
                         
                         # Risk-adjusted
-                        item.get('risk_adjusted_momentum'), item.get('sortino_momentum'),
+                        item.get('risk_adjusted_momentum'), item.get('sortino_momentum')
                         
                         # Short to medium term
-                        item.get('momentum_1w'), item.get('momentum_1m'),
-                        item.get('momentum_3m'), item.get('momentum_6m'),
+                        item.get('momentum_1w'), item.get('momentum_1m')
+                        item.get('momentum_3m'), item.get('momentum_6m')
                         
                         # Quality metrics
-                        item.get('momentum_persistence'), item.get('momentum_consistency'),
-                        item.get('momentum_max_drawdown'), item.get('momentum_recovery_factor'),
-                        item.get('momentum_skewness'), item.get('momentum_kurtosis'),
-                        item.get('momentum_strength'), item.get('momentum_smoothness'),
-                        item.get('momentum_acceleration'),
+                        item.get('momentum_persistence'), item.get('momentum_consistency')
+                        item.get('momentum_max_drawdown'), item.get('momentum_recovery_factor')
+                        item.get('momentum_skewness'), item.get('momentum_kurtosis')
+                        item.get('momentum_strength'), item.get('momentum_smoothness')
+                        item.get('momentum_acceleration')
                         
                         # Volume-based
-                        item.get('volume_weighted_momentum'), item.get('obv_momentum'),
-                        item.get('volume_trend'), item.get('volume_price_correlation'),
+                        item.get('volume_weighted_momentum'), item.get('obv_momentum')
+                        item.get('volume_trend'), item.get('volume_price_correlation')
                         
                         # Fundamental
-                        item.get('expected_eps_growth'), item.get('recommendation_momentum'),
-                        item.get('price_target_momentum'), item.get('price_target_dispersion'),
+                        item.get('expected_eps_growth'), item.get('recommendation_momentum')
+                        item.get('price_target_momentum'), item.get('price_target_dispersion')
                         item.get('earnings_momentum_qoq'), item.get('earnings_acceleration')
                     ))
                 
                 insert_query = """
                     INSERT INTO momentum_metrics (
-                        symbol, date, current_price,
-                        jt_momentum_12_1, jt_momentum_sharpe, jt_momentum_volatility,
-                        momentum_6_1, momentum_9_1, momentum_3_1, momentum_12_3,
-                        risk_adjusted_momentum, sortino_momentum,
-                        momentum_1w, momentum_1m, momentum_3m, momentum_6m,
-                        momentum_persistence, momentum_consistency, momentum_max_drawdown,
-                        momentum_recovery_factor, momentum_skewness, momentum_kurtosis,
-                        momentum_strength, momentum_smoothness, momentum_acceleration,
-                        volume_weighted_momentum, obv_momentum, volume_trend, volume_price_correlation,
-                        expected_eps_growth, recommendation_momentum, price_target_momentum,
+                        symbol, date, current_price
+                        jt_momentum_12_1, jt_momentum_sharpe, jt_momentum_volatility
+                        momentum_6_1, momentum_9_1, momentum_3_1, momentum_12_3
+                        risk_adjusted_momentum, sortino_momentum
+                        momentum_1w, momentum_1m, momentum_3m, momentum_6m
+                        momentum_persistence, momentum_consistency, momentum_max_drawdown
+                        momentum_recovery_factor, momentum_skewness, momentum_kurtosis
+                        momentum_strength, momentum_smoothness, momentum_acceleration
+                        volume_weighted_momentum, obv_momentum, volume_trend, volume_price_correlation
+                        expected_eps_growth, recommendation_momentum, price_target_momentum
                         price_target_dispersion, earnings_momentum_qoq, earnings_acceleration
                     ) VALUES %s
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        current_price = EXCLUDED.current_price,
-                        jt_momentum_12_1 = EXCLUDED.jt_momentum_12_1,
-                        risk_adjusted_momentum = EXCLUDED.risk_adjusted_momentum,
-                        momentum_persistence = EXCLUDED.momentum_persistence,
-                        volume_weighted_momentum = EXCLUDED.volume_weighted_momentum,
-                        earnings_acceleration = EXCLUDED.earnings_acceleration,
+                        current_price = EXCLUDED.current_price
+                        jt_momentum_12_1 = EXCLUDED.jt_momentum_12_1
+                        risk_adjusted_momentum = EXCLUDED.risk_adjusted_momentum
+                        momentum_persistence = EXCLUDED.momentum_persistence
+                        volume_weighted_momentum = EXCLUDED.volume_weighted_momentum
+                        earnings_acceleration = EXCLUDED.earnings_acceleration
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -707,11 +707,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -755,9 +755,9 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT m.symbol, se.company_name,
-               m.jt_momentum_12_1, m.risk_adjusted_momentum, m.momentum_persistence,
-               m.volume_weighted_momentum, m.earnings_acceleration,
+        SELECT m.symbol, se.company_name
+               m.jt_momentum_12_1, m.risk_adjusted_momentum, m.momentum_persistence
+               m.volume_weighted_momentum, m.earnings_acceleration
                m.momentum_strength, m.price_target_momentum
         FROM momentum_metrics m
         JOIN stock_symbols_enhanced se ON m.symbol = se.symbol

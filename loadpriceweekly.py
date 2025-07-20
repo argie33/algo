@@ -22,8 +22,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadpriceweekly.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -49,7 +49,7 @@ RETRY_DELAY         = 0.2   # seconds between download retries
 # Price-weekly columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close",
+    "date","open","high","low","close"
     "adj_close","volume","dividends","stock_splits"
 ]
 COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
@@ -62,10 +62,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -90,10 +90,10 @@ def load_prices(table_name, symbols, cur, conn):
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
                 df = yf.download(
-                    tickers=yq_batch,
-                    period="max",
-                    interval="1wk",
-                    group_by="ticker",
+                    tickers=yq_batch
+                    period="max"
+                    interval="1wk"
+                    group_by="ticker"
                     auto_adjust=True,    # preserved
                     actions=True,        # preserved
                     threads=True,        # preserved
@@ -132,15 +132,15 @@ def load_prices(table_name, symbols, cur, conn):
                 rows = []
                 for idx, row in sub.iterrows():
                     rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["Open"])      else float(row["Open"]),
-                        None if math.isnan(row["High"])      else float(row["High"]),
-                        None if math.isnan(row["Low"])       else float(row["Low"]),
-                        None if math.isnan(row["Close"])     else float(row["Close"]),
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
+                        orig_sym
+                        idx.date()
+                        None if math.isnan(row["Open"])      else float(row["Open"])
+                        None if math.isnan(row["High"])      else float(row["High"])
+                        None if math.isnan(row["Low"])       else float(row["Low"])
+                        None if math.isnan(row["Close"])     else float(row["Close"])
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"]))
+                        None if math.isnan(row["Volume"])    else int(row["Volume"])
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"])
                         0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ])
 
@@ -175,12 +175,12 @@ if __name__ == "__main__":
         # Connect to DB with timeout
         cfg  = get_db_config()
         conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"],
+            host=cfg["host"], port=cfg["port"]
+            user=cfg["user"], password=cfg["password"]
+            dbname=cfg["dbname"]
             connect_timeout=30
-        ,
-            sslmode="require"
+        
+            
     )
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -190,17 +190,17 @@ if __name__ == "__main__":
     cur.execute("DROP TABLE IF EXISTS price_weekly;")
     cur.execute("""
         CREATE TABLE price_weekly (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
+            id           SERIAL PRIMARY KEY
+            symbol       VARCHAR(10) NOT NULL
+            date         DATE         NOT NULL
+            open         DOUBLE PRECISION
+            high         DOUBLE PRECISION
+            low          DOUBLE PRECISION
+            close        DOUBLE PRECISION
+            adj_close    DOUBLE PRECISION
+            volume       BIGINT
+            dividends    DOUBLE PRECISION
+            stock_splits DOUBLE PRECISION
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -209,17 +209,17 @@ if __name__ == "__main__":
     cur.execute("DROP TABLE IF EXISTS etf_price_weekly;")
     cur.execute("""
         CREATE TABLE etf_price_weekly (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
+            id           SERIAL PRIMARY KEY
+            symbol       VARCHAR(10) NOT NULL
+            date         DATE         NOT NULL
+            open         DOUBLE PRECISION
+            high         DOUBLE PRECISION
+            low          DOUBLE PRECISION
+            close        DOUBLE PRECISION
+            adj_close    DOUBLE PRECISION
+            volume       BIGINT
+            dividends    DOUBLE PRECISION
+            stock_splits DOUBLE PRECISION
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)

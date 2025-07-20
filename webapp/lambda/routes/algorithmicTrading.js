@@ -16,38 +16,28 @@ router.post('/indicators', async (req, res) => {
     const { data, indicators = ['RSI', 'MACD', 'BOLLINGER_BANDS'] } = req.body;
     
     if (!data || !Array.isArray(data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data',
-        message: 'Array of historical price data required'
+      return res.badRequest('Array of historical price data required', {
+        error: 'Invalid data'
       });
     }
     
     if (data.length < 50) {
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient data',
-        message: 'At least 50 data points required for technical analysis'
+      return res.badRequest('At least 50 data points required for technical analysis', {
+        error: 'Insufficient data'
       });
     }
     
     const results = technicalAnalysis.calculateIndicators(data, indicators);
     
-    res.json({
-      success: true,
-      data: results,
+    res.success(results, {
       count: data.length,
-      indicators: indicators,
-      timestamp: new Date().toISOString()
+      indicators: indicators
     });
     
   } catch (error) {
     console.error('Technical indicators calculation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to calculate technical indicators',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to calculate technical indicators', {
+      errorDetails: error.message
     });
   }
 });
@@ -58,28 +48,19 @@ router.post('/signal', async (req, res) => {
     const { data, indicators = ['RSI', 'MACD', 'BOLLINGER_BANDS'] } = req.body;
     
     if (!data || !Array.isArray(data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data',
-        message: 'Array of historical price data required'
+      return res.badRequest('Array of historical price data required', {
+        error: 'Invalid data'
       });
     }
     
     const signal = technicalAnalysis.generateTradingSignal(data, indicators);
     
-    res.json({
-      success: true,
-      data: signal,
-      timestamp: new Date().toISOString()
-    });
+    res.success(signal);
     
   } catch (error) {
     console.error('Trading signal generation failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate trading signal',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to generate trading signal', {
+      errorDetails: error.message
     });
   }
 });
@@ -94,18 +75,14 @@ router.post('/backtest', async (req, res) => {
     } = req.body;
     
     if (!data || !Array.isArray(data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data',
-        message: 'Array of historical price data required'
+      return res.badRequest('Array of historical price data required', {
+        error: 'Invalid data'
       });
     }
     
     if (data.length < 100) {
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient data',
-        message: 'At least 100 data points required for backtesting'
+      return res.badRequest('At least 100 data points required for backtesting', {
+        error: 'Insufficient data'
       });
     }
     
@@ -114,10 +91,8 @@ router.post('/backtest', async (req, res) => {
     const validStrategy = availableStrategies.find(s => s.id === strategy);
     
     if (!validStrategy) {
-      return res.status(400).json({
-        success: false,
+      return res.badRequest(`Available strategies: ${availableStrategies.map(s => s.id).join(', ')}`, {
         error: 'Invalid strategy',
-        message: `Available strategies: ${availableStrategies.map(s => s.id).join(', ')}`,
         availableStrategies
       });
     }
@@ -136,19 +111,12 @@ router.post('/backtest', async (req, res) => {
     
     const results = await backtesting.runBacktest(data, strategy, backtestOptions);
     
-    res.json({
-      success: true,
-      data: results,
-      timestamp: new Date().toISOString()
-    });
+    res.success(results);
     
   } catch (error) {
     console.error('Backtesting failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to run backtest',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to run backtest', {
+      errorDetails: error.message
     });
   }
 });
@@ -158,20 +126,14 @@ router.get('/strategies', async (req, res) => {
   try {
     const strategies = backtesting.getAvailableStrategies();
     
-    res.json({
-      success: true,
-      data: strategies,
-      count: strategies.length,
-      timestamp: new Date().toISOString()
+    res.success(strategies, {
+      count: strategies.length
     });
     
   } catch (error) {
     console.error('Failed to get strategies:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get available strategies',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to get available strategies', {
+      errorDetails: error.message
     });
   }
 });
@@ -231,20 +193,14 @@ router.get('/indicators', async (req, res) => {
       }
     ];
     
-    res.json({
-      success: true,
-      data: indicators,
-      count: indicators.length,
-      timestamp: new Date().toISOString()
+    res.success(indicators, {
+      count: indicators.length
     });
     
   } catch (error) {
     console.error('Failed to get indicators:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get available indicators',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to get available indicators', {
+      errorDetails: error.message
     });
   }
 });
@@ -256,38 +212,28 @@ router.post('/indicator/:indicatorId', async (req, res) => {
     const { data, parameters = {} } = req.body;
     
     if (!data || !Array.isArray(data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data',
-        message: 'Array of historical price data required'
+      return res.badRequest('Array of historical price data required', {
+        error: 'Invalid data'
       });
     }
     
     const result = technicalAnalysis.calculateIndicators(data, [indicatorId.toUpperCase()]);
     
     if (result[indicatorId.toUpperCase()]?.error) {
-      return res.status(400).json({
-        success: false,
-        error: 'Indicator calculation failed',
-        message: result[indicatorId.toUpperCase()].error
+      return res.badRequest(result[indicatorId.toUpperCase()].error, {
+        error: 'Indicator calculation failed'
       });
     }
     
-    res.json({
-      success: true,
-      data: result[indicatorId.toUpperCase()],
+    res.success(result[indicatorId.toUpperCase()], {
       indicator: indicatorId.toUpperCase(),
-      parameters,
-      timestamp: new Date().toISOString()
+      parameters
     });
     
   } catch (error) {
     console.error(`${indicatorId} calculation failed:`, error);
-    res.status(500).json({
-      success: false,
-      error: `Failed to calculate ${indicatorId}`,
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError(`Failed to calculate ${indicatorId}`, {
+      errorDetails: error.message
     });
   }
 });
@@ -302,18 +248,14 @@ router.post('/backtest/compare', async (req, res) => {
     } = req.body;
     
     if (!data || !Array.isArray(data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data',
-        message: 'Array of historical price data required'
+      return res.badRequest('Array of historical price data required', {
+        error: 'Invalid data'
       });
     }
     
     if (data.length < 100) {
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient data',
-        message: 'At least 100 data points required for backtesting'
+      return res.badRequest('At least 100 data points required for backtesting', {
+        error: 'Insufficient data'
       });
     }
     
@@ -356,24 +298,18 @@ router.post('/backtest/compare', async (req, res) => {
       }
     });
     
-    res.json({
-      success: true,
-      data: {
-        results,
-        comparison,
-        errors: Object.keys(errors).length > 0 ? errors : null
-      },
-      strategies,
-      timestamp: new Date().toISOString()
+    res.success({
+      results,
+      comparison,
+      errors: Object.keys(errors).length > 0 ? errors : null
+    }, {
+      strategies
     });
     
   } catch (error) {
     console.error('Backtest comparison failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to run backtest comparison',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to run backtest comparison', {
+      errorDetails: error.message
     });
   }
 });
@@ -406,8 +342,7 @@ router.get('/health', async (req, res) => {
     // Test backtesting
     const strategies = backtesting.getAvailableStrategies();
     
-    res.json({
-      success: true,
+    res.success({
       message: 'Algorithmic trading services operational',
       services: {
         technicalAnalysis: {
@@ -420,8 +355,7 @@ router.get('/health', async (req, res) => {
           strategies: strategies.length,
           availableStrategies: strategies.map(s => s.id)
         }
-      },
-      timestamp: new Date().toISOString()
+      }
     });
     
   } catch (error) {

@@ -6,10 +6,8 @@ class PortfolioOptimizationService {
     this.rebalancingStrategies = {
       'THRESHOLD': this.thresholdRebalancing.bind(this),
       'TIME_BASED': this.timeBasedRebalancing.bind(this),
-      'VOLATILITY_BASED': this.volatilityBasedRebalancing.bind(this),
-      'RISK_PARITY': this.riskParityRebalancing.bind(this),
-      'MOMENTUM': this.momentumRebalancing.bind(this),
-      'MEAN_REVERSION': this.meanReversionRebalancing.bind(this)
+      'RISK_PARITY': this.riskParityRebalancing.bind(this)
+      // Note: VOLATILITY_BASED, MOMENTUM, and MEAN_REVERSION strategies not implemented yet
     };
   }
 

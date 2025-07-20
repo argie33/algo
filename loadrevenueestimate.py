@@ -23,8 +23,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadrevenueestimate.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -71,10 +71,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
+        "host": sec["host"]
+        "port": int(sec.get("port", 5432))
+        "user": sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -87,15 +87,15 @@ def create_tables(cur):
     # Create revenue_estimates table
     cur.execute("""
         CREATE TABLE revenue_estimates (
-            symbol VARCHAR(20) NOT NULL,
-            period VARCHAR(3) NOT NULL,
-            avg_estimate BIGINT,
-            low_estimate BIGINT,
-            high_estimate BIGINT,
-            number_of_analysts INTEGER,
-            year_ago_revenue BIGINT,
-            growth NUMERIC,
-            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            symbol VARCHAR(20) NOT NULL
+            period VARCHAR(3) NOT NULL
+            avg_estimate BIGINT
+            low_estimate BIGINT
+            high_estimate BIGINT
+            number_of_analysts INTEGER
+            year_ago_revenue BIGINT
+            growth NUMERIC
+            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             PRIMARY KEY (symbol, period)
         );
     """)
@@ -135,29 +135,29 @@ def load_revenue_data(symbols, cur, conn):
                     revenue_data = []
                     for period, row in revenue_est.iterrows():
                         revenue_data.append((
-                            orig_sym, period,
-                            convert_to_python_type(row.get('avg')), 
-                            convert_to_python_type(row.get('low')), 
-                            convert_to_python_type(row.get('high')),
-                            convert_to_python_type(row.get('numberOfAnalysts')),
-                            convert_to_python_type(row.get('yearAgoRevenue')), 
+                            orig_sym, period
+                            convert_to_python_type(row.get('avg'))
+                            convert_to_python_type(row.get('low'))
+                            convert_to_python_type(row.get('high'))
+                            convert_to_python_type(row.get('numberOfAnalysts'))
+                            convert_to_python_type(row.get('yearAgoRevenue'))
                             convert_to_python_type(row.get('growth'))
                         ))
                     
                     if revenue_data:
                         execute_values(cur, """
                             INSERT INTO revenue_estimates (
-                                symbol, period, avg_estimate, low_estimate,
-                                high_estimate, number_of_analysts,
+                                symbol, period, avg_estimate, low_estimate
+                                high_estimate, number_of_analysts
                                 year_ago_revenue, growth
                             ) VALUES %s
                             ON CONFLICT (symbol, period) DO UPDATE SET
-                                avg_estimate = EXCLUDED.avg_estimate,
-                                low_estimate = EXCLUDED.low_estimate,
-                                high_estimate = EXCLUDED.high_estimate,
-                                number_of_analysts = EXCLUDED.number_of_analysts,
-                                year_ago_revenue = EXCLUDED.year_ago_revenue,
-                                growth = EXCLUDED.growth,
+                                avg_estimate = EXCLUDED.avg_estimate
+                                low_estimate = EXCLUDED.low_estimate
+                                high_estimate = EXCLUDED.high_estimate
+                                number_of_analysts = EXCLUDED.number_of_analysts
+                                year_ago_revenue = EXCLUDED.year_ago_revenue
+                                growth = EXCLUDED.growth
                                 fetched_at = CURRENT_TIMESTAMP
                         """, revenue_data)
                         processed += 1
@@ -179,13 +179,13 @@ def lambda_handler(event, context):
     
     # Use proven connection pattern from working loaders
     ssl_config = {
-        'host': cfg["host"],
-        'port': cfg["port"],
-        'user': cfg["user"],
-        'password': cfg["password"],
-        'dbname': cfg["dbname"],
-        'sslmode': 'require',
-        'connect_timeout': 30,
+        'host': cfg["host"]
+        'port': cfg["port"]
+        'user': cfg["user"]
+        'password': cfg["password"]
+        'dbname': cfg["dbname"]
+        'sslmode': 'require'
+        'connect_timeout': 30
         'application_name': 'revenue-estimate-loader'
     }
     
@@ -216,9 +216,9 @@ def lambda_handler(event, context):
     conn.close()
     logging.info("All done.")
     return {
-        "total": t,
-        "processed": p,
-        "failed": f,
+        "total": t
+        "processed": p
+        "failed": f
         "peak_rss_mb": peak
     }
 

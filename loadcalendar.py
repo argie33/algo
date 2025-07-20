@@ -23,9 +23,9 @@ import math
 SCRIPT_NAME = "loadcalendar.py"
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    level=logging.INFO
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    handlers=[logging.StreamHandler(sys.stdout)]
     force=True
 )
 logger = logging.getLogger(__name__)
@@ -47,10 +47,10 @@ def get_db_config():
     resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
+        sec["username"]
+        sec["password"]
+        sec["host"]
+        int(sec["port"])
         sec["dbname"]
     )
 
@@ -67,7 +67,7 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
                     attempts += 1
                     logger.error(
                         f"{f.__name__} failed for {symbol} "
-                        f"(attempt {attempts}/{max_attempts}): {e}",
+                        f"(attempt {attempts}/{max_attempts}): {e}"
                         exc_info=True
                     )
                     time.sleep(delay)
@@ -93,12 +93,12 @@ def ensure_tables(conn):
         cur.execute("DROP TABLE IF EXISTS calendar_events;")
         cur.execute("""
             CREATE TABLE calendar_events (
-                id          SERIAL PRIMARY KEY,
-                symbol     VARCHAR(10) NOT NULL,
-                event_type VARCHAR(50) NOT NULL,
-                start_date TIMESTAMPTZ,
-                end_date   TIMESTAMPTZ,
-                title      TEXT,
+                id          SERIAL PRIMARY KEY
+                symbol     VARCHAR(10) NOT NULL
+                event_type VARCHAR(50) NOT NULL
+                start_date TIMESTAMPTZ
+                end_date   TIMESTAMPTZ
+                title      TEXT
                 fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
@@ -110,7 +110,7 @@ def ensure_tables(conn):
         # last_updated
         cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY,
+                script_name VARCHAR(255) PRIMARY KEY
                 last_run    TIMESTAMPTZ NOT NULL
             );
         """)
@@ -156,10 +156,10 @@ def process_symbol(symbol, conn):
 
         earnings_title = "Q" + str(calendar_data.get('Earnings Quarter', '')) + " Earnings"
         events_to_insert.append((
-            symbol,
-            'earnings',
-            start_date,
-            end_date,
+            symbol
+            'earnings'
+            start_date
+            end_date
             earnings_title
         ))
 
@@ -170,18 +170,18 @@ def process_symbol(symbol, conn):
         div_amount = calendar_data.get('Dividend', 0.0)
         if div_date is not None:
             events_to_insert.append((
-                symbol,
-                'dividend',
-                div_date,
-                div_date,
+                symbol
+                'dividend'
+                div_date
+                div_date
                 f"Dividend Payment ${div_amount:.4f}"
             ))
         if ex_date is not None:
             events_to_insert.append((
-                symbol,
-                'dividend',
-                ex_date,
-                ex_date,
+                symbol
+                'dividend'
+                ex_date
+                ex_date
                 f"Ex-Dividend ${div_amount:.4f}"
             ))
 
@@ -191,10 +191,10 @@ def process_symbol(symbol, conn):
         if not splits.empty:
             for date, ratio in splits.items():
                 events_to_insert.append((
-                    symbol,
-                    'split',
-                    pd.to_datetime(date),
-                    pd.to_datetime(date),
+                    symbol
+                    'split'
+                    pd.to_datetime(date)
+                    pd.to_datetime(date)
                     f"{ratio}:1 Stock Split"
                 ))
     except Exception as e:
@@ -211,7 +211,7 @@ def process_symbol(symbol, conn):
             INSERT INTO calendar_events 
             (symbol, event_type, start_date, end_date, title)
             VALUES (%s, %s, %s, %s, %s)
-            """,
+            """
             events_to_insert
         )
     conn.commit()
@@ -278,12 +278,12 @@ def main():
                 logger.info("✅ PATTERN C: Proven working minimal config")
                 
                 db_config = {
-                    'host': host,
-                    'port': port, 
-                    'user': user,
-                    'password': pwd,
-                    'dbname': dbname,
-                    'sslmode': 'disable',
+                    'host': host
+                    'port': port
+                    'user': user
+                    'password': pwd
+                    'dbname': dbname
+                    'sslmode': 'disable'
                     'cursor_factory': DictCursor
                 }
                 

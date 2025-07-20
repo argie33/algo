@@ -24,8 +24,8 @@ from scoring_engine import StockScoringEngine
 # -------------------------------
 SCRIPT_NAME = "loadscores.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -46,12 +46,12 @@ DB_NAME = creds["dbname"]
 
 def get_db_connection():
     conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        dbname=DB_NAME,
-        sslmode="require",
+        host=DB_HOST
+        port=DB_PORT
+        user=DB_USER
+        password=DB_PASSWORD
+        dbname=DB_NAME
+        
         options='-c statement_timeout=60000'  # 60 seconds for scoring calculations
     )
     return conn
@@ -92,12 +92,12 @@ def create_unified_scores_tables(cur):
     # Drop old period-specific tables
     logging.info("🧹 Dropping old period-specific tables...")
     old_tables = [
-        'quality_scores_daily', 'quality_scores_weekly', 'quality_scores_monthly',
-        'growth_scores_daily', 'growth_scores_weekly', 'growth_scores_monthly',
-        'value_scores_daily', 'value_scores_weekly', 'value_scores_monthly',
-        'momentum_scores_daily', 'momentum_scores_weekly', 'momentum_scores_monthly',
-        'sentiment_scores_daily', 'sentiment_scores_weekly', 'sentiment_scores_monthly',
-        'positioning_scores_daily', 'positioning_scores_weekly', 'positioning_scores_monthly',
+        'quality_scores_daily', 'quality_scores_weekly', 'quality_scores_monthly'
+        'growth_scores_daily', 'growth_scores_weekly', 'growth_scores_monthly'
+        'value_scores_daily', 'value_scores_weekly', 'value_scores_monthly'
+        'momentum_scores_daily', 'momentum_scores_weekly', 'momentum_scores_monthly'
+        'sentiment_scores_daily', 'sentiment_scores_weekly', 'sentiment_scores_monthly'
+        'positioning_scores_daily', 'positioning_scores_weekly', 'positioning_scores_monthly'
         'master_scores_daily', 'master_scores_weekly', 'master_scores_monthly'
     ]
     for table in old_tables:
@@ -107,19 +107,19 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS quality_scores CASCADE;")
     cur.execute("""
       CREATE TABLE quality_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        earnings_quality    REAL,
-        balance_strength    REAL,
-        profitability       REAL,
-        management          REAL,
-        composite           REAL,
-        trend               VARCHAR(20),
-        confidence          REAL,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        earnings_quality    REAL
+        balance_strength    REAL
+        profitability       REAL
+        management          REAL
+        composite           REAL
+        trend               VARCHAR(20)
+        confidence          REAL
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -128,19 +128,19 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS growth_scores CASCADE;")
     cur.execute("""
       CREATE TABLE growth_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        revenue_growth      REAL,
-        earnings_growth     REAL,
-        fundamental_growth  REAL,
-        market_expansion    REAL,
-        composite           REAL,
-        trend               VARCHAR(20),
-        confidence          REAL,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        revenue_growth      REAL
+        earnings_growth     REAL
+        fundamental_growth  REAL
+        market_expansion    REAL
+        composite           REAL
+        trend               VARCHAR(20)
+        confidence          REAL
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -149,18 +149,18 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS value_scores CASCADE;")
     cur.execute("""
       CREATE TABLE value_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        pe_score            REAL,
-        dcf_score           REAL,
-        relative_value      REAL,
-        composite           REAL,
-        trend               VARCHAR(20),
-        confidence          REAL,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        pe_score            REAL
+        dcf_score           REAL
+        relative_value      REAL
+        composite           REAL
+        trend               VARCHAR(20)
+        confidence          REAL
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -169,19 +169,19 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS momentum_scores CASCADE;")
     cur.execute("""
       CREATE TABLE momentum_scores (
-        id                      SERIAL PRIMARY KEY,
-        symbol                  VARCHAR(20) NOT NULL,
-        date                    DATE NOT NULL,
-        period_type             VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending           DATE NOT NULL,
-        price_momentum          REAL,
-        fundamental_momentum    REAL,
-        technical               REAL,
-        volume_analysis         REAL,
-        composite               REAL,
-        trend                   VARCHAR(20),
-        confidence              REAL,
-        created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                      SERIAL PRIMARY KEY
+        symbol                  VARCHAR(20) NOT NULL
+        date                    DATE NOT NULL
+        period_type             VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending           DATE NOT NULL
+        price_momentum          REAL
+        fundamental_momentum    REAL
+        technical               REAL
+        volume_analysis         REAL
+        composite               REAL
+        trend                   VARCHAR(20)
+        confidence              REAL
+        created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -190,19 +190,19 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS sentiment_scores CASCADE;")
     cur.execute("""
       CREATE TABLE sentiment_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        analyst_sentiment   REAL,
-        social_sentiment    REAL,
-        market_sentiment    REAL,
-        news_sentiment      REAL,
-        composite           REAL,
-        trend               VARCHAR(20),
-        confidence          REAL,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        analyst_sentiment   REAL
+        social_sentiment    REAL
+        market_sentiment    REAL
+        news_sentiment      REAL
+        composite           REAL
+        trend               VARCHAR(20)
+        confidence          REAL
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -211,19 +211,19 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS positioning_scores CASCADE;")
     cur.execute("""
       CREATE TABLE positioning_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        institutional       REAL,
-        insider             REAL,
-        short_interest      REAL,
-        options_flow        REAL,
-        composite           REAL,
-        trend               VARCHAR(20),
-        confidence          REAL,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        institutional       REAL
+        insider             REAL
+        short_interest      REAL
+        options_flow        REAL
+        composite           REAL
+        trend               VARCHAR(20)
+        confidence          REAL
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -232,22 +232,22 @@ def create_unified_scores_tables(cur):
     cur.execute("DROP TABLE IF EXISTS master_scores CASCADE;")
     cur.execute("""
       CREATE TABLE master_scores (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20) NOT NULL,
-        date                DATE NOT NULL,
-        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly')),
-        period_ending       DATE NOT NULL,
-        quality             REAL,
-        growth              REAL,
-        value               REAL,
-        momentum            REAL,
-        sentiment           REAL,
-        positioning         REAL,
-        composite           REAL,
-        market_regime       VARCHAR(20),
-        confidence_level    REAL,
-        recommendation      VARCHAR(20),
-        last_updated        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id                  SERIAL PRIMARY KEY
+        symbol              VARCHAR(20) NOT NULL
+        date                DATE NOT NULL
+        period_type         VARCHAR(10) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly'))
+        period_ending       DATE NOT NULL
+        quality             REAL
+        growth              REAL
+        value               REAL
+        momentum            REAL
+        sentiment           REAL
+        positioning         REAL
+        composite           REAL
+        market_regime       VARCHAR(20)
+        confidence_level    REAL
+        recommendation      VARCHAR(20)
+        last_updated        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         UNIQUE(symbol, date, period_type)
       );
     """)
@@ -285,154 +285,154 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
         # Insert quality scores
         quality = scores_data.get('quality', {})
         cur.execute("""
-            INSERT INTO quality_scores (symbol, date, period_type, period_ending, earnings_quality, 
+            INSERT INTO quality_scores (symbol, date, period_type, period_ending, earnings_quality
                                       balance_strength, profitability, management, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                earnings_quality = EXCLUDED.earnings_quality,
-                balance_strength = EXCLUDED.balance_strength,
-                profitability = EXCLUDED.profitability,
-                management = EXCLUDED.management,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                earnings_quality = EXCLUDED.earnings_quality
+                balance_strength = EXCLUDED.balance_strength
+                profitability = EXCLUDED.profitability
+                management = EXCLUDED.management
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            quality.get('earnings_quality'),
-            quality.get('balance_strength'),
-            quality.get('profitability'),
-            quality.get('management'),
-            quality.get('composite'),
-            quality.get('trend'),
+            symbol, date, period_type, period_ending
+            quality.get('earnings_quality')
+            quality.get('balance_strength')
+            quality.get('profitability')
+            quality.get('management')
+            quality.get('composite')
+            quality.get('trend')
             90.0  # Default confidence
         ))
         
         # Insert growth scores
         growth = scores_data.get('growth', {})
         cur.execute("""
-            INSERT INTO growth_scores (symbol, date, period_type, period_ending, revenue_growth, 
+            INSERT INTO growth_scores (symbol, date, period_type, period_ending, revenue_growth
                                      earnings_growth, fundamental_growth, market_expansion, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                revenue_growth = EXCLUDED.revenue_growth,
-                earnings_growth = EXCLUDED.earnings_growth,
-                fundamental_growth = EXCLUDED.fundamental_growth,
-                market_expansion = EXCLUDED.market_expansion,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                revenue_growth = EXCLUDED.revenue_growth
+                earnings_growth = EXCLUDED.earnings_growth
+                fundamental_growth = EXCLUDED.fundamental_growth
+                market_expansion = EXCLUDED.market_expansion
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            growth.get('revenue_growth'),
-            growth.get('earnings_growth'),
-            growth.get('fundamental_growth'),
-            growth.get('market_expansion'),
-            growth.get('composite'),
-            growth.get('trend'),
+            symbol, date, period_type, period_ending
+            growth.get('revenue_growth')
+            growth.get('earnings_growth')
+            growth.get('fundamental_growth')
+            growth.get('market_expansion')
+            growth.get('composite')
+            growth.get('trend')
             90.0  # Default confidence
         ))
         
         # Insert value scores
         value = scores_data.get('value', {})
         cur.execute("""
-            INSERT INTO value_scores (symbol, date, period_type, period_ending, pe_score, 
+            INSERT INTO value_scores (symbol, date, period_type, period_ending, pe_score
                                     dcf_score, relative_value, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                pe_score = EXCLUDED.pe_score,
-                dcf_score = EXCLUDED.dcf_score,
-                relative_value = EXCLUDED.relative_value,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                pe_score = EXCLUDED.pe_score
+                dcf_score = EXCLUDED.dcf_score
+                relative_value = EXCLUDED.relative_value
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            value.get('pe_score'),
-            value.get('dcf_score'),
-            value.get('relative_value'),
-            value.get('composite'),
-            value.get('trend'),
+            symbol, date, period_type, period_ending
+            value.get('pe_score')
+            value.get('dcf_score')
+            value.get('relative_value')
+            value.get('composite')
+            value.get('trend')
             90.0  # Default confidence
         ))
         
         # Insert momentum scores
         momentum = scores_data.get('momentum', {})
         cur.execute("""
-            INSERT INTO momentum_scores (symbol, date, period_type, period_ending, price_momentum, 
+            INSERT INTO momentum_scores (symbol, date, period_type, period_ending, price_momentum
                                        fundamental_momentum, technical, volume_analysis, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                price_momentum = EXCLUDED.price_momentum,
-                fundamental_momentum = EXCLUDED.fundamental_momentum,
-                technical = EXCLUDED.technical,
-                volume_analysis = EXCLUDED.volume_analysis,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                price_momentum = EXCLUDED.price_momentum
+                fundamental_momentum = EXCLUDED.fundamental_momentum
+                technical = EXCLUDED.technical
+                volume_analysis = EXCLUDED.volume_analysis
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            momentum.get('price_momentum'),
-            momentum.get('fundamental_momentum'),
-            momentum.get('technical'),
-            momentum.get('volume_analysis'),
-            momentum.get('composite'),
-            momentum.get('trend'),
+            symbol, date, period_type, period_ending
+            momentum.get('price_momentum')
+            momentum.get('fundamental_momentum')
+            momentum.get('technical')
+            momentum.get('volume_analysis')
+            momentum.get('composite')
+            momentum.get('trend')
             90.0  # Default confidence
         ))
         
         # Insert sentiment scores
         sentiment = scores_data.get('sentiment', {})
         cur.execute("""
-            INSERT INTO sentiment_scores (symbol, date, period_type, period_ending, analyst_sentiment, 
+            INSERT INTO sentiment_scores (symbol, date, period_type, period_ending, analyst_sentiment
                                         social_sentiment, market_sentiment, news_sentiment, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                analyst_sentiment = EXCLUDED.analyst_sentiment,
-                social_sentiment = EXCLUDED.social_sentiment,
-                market_sentiment = EXCLUDED.market_sentiment,
-                news_sentiment = EXCLUDED.news_sentiment,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                analyst_sentiment = EXCLUDED.analyst_sentiment
+                social_sentiment = EXCLUDED.social_sentiment
+                market_sentiment = EXCLUDED.market_sentiment
+                news_sentiment = EXCLUDED.news_sentiment
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            sentiment.get('analyst_sentiment'),
-            sentiment.get('social_sentiment'),
-            sentiment.get('market_sentiment'),
-            sentiment.get('news_sentiment'),
-            sentiment.get('composite'),
-            sentiment.get('trend'),
+            symbol, date, period_type, period_ending
+            sentiment.get('analyst_sentiment')
+            sentiment.get('social_sentiment')
+            sentiment.get('market_sentiment')
+            sentiment.get('news_sentiment')
+            sentiment.get('composite')
+            sentiment.get('trend')
             90.0  # Default confidence
         ))
         
         # Insert positioning scores
         positioning = scores_data.get('positioning', {})
         cur.execute("""
-            INSERT INTO positioning_scores (symbol, date, period_type, period_ending, institutional, 
+            INSERT INTO positioning_scores (symbol, date, period_type, period_ending, institutional
                                           insider, short_interest, options_flow, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                institutional = EXCLUDED.institutional,
-                insider = EXCLUDED.insider,
-                short_interest = EXCLUDED.short_interest,
-                options_flow = EXCLUDED.options_flow,
-                composite = EXCLUDED.composite,
-                trend = EXCLUDED.trend,
+                period_ending = EXCLUDED.period_ending
+                institutional = EXCLUDED.institutional
+                insider = EXCLUDED.insider
+                short_interest = EXCLUDED.short_interest
+                options_flow = EXCLUDED.options_flow
+                composite = EXCLUDED.composite
+                trend = EXCLUDED.trend
                 confidence = EXCLUDED.confidence
         """, (
-            symbol, date, period_type, period_ending,
-            positioning.get('institutional'),
-            positioning.get('insider'),
-            positioning.get('short_interest'),
-            positioning.get('options_flow'),
-            positioning.get('composite'),
-            positioning.get('trend'),
+            symbol, date, period_type, period_ending
+            positioning.get('institutional')
+            positioning.get('insider')
+            positioning.get('short_interest')
+            positioning.get('options_flow')
+            positioning.get('composite')
+            positioning.get('trend')
             90.0  # Default confidence
         ))
         
@@ -450,34 +450,34 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             recommendation = 'SELL'
         
         cur.execute("""
-            INSERT INTO master_scores (symbol, date, period_type, period_ending, quality, growth, 
-                                     value, momentum, sentiment, positioning, composite, market_regime, 
+            INSERT INTO master_scores (symbol, date, period_type, period_ending, quality, growth
+                                     value, momentum, sentiment, positioning, composite, market_regime
                                      confidence_level, recommendation)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
-                period_ending = EXCLUDED.period_ending,
-                quality = EXCLUDED.quality,
-                growth = EXCLUDED.growth,
-                value = EXCLUDED.value,
-                momentum = EXCLUDED.momentum,
-                sentiment = EXCLUDED.sentiment,
-                positioning = EXCLUDED.positioning,
-                composite = EXCLUDED.composite,
-                market_regime = EXCLUDED.market_regime,
-                confidence_level = EXCLUDED.confidence_level,
-                recommendation = EXCLUDED.recommendation,
+                period_ending = EXCLUDED.period_ending
+                quality = EXCLUDED.quality
+                growth = EXCLUDED.growth
+                value = EXCLUDED.value
+                momentum = EXCLUDED.momentum
+                sentiment = EXCLUDED.sentiment
+                positioning = EXCLUDED.positioning
+                composite = EXCLUDED.composite
+                market_regime = EXCLUDED.market_regime
+                confidence_level = EXCLUDED.confidence_level
+                recommendation = EXCLUDED.recommendation
                 last_updated = CURRENT_TIMESTAMP
         """, (
-            symbol, date, period_type, period_ending,
-            quality.get('composite'),
-            growth.get('composite'),
-            value.get('composite'),
-            momentum.get('composite'),
-            sentiment.get('composite'),
-            positioning.get('composite'),
-            composite_score,
-            market_regime,
-            confidence_level,
+            symbol, date, period_type, period_ending
+            quality.get('composite')
+            growth.get('composite')
+            value.get('composite')
+            momentum.get('composite')
+            sentiment.get('composite')
+            positioning.get('composite')
+            composite_score
+            market_regime
+            confidence_level
             recommendation
         ))
         

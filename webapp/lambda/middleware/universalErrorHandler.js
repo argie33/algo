@@ -27,27 +27,43 @@ try {
  */
 function asyncHandler(fn) {
   return (req, res, next) => {
-    const promise = fn(req, res, next);
-    
-    if (promise && typeof promise.catch === 'function') {
-      promise.catch((error) => {
-        // Enhance error with request context
-        error.requestContext = {
-          method: req.method,
-          path: req.path,
-          params: req.params,
-          query: req.query,
-          userAgent: req.headers['user-agent'],
-          correlationId: req.correlationId,
-          userId: req.user?.sub,
-          timestamp: new Date().toISOString()
-        };
-        
-        next(error);
-      });
+    try {
+      const promise = fn(req, res, next);
+      
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch((error) => {
+          // Enhance error with request context
+          error.requestContext = {
+            method: req.method,
+            path: req.path,
+            params: req.params,
+            query: req.query,
+            userAgent: req.headers ? req.headers['user-agent'] : undefined,
+            correlationId: req.correlationId,
+            userId: req.user?.sub,
+            timestamp: new Date().toISOString()
+          };
+          
+          next(error);
+        });
+      }
+      
+      return promise;
+    } catch (error) {
+      // Handle synchronous errors thrown immediately
+      error.requestContext = {
+        method: req.method,
+        path: req.path,
+        params: req.params,
+        query: req.query,
+        userAgent: req.headers ? req.headers['user-agent'] : undefined,
+        correlationId: req.correlationId,
+        userId: req.user?.sub,
+        timestamp: new Date().toISOString()
+      };
+      
+      next(error);
     }
-    
-    return promise;
   };
 }
 
@@ -60,8 +76,8 @@ function enrichErrorContext(error, req, additionalContext = {}) {
   
   return {
     // Core error information
-    name: error.name,
-    message: error.message,
+    name: error.name || 'UnknownError',
+    message: error.message || 'No error message provided',
     stack: error.stack,
     
     // Request context
@@ -70,11 +86,11 @@ function enrichErrorContext(error, req, additionalContext = {}) {
       path: req.path,
       params: req.params,
       query: req.query,
-      headers: {
+      headers: req.headers ? {
         'user-agent': req.headers['user-agent'],
         'content-type': req.headers['content-type'],
         'origin': req.headers.origin
-      },
+      } : {},
       correlationId: req.correlationId,
       timestamp: new Date().toISOString()
     },

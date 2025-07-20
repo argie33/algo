@@ -33,8 +33,8 @@ print("🔍 LOADINFO DEBUG: All imports successful")
 SCRIPT_NAME = "loadinfo.py"
 print("🔍 LOADINFO DEBUG: Setting up logging...")
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 print("🔍 LOADINFO DEBUG: Logging configured successfully")
@@ -78,10 +78,10 @@ def get_db_config():
         print("🔍 LOADINFO DEBUG: JSON parsed successfully")
         
         config = {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
         print(f"🔍 LOADINFO DEBUG: Config created - host: {config['host']}, port: {config['port']}, dbname: {config['dbname']}")
@@ -130,48 +130,48 @@ def load_company_info(symbols, cur, conn):
                 # Insert into company_profile
                 cur.execute("""
                     INSERT INTO company_profile (
-                        ticker, short_name, long_name, display_name, quote_type, 
-                        symbol_type, triggerable, has_pre_post_market_data, price_hint,
-                        max_age_sec, language, region, financial_currency, currency,
-                        market, quote_source_name, custom_price_alert_confidence,
-                        address1, city, state, postal_code, country, phone_number,
-                        website_url, ir_website_url, message_board_id, corporate_actions,
-                        sector, sector_key, sector_disp, industry, industry_key,
-                        industry_disp, business_summary, employee_count,
-                        first_trade_date_ms, gmt_offset_ms, exchange,
-                        full_exchange_name, exchange_timezone_name,
-                        exchange_timezone_short_name, exchange_data_delayed_by_sec,
+                        ticker, short_name, long_name, display_name, quote_type
+                        symbol_type, triggerable, has_pre_post_market_data, price_hint
+                        max_age_sec, language, region, financial_currency, currency
+                        market, quote_source_name, custom_price_alert_confidence
+                        address1, city, state, postal_code, country, phone_number
+                        website_url, ir_website_url, message_board_id, corporate_actions
+                        sector, sector_key, sector_disp, industry, industry_key
+                        industry_disp, business_summary, employee_count
+                        first_trade_date_ms, gmt_offset_ms, exchange
+                        full_exchange_name, exchange_timezone_name
+                        exchange_timezone_short_name, exchange_data_delayed_by_sec
                         post_market_time_ms, regular_market_time_ms
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
                              %s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
-                        short_name = EXCLUDED.short_name,
-                        long_name = EXCLUDED.long_name,
-                        display_name = EXCLUDED.display_name,
+                        short_name = EXCLUDED.short_name
+                        long_name = EXCLUDED.long_name
+                        display_name = EXCLUDED.display_name
                         quote_type = EXCLUDED.quote_type
                 """, (
-                    orig_sym, info.get('shortName'), info.get('longName'),
-                    info.get('displayName'), info.get('quoteType'),
-                    info.get('symbolType'), info.get('triggerable'),
-                    info.get('hasPrePostMarketData'), info.get('priceHint'),
-                    info.get('maxAge'), info.get('language'), info.get('region'),
-                    info.get('financialCurrency'), info.get('currency'),
-                    info.get('market'), info.get('quoteSourceName'),
-                    info.get('customPriceAlertConfidence'),
-                    info.get('address1'), info.get('city'), info.get('state'),
-                    info.get('zip'), info.get('country'), info.get('phone'),
-                    info.get('website'), info.get('irWebsite'),
-                    info.get('messageBoardId'), json.dumps(info.get('corporateActions', {})),
-                    info.get('sector'), info.get('sectorKey'),
-                    info.get('sectorDisp'), info.get('industry'),
-                    info.get('industryKey'), info.get('industryDisp'),
-                    info.get('longBusinessSummary'), info.get('fullTimeEmployees'),
-                    info.get('firstTradeDateEpochUtc'), info.get('gmtOffSetMilliseconds'),
-                    info.get('exchange'), info.get('fullExchangeName'),
-                    info.get('exchangeTimezoneName'),
-                    info.get('exchangeTimezoneShortName'),
-                    info.get('exchangeDataDelayedBy'),
+                    orig_sym, info.get('shortName'), info.get('longName')
+                    info.get('displayName'), info.get('quoteType')
+                    info.get('symbolType'), info.get('triggerable')
+                    info.get('hasPrePostMarketData'), info.get('priceHint')
+                    info.get('maxAge'), info.get('language'), info.get('region')
+                    info.get('financialCurrency'), info.get('currency')
+                    info.get('market'), info.get('quoteSourceName')
+                    info.get('customPriceAlertConfidence')
+                    info.get('address1'), info.get('city'), info.get('state')
+                    info.get('zip'), info.get('country'), info.get('phone')
+                    info.get('website'), info.get('irWebsite')
+                    info.get('messageBoardId'), json.dumps(info.get('corporateActions', {}))
+                    info.get('sector'), info.get('sectorKey')
+                    info.get('sectorDisp'), info.get('industry')
+                    info.get('industryKey'), info.get('industryDisp')
+                    info.get('longBusinessSummary'), info.get('fullTimeEmployees')
+                    info.get('firstTradeDateEpochUtc'), info.get('gmtOffSetMilliseconds')
+                    info.get('exchange'), info.get('fullExchangeName')
+                    info.get('exchangeTimezoneName')
+                    info.get('exchangeTimezoneShortName')
+                    info.get('exchangeDataDelayedBy')
                     info.get('postMarketTime'), info.get('regularMarketTime')
                 ))
 
@@ -180,28 +180,28 @@ def load_company_info(symbols, cur, conn):
                     officers_data = []
                     for officer in info['companyOfficers']:
                         officers_data.append((
-                            orig_sym,
-                            officer.get('name'),
-                            officer.get('age'),
-                            officer.get('title'),
-                            officer.get('yearBorn'),
-                            officer.get('fiscalYear'),
-                            officer.get('totalPay'),
-                            officer.get('exercisedValue'),
-                            officer.get('unexercisedValue'),
+                            orig_sym
+                            officer.get('name')
+                            officer.get('age')
+                            officer.get('title')
+                            officer.get('yearBorn')
+                            officer.get('fiscalYear')
+                            officer.get('totalPay')
+                            officer.get('exercisedValue')
+                            officer.get('unexercisedValue')
                             'yahoo'  # role_source
                         ))
                     
                     if officers_data:
                         execute_values(cur, """
                             INSERT INTO leadership_team (
-                                ticker, person_name, age, title, birth_year,
-                                fiscal_year, total_pay, exercised_value,
+                                ticker, person_name, age, title, birth_year
+                                fiscal_year, total_pay, exercised_value
                                 unexercised_value, role_source
                             ) VALUES %s
                             ON CONFLICT (ticker, person_name, role_source) DO UPDATE SET
-                                age = EXCLUDED.age,
-                                title = EXCLUDED.title,
+                                age = EXCLUDED.age
+                                title = EXCLUDED.title
                                 total_pay = EXCLUDED.total_pay
                         """, officers_data)
 
@@ -209,150 +209,150 @@ def load_company_info(symbols, cur, conn):
                 if any(k in info for k in ['auditRisk', 'boardRisk', 'compensationRisk']):
                     cur.execute("""
                         INSERT INTO governance_scores (
-                            ticker, audit_risk, board_risk, compensation_risk,
-                            shareholder_rights_risk, overall_risk,
+                            ticker, audit_risk, board_risk, compensation_risk
+                            shareholder_rights_risk, overall_risk
                             governance_epoch_ms, comp_data_as_of_ms
                         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (ticker) DO UPDATE SET
-                            audit_risk = EXCLUDED.audit_risk,
-                            board_risk = EXCLUDED.board_risk,
+                            audit_risk = EXCLUDED.audit_risk
+                            board_risk = EXCLUDED.board_risk
                             compensation_risk = EXCLUDED.compensation_risk
                     """, (
-                        orig_sym, info.get('auditRisk'), info.get('boardRisk'),
-                        info.get('compensationRisk'),
-                        info.get('shareHolderRightsRisk'),
-                        info.get('overallRisk'),
-                        info.get('governanceEpochDate'),
+                        orig_sym, info.get('auditRisk'), info.get('boardRisk')
+                        info.get('compensationRisk')
+                        info.get('shareHolderRightsRisk')
+                        info.get('overallRisk')
+                        info.get('governanceEpochDate')
                         info.get('compensationAsOfDate')
                     ))
 
                 # Insert market data
                 cur.execute("""
                     INSERT INTO market_data (
-                        ticker, previous_close, regular_market_previous_close,
-                        open_price, regular_market_open, day_low,
-                        regular_market_day_low, day_high, regular_market_day_high,
-                        regular_market_price, current_price, post_market_price,
-                        post_market_change, post_market_change_pct, volume,
-                        regular_market_volume, average_volume, avg_volume_10d,
-                        avg_daily_volume_10d, avg_daily_volume_3m, bid_price,
-                        ask_price, bid_size, ask_size, market_state,
-                        fifty_two_week_low, fifty_two_week_high,
-                        fifty_two_week_range, fifty_two_week_low_change,
-                        fifty_two_week_low_change_pct, fifty_two_week_high_change,
-                        fifty_two_week_high_change_pct, fifty_two_week_change_pct,
-                        fifty_day_avg, two_hundred_day_avg, fifty_day_avg_change,
-                        fifty_day_avg_change_pct, two_hundred_day_avg_change,
-                        two_hundred_day_avg_change_pct, source_interval_sec,
+                        ticker, previous_close, regular_market_previous_close
+                        open_price, regular_market_open, day_low
+                        regular_market_day_low, day_high, regular_market_day_high
+                        regular_market_price, current_price, post_market_price
+                        post_market_change, post_market_change_pct, volume
+                        regular_market_volume, average_volume, avg_volume_10d
+                        avg_daily_volume_10d, avg_daily_volume_3m, bid_price
+                        ask_price, bid_size, ask_size, market_state
+                        fifty_two_week_low, fifty_two_week_high
+                        fifty_two_week_range, fifty_two_week_low_change
+                        fifty_two_week_low_change_pct, fifty_two_week_high_change
+                        fifty_two_week_high_change_pct, fifty_two_week_change_pct
+                        fifty_day_avg, two_hundred_day_avg, fifty_day_avg_change
+                        fifty_day_avg_change_pct, two_hundred_day_avg_change
+                        two_hundred_day_avg_change_pct, source_interval_sec
                         market_cap
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
                              %s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
-                        current_price = EXCLUDED.current_price,
-                        volume = EXCLUDED.volume,
+                        current_price = EXCLUDED.current_price
+                        volume = EXCLUDED.volume
                         market_cap = EXCLUDED.market_cap
                 """, (
-                    orig_sym, info.get('previousClose'),
-                    info.get('regularMarketPreviousClose'),
-                    info.get('open'), info.get('regularMarketOpen'),
-                    info.get('dayLow'), info.get('regularMarketDayLow'),
-                    info.get('dayHigh'), info.get('regularMarketDayHigh'),
-                    info.get('regularMarketPrice'), info.get('currentPrice'),
-                    info.get('postMarketPrice'), info.get('postMarketChange'),
-                    info.get('postMarketChangePercent'), info.get('volume'),
-                    info.get('regularMarketVolume'),
-                    info.get('averageVolume'), info.get('averageVolume10days'),
-                    info.get('averageDailyVolume10Day'),
-                    info.get('averageDailyVolume3Month'),
-                    info.get('bid'), info.get('ask'),
-                    info.get('bidSize'), info.get('askSize'),
-                    info.get('marketState'), info.get('fiftyTwoWeekLow'),
-                    info.get('fiftyTwoWeekHigh'),
-                    f"{info.get('fiftyTwoWeekLow')} - {info.get('fiftyTwoWeekHigh')}",
-                    info.get('fiftyTwoWeekLowChange'),
-                    info.get('fiftyTwoWeekLowChangePercent'),
-                    info.get('fiftyTwoWeekHighChange'),
-                    info.get('fiftyTwoWeekHighChangePercent'),
-                    info.get('fiftyTwoWeekChangePercent'),
-                    info.get('fiftyDayAverage'),
-                    info.get('twoHundredDayAverage'),
-                    info.get('fiftyDayAverageChange'),
-                    info.get('fiftyDayAverageChangePercent'),
-                    info.get('twoHundredDayAverageChange'),
-                    info.get('twoHundredDayAverageChangePercent'),
-                    info.get('sourceInterval'),
+                    orig_sym, info.get('previousClose')
+                    info.get('regularMarketPreviousClose')
+                    info.get('open'), info.get('regularMarketOpen')
+                    info.get('dayLow'), info.get('regularMarketDayLow')
+                    info.get('dayHigh'), info.get('regularMarketDayHigh')
+                    info.get('regularMarketPrice'), info.get('currentPrice')
+                    info.get('postMarketPrice'), info.get('postMarketChange')
+                    info.get('postMarketChangePercent'), info.get('volume')
+                    info.get('regularMarketVolume')
+                    info.get('averageVolume'), info.get('averageVolume10days')
+                    info.get('averageDailyVolume10Day')
+                    info.get('averageDailyVolume3Month')
+                    info.get('bid'), info.get('ask')
+                    info.get('bidSize'), info.get('askSize')
+                    info.get('marketState'), info.get('fiftyTwoWeekLow')
+                    info.get('fiftyTwoWeekHigh')
+                    f"{info.get('fiftyTwoWeekLow')} - {info.get('fiftyTwoWeekHigh')}"
+                    info.get('fiftyTwoWeekLowChange')
+                    info.get('fiftyTwoWeekLowChangePercent')
+                    info.get('fiftyTwoWeekHighChange')
+                    info.get('fiftyTwoWeekHighChangePercent')
+                    info.get('fiftyTwoWeekChangePercent')
+                    info.get('fiftyDayAverage')
+                    info.get('twoHundredDayAverage')
+                    info.get('fiftyDayAverageChange')
+                    info.get('fiftyDayAverageChangePercent')
+                    info.get('twoHundredDayAverageChange')
+                    info.get('twoHundredDayAverageChangePercent')
+                    info.get('sourceInterval')
                     info.get('marketCap')
                 ))
 
                 # Insert key metrics
                 cur.execute("""
                     INSERT INTO key_metrics (
-                        ticker, trailing_pe, forward_pe, price_to_sales_ttm,
-                        price_to_book, book_value, peg_ratio, enterprise_value,
-                        ev_to_revenue, ev_to_ebitda, total_revenue, net_income,
-                        ebitda, gross_profit, eps_trailing, eps_forward,
-                        eps_current_year, price_eps_current_year,
-                        earnings_q_growth_pct, earnings_ts_ms,
-                        earnings_ts_start_ms, earnings_ts_end_ms,
-                        earnings_call_ts_start_ms, earnings_call_ts_end_ms,
-                        is_earnings_date_estimate, total_cash, cash_per_share,
-                        operating_cashflow, free_cashflow, total_debt,
-                        debt_to_equity, quick_ratio, current_ratio,
-                        profit_margin_pct, gross_margin_pct, ebitda_margin_pct,
-                        operating_margin_pct, return_on_assets_pct,
-                        return_on_equity_pct, revenue_growth_pct,
-                        earnings_growth_pct, last_split_factor,
-                        last_split_date_ms, dividend_rate, dividend_yield,
-                        five_year_avg_dividend_yield, ex_dividend_date_ms,
-                        last_annual_dividend_amt, last_annual_dividend_yield,
-                        last_dividend_amt, last_dividend_date_ms,
+                        ticker, trailing_pe, forward_pe, price_to_sales_ttm
+                        price_to_book, book_value, peg_ratio, enterprise_value
+                        ev_to_revenue, ev_to_ebitda, total_revenue, net_income
+                        ebitda, gross_profit, eps_trailing, eps_forward
+                        eps_current_year, price_eps_current_year
+                        earnings_q_growth_pct, earnings_ts_ms
+                        earnings_ts_start_ms, earnings_ts_end_ms
+                        earnings_call_ts_start_ms, earnings_call_ts_end_ms
+                        is_earnings_date_estimate, total_cash, cash_per_share
+                        operating_cashflow, free_cashflow, total_debt
+                        debt_to_equity, quick_ratio, current_ratio
+                        profit_margin_pct, gross_margin_pct, ebitda_margin_pct
+                        operating_margin_pct, return_on_assets_pct
+                        return_on_equity_pct, revenue_growth_pct
+                        earnings_growth_pct, last_split_factor
+                        last_split_date_ms, dividend_rate, dividend_yield
+                        five_year_avg_dividend_yield, ex_dividend_date_ms
+                        last_annual_dividend_amt, last_annual_dividend_yield
+                        last_dividend_amt, last_dividend_date_ms
                         dividend_date_ms, payout_ratio
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
                              %s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
-                        trailing_pe = EXCLUDED.trailing_pe,
-                        forward_pe = EXCLUDED.forward_pe,
+                        trailing_pe = EXCLUDED.trailing_pe
+                        forward_pe = EXCLUDED.forward_pe
                         eps_trailing = EXCLUDED.eps_trailing
                 """, (
-                    orig_sym, info.get('trailingPE'), info.get('forwardPE'),
-                    info.get('priceToSalesTrailing12Months'),
-                    info.get('priceToBook'), info.get('bookValue'),
-                    info.get('pegRatio'), info.get('enterpriseValue'),
-                    info.get('enterpriseToRevenue'),
-                    info.get('enterpriseToEbitda'),
-                    info.get('totalRevenue'), info.get('netIncomeToCommon'),
-                    info.get('ebitda'), info.get('grossProfits'),
-                    info.get('trailingEps'), info.get('forwardEps'),
-                    info.get('currentYear'), info.get('priceEpsCurrentYear'),
-                    info.get('earningsQuarterlyGrowth'),
-                    info.get('earningsTimestamp'),
-                    info.get('earningsTimestampStart'),
-                    info.get('earningsTimestampEnd'),
-                    info.get('earningsCallTimeStampStart'),
-                    info.get('earningsCallTimeStampEnd'),
-                    info.get('earningsDateIsEstimate'),
-                    info.get('totalCash'), info.get('totalCashPerShare'),
-                    info.get('operatingCashflow'),
-                    info.get('freeCashflow'), info.get('totalDebt'),
-                    info.get('debtToEquity'), info.get('quickRatio'),
-                    info.get('currentRatio'), info.get('profitMargins'),
-                    info.get('grossMargins'), info.get('ebitdaMargins'),
-                    info.get('operatingMargins'),
-                    info.get('returnOnAssets'), info.get('returnOnEquity'),
-                    info.get('revenueGrowth'),
-                    info.get('earningsGrowth'),
-                    info.get('lastSplitFactor'),
-                    info.get('lastSplitDate'), info.get('dividendRate'),
-                    info.get('dividendYield'),
-                    info.get('fiveYearAvgDividendYield'),
-                    info.get('exDividendDate'),
-                    info.get('lastAnnualDividendAmt'),
-                    info.get('lastAnnualDividendYield'),
-                    info.get('lastDividendValue'),
-                    info.get('lastDividendDate'),
+                    orig_sym, info.get('trailingPE'), info.get('forwardPE')
+                    info.get('priceToSalesTrailing12Months')
+                    info.get('priceToBook'), info.get('bookValue')
+                    info.get('pegRatio'), info.get('enterpriseValue')
+                    info.get('enterpriseToRevenue')
+                    info.get('enterpriseToEbitda')
+                    info.get('totalRevenue'), info.get('netIncomeToCommon')
+                    info.get('ebitda'), info.get('grossProfits')
+                    info.get('trailingEps'), info.get('forwardEps')
+                    info.get('currentYear'), info.get('priceEpsCurrentYear')
+                    info.get('earningsQuarterlyGrowth')
+                    info.get('earningsTimestamp')
+                    info.get('earningsTimestampStart')
+                    info.get('earningsTimestampEnd')
+                    info.get('earningsCallTimeStampStart')
+                    info.get('earningsCallTimeStampEnd')
+                    info.get('earningsDateIsEstimate')
+                    info.get('totalCash'), info.get('totalCashPerShare')
+                    info.get('operatingCashflow')
+                    info.get('freeCashflow'), info.get('totalDebt')
+                    info.get('debtToEquity'), info.get('quickRatio')
+                    info.get('currentRatio'), info.get('profitMargins')
+                    info.get('grossMargins'), info.get('ebitdaMargins')
+                    info.get('operatingMargins')
+                    info.get('returnOnAssets'), info.get('returnOnEquity')
+                    info.get('revenueGrowth')
+                    info.get('earningsGrowth')
+                    info.get('lastSplitFactor')
+                    info.get('lastSplitDate'), info.get('dividendRate')
+                    info.get('dividendYield')
+                    info.get('fiveYearAvgDividendYield')
+                    info.get('exDividendDate')
+                    info.get('lastAnnualDividendAmt')
+                    info.get('lastAnnualDividendYield')
+                    info.get('lastDividendValue')
+                    info.get('lastDividendDate')
                     info.get('dividendDate'), info.get('payoutRatio')
                 ))
 
@@ -381,21 +381,21 @@ def load_company_info(symbols, cur, conn):
                 # Insert analyst estimates
                 cur.execute("""
                     INSERT INTO analyst_estimates (
-                        ticker, target_high_price, target_low_price,
-                        target_mean_price, target_median_price,
-                        recommendation_key, recommendation_mean,
+                        ticker, target_high_price, target_low_price
+                        target_mean_price, target_median_price
+                        recommendation_key, recommendation_mean
                         analyst_opinion_count, average_analyst_rating
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
-                        target_mean_price = EXCLUDED.target_mean_price,
+                        target_mean_price = EXCLUDED.target_mean_price
                         recommendation_key = EXCLUDED.recommendation_key
                 """, (
-                    orig_sym, info.get('targetHighPrice'),
-                    info.get('targetLowPrice'), info.get('targetMeanPrice'),
-                    info.get('targetMedianPrice'),
-                    info.get('recommendationKey'),
-                    info.get('recommendationMean'),
-                    info.get('numberOfAnalystOpinions'),
+                    orig_sym, info.get('targetHighPrice')
+                    info.get('targetLowPrice'), info.get('targetMeanPrice')
+                    info.get('targetMedianPrice')
+                    info.get('recommendationKey')
+                    info.get('recommendationMean')
+                    info.get('numberOfAnalystOpinions')
                     parsed_avg_rating # Use the parsed value here
                 ))
 
@@ -452,11 +452,11 @@ if __name__ == "__main__":
         
         print("🔍 LOADINFO DEBUG: Creating psycopg2 connection...")
         conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
+            host=cfg["host"], port=cfg["port"]
+            user=cfg["user"], password=cfg["password"]
             dbname=cfg["dbname"]
-        ,
-            sslmode="require"
+        
+            
     )
         print("🔍 LOADINFO DEBUG: Database connection established")
         
@@ -485,49 +485,49 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating company_profile table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS company_profile (
-                ticker VARCHAR(10) PRIMARY KEY,
-                short_name VARCHAR(100),
-                long_name VARCHAR(200),
-                display_name VARCHAR(200),
-                quote_type VARCHAR(50),
-                symbol_type VARCHAR(50),
-                triggerable BOOLEAN,
-                has_pre_post_market_data BOOLEAN,
-                price_hint INT,
-                max_age_sec INT,
-                language VARCHAR(20),
-                region VARCHAR(20),
-                financial_currency VARCHAR(10),
-                currency VARCHAR(10),
-                market VARCHAR(50),
-                quote_source_name VARCHAR(100),
-                custom_price_alert_confidence VARCHAR(20),
-                address1 VARCHAR(200),
-                city VARCHAR(100),
-                state VARCHAR(50),
-                postal_code VARCHAR(20),
-                country VARCHAR(100),
-                phone_number VARCHAR(50),
-                website_url VARCHAR(200),
-                ir_website_url VARCHAR(200),
-                message_board_id VARCHAR(100),
-                corporate_actions JSONB,
-                sector VARCHAR(100),
-                sector_key VARCHAR(100),
-                sector_disp VARCHAR(100),
-                industry VARCHAR(100),
-                industry_key VARCHAR(100),
-                industry_disp VARCHAR(100),
-                business_summary TEXT,
-                employee_count INT,
-                first_trade_date_ms BIGINT,
-                gmt_offset_ms BIGINT,
-                exchange VARCHAR(20),
-                full_exchange_name VARCHAR(100),
-                exchange_timezone_name VARCHAR(100),
-                exchange_timezone_short_name VARCHAR(20),
-                exchange_data_delayed_by_sec INT,
-                post_market_time_ms BIGINT,
+                ticker VARCHAR(10) PRIMARY KEY
+                short_name VARCHAR(100)
+                long_name VARCHAR(200)
+                display_name VARCHAR(200)
+                quote_type VARCHAR(50)
+                symbol_type VARCHAR(50)
+                triggerable BOOLEAN
+                has_pre_post_market_data BOOLEAN
+                price_hint INT
+                max_age_sec INT
+                language VARCHAR(20)
+                region VARCHAR(20)
+                financial_currency VARCHAR(10)
+                currency VARCHAR(10)
+                market VARCHAR(50)
+                quote_source_name VARCHAR(100)
+                custom_price_alert_confidence VARCHAR(20)
+                address1 VARCHAR(200)
+                city VARCHAR(100)
+                state VARCHAR(50)
+                postal_code VARCHAR(20)
+                country VARCHAR(100)
+                phone_number VARCHAR(50)
+                website_url VARCHAR(200)
+                ir_website_url VARCHAR(200)
+                message_board_id VARCHAR(100)
+                corporate_actions JSONB
+                sector VARCHAR(100)
+                sector_key VARCHAR(100)
+                sector_disp VARCHAR(100)
+                industry VARCHAR(100)
+                industry_key VARCHAR(100)
+                industry_disp VARCHAR(100)
+                business_summary TEXT
+                employee_count INT
+                first_trade_date_ms BIGINT
+                gmt_offset_ms BIGINT
+                exchange VARCHAR(20)
+                full_exchange_name VARCHAR(100)
+                exchange_timezone_name VARCHAR(100)
+                exchange_timezone_short_name VARCHAR(20)
+                exchange_data_delayed_by_sec INT
+                post_market_time_ms BIGINT
                 regular_market_time_ms BIGINT
             );
         """)
@@ -536,16 +536,16 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating leadership_team table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS leadership_team (
-                ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker),
-                person_name VARCHAR(200) NOT NULL,
-                age INT,
-                title VARCHAR(200),
-                birth_year INT,
-                fiscal_year INT,
-                total_pay NUMERIC,
-                exercised_value NUMERIC,
-                unexercised_value NUMERIC,
-                role_source VARCHAR(50),
+                ticker VARCHAR(10) NOT NULL REFERENCES company_profile(ticker)
+                person_name VARCHAR(200) NOT NULL
+                age INT
+                title VARCHAR(200)
+                birth_year INT
+                fiscal_year INT
+                total_pay NUMERIC
+                exercised_value NUMERIC
+                unexercised_value NUMERIC
+                role_source VARCHAR(50)
                 PRIMARY KEY(ticker, person_name, role_source)
             );
         """)
@@ -554,13 +554,13 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating governance_scores table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS governance_scores (
-                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-                audit_risk INT,
-                board_risk INT,
-                compensation_risk INT,
-                shareholder_rights_risk INT,
-                overall_risk INT,
-                governance_epoch_ms BIGINT,
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker)
+                audit_risk INT
+                board_risk INT
+                compensation_risk INT
+                shareholder_rights_risk INT
+                overall_risk INT
+                governance_epoch_ms BIGINT
                 comp_data_as_of_ms BIGINT
             );
         """)
@@ -569,46 +569,46 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating market_data table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_data (
-                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-                previous_close NUMERIC,
-                regular_market_previous_close NUMERIC,
-                open_price NUMERIC,
-                regular_market_open NUMERIC,
-                day_low NUMERIC,
-                regular_market_day_low NUMERIC,
-                day_high NUMERIC,
-                regular_market_day_high NUMERIC,
-                regular_market_price NUMERIC,
-                current_price NUMERIC,
-                post_market_price NUMERIC,
-                post_market_change NUMERIC,
-                post_market_change_pct NUMERIC,
-                volume BIGINT,
-                regular_market_volume BIGINT,
-                average_volume BIGINT,
-                avg_volume_10d BIGINT,
-                avg_daily_volume_10d BIGINT,
-                avg_daily_volume_3m BIGINT,
-                bid_price NUMERIC,
-                ask_price NUMERIC,
-                bid_size INT,
-                ask_size INT,
-                market_state VARCHAR(20),
-                fifty_two_week_low NUMERIC,
-                fifty_two_week_high NUMERIC,
-                fifty_two_week_range VARCHAR(50),
-                fifty_two_week_low_change NUMERIC,
-                fifty_two_week_low_change_pct NUMERIC,
-                fifty_two_week_high_change NUMERIC,
-                fifty_two_week_high_change_pct NUMERIC,
-                fifty_two_week_change_pct NUMERIC,
-                fifty_day_avg NUMERIC,
-                two_hundred_day_avg NUMERIC,
-                fifty_day_avg_change NUMERIC,
-                fifty_day_avg_change_pct NUMERIC,
-                two_hundred_day_avg_change NUMERIC,
-                two_hundred_day_avg_change_pct NUMERIC,
-                source_interval_sec INT,
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker)
+                previous_close NUMERIC
+                regular_market_previous_close NUMERIC
+                open_price NUMERIC
+                regular_market_open NUMERIC
+                day_low NUMERIC
+                regular_market_day_low NUMERIC
+                day_high NUMERIC
+                regular_market_day_high NUMERIC
+                regular_market_price NUMERIC
+                current_price NUMERIC
+                post_market_price NUMERIC
+                post_market_change NUMERIC
+                post_market_change_pct NUMERIC
+                volume BIGINT
+                regular_market_volume BIGINT
+                average_volume BIGINT
+                avg_volume_10d BIGINT
+                avg_daily_volume_10d BIGINT
+                avg_daily_volume_3m BIGINT
+                bid_price NUMERIC
+                ask_price NUMERIC
+                bid_size INT
+                ask_size INT
+                market_state VARCHAR(20)
+                fifty_two_week_low NUMERIC
+                fifty_two_week_high NUMERIC
+                fifty_two_week_range VARCHAR(50)
+                fifty_two_week_low_change NUMERIC
+                fifty_two_week_low_change_pct NUMERIC
+                fifty_two_week_high_change NUMERIC
+                fifty_two_week_high_change_pct NUMERIC
+                fifty_two_week_change_pct NUMERIC
+                fifty_day_avg NUMERIC
+                two_hundred_day_avg NUMERIC
+                fifty_day_avg_change NUMERIC
+                fifty_day_avg_change_pct NUMERIC
+                two_hundred_day_avg_change NUMERIC
+                two_hundred_day_avg_change_pct NUMERIC
+                source_interval_sec INT
                 market_cap BIGINT
             );
         """)
@@ -617,58 +617,58 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating key_metrics table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS key_metrics (
-                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-                trailing_pe NUMERIC,
-                forward_pe NUMERIC,
-                price_to_sales_ttm NUMERIC,
-                price_to_book NUMERIC,
-                book_value NUMERIC,
-                peg_ratio NUMERIC,
-                enterprise_value BIGINT,
-                ev_to_revenue NUMERIC,
-                ev_to_ebitda NUMERIC,
-                total_revenue BIGINT,
-                net_income BIGINT,
-                ebitda BIGINT,
-                gross_profit BIGINT,
-                eps_trailing NUMERIC,
-                eps_forward NUMERIC,
-                eps_current_year NUMERIC,
-                price_eps_current_year NUMERIC,
-                earnings_q_growth_pct NUMERIC,
-                earnings_ts_ms BIGINT,
-                earnings_ts_start_ms BIGINT,
-                earnings_ts_end_ms BIGINT,
-                earnings_call_ts_start_ms BIGINT,
-                earnings_call_ts_end_ms BIGINT,
-                is_earnings_date_estimate BOOLEAN,
-                total_cash BIGINT,
-                cash_per_share NUMERIC,
-                operating_cashflow BIGINT,
-                free_cashflow BIGINT,
-                total_debt BIGINT,
-                debt_to_equity NUMERIC,
-                quick_ratio NUMERIC,
-                current_ratio NUMERIC,
-                profit_margin_pct NUMERIC,
-                gross_margin_pct NUMERIC,
-                ebitda_margin_pct NUMERIC,
-                operating_margin_pct NUMERIC,
-                return_on_assets_pct NUMERIC,
-                return_on_equity_pct NUMERIC,
-                revenue_growth_pct NUMERIC,
-                earnings_growth_pct NUMERIC,
-                last_split_factor VARCHAR(20),
-                last_split_date_ms BIGINT,
-                dividend_rate NUMERIC,
-                dividend_yield NUMERIC,
-                five_year_avg_dividend_yield NUMERIC,
-                ex_dividend_date_ms BIGINT,
-                last_annual_dividend_amt NUMERIC,
-                last_annual_dividend_yield NUMERIC,
-                last_dividend_amt NUMERIC,
-                last_dividend_date_ms BIGINT,
-                dividend_date_ms BIGINT,
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker)
+                trailing_pe NUMERIC
+                forward_pe NUMERIC
+                price_to_sales_ttm NUMERIC
+                price_to_book NUMERIC
+                book_value NUMERIC
+                peg_ratio NUMERIC
+                enterprise_value BIGINT
+                ev_to_revenue NUMERIC
+                ev_to_ebitda NUMERIC
+                total_revenue BIGINT
+                net_income BIGINT
+                ebitda BIGINT
+                gross_profit BIGINT
+                eps_trailing NUMERIC
+                eps_forward NUMERIC
+                eps_current_year NUMERIC
+                price_eps_current_year NUMERIC
+                earnings_q_growth_pct NUMERIC
+                earnings_ts_ms BIGINT
+                earnings_ts_start_ms BIGINT
+                earnings_ts_end_ms BIGINT
+                earnings_call_ts_start_ms BIGINT
+                earnings_call_ts_end_ms BIGINT
+                is_earnings_date_estimate BOOLEAN
+                total_cash BIGINT
+                cash_per_share NUMERIC
+                operating_cashflow BIGINT
+                free_cashflow BIGINT
+                total_debt BIGINT
+                debt_to_equity NUMERIC
+                quick_ratio NUMERIC
+                current_ratio NUMERIC
+                profit_margin_pct NUMERIC
+                gross_margin_pct NUMERIC
+                ebitda_margin_pct NUMERIC
+                operating_margin_pct NUMERIC
+                return_on_assets_pct NUMERIC
+                return_on_equity_pct NUMERIC
+                revenue_growth_pct NUMERIC
+                earnings_growth_pct NUMERIC
+                last_split_factor VARCHAR(20)
+                last_split_date_ms BIGINT
+                dividend_rate NUMERIC
+                dividend_yield NUMERIC
+                five_year_avg_dividend_yield NUMERIC
+                ex_dividend_date_ms BIGINT
+                last_annual_dividend_amt NUMERIC
+                last_annual_dividend_yield NUMERIC
+                last_dividend_amt NUMERIC
+                last_dividend_date_ms BIGINT
+                dividend_date_ms BIGINT
                 payout_ratio NUMERIC
             );
         """)
@@ -677,14 +677,14 @@ if __name__ == "__main__":
         print("🔍 LOADINFO DEBUG: Creating analyst_estimates table...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS analyst_estimates (
-                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-                target_high_price NUMERIC,
-                target_low_price NUMERIC,
-                target_mean_price NUMERIC,
-                target_median_price NUMERIC,
-                recommendation_key VARCHAR(50),
-                recommendation_mean NUMERIC,
-                analyst_opinion_count INT,
+                ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker)
+                target_high_price NUMERIC
+                target_low_price NUMERIC
+                target_mean_price NUMERIC
+                target_median_price NUMERIC
+                recommendation_key VARCHAR(50)
+                recommendation_mean NUMERIC
+                analyst_opinion_count INT
                 average_analyst_rating NUMERIC
             );
         """)

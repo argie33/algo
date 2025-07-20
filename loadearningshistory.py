@@ -23,8 +23,8 @@ import numpy as np
 # -------------------------------
 SCRIPT_NAME = "loadearningshistory.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -54,10 +54,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
+        "host": sec["host"]
+        "port": int(sec.get("port", 5432))
+        "user": sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -70,13 +70,13 @@ def create_tables(cur):
     # Create earnings_history table
     cur.execute("""
         CREATE TABLE earnings_history (
-            symbol VARCHAR(20) NOT NULL,
-            quarter DATE NOT NULL,
-            eps_actual NUMERIC,
-            eps_estimate NUMERIC,
-            eps_difference NUMERIC,
-            surprise_percent NUMERIC,
-            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            symbol VARCHAR(20) NOT NULL
+            quarter DATE NOT NULL
+            eps_actual NUMERIC
+            eps_estimate NUMERIC
+            eps_difference NUMERIC
+            surprise_percent NUMERIC
+            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             PRIMARY KEY (symbol, quarter)
         );
     """)
@@ -125,24 +125,24 @@ def load_earnings_history(symbols, cur, conn):
                         quarter_date = str(quarter)
                         
                         history_data.append((
-                            orig_sym, quarter_date,
-                            pyval(row.get('epsActual')),
-                            pyval(row.get('epsEstimate')),
-                            pyval(row.get('epsDifference')),
+                            orig_sym, quarter_date
+                            pyval(row.get('epsActual'))
+                            pyval(row.get('epsEstimate'))
+                            pyval(row.get('epsDifference'))
                             pyval(row.get('surprisePercent'))
                         ))
                     
                     if history_data:
                         execute_values(cur, """
                             INSERT INTO earnings_history (
-                                symbol, quarter, eps_actual, eps_estimate,
+                                symbol, quarter, eps_actual, eps_estimate
                                 eps_difference, surprise_percent
                             ) VALUES %s
                             ON CONFLICT (symbol, quarter) DO UPDATE SET
-                                eps_actual = EXCLUDED.eps_actual,
-                                eps_estimate = EXCLUDED.eps_estimate,
-                                eps_difference = EXCLUDED.eps_difference,
-                                surprise_percent = EXCLUDED.surprise_percent,
+                                eps_actual = EXCLUDED.eps_actual
+                                eps_estimate = EXCLUDED.eps_estimate
+                                eps_difference = EXCLUDED.eps_difference
+                                surprise_percent = EXCLUDED.surprise_percent
                                 fetched_at = CURRENT_TIMESTAMP
                         """, history_data)
                         processed += 1
@@ -162,11 +162,11 @@ def lambda_handler(event, context):
     log_mem("startup")
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -194,9 +194,9 @@ def lambda_handler(event, context):
     conn.close()
     logging.info("All done.")
     return {
-        "total": t,
-        "processed": p,
-        "failed": f,
+        "total": t
+        "processed": p
+        "failed": f
         "peak_rss_mb": peak
     }
 

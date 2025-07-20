@@ -11,9 +11,6 @@ class ComplianceService {
     this.dataProcessingActivities = [];
     this.breachNotifications = [];
     
-    // Initialize default retention policies
-    this.initializeRetentionPolicies();
-    
     // GDPR compliance settings
     this.gdprSettings = {
       dataControllerName: 'Financial Trading Platform',
@@ -38,6 +35,9 @@ class ComplianceService {
       'FINRA': 'Financial Industry Regulatory Authority',
       'SEC': 'Securities and Exchange Commission'
     };
+    
+    // Initialize default retention policies (after gdprSettings is defined)
+    this.initializeRetentionPolicies();
   }
 
   // Initialize default data retention policies

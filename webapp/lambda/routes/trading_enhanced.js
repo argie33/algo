@@ -1,3 +1,5 @@
+const express = require('express');
+const router = express.Router();
 const { Pool } = require('pg');
 const { getDbCredentials } = require('../utils/secrets');
 
@@ -21,8 +23,8 @@ async function getPool() {
 }
 
 // Get enhanced trading signals with O'Neill methodology
-async function getEnhancedSignals(event) {
-  const { timeframe = 'daily', signalType = 'all', minStrength = 0, limit = 100 } = event.queryStringParameters || {};
+router.get('/signals', async (req, res) => {
+  const { timeframe = 'daily', signalType = 'all', minStrength = 0, limit = 100 } = req.query;
   
   try {
     const pool = await getPool();
@@ -150,36 +152,26 @@ async function getEnhancedSignals(event) {
       beta: parseFloat(row.beta)
     }));
     
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        signals: signals,
-        count: signals.length,
-        timeframe: timeframe,
-        filters: {
-          signalType,
-          minStrength,
-          limit
-        }
-      })
-    };
+    res.success(signals, {
+      count: signals.length,
+      timeframe: timeframe,
+      filters: {
+        signalType,
+        minStrength,
+        limit
+      }
+    });
     
   } catch (error) {
     console.error('Error fetching enhanced signals:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: 'Failed to fetch enhanced trading signals',
-        message: error.message
-      })
-    };
+    res.serverError('Failed to fetch enhanced trading signals', {
+      errorDetails: error.message
+    });
   }
-}
+});
 
 // Get active positions with exit zone tracking
-async function getActivePositions(event) {
+router.get('/positions', async (req, res) => {
   try {
     const pool = await getPool();
     
@@ -237,30 +229,21 @@ async function getActivePositions(event) {
       stop_loss_warnings: positions.filter(p => p.current_gain_pct <= -5).length
     };
     
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        positions: positions,
-        summary: summary
-      })
-    };
+    res.success({
+      positions: positions,
+      summary: summary
+    });
     
   } catch (error) {
     console.error('Error fetching active positions:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: 'Failed to fetch active positions',
-        message: error.message
-      })
-    };
+    res.serverError('Failed to fetch active positions', {
+      errorDetails: error.message
+    });
   }
-}
+});
 
 // Get market timing indicators
-async function getMarketTiming(event) {
+router.get('/market-timing', async (req, res) => {
   try {
     const pool = await getPool();
     
@@ -283,29 +266,14 @@ async function getMarketTiming(event) {
       last_updated: new Date().toISOString()
     };
     
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        data: marketTiming
-      })
-    };
+    res.success(marketTiming);
     
   } catch (error) {
     console.error('Error fetching market timing:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: 'Failed to fetch market timing data',
-        message: error.message
-      })
-    };
+    res.serverError('Failed to fetch market timing data', {
+      errorDetails: error.message
+    });
   }
-}
+});
 
-module.exports = {
-  getEnhancedSignals,
-  getActivePositions,
-  getMarketTiming
-};
+module.exports = router;

@@ -57,8 +57,8 @@ except ImportError:
 # Script configuration
 SCRIPT_NAME = "loadsentiment.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -75,18 +75,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -121,18 +121,18 @@ class AnalystSentimentCollector:
     def get_analyst_recommendations(self) -> Dict:
         """Get analyst recommendations and price targets"""
         data = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'strong_buy_count': 0,
-            'buy_count': 0,
-            'hold_count': 0,
-            'sell_count': 0,
-            'strong_sell_count': 0,
-            'total_analysts': 0,
-            'avg_price_target': None,
-            'high_price_target': None,
-            'low_price_target': None,
-            'price_target_vs_current': None,
+            'symbol': self.symbol
+            'date': date.today()
+            'strong_buy_count': 0
+            'buy_count': 0
+            'hold_count': 0
+            'sell_count': 0
+            'strong_sell_count': 0
+            'total_analysts': 0
+            'avg_price_target': None
+            'high_price_target': None
+            'low_price_target': None
+            'price_target_vs_current': None
             'recommendation_mean': None
         }
         
@@ -171,7 +171,7 @@ class AnalystSentimentCollector:
                             data['hold_count'] += count  # Default to hold
                     
                     data['total_analysts'] = sum([
-                        data['strong_buy_count'], data['buy_count'], data['hold_count'],
+                        data['strong_buy_count'], data['buy_count'], data['hold_count']
                         data['sell_count'], data['strong_sell_count']
                     ])
             
@@ -195,14 +195,14 @@ class AnalystSentimentCollector:
     def get_analyst_revisions(self) -> Dict:
         """Get recent analyst estimate revisions"""
         data = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'eps_revisions_up_last_30d': 0,
-            'eps_revisions_down_last_30d': 0,
-            'revenue_revisions_up_last_30d': 0,
-            'revenue_revisions_down_last_30d': 0,
-            'upgrades_last_30d': 0,
-            'downgrades_last_30d': 0,
+            'symbol': self.symbol
+            'date': date.today()
+            'eps_revisions_up_last_30d': 0
+            'eps_revisions_down_last_30d': 0
+            'revenue_revisions_up_last_30d': 0
+            'revenue_revisions_down_last_30d': 0
+            'upgrades_last_30d': 0
+            'downgrades_last_30d': 0
             'initiations_last_30d': 0
         }
         
@@ -239,10 +239,10 @@ class SocialSentimentCollector:
     def get_reddit_sentiment(self) -> Dict:
         """Get Reddit sentiment (mock implementation - requires Reddit API credentials)"""
         data = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'reddit_mention_count': 0,
-            'reddit_sentiment_score': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'reddit_mention_count': 0
+            'reddit_sentiment_score': 0.0
             'reddit_volume_normalized_sentiment': 0.0
         }
         
@@ -276,10 +276,10 @@ class SocialSentimentCollector:
     def get_google_trends(self) -> Dict:
         """Get Google Trends search data"""
         data = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'search_volume_index': 0,
-            'search_trend_7d': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'search_volume_index': 0
+            'search_trend_7d': 0.0
             'search_trend_30d': 0.0
         }
         
@@ -333,10 +333,10 @@ class SocialSentimentCollector:
     def get_news_sentiment(self) -> Dict:
         """Get news sentiment analysis"""
         data = {
-            'symbol': self.symbol,
-            'date': date.today(),
-            'news_article_count': 0,
-            'news_sentiment_score': 0.0,
+            'symbol': self.symbol
+            'date': date.today()
+            'news_article_count': 0
+            'news_sentiment_score': 0.0
             'news_source_quality_weight': 0.0
         }
         
@@ -411,9 +411,9 @@ def process_symbol_sentiment(symbol: str) -> Optional[Dict]:
         
         # Combine all data
         result = {
-            'symbol': symbol,
-            'date': date.today(),
-            'analyst_sentiment': {**analyst_data, **analyst_revisions},
+            'symbol': symbol
+            'date': date.today()
+            'analyst_sentiment': {**analyst_data, **analyst_revisions}
             'social_sentiment': {**reddit_data, **trends_data, **news_data}
         }
         
@@ -430,28 +430,28 @@ def create_sentiment_tables(cur, conn):
     # Analyst sentiment table
     analyst_sql = """
     CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
-        symbol VARCHAR(20),
-        date DATE,
-        strong_buy_count INTEGER DEFAULT 0,
-        buy_count INTEGER DEFAULT 0,
-        hold_count INTEGER DEFAULT 0,
-        sell_count INTEGER DEFAULT 0,
-        strong_sell_count INTEGER DEFAULT 0,
-        total_analysts INTEGER DEFAULT 0,
-        upgrades_last_30d INTEGER DEFAULT 0,
-        downgrades_last_30d INTEGER DEFAULT 0,
-        initiations_last_30d INTEGER DEFAULT 0,
-        avg_price_target DECIMAL(10,4),
-        high_price_target DECIMAL(10,4),
-        low_price_target DECIMAL(10,4),
-        price_target_vs_current DECIMAL(8,4),
-        eps_revisions_up_last_30d INTEGER DEFAULT 0,
-        eps_revisions_down_last_30d INTEGER DEFAULT 0,
-        revenue_revisions_up_last_30d INTEGER DEFAULT 0,
-        revenue_revisions_down_last_30d INTEGER DEFAULT 0,
-        recommendation_mean DECIMAL(4,2),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        strong_buy_count INTEGER DEFAULT 0
+        buy_count INTEGER DEFAULT 0
+        hold_count INTEGER DEFAULT 0
+        sell_count INTEGER DEFAULT 0
+        strong_sell_count INTEGER DEFAULT 0
+        total_analysts INTEGER DEFAULT 0
+        upgrades_last_30d INTEGER DEFAULT 0
+        downgrades_last_30d INTEGER DEFAULT 0
+        initiations_last_30d INTEGER DEFAULT 0
+        avg_price_target DECIMAL(10,4)
+        high_price_target DECIMAL(10,4)
+        low_price_target DECIMAL(10,4)
+        price_target_vs_current DECIMAL(8,4)
+        eps_revisions_up_last_30d INTEGER DEFAULT 0
+        eps_revisions_down_last_30d INTEGER DEFAULT 0
+        revenue_revisions_up_last_30d INTEGER DEFAULT 0
+        revenue_revisions_down_last_30d INTEGER DEFAULT 0
+        recommendation_mean DECIMAL(4,2)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -459,21 +459,21 @@ def create_sentiment_tables(cur, conn):
     # Social sentiment table
     social_sql = """
     CREATE TABLE IF NOT EXISTS social_sentiment_analysis (
-        symbol VARCHAR(20),
-        date DATE,
-        reddit_mention_count INTEGER DEFAULT 0,
-        reddit_sentiment_score DECIMAL(6,4) DEFAULT 0,
-        reddit_volume_normalized_sentiment DECIMAL(6,4) DEFAULT 0,
-        search_volume_index INTEGER DEFAULT 0,
-        search_trend_7d DECIMAL(8,4) DEFAULT 0,
-        search_trend_30d DECIMAL(8,4) DEFAULT 0,
-        news_article_count INTEGER DEFAULT 0,
-        news_sentiment_score DECIMAL(6,4) DEFAULT 0,
-        news_source_quality_weight DECIMAL(5,2) DEFAULT 0,
-        social_media_volume INTEGER DEFAULT 0,
-        viral_score DECIMAL(5,2) DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        reddit_mention_count INTEGER DEFAULT 0
+        reddit_sentiment_score DECIMAL(6,4) DEFAULT 0
+        reddit_volume_normalized_sentiment DECIMAL(6,4) DEFAULT 0
+        search_volume_index INTEGER DEFAULT 0
+        search_trend_7d DECIMAL(8,4) DEFAULT 0
+        search_trend_30d DECIMAL(8,4) DEFAULT 0
+        news_article_count INTEGER DEFAULT 0
+        news_sentiment_score DECIMAL(6,4) DEFAULT 0
+        news_source_quality_weight DECIMAL(5,2) DEFAULT 0
+        social_media_volume INTEGER DEFAULT 0
+        viral_score DECIMAL(5,2) DEFAULT 0
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -484,15 +484,15 @@ def create_sentiment_tables(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_mean ON analyst_sentiment_analysis(recommendation_mean);",
-        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_target ON analyst_sentiment_analysis(price_target_vs_current DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_mean ON analyst_sentiment_analysis(recommendation_mean);"
+        "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_target ON analyst_sentiment_analysis(price_target_vs_current DESC);"
         
-        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol ON social_sentiment_analysis(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON social_sentiment_analysis(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_reddit ON social_sentiment_analysis(reddit_sentiment_score DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_news ON social_sentiment_analysis(news_sentiment_score DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol ON social_sentiment_analysis(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON social_sentiment_analysis(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_reddit ON social_sentiment_analysis(reddit_sentiment_score DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_news ON social_sentiment_analysis(news_sentiment_score DESC);"
         "CREATE INDEX IF NOT EXISTS idx_social_sentiment_volume ON social_sentiment_analysis(search_volume_index DESC);"
     ]
     
@@ -548,40 +548,40 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                     # Analyst sentiment data
                     analyst = item['analyst_sentiment']
                     analyst_data.append((
-                        symbol, date_val,
-                        analyst.get('strong_buy_count', 0),
-                        analyst.get('buy_count', 0),
-                        analyst.get('hold_count', 0),
-                        analyst.get('sell_count', 0),
-                        analyst.get('strong_sell_count', 0),
-                        analyst.get('total_analysts', 0),
-                        analyst.get('upgrades_last_30d', 0),
-                        analyst.get('downgrades_last_30d', 0),
-                        analyst.get('initiations_last_30d', 0),
-                        analyst.get('avg_price_target'),
-                        analyst.get('high_price_target'),
-                        analyst.get('low_price_target'),
-                        analyst.get('price_target_vs_current'),
-                        analyst.get('eps_revisions_up_last_30d', 0),
-                        analyst.get('eps_revisions_down_last_30d', 0),
-                        analyst.get('revenue_revisions_up_last_30d', 0),
-                        analyst.get('revenue_revisions_down_last_30d', 0),
+                        symbol, date_val
+                        analyst.get('strong_buy_count', 0)
+                        analyst.get('buy_count', 0)
+                        analyst.get('hold_count', 0)
+                        analyst.get('sell_count', 0)
+                        analyst.get('strong_sell_count', 0)
+                        analyst.get('total_analysts', 0)
+                        analyst.get('upgrades_last_30d', 0)
+                        analyst.get('downgrades_last_30d', 0)
+                        analyst.get('initiations_last_30d', 0)
+                        analyst.get('avg_price_target')
+                        analyst.get('high_price_target')
+                        analyst.get('low_price_target')
+                        analyst.get('price_target_vs_current')
+                        analyst.get('eps_revisions_up_last_30d', 0)
+                        analyst.get('eps_revisions_down_last_30d', 0)
+                        analyst.get('revenue_revisions_up_last_30d', 0)
+                        analyst.get('revenue_revisions_down_last_30d', 0)
                         analyst.get('recommendation_mean')
                     ))
                     
                     # Social sentiment data
                     social = item['social_sentiment']
                     social_data.append((
-                        symbol, date_val,
-                        social.get('reddit_mention_count', 0),
-                        social.get('reddit_sentiment_score', 0.0),
-                        social.get('reddit_volume_normalized_sentiment', 0.0),
-                        social.get('search_volume_index', 0),
-                        social.get('search_trend_7d', 0.0),
-                        social.get('search_trend_30d', 0.0),
-                        social.get('news_article_count', 0),
-                        social.get('news_sentiment_score', 0.0),
-                        social.get('news_source_quality_weight', 0.0),
+                        symbol, date_val
+                        social.get('reddit_mention_count', 0)
+                        social.get('reddit_sentiment_score', 0.0)
+                        social.get('reddit_volume_normalized_sentiment', 0.0)
+                        social.get('search_volume_index', 0)
+                        social.get('search_trend_7d', 0.0)
+                        social.get('search_trend_30d', 0.0)
+                        social.get('news_article_count', 0)
+                        social.get('news_sentiment_score', 0.0)
+                        social.get('news_source_quality_weight', 0.0)
                         0,  # social_media_volume (placeholder)
                         0.0  # viral_score (placeholder)
                     ))
@@ -590,23 +590,23 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                 if analyst_data:
                     analyst_insert = """
                         INSERT INTO analyst_sentiment_analysis (
-                            symbol, date, strong_buy_count, buy_count, hold_count,
-                            sell_count, strong_sell_count, total_analysts,
-                            upgrades_last_30d, downgrades_last_30d, initiations_last_30d,
-                            avg_price_target, high_price_target, low_price_target,
-                            price_target_vs_current, eps_revisions_up_last_30d,
-                            eps_revisions_down_last_30d, revenue_revisions_up_last_30d,
+                            symbol, date, strong_buy_count, buy_count, hold_count
+                            sell_count, strong_sell_count, total_analysts
+                            upgrades_last_30d, downgrades_last_30d, initiations_last_30d
+                            avg_price_target, high_price_target, low_price_target
+                            price_target_vs_current, eps_revisions_up_last_30d
+                            eps_revisions_down_last_30d, revenue_revisions_up_last_30d
                             revenue_revisions_down_last_30d, recommendation_mean
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            strong_buy_count = EXCLUDED.strong_buy_count,
-                            buy_count = EXCLUDED.buy_count,
-                            hold_count = EXCLUDED.hold_count,
-                            sell_count = EXCLUDED.sell_count,
-                            strong_sell_count = EXCLUDED.strong_sell_count,
-                            total_analysts = EXCLUDED.total_analysts,
-                            avg_price_target = EXCLUDED.avg_price_target,
-                            recommendation_mean = EXCLUDED.recommendation_mean,
+                            strong_buy_count = EXCLUDED.strong_buy_count
+                            buy_count = EXCLUDED.buy_count
+                            hold_count = EXCLUDED.hold_count
+                            sell_count = EXCLUDED.sell_count
+                            strong_sell_count = EXCLUDED.strong_sell_count
+                            total_analysts = EXCLUDED.total_analysts
+                            avg_price_target = EXCLUDED.avg_price_target
+                            recommendation_mean = EXCLUDED.recommendation_mean
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, analyst_insert, analyst_data)
@@ -614,18 +614,18 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                 if social_data:
                     social_insert = """
                         INSERT INTO social_sentiment_analysis (
-                            symbol, date, reddit_mention_count, reddit_sentiment_score,
-                            reddit_volume_normalized_sentiment, search_volume_index,
-                            search_trend_7d, search_trend_30d, news_article_count,
-                            news_sentiment_score, news_source_quality_weight,
+                            symbol, date, reddit_mention_count, reddit_sentiment_score
+                            reddit_volume_normalized_sentiment, search_volume_index
+                            search_trend_7d, search_trend_30d, news_article_count
+                            news_sentiment_score, news_source_quality_weight
                             social_media_volume, viral_score
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            reddit_mention_count = EXCLUDED.reddit_mention_count,
-                            reddit_sentiment_score = EXCLUDED.reddit_sentiment_score,
-                            search_volume_index = EXCLUDED.search_volume_index,
-                            news_article_count = EXCLUDED.news_article_count,
-                            news_sentiment_score = EXCLUDED.news_sentiment_score,
+                            reddit_mention_count = EXCLUDED.reddit_mention_count
+                            reddit_sentiment_score = EXCLUDED.reddit_sentiment_score
+                            search_volume_index = EXCLUDED.search_volume_index
+                            news_article_count = EXCLUDED.news_article_count
+                            news_sentiment_score = EXCLUDED.news_sentiment_score
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, social_insert, social_data)
@@ -655,11 +655,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -706,8 +706,8 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT a.symbol, se.company_name, 
-               a.total_analysts, a.recommendation_mean, a.price_target_vs_current,
+        SELECT a.symbol, se.company_name
+               a.total_analysts, a.recommendation_mean, a.price_target_vs_current
                s.reddit_mention_count, s.news_sentiment_score, s.search_volume_index
         FROM analyst_sentiment_analysis a
         JOIN stock_symbols_enhanced se ON a.symbol = se.symbol

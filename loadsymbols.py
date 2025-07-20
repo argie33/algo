@@ -40,8 +40,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Script configuration
 SCRIPT_NAME = "loadsymbols.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -64,19 +64,19 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception as e:
         logging.warning(f"Using environment variables for DB config: {e}")
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -87,39 +87,39 @@ MAJOR_INDICES = [
 
 SP500_SYMBOLS = [
     # Technology
-    'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'TSLA', 'META', 'CRM', 'ORCL',
-    'ADBE', 'NFLX', 'INTC', 'AMD', 'CSCO', 'AVGO', 'TXN', 'QCOM', 'NOW', 'INTU',
+    'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'TSLA', 'META', 'CRM', 'ORCL'
+    'ADBE', 'NFLX', 'INTC', 'AMD', 'CSCO', 'AVGO', 'TXN', 'QCOM', 'NOW', 'INTU'
     
     # Financials  
-    'BRK-B', 'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'AXP', 'USB', 'TFC',
-    'PNC', 'COF', 'SCHW', 'BLK', 'SPGI', 'ICE', 'CME', 'AON', 'MMC', 'AJG',
+    'BRK-B', 'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'AXP', 'USB', 'TFC'
+    'PNC', 'COF', 'SCHW', 'BLK', 'SPGI', 'ICE', 'CME', 'AON', 'MMC', 'AJG'
     
     # Healthcare
-    'UNH', 'JNJ', 'PFE', 'LLY', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY',
-    'AMGN', 'MDT', 'CVS', 'ELV', 'CI', 'HUM', 'ANTM', 'ISRG', 'SYK', 'BSX',
+    'UNH', 'JNJ', 'PFE', 'LLY', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY'
+    'AMGN', 'MDT', 'CVS', 'ELV', 'CI', 'HUM', 'ANTM', 'ISRG', 'SYK', 'BSX'
     
     # Consumer Discretionary
-    'AMZN', 'TSLA', 'HD', 'MCD', 'BKNG', 'NKE', 'LOW', 'TJX', 'SBUX', 'LRCX',
-    'MAR', 'HLT', 'ORLY', 'AZO', 'ROST', 'YUM', 'CMG', 'EBAY', 'ETSY', 'NCLH',
+    'AMZN', 'TSLA', 'HD', 'MCD', 'BKNG', 'NKE', 'LOW', 'TJX', 'SBUX', 'LRCX'
+    'MAR', 'HLT', 'ORLY', 'AZO', 'ROST', 'YUM', 'CMG', 'EBAY', 'ETSY', 'NCLH'
     
     # Communication Services
-    'GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR', 'ATVI',
+    'GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR', 'ATVI'
     
     # Consumer Staples
-    'PG', 'KO', 'PEP', 'WMT', 'COST', 'MDLZ', 'CL', 'GIS', 'KMB', 'SYY',
+    'PG', 'KO', 'PEP', 'WMT', 'COST', 'MDLZ', 'CL', 'GIS', 'KMB', 'SYY'
     
     # Industrials
-    'BA', 'HON', 'UPS', 'CAT', 'DE', 'LMT', 'RTX', 'FDX', 'UNP', 'CSX',
-    'NOC', 'GD', 'MMM', 'EMR', 'ETN', 'ITW', 'PH', 'CMI', 'CARR', 'OTIS',
+    'BA', 'HON', 'UPS', 'CAT', 'DE', 'LMT', 'RTX', 'FDX', 'UNP', 'CSX'
+    'NOC', 'GD', 'MMM', 'EMR', 'ETN', 'ITW', 'PH', 'CMI', 'CARR', 'OTIS'
     
     # Materials
-    'LIN', 'APD', 'SHW', 'FCX', 'NEM', 'DOW', 'DD', 'PPG', 'ECL', 'IFF',
+    'LIN', 'APD', 'SHW', 'FCX', 'NEM', 'DOW', 'DD', 'PPG', 'ECL', 'IFF'
     
     # Energy
-    'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'VLO', 'MPC', 'OXY', 'BKR',
+    'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'VLO', 'MPC', 'OXY', 'BKR'
     
     # Utilities
-    'NEE', 'SO', 'DUK', 'AEP', 'SRE', 'D', 'PEG', 'EXC', 'XEL', 'ED',
+    'NEE', 'SO', 'DUK', 'AEP', 'SRE', 'D', 'PEG', 'EXC', 'XEL', 'ED'
     
     # Real Estate
     'AMT', 'PLD', 'CCI', 'EQIX', 'WELL', 'SPG', 'O', 'PSA', 'EXR', 'AVB'
@@ -127,7 +127,7 @@ SP500_SYMBOLS = [
 
 # Popular ETFs and other symbols
 POPULAR_ETFS = [
-    'SPY', 'QQQ', 'DIA', 'VTI', 'IWM', 'EEM', 'VEA', 'VWO', 'BND', 'TLT',
+    'SPY', 'QQQ', 'DIA', 'VTI', 'IWM', 'EEM', 'VEA', 'VWO', 'BND', 'TLT'
     'GLD', 'SLV', 'VNQ', 'XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLC', 'XLY'
 ]
 
@@ -166,45 +166,45 @@ def get_enhanced_symbol_info(symbol: str, max_retries: int = 3) -> Optional[Dict
             
             # Extract and normalize data
             result = {
-                'symbol': symbol.upper(),
-                'company_name': info.get('longName', info.get('shortName', symbol)),
-                'sector': info.get('sector', 'Unknown'),
-                'industry': info.get('industry', 'Unknown'),
-                'sub_industry': info.get('industryDisp', ''),
-                'market_cap': info.get('marketCap', 0),
-                'market_cap_tier': get_market_cap_tier(info.get('marketCap')),
-                'exchange': info.get('exchange', 'Unknown'),
-                'currency': info.get('currency', 'USD'),
-                'country': info.get('country', 'US'),
-                'is_active': True,
-                'listing_date': None,
-                'quote_type': info.get('quoteType', 'EQUITY'),
-                'website': info.get('website', ''),
-                'business_summary': info.get('longBusinessSummary', '')[:500] if info.get('longBusinessSummary') else '',
-                'employees': info.get('fullTimeEmployees'),
-                'city': info.get('city', ''),
-                'state': info.get('state', ''),
-                'phone': info.get('phone', ''),
-                'beta': info.get('beta'),
-                'trailing_pe': info.get('trailingPE'),
-                'forward_pe': info.get('forwardPE'),
-                'dividend_yield': info.get('dividendYield'),
-                'book_value': info.get('bookValue'),
-                'price_to_book': info.get('priceToBook'),
-                'enterprise_value': info.get('enterpriseValue'),
-                'profit_margins': info.get('profitMargins'),
-                'float_shares': info.get('floatShares'),
-                'shares_outstanding': info.get('sharesOutstanding'),
-                'held_percent_insiders': info.get('heldPercentInsiders'),
-                'held_percent_institutions': info.get('heldPercentInstitutions'),
-                'short_ratio': info.get('shortRatio'),
-                'short_percent_outstanding': info.get('shortPercentOfFloat'),
-                'recommendation_mean': info.get('recommendationMean'),
-                'target_high_price': info.get('targetHighPrice'),
-                'target_low_price': info.get('targetLowPrice'),
-                'target_mean_price': info.get('targetMeanPrice'),
-                'fifty_two_week_low': info.get('fiftyTwoWeekLow'),
-                'fifty_two_week_high': info.get('fiftyTwoWeekHigh'),
+                'symbol': symbol.upper()
+                'company_name': info.get('longName', info.get('shortName', symbol))
+                'sector': info.get('sector', 'Unknown')
+                'industry': info.get('industry', 'Unknown')
+                'sub_industry': info.get('industryDisp', '')
+                'market_cap': info.get('marketCap', 0)
+                'market_cap_tier': get_market_cap_tier(info.get('marketCap'))
+                'exchange': info.get('exchange', 'Unknown')
+                'currency': info.get('currency', 'USD')
+                'country': info.get('country', 'US')
+                'is_active': True
+                'listing_date': None
+                'quote_type': info.get('quoteType', 'EQUITY')
+                'website': info.get('website', '')
+                'business_summary': info.get('longBusinessSummary', '')[:500] if info.get('longBusinessSummary') else ''
+                'employees': info.get('fullTimeEmployees')
+                'city': info.get('city', '')
+                'state': info.get('state', '')
+                'phone': info.get('phone', '')
+                'beta': info.get('beta')
+                'trailing_pe': info.get('trailingPE')
+                'forward_pe': info.get('forwardPE')
+                'dividend_yield': info.get('dividendYield')
+                'book_value': info.get('bookValue')
+                'price_to_book': info.get('priceToBook')
+                'enterprise_value': info.get('enterpriseValue')
+                'profit_margins': info.get('profitMargins')
+                'float_shares': info.get('floatShares')
+                'shares_outstanding': info.get('sharesOutstanding')
+                'held_percent_insiders': info.get('heldPercentInsiders')
+                'held_percent_institutions': info.get('heldPercentInstitutions')
+                'short_ratio': info.get('shortRatio')
+                'short_percent_outstanding': info.get('shortPercentOfFloat')
+                'recommendation_mean': info.get('recommendationMean')
+                'target_high_price': info.get('targetHighPrice')
+                'target_low_price': info.get('targetLowPrice')
+                'target_mean_price': info.get('targetMeanPrice')
+                'fifty_two_week_low': info.get('fiftyTwoWeekLow')
+                'fifty_two_week_high': info.get('fiftyTwoWeekHigh')
                 'last_updated': datetime.now()
             }
             
@@ -269,56 +269,56 @@ def load_symbols_batch(symbols: List[str], conn, cur, batch_size: int = 20) -> T
             try:
                 insert_query = """
                     INSERT INTO stock_symbols_enhanced (
-                        symbol, company_name, sector, industry, sub_industry, 
-                        market_cap, market_cap_tier, exchange, currency, country,
-                        is_active, listing_date, quote_type, website, business_summary,
-                        employees, city, state, phone, beta, trailing_pe, forward_pe,
-                        dividend_yield, book_value, price_to_book, enterprise_value,
-                        profit_margins, float_shares, shares_outstanding,
-                        held_percent_insiders, held_percent_institutions,
-                        short_ratio, short_percent_outstanding, recommendation_mean,
-                        target_high_price, target_low_price, target_mean_price,
-                        fifty_two_week_low, fifty_two_week_high, last_updated,
+                        symbol, company_name, sector, industry, sub_industry
+                        market_cap, market_cap_tier, exchange, currency, country
+                        is_active, listing_date, quote_type, website, business_summary
+                        employees, city, state, phone, beta, trailing_pe, forward_pe
+                        dividend_yield, book_value, price_to_book, enterprise_value
+                        profit_margins, float_shares, shares_outstanding
+                        held_percent_insiders, held_percent_institutions
+                        short_ratio, short_percent_outstanding, recommendation_mean
+                        target_high_price, target_low_price, target_mean_price
+                        fifty_two_week_low, fifty_two_week_high, last_updated
                         created_at, updated_at
                     ) VALUES %s
                     ON CONFLICT (symbol) DO UPDATE SET
-                        company_name = EXCLUDED.company_name,
-                        sector = EXCLUDED.sector,
-                        industry = EXCLUDED.industry,
-                        sub_industry = EXCLUDED.sub_industry,
-                        market_cap = EXCLUDED.market_cap,
-                        market_cap_tier = EXCLUDED.market_cap_tier,
-                        exchange = EXCLUDED.exchange,
-                        currency = EXCLUDED.currency,
-                        country = EXCLUDED.country,
-                        quote_type = EXCLUDED.quote_type,
-                        website = EXCLUDED.website,
-                        business_summary = EXCLUDED.business_summary,
-                        employees = EXCLUDED.employees,
-                        city = EXCLUDED.city,
-                        state = EXCLUDED.state,
-                        phone = EXCLUDED.phone,
-                        beta = EXCLUDED.beta,
-                        trailing_pe = EXCLUDED.trailing_pe,
-                        forward_pe = EXCLUDED.forward_pe,
-                        dividend_yield = EXCLUDED.dividend_yield,
-                        book_value = EXCLUDED.book_value,
-                        price_to_book = EXCLUDED.price_to_book,
-                        enterprise_value = EXCLUDED.enterprise_value,
-                        profit_margins = EXCLUDED.profit_margins,
-                        float_shares = EXCLUDED.float_shares,
-                        shares_outstanding = EXCLUDED.shares_outstanding,
-                        held_percent_insiders = EXCLUDED.held_percent_insiders,
-                        held_percent_institutions = EXCLUDED.held_percent_institutions,
-                        short_ratio = EXCLUDED.short_ratio,
-                        short_percent_outstanding = EXCLUDED.short_percent_outstanding,
-                        recommendation_mean = EXCLUDED.recommendation_mean,
-                        target_high_price = EXCLUDED.target_high_price,
-                        target_low_price = EXCLUDED.target_low_price,
-                        target_mean_price = EXCLUDED.target_mean_price,
-                        fifty_two_week_low = EXCLUDED.fifty_two_week_low,
-                        fifty_two_week_high = EXCLUDED.fifty_two_week_high,
-                        last_updated = EXCLUDED.last_updated,
+                        company_name = EXCLUDED.company_name
+                        sector = EXCLUDED.sector
+                        industry = EXCLUDED.industry
+                        sub_industry = EXCLUDED.sub_industry
+                        market_cap = EXCLUDED.market_cap
+                        market_cap_tier = EXCLUDED.market_cap_tier
+                        exchange = EXCLUDED.exchange
+                        currency = EXCLUDED.currency
+                        country = EXCLUDED.country
+                        quote_type = EXCLUDED.quote_type
+                        website = EXCLUDED.website
+                        business_summary = EXCLUDED.business_summary
+                        employees = EXCLUDED.employees
+                        city = EXCLUDED.city
+                        state = EXCLUDED.state
+                        phone = EXCLUDED.phone
+                        beta = EXCLUDED.beta
+                        trailing_pe = EXCLUDED.trailing_pe
+                        forward_pe = EXCLUDED.forward_pe
+                        dividend_yield = EXCLUDED.dividend_yield
+                        book_value = EXCLUDED.book_value
+                        price_to_book = EXCLUDED.price_to_book
+                        enterprise_value = EXCLUDED.enterprise_value
+                        profit_margins = EXCLUDED.profit_margins
+                        float_shares = EXCLUDED.float_shares
+                        shares_outstanding = EXCLUDED.shares_outstanding
+                        held_percent_insiders = EXCLUDED.held_percent_insiders
+                        held_percent_institutions = EXCLUDED.held_percent_institutions
+                        short_ratio = EXCLUDED.short_ratio
+                        short_percent_outstanding = EXCLUDED.short_percent_outstanding
+                        recommendation_mean = EXCLUDED.recommendation_mean
+                        target_high_price = EXCLUDED.target_high_price
+                        target_low_price = EXCLUDED.target_low_price
+                        target_mean_price = EXCLUDED.target_mean_price
+                        fifty_two_week_low = EXCLUDED.fifty_two_week_low
+                        fifty_two_week_high = EXCLUDED.fifty_two_week_high
+                        last_updated = EXCLUDED.last_updated
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -326,21 +326,21 @@ def load_symbols_batch(symbols: List[str], conn, cur, batch_size: int = 20) -> T
                 data_tuples = []
                 for item in symbol_data:
                     data_tuples.append((
-                        item['symbol'], item['company_name'], item['sector'], 
-                        item['industry'], item['sub_industry'], item['market_cap'],
-                        item['market_cap_tier'], item['exchange'], item['currency'],
-                        item['country'], item['is_active'], item['listing_date'],
-                        item['quote_type'], item['website'], item['business_summary'],
-                        item['employees'], item['city'], item['state'], item['phone'],
-                        item['beta'], item['trailing_pe'], item['forward_pe'],
-                        item['dividend_yield'], item['book_value'], item['price_to_book'],
-                        item['enterprise_value'], item['profit_margins'], 
-                        item['float_shares'], item['shares_outstanding'],
-                        item['held_percent_insiders'], item['held_percent_institutions'],
-                        item['short_ratio'], item['short_percent_outstanding'],
-                        item['recommendation_mean'], item['target_high_price'],
-                        item['target_low_price'], item['target_mean_price'],
-                        item['fifty_two_week_low'], item['fifty_two_week_high'],
+                        item['symbol'], item['company_name'], item['sector']
+                        item['industry'], item['sub_industry'], item['market_cap']
+                        item['market_cap_tier'], item['exchange'], item['currency']
+                        item['country'], item['is_active'], item['listing_date']
+                        item['quote_type'], item['website'], item['business_summary']
+                        item['employees'], item['city'], item['state'], item['phone']
+                        item['beta'], item['trailing_pe'], item['forward_pe']
+                        item['dividend_yield'], item['book_value'], item['price_to_book']
+                        item['enterprise_value'], item['profit_margins']
+                        item['float_shares'], item['shares_outstanding']
+                        item['held_percent_insiders'], item['held_percent_institutions']
+                        item['short_ratio'], item['short_percent_outstanding']
+                        item['recommendation_mean'], item['target_high_price']
+                        item['target_low_price'], item['target_mean_price']
+                        item['fifty_two_week_low'], item['fifty_two_week_high']
                         item['last_updated'], datetime.now(), datetime.now()
                     ))
                 
@@ -373,47 +373,47 @@ def create_enhanced_symbols_table(cur, conn):
     
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS stock_symbols_enhanced (
-        symbol VARCHAR(20) PRIMARY KEY,
-        company_name VARCHAR(255) NOT NULL,
-        sector VARCHAR(100),
-        industry VARCHAR(150),
-        sub_industry VARCHAR(200),
-        market_cap BIGINT,
-        market_cap_tier VARCHAR(20),
-        exchange VARCHAR(20),
-        currency VARCHAR(3) DEFAULT 'USD',
-        country VARCHAR(50) DEFAULT 'US',
-        is_active BOOLEAN DEFAULT TRUE,
-        listing_date DATE,
-        quote_type VARCHAR(20),
-        website TEXT,
-        business_summary TEXT,
-        employees INTEGER,
-        city VARCHAR(100),
-        state VARCHAR(50),
-        phone VARCHAR(50),
-        beta DECIMAL(8,4),
-        trailing_pe DECIMAL(8,4),
-        forward_pe DECIMAL(8,4),
-        dividend_yield DECIMAL(8,6),
-        book_value DECIMAL(12,4),
-        price_to_book DECIMAL(8,4),
-        enterprise_value BIGINT,
-        profit_margins DECIMAL(8,6),
-        float_shares BIGINT,
-        shares_outstanding BIGINT,
-        held_percent_insiders DECIMAL(8,6),
-        held_percent_institutions DECIMAL(8,6),
-        short_ratio DECIMAL(8,4),
-        short_percent_outstanding DECIMAL(8,6),
-        recommendation_mean DECIMAL(4,2),
-        target_high_price DECIMAL(12,4),
-        target_low_price DECIMAL(12,4),
-        target_mean_price DECIMAL(12,4),
-        fifty_two_week_low DECIMAL(12,4),
-        fifty_two_week_high DECIMAL(12,4),
-        last_updated TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20) PRIMARY KEY
+        company_name VARCHAR(255) NOT NULL
+        sector VARCHAR(100)
+        industry VARCHAR(150)
+        sub_industry VARCHAR(200)
+        market_cap BIGINT
+        market_cap_tier VARCHAR(20)
+        exchange VARCHAR(20)
+        currency VARCHAR(3) DEFAULT 'USD'
+        country VARCHAR(50) DEFAULT 'US'
+        is_active BOOLEAN DEFAULT TRUE
+        listing_date DATE
+        quote_type VARCHAR(20)
+        website TEXT
+        business_summary TEXT
+        employees INTEGER
+        city VARCHAR(100)
+        state VARCHAR(50)
+        phone VARCHAR(50)
+        beta DECIMAL(8,4)
+        trailing_pe DECIMAL(8,4)
+        forward_pe DECIMAL(8,4)
+        dividend_yield DECIMAL(8,6)
+        book_value DECIMAL(12,4)
+        price_to_book DECIMAL(8,4)
+        enterprise_value BIGINT
+        profit_margins DECIMAL(8,6)
+        float_shares BIGINT
+        shares_outstanding BIGINT
+        held_percent_insiders DECIMAL(8,6)
+        held_percent_institutions DECIMAL(8,6)
+        short_ratio DECIMAL(8,4)
+        short_percent_outstanding DECIMAL(8,6)
+        recommendation_mean DECIMAL(4,2)
+        target_high_price DECIMAL(12,4)
+        target_low_price DECIMAL(12,4)
+        target_mean_price DECIMAL(12,4)
+        fifty_two_week_low DECIMAL(12,4)
+        fifty_two_week_high DECIMAL(12,4)
+        last_updated TIMESTAMP WITH TIME ZONE
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     """
@@ -422,14 +422,14 @@ def create_enhanced_symbols_table(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_symbols_sector ON stock_symbols_enhanced(sector);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_market_cap ON stock_symbols_enhanced(market_cap DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_market_cap_tier ON stock_symbols_enhanced(market_cap_tier);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_exchange ON stock_symbols_enhanced(exchange);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_active ON stock_symbols_enhanced(is_active);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_beta ON stock_symbols_enhanced(beta);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_pe ON stock_symbols_enhanced(trailing_pe);",
-        "CREATE INDEX IF NOT EXISTS idx_symbols_dividend_yield ON stock_symbols_enhanced(dividend_yield);",
+        "CREATE INDEX IF NOT EXISTS idx_symbols_sector ON stock_symbols_enhanced(sector);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_market_cap ON stock_symbols_enhanced(market_cap DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_market_cap_tier ON stock_symbols_enhanced(market_cap_tier);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_exchange ON stock_symbols_enhanced(exchange);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_active ON stock_symbols_enhanced(is_active);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_beta ON stock_symbols_enhanced(beta);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_pe ON stock_symbols_enhanced(trailing_pe);"
+        "CREATE INDEX IF NOT EXISTS idx_symbols_dividend_yield ON stock_symbols_enhanced(dividend_yield);"
         "CREATE INDEX IF NOT EXISTS idx_symbols_updated ON stock_symbols_enhanced(last_updated DESC);"
     ]
     
@@ -445,11 +445,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -482,8 +482,8 @@ if __name__ == "__main__":
     
     # Sample query
     cur.execute("""
-        SELECT sector, COUNT(*) as count, 
-               AVG(market_cap) as avg_market_cap,
+        SELECT sector, COUNT(*) as count
+               AVG(market_cap) as avg_market_cap
                AVG(trailing_pe) as avg_pe
         FROM stock_symbols_enhanced 
         WHERE sector != 'Unknown' AND market_cap > 0

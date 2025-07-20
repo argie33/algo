@@ -23,6 +23,9 @@ describe('Authentication Middleware Unit Tests', () => {
     delete require.cache[require.resolve('../../middleware/auth')];
     auth = require('../../middleware/auth');
     
+    // Clear cached configuration
+    auth.clearConfigCache();
+    
     // Mock request object
     mockRequest = {
       headers: {},
@@ -402,18 +405,29 @@ describe('Authentication Middleware Unit Tests', () => {
     });
 
     it('handles status check errors gracefully', async () => {
-      // Force an error by mocking loadCognitoConfig to throw
-      jest.spyOn(auth, 'loadCognitoConfig').mockRejectedValue(new Error('Test error'));
+      // Create an error by making process.env throw when accessed
+      const originalProcess = global.process;
+      global.process = new Proxy(originalProcess, {
+        get(target, prop) {
+          if (prop === 'env') {
+            throw new Error('Process environment access failed');
+          }
+          return target[prop];
+        }
+      });
       
-      await auth.getAuthStatus(mockRequest, mockRes);
+      await auth.getAuthStatus(mockRequest, mockResponse);
       
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith(
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'error',
-          error: 'Test error'
+          error: 'Process environment access failed'
         })
       );
+      
+      // Restore the original process
+      global.process = originalProcess;
     });
   });
 

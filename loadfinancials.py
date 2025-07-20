@@ -43,8 +43,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Script configuration
 SCRIPT_NAME = "loadfinancials.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -61,18 +61,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -229,15 +229,15 @@ class FinancialMetricsCalculator:
     def calculate_piotroski_score(self) -> Dict:
         """Calculate Piotroski F-Score components"""
         score_components = {
-            'roa_positive': False,
-            'cfo_positive': False,
-            'roa_improvement': False,
-            'accruals_quality': False,
-            'leverage_decrease': False,
-            'current_ratio_improvement': False,
-            'shares_outstanding_decrease': False,
-            'gross_margin_improvement': False,
-            'asset_turnover_improvement': False,
+            'roa_positive': False
+            'cfo_positive': False
+            'roa_improvement': False
+            'accruals_quality': False
+            'leverage_decrease': False
+            'current_ratio_improvement': False
+            'shares_outstanding_decrease': False
+            'gross_margin_improvement': False
+            'asset_turnover_improvement': False
             'piotroski_f_score': 0
         }
         
@@ -266,14 +266,14 @@ class FinancialMetricsCalculator:
             
             # Calculate total score
             total_score = sum([
-                score_components['roa_positive'],
-                score_components['cfo_positive'],
-                score_components['roa_improvement'],
-                score_components['accruals_quality'],
-                score_components['leverage_decrease'],
-                score_components['current_ratio_improvement'],
-                score_components['shares_outstanding_decrease'],
-                score_components['gross_margin_improvement'],
+                score_components['roa_positive']
+                score_components['cfo_positive']
+                score_components['roa_improvement']
+                score_components['accruals_quality']
+                score_components['leverage_decrease']
+                score_components['current_ratio_improvement']
+                score_components['shares_outstanding_decrease']
+                score_components['gross_margin_improvement']
                 score_components['asset_turnover_improvement']
             ])
             
@@ -287,11 +287,11 @@ class FinancialMetricsCalculator:
     def calculate_altman_zscore(self) -> Dict:
         """Calculate Altman Z-Score components"""
         components = {
-            'working_capital_to_assets': None,
-            'retained_earnings_to_assets': None,
-            'ebit_to_assets': None,
-            'market_value_equity_to_liabilities': None,
-            'sales_to_assets': None,
+            'working_capital_to_assets': None
+            'retained_earnings_to_assets': None
+            'ebit_to_assets': None
+            'market_value_equity_to_liabilities': None
+            'sales_to_assets': None
             'altman_z_score': None
         }
         
@@ -340,10 +340,10 @@ class FinancialMetricsCalculator:
                 
                 # Calculate Z-Score
                 z_components = [
-                    components['working_capital_to_assets'],
-                    components['retained_earnings_to_assets'],
-                    components['ebit_to_assets'],
-                    components['market_value_equity_to_liabilities'],
+                    components['working_capital_to_assets']
+                    components['retained_earnings_to_assets']
+                    components['ebit_to_assets']
+                    components['market_value_equity_to_liabilities']
                     components['sales_to_assets']
                 ]
                 
@@ -445,13 +445,13 @@ def get_financial_data(symbol: str, max_retries: int = 3) -> Optional[Dict]:
             
             # Get all financial data
             data = {
-                'symbol': symbol,
-                'info': ticker.info,
-                'financials': ticker.financials,
-                'balance_sheet': ticker.balance_sheet,
-                'cashflow': ticker.cashflow,
-                'quarterly_financials': ticker.quarterly_financials,
-                'quarterly_balance_sheet': ticker.quarterly_balance_sheet,
+                'symbol': symbol
+                'info': ticker.info
+                'financials': ticker.financials
+                'balance_sheet': ticker.balance_sheet
+                'cashflow': ticker.cashflow
+                'quarterly_financials': ticker.quarterly_financials
+                'quarterly_balance_sheet': ticker.quarterly_balance_sheet
                 'quarterly_cashflow': ticker.quarterly_cashflow
             }
             
@@ -485,11 +485,11 @@ def process_symbol_financials(symbol: str) -> Optional[Dict]:
         calculator = FinancialMetricsCalculator(symbol, financial_data)
         
         result = {
-            'symbol': symbol,
-            'calculated_date': datetime.now().date(),
-            'profitability': calculator.calculate_profitability_metrics(),
-            'balance_sheet': calculator.calculate_balance_sheet_strength(),
-            'valuation': calculator.calculate_valuation_metrics(),
+            'symbol': symbol
+            'calculated_date': datetime.now().date()
+            'profitability': calculator.calculate_profitability_metrics()
+            'balance_sheet': calculator.calculate_balance_sheet_strength()
+            'valuation': calculator.calculate_valuation_metrics()
             'growth': calculator.calculate_growth_metrics()
         }
         
@@ -506,19 +506,19 @@ def create_financial_tables(cur, conn):
     # Profitability metrics table
     profitability_sql = """
     CREATE TABLE IF NOT EXISTS profitability_metrics (
-        symbol VARCHAR(20),
-        date DATE,
-        return_on_equity DECIMAL(8,4),
-        return_on_assets DECIMAL(8,4),
-        return_on_invested_capital DECIMAL(8,4),
-        net_profit_margin DECIMAL(8,4),
-        operating_margin DECIMAL(8,4),
-        gross_margins DECIMAL(8,4),
-        ebitda_margin DECIMAL(8,4),
-        asset_turnover DECIMAL(8,4),
-        equity_multiplier DECIMAL(8,4),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        return_on_equity DECIMAL(8,4)
+        return_on_assets DECIMAL(8,4)
+        return_on_invested_capital DECIMAL(8,4)
+        net_profit_margin DECIMAL(8,4)
+        operating_margin DECIMAL(8,4)
+        gross_margins DECIMAL(8,4)
+        ebitda_margin DECIMAL(8,4)
+        asset_turnover DECIMAL(8,4)
+        equity_multiplier DECIMAL(8,4)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -526,30 +526,30 @@ def create_financial_tables(cur, conn):
     # Balance sheet strength table
     balance_sheet_sql = """
     CREATE TABLE IF NOT EXISTS balance_sheet_strength (
-        symbol VARCHAR(20),
-        date DATE,
-        current_ratio DECIMAL(8,4),
-        quick_ratio DECIMAL(8,4),
-        debt_to_equity DECIMAL(8,4),
-        interest_coverage DECIMAL(8,4),
-        roa_positive BOOLEAN,
-        cfo_positive BOOLEAN,
-        roa_improvement BOOLEAN,
-        accruals_quality BOOLEAN,
-        leverage_decrease BOOLEAN,
-        current_ratio_improvement BOOLEAN,
-        shares_outstanding_decrease BOOLEAN,
-        gross_margin_improvement BOOLEAN,
-        asset_turnover_improvement BOOLEAN,
-        piotroski_f_score INTEGER,
-        working_capital_to_assets DECIMAL(8,4),
-        retained_earnings_to_assets DECIMAL(8,4),
-        ebit_to_assets DECIMAL(8,4),
-        market_value_equity_to_liabilities DECIMAL(8,4),
-        sales_to_assets DECIMAL(8,4),
-        altman_z_score DECIMAL(8,4),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        current_ratio DECIMAL(8,4)
+        quick_ratio DECIMAL(8,4)
+        debt_to_equity DECIMAL(8,4)
+        interest_coverage DECIMAL(8,4)
+        roa_positive BOOLEAN
+        cfo_positive BOOLEAN
+        roa_improvement BOOLEAN
+        accruals_quality BOOLEAN
+        leverage_decrease BOOLEAN
+        current_ratio_improvement BOOLEAN
+        shares_outstanding_decrease BOOLEAN
+        gross_margin_improvement BOOLEAN
+        asset_turnover_improvement BOOLEAN
+        piotroski_f_score INTEGER
+        working_capital_to_assets DECIMAL(8,4)
+        retained_earnings_to_assets DECIMAL(8,4)
+        ebit_to_assets DECIMAL(8,4)
+        market_value_equity_to_liabilities DECIMAL(8,4)
+        sales_to_assets DECIMAL(8,4)
+        altman_z_score DECIMAL(8,4)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -557,21 +557,21 @@ def create_financial_tables(cur, conn):
     # Valuation multiples table
     valuation_sql = """
     CREATE TABLE IF NOT EXISTS valuation_multiples (
-        symbol VARCHAR(20),
-        date DATE,
-        pe_ratio DECIMAL(8,4),
-        forward_pe DECIMAL(8,4),
-        peg_ratio DECIMAL(8,4),
-        price_to_book DECIMAL(8,4),
-        price_to_sales DECIMAL(8,4),
-        price_to_tangible_book DECIMAL(8,4),
-        market_to_book DECIMAL(8,4),
-        enterprise_value BIGINT,
-        ev_to_revenue DECIMAL(8,4),
-        ev_to_ebitda DECIMAL(8,4),
-        current_price DECIMAL(12,4),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        pe_ratio DECIMAL(8,4)
+        forward_pe DECIMAL(8,4)
+        peg_ratio DECIMAL(8,4)
+        price_to_book DECIMAL(8,4)
+        price_to_sales DECIMAL(8,4)
+        price_to_tangible_book DECIMAL(8,4)
+        market_to_book DECIMAL(8,4)
+        enterprise_value BIGINT
+        ev_to_revenue DECIMAL(8,4)
+        ev_to_ebitda DECIMAL(8,4)
+        current_price DECIMAL(12,4)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -579,16 +579,16 @@ def create_financial_tables(cur, conn):
     # Growth metrics table
     growth_sql = """
     CREATE TABLE IF NOT EXISTS growth_metrics (
-        symbol VARCHAR(20),
-        date DATE,
-        revenue_growth DECIMAL(8,4),
-        revenue_growth_yoy DECIMAL(8,4),
-        earnings_growth DECIMAL(8,4),
-        earnings_growth_yoy DECIMAL(8,4),
-        earnings_quarterly_growth DECIMAL(8,4),
-        sustainable_growth_rate DECIMAL(8,4),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        symbol VARCHAR(20)
+        date DATE
+        revenue_growth DECIMAL(8,4)
+        revenue_growth_yoy DECIMAL(8,4)
+        earnings_growth DECIMAL(8,4)
+        earnings_growth_yoy DECIMAL(8,4)
+        earnings_quarterly_growth DECIMAL(8,4)
+        sustainable_growth_rate DECIMAL(8,4)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -599,22 +599,22 @@ def create_financial_tables(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_profitability_symbol ON profitability_metrics(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_profitability_date ON profitability_metrics(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_profitability_roe ON profitability_metrics(return_on_equity DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_profitability_symbol ON profitability_metrics(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_profitability_date ON profitability_metrics(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_profitability_roe ON profitability_metrics(return_on_equity DESC);"
         
-        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_symbol ON balance_sheet_strength(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_date ON balance_sheet_strength(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_piotroski ON balance_sheet_strength(piotroski_f_score DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_altman ON balance_sheet_strength(altman_z_score DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_symbol ON balance_sheet_strength(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_date ON balance_sheet_strength(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_piotroski ON balance_sheet_strength(piotroski_f_score DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_balance_sheet_altman ON balance_sheet_strength(altman_z_score DESC);"
         
-        "CREATE INDEX IF NOT EXISTS idx_valuation_symbol ON valuation_multiples(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_valuation_date ON valuation_multiples(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_valuation_pe ON valuation_multiples(pe_ratio);",
-        "CREATE INDEX IF NOT EXISTS idx_valuation_pb ON valuation_multiples(price_to_book);",
+        "CREATE INDEX IF NOT EXISTS idx_valuation_symbol ON valuation_multiples(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_valuation_date ON valuation_multiples(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_valuation_pe ON valuation_multiples(pe_ratio);"
+        "CREATE INDEX IF NOT EXISTS idx_valuation_pb ON valuation_multiples(price_to_book);"
         
-        "CREATE INDEX IF NOT EXISTS idx_growth_symbol ON growth_metrics(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_growth_date ON growth_metrics(date DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_growth_symbol ON growth_metrics(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_growth_date ON growth_metrics(date DESC);"
         "CREATE INDEX IF NOT EXISTS idx_growth_revenue ON growth_metrics(revenue_growth DESC);"
     ]
     
@@ -676,43 +676,43 @@ def load_financial_metrics_batch(symbols: List[str], conn, cur, batch_size: int 
                     # Profitability data
                     prof = item['profitability']
                     profitability_data.append((
-                        symbol, calc_date, prof.get('return_on_equity'),
-                        prof.get('return_on_assets'), prof.get('return_on_invested_capital'),
-                        prof.get('net_profit_margin'), prof.get('operating_margin'),
-                        prof.get('gross_margins'), prof.get('ebitda_margin'),
+                        symbol, calc_date, prof.get('return_on_equity')
+                        prof.get('return_on_assets'), prof.get('return_on_invested_capital')
+                        prof.get('net_profit_margin'), prof.get('operating_margin')
+                        prof.get('gross_margins'), prof.get('ebitda_margin')
                         prof.get('asset_turnover'), prof.get('equity_multiplier')
                     ))
                     
                     # Balance sheet data  
                     bs = item['balance_sheet']
                     balance_sheet_data.append((
-                        symbol, calc_date, bs.get('current_ratio'), bs.get('quick_ratio'),
-                        bs.get('debt_to_equity'), bs.get('interest_coverage'),
-                        bs.get('roa_positive'), bs.get('cfo_positive'),
-                        bs.get('roa_improvement'), bs.get('accruals_quality'),
-                        bs.get('leverage_decrease'), bs.get('current_ratio_improvement'),
-                        bs.get('shares_outstanding_decrease'), bs.get('gross_margin_improvement'),
-                        bs.get('asset_turnover_improvement'), bs.get('piotroski_f_score'),
-                        bs.get('working_capital_to_assets'), bs.get('retained_earnings_to_assets'),
-                        bs.get('ebit_to_assets'), bs.get('market_value_equity_to_liabilities'),
+                        symbol, calc_date, bs.get('current_ratio'), bs.get('quick_ratio')
+                        bs.get('debt_to_equity'), bs.get('interest_coverage')
+                        bs.get('roa_positive'), bs.get('cfo_positive')
+                        bs.get('roa_improvement'), bs.get('accruals_quality')
+                        bs.get('leverage_decrease'), bs.get('current_ratio_improvement')
+                        bs.get('shares_outstanding_decrease'), bs.get('gross_margin_improvement')
+                        bs.get('asset_turnover_improvement'), bs.get('piotroski_f_score')
+                        bs.get('working_capital_to_assets'), bs.get('retained_earnings_to_assets')
+                        bs.get('ebit_to_assets'), bs.get('market_value_equity_to_liabilities')
                         bs.get('sales_to_assets'), bs.get('altman_z_score')
                     ))
                     
                     # Valuation data
                     val = item['valuation']
                     valuation_data.append((
-                        symbol, calc_date, val.get('pe_ratio'), val.get('forward_pe'),
-                        val.get('peg_ratio'), val.get('price_to_book'), val.get('price_to_sales'),
-                        val.get('price_to_tangible_book'), val.get('market_to_book'),
-                        val.get('enterprise_value'), val.get('ev_to_revenue'),
+                        symbol, calc_date, val.get('pe_ratio'), val.get('forward_pe')
+                        val.get('peg_ratio'), val.get('price_to_book'), val.get('price_to_sales')
+                        val.get('price_to_tangible_book'), val.get('market_to_book')
+                        val.get('enterprise_value'), val.get('ev_to_revenue')
                         val.get('ev_to_ebitda'), val.get('current_price')
                     ))
                     
                     # Growth data
                     growth = item['growth']
                     growth_data.append((
-                        symbol, calc_date, growth.get('revenue_growth'), growth.get('revenue_growth_yoy'),
-                        growth.get('earnings_growth'), growth.get('earnings_growth_yoy'),
+                        symbol, calc_date, growth.get('revenue_growth'), growth.get('revenue_growth_yoy')
+                        growth.get('earnings_growth'), growth.get('earnings_growth_yoy')
                         growth.get('earnings_quarterly_growth'), growth.get('sustainable_growth_rate')
                     ))
                 
@@ -720,20 +720,20 @@ def load_financial_metrics_batch(symbols: List[str], conn, cur, batch_size: int 
                 if profitability_data:
                     profitability_insert = """
                         INSERT INTO profitability_metrics (
-                            symbol, date, return_on_equity, return_on_assets, 
-                            return_on_invested_capital, net_profit_margin, operating_margin,
+                            symbol, date, return_on_equity, return_on_assets
+                            return_on_invested_capital, net_profit_margin, operating_margin
                             gross_margins, ebitda_margin, asset_turnover, equity_multiplier
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            return_on_equity = EXCLUDED.return_on_equity,
-                            return_on_assets = EXCLUDED.return_on_assets,
-                            return_on_invested_capital = EXCLUDED.return_on_invested_capital,
-                            net_profit_margin = EXCLUDED.net_profit_margin,
-                            operating_margin = EXCLUDED.operating_margin,
-                            gross_margins = EXCLUDED.gross_margins,
-                            ebitda_margin = EXCLUDED.ebitda_margin,
-                            asset_turnover = EXCLUDED.asset_turnover,
-                            equity_multiplier = EXCLUDED.equity_multiplier,
+                            return_on_equity = EXCLUDED.return_on_equity
+                            return_on_assets = EXCLUDED.return_on_assets
+                            return_on_invested_capital = EXCLUDED.return_on_invested_capital
+                            net_profit_margin = EXCLUDED.net_profit_margin
+                            operating_margin = EXCLUDED.operating_margin
+                            gross_margins = EXCLUDED.gross_margins
+                            ebitda_margin = EXCLUDED.ebitda_margin
+                            asset_turnover = EXCLUDED.asset_turnover
+                            equity_multiplier = EXCLUDED.equity_multiplier
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, profitability_insert, profitability_data)
@@ -741,22 +741,22 @@ def load_financial_metrics_batch(symbols: List[str], conn, cur, batch_size: int 
                 if balance_sheet_data:
                     balance_sheet_insert = """
                         INSERT INTO balance_sheet_strength (
-                            symbol, date, current_ratio, quick_ratio, debt_to_equity,
-                            interest_coverage, roa_positive, cfo_positive, roa_improvement,
-                            accruals_quality, leverage_decrease, current_ratio_improvement,
-                            shares_outstanding_decrease, gross_margin_improvement,
-                            asset_turnover_improvement, piotroski_f_score,
-                            working_capital_to_assets, retained_earnings_to_assets,
-                            ebit_to_assets, market_value_equity_to_liabilities,
+                            symbol, date, current_ratio, quick_ratio, debt_to_equity
+                            interest_coverage, roa_positive, cfo_positive, roa_improvement
+                            accruals_quality, leverage_decrease, current_ratio_improvement
+                            shares_outstanding_decrease, gross_margin_improvement
+                            asset_turnover_improvement, piotroski_f_score
+                            working_capital_to_assets, retained_earnings_to_assets
+                            ebit_to_assets, market_value_equity_to_liabilities
                             sales_to_assets, altman_z_score
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            current_ratio = EXCLUDED.current_ratio,
-                            quick_ratio = EXCLUDED.quick_ratio,
-                            debt_to_equity = EXCLUDED.debt_to_equity,
-                            interest_coverage = EXCLUDED.interest_coverage,
-                            piotroski_f_score = EXCLUDED.piotroski_f_score,
-                            altman_z_score = EXCLUDED.altman_z_score,
+                            current_ratio = EXCLUDED.current_ratio
+                            quick_ratio = EXCLUDED.quick_ratio
+                            debt_to_equity = EXCLUDED.debt_to_equity
+                            interest_coverage = EXCLUDED.interest_coverage
+                            piotroski_f_score = EXCLUDED.piotroski_f_score
+                            altman_z_score = EXCLUDED.altman_z_score
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, balance_sheet_insert, balance_sheet_data)
@@ -764,21 +764,21 @@ def load_financial_metrics_batch(symbols: List[str], conn, cur, batch_size: int 
                 if valuation_data:
                     valuation_insert = """
                         INSERT INTO valuation_multiples (
-                            symbol, date, pe_ratio, forward_pe, peg_ratio,
-                            price_to_book, price_to_sales, price_to_tangible_book,
-                            market_to_book, enterprise_value, ev_to_revenue,
+                            symbol, date, pe_ratio, forward_pe, peg_ratio
+                            price_to_book, price_to_sales, price_to_tangible_book
+                            market_to_book, enterprise_value, ev_to_revenue
                             ev_to_ebitda, current_price
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            pe_ratio = EXCLUDED.pe_ratio,
-                            forward_pe = EXCLUDED.forward_pe,
-                            peg_ratio = EXCLUDED.peg_ratio,
-                            price_to_book = EXCLUDED.price_to_book,
-                            price_to_sales = EXCLUDED.price_to_sales,
-                            enterprise_value = EXCLUDED.enterprise_value,
-                            ev_to_revenue = EXCLUDED.ev_to_revenue,
-                            ev_to_ebitda = EXCLUDED.ev_to_ebitda,
-                            current_price = EXCLUDED.current_price,
+                            pe_ratio = EXCLUDED.pe_ratio
+                            forward_pe = EXCLUDED.forward_pe
+                            peg_ratio = EXCLUDED.peg_ratio
+                            price_to_book = EXCLUDED.price_to_book
+                            price_to_sales = EXCLUDED.price_to_sales
+                            enterprise_value = EXCLUDED.enterprise_value
+                            ev_to_revenue = EXCLUDED.ev_to_revenue
+                            ev_to_ebitda = EXCLUDED.ev_to_ebitda
+                            current_price = EXCLUDED.current_price
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, valuation_insert, valuation_data)
@@ -786,17 +786,17 @@ def load_financial_metrics_batch(symbols: List[str], conn, cur, batch_size: int 
                 if growth_data:
                     growth_insert = """
                         INSERT INTO growth_metrics (
-                            symbol, date, revenue_growth, revenue_growth_yoy,
-                            earnings_growth, earnings_growth_yoy, 
+                            symbol, date, revenue_growth, revenue_growth_yoy
+                            earnings_growth, earnings_growth_yoy
                             earnings_quarterly_growth, sustainable_growth_rate
                         ) VALUES %s
                         ON CONFLICT (symbol, date) DO UPDATE SET
-                            revenue_growth = EXCLUDED.revenue_growth,
-                            revenue_growth_yoy = EXCLUDED.revenue_growth_yoy,
-                            earnings_growth = EXCLUDED.earnings_growth,
-                            earnings_growth_yoy = EXCLUDED.earnings_growth_yoy,
-                            earnings_quarterly_growth = EXCLUDED.earnings_quarterly_growth,
-                            sustainable_growth_rate = EXCLUDED.sustainable_growth_rate,
+                            revenue_growth = EXCLUDED.revenue_growth
+                            revenue_growth_yoy = EXCLUDED.revenue_growth_yoy
+                            earnings_growth = EXCLUDED.earnings_growth
+                            earnings_growth_yoy = EXCLUDED.earnings_growth_yoy
+                            earnings_quarterly_growth = EXCLUDED.earnings_quarterly_growth
+                            sustainable_growth_rate = EXCLUDED.sustainable_growth_rate
                             updated_at = CURRENT_TIMESTAMP
                     """
                     execute_values(cur, growth_insert, growth_data)
@@ -826,11 +826,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -871,9 +871,9 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT p.symbol, se.company_name, se.sector,
-               p.return_on_equity, p.return_on_assets,
-               v.pe_ratio, v.price_to_book,
+        SELECT p.symbol, se.company_name, se.sector
+               p.return_on_equity, p.return_on_assets
+               v.pe_ratio, v.price_to_book
                g.revenue_growth, g.earnings_growth
         FROM profitability_metrics p
         JOIN stock_symbols_enhanced se ON p.symbol = se.symbol

@@ -322,7 +322,7 @@ jobs:
           echo ""
           
           # Create detailed unit test report
-          cat > unit-test-coverage-report.md << 'EOF'
+          cat > unit-test-coverage-report.md << EOF
           # 🧪 Unit Test Coverage Report
           
           **Generated:** $(date)  
@@ -501,7 +501,7 @@ jobs:
           
           # Generate unit test diagnostics
           echo "🔍 Generating unit test diagnostics..."
-          cat > unit-test-artifacts/logs/unit-test-diagnostics.log << 'DIAG_EOF'
+          cat > unit-test-artifacts/logs/unit-test-diagnostics.log << DIAG_EOF
           UNIT TEST SYSTEM DIAGNOSTICS
           ============================
           
@@ -871,7 +871,7 @@ jobs:
           echo ""
           
           # Create detailed markdown report
-          cat > integration-test-results.md << 'EOF'
+          cat > integration-test-results.md << EOF
           # 🧪 Integration Test Execution Report
           
           **Generated:** $(date)  
@@ -990,7 +990,7 @@ jobs:
           
           # Generate system diagnostics
           echo "🔍 Generating system diagnostics..."
-          cat > test-artifacts/logs/system-diagnostics.log << 'DIAG_EOF'
+          cat > test-artifacts/logs/system-diagnostics.log << DIAG_EOF
           INTEGRATION TEST SYSTEM DIAGNOSTICS
           ===================================
           

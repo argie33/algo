@@ -10,10 +10,8 @@ class TechnicalAnalysisService {
       'SMA': this.calculateSMA.bind(this),
       'EMA': this.calculateEMA.bind(this),
       'STOCHASTIC': this.calculateStochastic.bind(this),
-      'WILLIAMS_R': this.calculateWilliamsR.bind(this),
-      'CCI': this.calculateCCI.bind(this),
-      'ATR': this.calculateATR.bind(this),
-      'VOLUME_WEIGHTED_AVERAGE_PRICE': this.calculateVWAP.bind(this)
+      'WILLIAMS_R': this.calculateWilliamsR.bind(this)
+      // Note: CCI, ATR, and VWAP indicators not implemented yet
     };
   }
 

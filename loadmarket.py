@@ -46,8 +46,8 @@ except ImportError:
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -64,18 +64,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
+            "host": sec["host"]
+            "port": int(sec.get("port", 5432))
+            "user": sec["username"]
+            "password": sec["password"]
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost")
+            "port": int(os.environ.get("DB_PORT", 5432))
+            "user": os.environ.get("DB_USER", "postgres")
+            "password": os.environ.get("DB_PASSWORD", "")
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -91,64 +91,64 @@ def safe_float(value, default=None):
 # Market indices and ETFs to track
 MARKET_INDICES = {
     # Major US Indices
-    '^GSPC': 'S&P 500',
-    '^IXIC': 'NASDAQ Composite', 
-    '^DJI': 'Dow Jones Industrial Average',
-    '^RUT': 'Russell 2000',
-    '^VIX': 'VIX Volatility Index',
+    '^GSPC': 'S&P 500'
+    '^IXIC': 'NASDAQ Composite'
+    '^DJI': 'Dow Jones Industrial Average'
+    '^RUT': 'Russell 2000'
+    '^VIX': 'VIX Volatility Index'
     
     # Broad Market ETFs
-    'SPY': 'SPDR S&P 500 ETF',
-    'QQQ': 'Invesco QQQ ETF',
-    'DIA': 'SPDR Dow Jones ETF',
-    'IWM': 'iShares Russell 2000 ETF',
-    'VTI': 'Vanguard Total Stock Market ETF',
+    'SPY': 'SPDR S&P 500 ETF'
+    'QQQ': 'Invesco QQQ ETF'
+    'DIA': 'SPDR Dow Jones ETF'
+    'IWM': 'iShares Russell 2000 ETF'
+    'VTI': 'Vanguard Total Stock Market ETF'
     
     # International Indices
-    '^FTSE': 'FTSE 100',
-    '^N225': 'Nikkei 225',
-    '^HSI': 'Hang Seng Index',
-    'EEM': 'iShares MSCI Emerging Markets ETF',
-    'VEA': 'Vanguard FTSE Developed Markets ETF',
-    'VWO': 'Vanguard FTSE Emerging Markets ETF',
+    '^FTSE': 'FTSE 100'
+    '^N225': 'Nikkei 225'
+    '^HSI': 'Hang Seng Index'
+    'EEM': 'iShares MSCI Emerging Markets ETF'
+    'VEA': 'Vanguard FTSE Developed Markets ETF'
+    'VWO': 'Vanguard FTSE Emerging Markets ETF'
     
     # Bond Indices
-    '^TNX': '10-Year Treasury Yield',
-    '^IRX': '3-Month Treasury Yield',
-    'TLT': 'iShares 20+ Year Treasury Bond ETF',
-    'BND': 'Vanguard Total Bond Market ETF',
-    'HYG': 'iShares iBoxx High Yield Corporate Bond ETF',
+    '^TNX': '10-Year Treasury Yield'
+    '^IRX': '3-Month Treasury Yield'
+    'TLT': 'iShares 20+ Year Treasury Bond ETF'
+    'BND': 'Vanguard Total Bond Market ETF'
+    'HYG': 'iShares iBoxx High Yield Corporate Bond ETF'
     
     # Commodities
-    'GLD': 'SPDR Gold Shares',
-    'SLV': 'iShares Silver Trust',
-    'USO': 'United States Oil Fund',
-    'UNG': 'United States Natural Gas Fund',
+    'GLD': 'SPDR Gold Shares'
+    'SLV': 'iShares Silver Trust'
+    'USO': 'United States Oil Fund'
+    'UNG': 'United States Natural Gas Fund'
     'DBA': 'Invesco DB Agriculture Fund'
 }
 
 SECTOR_ETFS = {
-    'XLF': 'Financial Select Sector SPDR Fund',
-    'XLK': 'Technology Select Sector SPDR Fund',
-    'XLE': 'Energy Select Sector SPDR Fund',
-    'XLV': 'Health Care Select Sector SPDR Fund',
-    'XLI': 'Industrial Select Sector SPDR Fund',
-    'XLC': 'Communication Services Select Sector SPDR Fund',
-    'XLY': 'Consumer Discretionary Select Sector SPDR Fund',
-    'XLP': 'Consumer Staples Select Sector SPDR Fund',
-    'XLB': 'Materials Select Sector SPDR Fund',
-    'XLRE': 'Real Estate Select Sector SPDR Fund',
+    'XLF': 'Financial Select Sector SPDR Fund'
+    'XLK': 'Technology Select Sector SPDR Fund'
+    'XLE': 'Energy Select Sector SPDR Fund'
+    'XLV': 'Health Care Select Sector SPDR Fund'
+    'XLI': 'Industrial Select Sector SPDR Fund'
+    'XLC': 'Communication Services Select Sector SPDR Fund'
+    'XLY': 'Consumer Discretionary Select Sector SPDR Fund'
+    'XLP': 'Consumer Staples Select Sector SPDR Fund'
+    'XLB': 'Materials Select Sector SPDR Fund'
+    'XLRE': 'Real Estate Select Sector SPDR Fund'
     'XLU': 'Utilities Select Sector SPDR Fund'
 }
 
 STYLE_ETFS = {
-    'IVV': 'iShares Core S&P 500 ETF',
-    'IVW': 'iShares Core S&P 500 Growth ETF',
-    'IVE': 'iShares Core S&P 500 Value ETF',
-    'IJH': 'iShares Core S&P Mid-Cap ETF',
-    'IJR': 'iShares Core S&P Small-Cap ETF',
-    'VBR': 'Vanguard Small-Cap Value ETF',
-    'VUG': 'Vanguard Growth ETF',
+    'IVV': 'iShares Core S&P 500 ETF'
+    'IVW': 'iShares Core S&P 500 Growth ETF'
+    'IVE': 'iShares Core S&P 500 Value ETF'
+    'IJH': 'iShares Core S&P Mid-Cap ETF'
+    'IJR': 'iShares Core S&P Small-Cap ETF'
+    'VBR': 'Vanguard Small-Cap Value ETF'
+    'VUG': 'Vanguard Growth ETF'
     'VTV': 'Vanguard Value ETF'
 }
 
@@ -220,47 +220,47 @@ class MarketDataCollector:
                     pass
             
             result = {
-                'symbol': self.symbol,
-                'name': self.name,
-                'date': latest_date.date() if hasattr(latest_date, 'date') else date.today(),
-                'price': safe_float(latest_price),
-                'volume': safe_float(latest_volume),
-                'market_cap': safe_float(market_cap),
+                'symbol': self.symbol
+                'name': self.name
+                'date': latest_date.date() if hasattr(latest_date, 'date') else date.today()
+                'price': safe_float(latest_price)
+                'volume': safe_float(latest_volume)
+                'market_cap': safe_float(market_cap)
                 
                 # Returns
-                'return_1d': safe_float(returns_1d),
-                'return_5d': safe_float(returns_5d),
-                'return_1m': safe_float(returns_1m),
-                'return_3m': safe_float(returns_3m),
-                'return_6m': safe_float(returns_6m),
-                'return_1y': safe_float(returns_1y),
+                'return_1d': safe_float(returns_1d)
+                'return_5d': safe_float(returns_5d)
+                'return_1m': safe_float(returns_1m)
+                'return_3m': safe_float(returns_3m)
+                'return_6m': safe_float(returns_6m)
+                'return_1y': safe_float(returns_1y)
                 
                 # Volatility
-                'volatility_30d': safe_float(volatility_30d),
-                'volatility_90d': safe_float(volatility_90d),
-                'volatility_1y': safe_float(volatility_1y),
+                'volatility_30d': safe_float(volatility_30d)
+                'volatility_90d': safe_float(volatility_90d)
+                'volatility_1y': safe_float(volatility_1y)
                 
                 # Moving averages
-                'sma_20': safe_float(sma_20),
-                'sma_50': safe_float(sma_50),
-                'sma_200': safe_float(sma_200),
-                'price_vs_sma_20': safe_float((latest_price - sma_20) / sma_20) if sma_20 else None,
-                'price_vs_sma_50': safe_float((latest_price - sma_50) / sma_50) if sma_50 else None,
-                'price_vs_sma_200': safe_float((latest_price - sma_200) / sma_200) if sma_200 else None,
+                'sma_20': safe_float(sma_20)
+                'sma_50': safe_float(sma_50)
+                'sma_200': safe_float(sma_200)
+                'price_vs_sma_20': safe_float((latest_price - sma_20) / sma_20) if sma_20 else None
+                'price_vs_sma_50': safe_float((latest_price - sma_50) / sma_50) if sma_50 else None
+                'price_vs_sma_200': safe_float((latest_price - sma_200) / sma_200) if sma_200 else None
                 
                 # High/Low metrics
-                'high_52w': safe_float(high_52w),
-                'low_52w': safe_float(low_52w),
-                'distance_from_high': safe_float((latest_price - high_52w) / high_52w) if high_52w else None,
-                'distance_from_low': safe_float((latest_price - low_52w) / low_52w) if low_52w else None,
+                'high_52w': safe_float(high_52w)
+                'low_52w': safe_float(low_52w)
+                'distance_from_high': safe_float((latest_price - high_52w) / high_52w) if high_52w else None
+                'distance_from_low': safe_float((latest_price - low_52w) / low_52w) if low_52w else None
                 
                 # Volume and beta
-                'avg_volume_30d': safe_float(avg_volume_30d),
-                'volume_ratio': safe_float(latest_volume / avg_volume_30d) if avg_volume_30d else None,
-                'beta': safe_float(beta),
+                'avg_volume_30d': safe_float(avg_volume_30d)
+                'volume_ratio': safe_float(latest_volume / avg_volume_30d) if avg_volume_30d else None
+                'beta': safe_float(beta)
                 
                 # Classification
-                'asset_class': self._classify_asset(),
+                'asset_class': self._classify_asset()
                 'region': self._classify_region()
             }
             
@@ -318,51 +318,51 @@ def create_market_data_table(cur, conn):
     
     create_sql = """
     CREATE TABLE IF NOT EXISTS market_data (
-        symbol VARCHAR(20),
-        name VARCHAR(255),
-        date DATE,
-        price DECIMAL(12,4),
-        volume BIGINT,
-        market_cap BIGINT,
+        symbol VARCHAR(20)
+        name VARCHAR(255)
+        date DATE
+        price DECIMAL(12,4)
+        volume BIGINT
+        market_cap BIGINT
         
         -- Returns
-        return_1d DECIMAL(8,6),
-        return_5d DECIMAL(8,6),
-        return_1m DECIMAL(8,6),
-        return_3m DECIMAL(8,6),
-        return_6m DECIMAL(8,6),
-        return_1y DECIMAL(8,6),
+        return_1d DECIMAL(8,6)
+        return_5d DECIMAL(8,6)
+        return_1m DECIMAL(8,6)
+        return_3m DECIMAL(8,6)
+        return_6m DECIMAL(8,6)
+        return_1y DECIMAL(8,6)
         
         -- Volatility
-        volatility_30d DECIMAL(8,6),
-        volatility_90d DECIMAL(8,6),
-        volatility_1y DECIMAL(8,6),
+        volatility_30d DECIMAL(8,6)
+        volatility_90d DECIMAL(8,6)
+        volatility_1y DECIMAL(8,6)
         
         -- Moving Averages
-        sma_20 DECIMAL(12,4),
-        sma_50 DECIMAL(12,4),
-        sma_200 DECIMAL(12,4),
-        price_vs_sma_20 DECIMAL(8,6),
-        price_vs_sma_50 DECIMAL(8,6),
-        price_vs_sma_200 DECIMAL(8,6),
+        sma_20 DECIMAL(12,4)
+        sma_50 DECIMAL(12,4)
+        sma_200 DECIMAL(12,4)
+        price_vs_sma_20 DECIMAL(8,6)
+        price_vs_sma_50 DECIMAL(8,6)
+        price_vs_sma_200 DECIMAL(8,6)
         
         -- High/Low Metrics
-        high_52w DECIMAL(12,4),
-        low_52w DECIMAL(12,4),
-        distance_from_high DECIMAL(8,6),
-        distance_from_low DECIMAL(8,6),
+        high_52w DECIMAL(12,4)
+        low_52w DECIMAL(12,4)
+        distance_from_high DECIMAL(8,6)
+        distance_from_low DECIMAL(8,6)
         
         -- Volume and Risk
-        avg_volume_30d BIGINT,
-        volume_ratio DECIMAL(8,4),
-        beta DECIMAL(8,4),
+        avg_volume_30d BIGINT
+        volume_ratio DECIMAL(8,4)
+        beta DECIMAL(8,4)
         
         -- Classification
-        asset_class VARCHAR(50),
-        region VARCHAR(50),
+        asset_class VARCHAR(50)
+        region VARCHAR(50)
         
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """
@@ -371,13 +371,13 @@ def create_market_data_table(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_market_symbol ON market_data(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_market_date ON market_data(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_asset_class ON market_data(asset_class);",
-        "CREATE INDEX IF NOT EXISTS idx_market_region ON market_data(region);",
-        "CREATE INDEX IF NOT EXISTS idx_market_return_1d ON market_data(return_1d DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_return_1m ON market_data(return_1m DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_volatility ON market_data(volatility_30d DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_market_symbol ON market_data(symbol);"
+        "CREATE INDEX IF NOT EXISTS idx_market_date ON market_data(date DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_market_asset_class ON market_data(asset_class);"
+        "CREATE INDEX IF NOT EXISTS idx_market_region ON market_data(region);"
+        "CREATE INDEX IF NOT EXISTS idx_market_return_1d ON market_data(return_1d DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_market_return_1m ON market_data(return_1m DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_market_volatility ON market_data(volatility_30d DESC);"
         "CREATE INDEX IF NOT EXISTS idx_market_volume_ratio ON market_data(volume_ratio DESC);"
     ]
     
@@ -430,26 +430,26 @@ def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: 
                 insert_data = []
                 for item in market_data:
                     insert_data.append((
-                        item['symbol'], item['name'], item['date'],
-                        item.get('price'), item.get('volume'), item.get('market_cap'),
+                        item['symbol'], item['name'], item['date']
+                        item.get('price'), item.get('volume'), item.get('market_cap')
                         
                         # Returns
-                        item.get('return_1d'), item.get('return_5d'), item.get('return_1m'),
-                        item.get('return_3m'), item.get('return_6m'), item.get('return_1y'),
+                        item.get('return_1d'), item.get('return_5d'), item.get('return_1m')
+                        item.get('return_3m'), item.get('return_6m'), item.get('return_1y')
                         
                         # Volatility
-                        item.get('volatility_30d'), item.get('volatility_90d'), item.get('volatility_1y'),
+                        item.get('volatility_30d'), item.get('volatility_90d'), item.get('volatility_1y')
                         
                         # Moving averages
-                        item.get('sma_20'), item.get('sma_50'), item.get('sma_200'),
-                        item.get('price_vs_sma_20'), item.get('price_vs_sma_50'), item.get('price_vs_sma_200'),
+                        item.get('sma_20'), item.get('sma_50'), item.get('sma_200')
+                        item.get('price_vs_sma_20'), item.get('price_vs_sma_50'), item.get('price_vs_sma_200')
                         
                         # High/Low
-                        item.get('high_52w'), item.get('low_52w'),
-                        item.get('distance_from_high'), item.get('distance_from_low'),
+                        item.get('high_52w'), item.get('low_52w')
+                        item.get('distance_from_high'), item.get('distance_from_low')
                         
                         # Volume and risk
-                        item.get('avg_volume_30d'), item.get('volume_ratio'), item.get('beta'),
+                        item.get('avg_volume_30d'), item.get('volume_ratio'), item.get('beta')
                         
                         # Classification
                         item.get('asset_class'), item.get('region')
@@ -457,21 +457,21 @@ def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: 
                 
                 insert_query = """
                     INSERT INTO market_data (
-                        symbol, name, date, price, volume, market_cap,
-                        return_1d, return_5d, return_1m, return_3m, return_6m, return_1y,
-                        volatility_30d, volatility_90d, volatility_1y,
-                        sma_20, sma_50, sma_200, price_vs_sma_20, price_vs_sma_50, price_vs_sma_200,
-                        high_52w, low_52w, distance_from_high, distance_from_low,
-                        avg_volume_30d, volume_ratio, beta,
+                        symbol, name, date, price, volume, market_cap
+                        return_1d, return_5d, return_1m, return_3m, return_6m, return_1y
+                        volatility_30d, volatility_90d, volatility_1y
+                        sma_20, sma_50, sma_200, price_vs_sma_20, price_vs_sma_50, price_vs_sma_200
+                        high_52w, low_52w, distance_from_high, distance_from_low
+                        avg_volume_30d, volume_ratio, beta
                         asset_class, region
                     ) VALUES %s
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        price = EXCLUDED.price,
-                        volume = EXCLUDED.volume,
-                        return_1d = EXCLUDED.return_1d,
-                        return_1m = EXCLUDED.return_1m,
-                        volatility_30d = EXCLUDED.volatility_30d,
-                        volume_ratio = EXCLUDED.volume_ratio,
+                        price = EXCLUDED.price
+                        volume = EXCLUDED.volume
+                        return_1d = EXCLUDED.return_1d
+                        return_1m = EXCLUDED.return_1m
+                        volatility_30d = EXCLUDED.volatility_30d
+                        volume_ratio = EXCLUDED.volume_ratio
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -501,11 +501,11 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -538,9 +538,9 @@ if __name__ == "__main__":
     
     # Sample results by asset class
     cur.execute("""
-        SELECT asset_class, COUNT(*) as count,
-               AVG(return_1d) as avg_1d_return,
-               AVG(return_1m) as avg_1m_return,
+        SELECT asset_class, COUNT(*) as count
+               AVG(return_1d) as avg_1d_return
+               AVG(return_1m) as avg_1m_return
                AVG(volatility_30d) as avg_volatility
         FROM market_data
         WHERE date = (SELECT MAX(date) FROM market_data)

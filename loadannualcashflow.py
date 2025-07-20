@@ -17,8 +17,8 @@ import pandas as pd
 
 SCRIPT_NAME = "loadannualcashflow.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -39,10 +39,10 @@ def get_db_config():
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
+        "host": sec["host"]
+        "port": int(sec.get("port", 5432))
+        "user": sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -82,8 +82,8 @@ def get_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
         
         # Try multiple methods in order of preference
         methods_to_try = [
-            ('cash_flow', 'annual cash flow (new method)'),
-            ('cashflow', 'annual cash flow (legacy method)'),
+            ('cash_flow', 'annual cash flow (new method)')
+            ('cashflow', 'annual cash flow (legacy method)')
         ]
         
         cash_flow = None
@@ -152,9 +152,9 @@ def process_cash_flow_data(symbol: str, cash_flow: pd.DataFrame) -> List[Tuple]:
             if safe_value is not None:
                 valid_values += 1
                 processed_data.append((
-                    symbol,
-                    safe_date,
-                    str(item_name),
+                    symbol
+                    safe_date
+                    str(item_name)
                     safe_value
                 ))
     
@@ -195,7 +195,7 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                             INSERT INTO annual_cash_flow (symbol, date, item_name, value)
                             VALUES %s
                             ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                                value = EXCLUDED.value,
+                                value = EXCLUDED.value
                                 updated_at = NOW()
                         """, cash_flow_data)
                         conn.commit()
@@ -230,12 +230,12 @@ def create_table(cur, conn):
     
     create_table_sql = """
         CREATE TABLE annual_cash_flow (
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            item_name TEXT NOT NULL,
-            value DOUBLE PRECISION NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
+            symbol VARCHAR(20) NOT NULL
+            date DATE NOT NULL
+            item_name TEXT NOT NULL
+            value DOUBLE PRECISION NOT NULL
+            created_at TIMESTAMP DEFAULT NOW()
+            updated_at TIMESTAMP DEFAULT NOW()
             PRIMARY KEY(symbol, date, item_name)
         );
         
@@ -262,13 +262,13 @@ if __name__ == "__main__":
             
             # Simple, consistent database configuration
             db_config = {
-                'host': cfg["host"], 
-                'port': cfg["port"],
-                'user': cfg["user"], 
-                'password': cfg["password"],
-                'dbname': cfg["dbname"],
-                'sslmode': 'disable',
-                'connect_timeout': 10,
+                'host': cfg["host"]
+                'port': cfg["port"]
+                'user': cfg["user"]
+                'password': cfg["password"]
+                'dbname': cfg["dbname"]
+                'sslmode': 'disable'
+                'connect_timeout': 10
                 'application_name': 'annual-cashflow-loader'
             }
             

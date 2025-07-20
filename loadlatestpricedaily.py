@@ -21,8 +21,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ RETRY_DELAY       = 0.2  # seconds between download retries
 # Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date", "open", "high", "low", "close",
+    "date", "open", "high", "low", "close"
     "adj_close", "volume", "dividends", "stock_splits"
 ]
 COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
@@ -62,10 +62,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -94,7 +94,7 @@ def load_prices(table_name, symbols, cur, conn):
 
         # ─── Determine starting point ───────────────────────────
         cur.execute(
-            f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;",
+            f"SELECT MAX(date) AS last_date FROM {table_name} WHERE symbol = %s;"
             (orig_sym,)
         )
         res       = cur.fetchone()
@@ -105,13 +105,13 @@ def load_prices(table_name, symbols, cur, conn):
             # back up one more day so we refresh the last two dates
             start_date = last_date - timedelta(days=1)
             download_kwargs = {
-                "tickers":     yq_sym,
-                "start":       start_date.isoformat(),
-                "end":         (today + timedelta(days=1)).isoformat(),
-                "interval":    "1d",
-                "auto_adjust": True,
-                "actions":     True,
-                "threads":     True,
+                "tickers":     yq_sym
+                "start":       start_date.isoformat()
+                "end":         (today + timedelta(days=1)).isoformat()
+                "interval":    "1d"
+                "auto_adjust": True
+                "actions":     True
+                "threads":     True
                 "progress":    False
             }
             logging.info(f"{table_name} – {orig_sym}: downloading from {start_date} to {today}")
@@ -125,12 +125,12 @@ def load_prices(table_name, symbols, cur, conn):
             conn.commit()
         else:
             download_kwargs = {
-                "tickers":     yq_sym,
-                "period":      "max",
-                "interval":    "1d",
-                "auto_adjust": True,
-                "actions":     True,
-                "threads":     True,
+                "tickers":     yq_sym
+                "period":      "max"
+                "interval":    "1d"
+                "auto_adjust": True
+                "actions":     True
+                "threads":     True
                 "progress":    False
             }
             logging.info(f"{table_name} – {orig_sym}: no existing data; downloading full history")
@@ -172,15 +172,15 @@ def load_prices(table_name, symbols, cur, conn):
             s  = extract_scalar(row.get("Stock Splits", 0.0))
 
             rows.append([
-                orig_sym,
-                idx.date(),
-                None if pd.isna(o)  else float(o),
-                None if pd.isna(h)  else float(h),
-                None if pd.isna(l)  else float(l),
-                None if pd.isna(c)  else float(c),
-                None if pd.isna(ac) else float(ac),
-                None if pd.isna(v)  else int(v),
-                0.0  if pd.isna(d)  else float(d),
+                orig_sym
+                idx.date()
+                None if pd.isna(o)  else float(o)
+                None if pd.isna(h)  else float(h)
+                None if pd.isna(l)  else float(l)
+                None if pd.isna(c)  else float(c)
+                None if pd.isna(ac) else float(ac)
+                None if pd.isna(v)  else int(v)
+                0.0  if pd.isna(d)  else float(d)
                 0.0  if pd.isna(s)  else float(s)
             ])
 
@@ -210,11 +210,11 @@ if __name__ == "__main__":
     # Connect to DB
     cfg  = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
+        host=cfg["host"], port=cfg["port"]
+        user=cfg["user"], password=cfg["password"]
         dbname=cfg["dbname"]
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

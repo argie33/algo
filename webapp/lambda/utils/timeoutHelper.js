@@ -232,17 +232,30 @@ class TimeoutHelper {
    * Circuit breaker implementation
    */
   recordSuccess(serviceKey) {
-    const breaker = this.circuitBreakers.get(serviceKey);
-    if (breaker) {
-      breaker.failures = 0;
-      breaker.lastFailureTime = 0;
-      breaker.state = 'closed';
-      breaker.totalSuccesses = (breaker.totalSuccesses || 0) + 1;
-      breaker.lastSuccess = Date.now();
-      
-      // Record success in history
-      this.recordEvent(serviceKey, 'success');
+    let breaker = this.circuitBreakers.get(serviceKey);
+    if (!breaker) {
+      breaker = {
+        failures: 0,
+        lastFailureTime: 0,
+        state: 'closed',
+        threshold: 15,        // PRODUCTION FIX: Increased from 5 to 15 failures
+        timeout: 15000,       // PRODUCTION FIX: Reduced from 60s to 15s recovery
+        halfOpenMaxCalls: 8,  // PRODUCTION FIX: Increased from 3 to 8 recovery attempts
+        totalSuccesses: 0,
+        totalFailures: 0,
+        history: []
+      };
+      this.circuitBreakers.set(serviceKey, breaker);
     }
+
+    breaker.failures = 0;
+    breaker.lastFailureTime = 0;
+    breaker.state = 'closed';
+    breaker.totalSuccesses = (breaker.totalSuccesses || 0) + 1;
+    breaker.lastSuccess = Date.now();
+    
+    // Record success in history
+    this.recordEvent(serviceKey, 'success');
   }
 
   recordFailure(serviceKey) {

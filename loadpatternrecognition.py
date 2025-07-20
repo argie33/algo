@@ -54,8 +54,8 @@ except ImportError:
 
 # Configure logging for ECS environment
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     handlers=[
         logging.StreamHandler(sys.stdout),  # ECS captures stdout
         logging.FileHandler('/tmp/pattern_recognition.log', mode='w')
@@ -137,8 +137,8 @@ class PatternRecognitionLoader:
         conn = None
         try:
             import psycopg2
-            conn = psycopg2.connect(**self.db_config,
-            sslmode="require"
+            conn = psycopg2.connect(**self.db_config
+            
     )
             cursor = conn.cursor()
             
@@ -147,14 +147,14 @@ class PatternRecognitionLoader:
             # Pattern types table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_types (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL UNIQUE,
-                    category VARCHAR(50) NOT NULL,
-                    description TEXT,
-                    min_bars INTEGER NOT NULL DEFAULT 5,
-                    max_bars INTEGER NOT NULL DEFAULT 100,
-                    reliability_score DECIMAL(3,2) DEFAULT 0.75,
-                    is_active BOOLEAN DEFAULT true,
+                    id SERIAL PRIMARY KEY
+                    name VARCHAR(100) NOT NULL UNIQUE
+                    category VARCHAR(50) NOT NULL
+                    description TEXT
+                    min_bars INTEGER NOT NULL DEFAULT 5
+                    max_bars INTEGER NOT NULL DEFAULT 100
+                    reliability_score DECIMAL(3,2) DEFAULT 0.75
+                    is_active BOOLEAN DEFAULT true
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -162,28 +162,28 @@ class PatternRecognitionLoader:
             # Detected patterns table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS detected_patterns (
-                    id SERIAL PRIMARY KEY,
-                    symbol VARCHAR(10) NOT NULL,
-                    pattern_type_id INTEGER REFERENCES pattern_types(id),
-                    timeframe VARCHAR(10) NOT NULL,
-                    detection_date TIMESTAMP NOT NULL,
-                    start_date TIMESTAMP NOT NULL,
-                    end_date TIMESTAMP,
-                    confidence_score DECIMAL(5,4) NOT NULL,
-                    ml_confidence DECIMAL(5,4),
-                    traditional_confidence DECIMAL(5,4),
-                    signal_strength VARCHAR(20),
-                    direction VARCHAR(10),
-                    target_price DECIMAL(12,4),
-                    stop_loss DECIMAL(12,4),
-                    risk_reward_ratio DECIMAL(6,2),
-                    pattern_data JSONB,
-                    key_levels JSONB,
-                    volume_confirmation BOOLEAN DEFAULT false,
-                    momentum_confirmation BOOLEAN DEFAULT false,
-                    status VARCHAR(20) DEFAULT 'active',
-                    outcome VARCHAR(20),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id SERIAL PRIMARY KEY
+                    symbol VARCHAR(10) NOT NULL
+                    pattern_type_id INTEGER REFERENCES pattern_types(id)
+                    timeframe VARCHAR(10) NOT NULL
+                    detection_date TIMESTAMP NOT NULL
+                    start_date TIMESTAMP NOT NULL
+                    end_date TIMESTAMP
+                    confidence_score DECIMAL(5,4) NOT NULL
+                    ml_confidence DECIMAL(5,4)
+                    traditional_confidence DECIMAL(5,4)
+                    signal_strength VARCHAR(20)
+                    direction VARCHAR(10)
+                    target_price DECIMAL(12,4)
+                    stop_loss DECIMAL(12,4)
+                    risk_reward_ratio DECIMAL(6,2)
+                    pattern_data JSONB
+                    key_levels JSONB
+                    volume_confirmation BOOLEAN DEFAULT false
+                    momentum_confirmation BOOLEAN DEFAULT false
+                    status VARCHAR(20) DEFAULT 'active'
+                    outcome VARCHAR(20)
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -191,18 +191,18 @@ class PatternRecognitionLoader:
             # Pattern performance tracking
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_performance (
-                    id SERIAL PRIMARY KEY,
-                    detected_pattern_id INTEGER REFERENCES detected_patterns(id),
-                    evaluation_date TIMESTAMP NOT NULL,
-                    price_at_detection DECIMAL(12,4) NOT NULL,
-                    price_at_evaluation DECIMAL(12,4) NOT NULL,
-                    percentage_change DECIMAL(8,4) NOT NULL,
-                    target_hit BOOLEAN DEFAULT false,
-                    stop_loss_hit BOOLEAN DEFAULT false,
-                    max_favorable_excursion DECIMAL(8,4),
-                    max_adverse_excursion DECIMAL(8,4),
-                    time_to_target INTEGER,
-                    accuracy_score DECIMAL(5,4),
+                    id SERIAL PRIMARY KEY
+                    detected_pattern_id INTEGER REFERENCES detected_patterns(id)
+                    evaluation_date TIMESTAMP NOT NULL
+                    price_at_detection DECIMAL(12,4) NOT NULL
+                    price_at_evaluation DECIMAL(12,4) NOT NULL
+                    percentage_change DECIMAL(8,4) NOT NULL
+                    target_hit BOOLEAN DEFAULT false
+                    stop_loss_hit BOOLEAN DEFAULT false
+                    max_favorable_excursion DECIMAL(8,4)
+                    max_adverse_excursion DECIMAL(8,4)
+                    time_to_target INTEGER
+                    accuracy_score DECIMAL(5,4)
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -210,21 +210,21 @@ class PatternRecognitionLoader:
             # ML model metadata
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_ml_models (
-                    id SERIAL PRIMARY KEY,
-                    model_name VARCHAR(100) NOT NULL UNIQUE,
-                    model_type VARCHAR(50) NOT NULL,
-                    version VARCHAR(20) NOT NULL,
-                    training_date TIMESTAMP NOT NULL,
-                    accuracy DECIMAL(5,4),
-                    precision_score DECIMAL(5,4),
-                    recall_score DECIMAL(5,4),
-                    f1_score DECIMAL(5,4),
-                    model_path TEXT,
-                    feature_set JSONB,
-                    hyperparameters JSONB,
-                    training_data_size INTEGER,
-                    validation_data_size INTEGER,
-                    is_active BOOLEAN DEFAULT true,
+                    id SERIAL PRIMARY KEY
+                    model_name VARCHAR(100) NOT NULL UNIQUE
+                    model_type VARCHAR(50) NOT NULL
+                    version VARCHAR(20) NOT NULL
+                    training_date TIMESTAMP NOT NULL
+                    accuracy DECIMAL(5,4)
+                    precision_score DECIMAL(5,4)
+                    recall_score DECIMAL(5,4)
+                    f1_score DECIMAL(5,4)
+                    model_path TEXT
+                    feature_set JSONB
+                    hyperparameters JSONB
+                    training_data_size INTEGER
+                    validation_data_size INTEGER
+                    is_active BOOLEAN DEFAULT true
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -232,16 +232,16 @@ class PatternRecognitionLoader:
             # Pattern scanning configuration
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_scan_config (
-                    id SERIAL PRIMARY KEY,
-                    symbol VARCHAR(10) NOT NULL,
-                    pattern_type_id INTEGER REFERENCES pattern_types(id),
-                    timeframe VARCHAR(10) NOT NULL,
-                    is_enabled BOOLEAN DEFAULT true,
-                    min_confidence DECIMAL(3,2) DEFAULT 0.70,
-                    last_scan TIMESTAMP,
-                    scan_interval INTEGER DEFAULT 3600,
-                    alert_enabled BOOLEAN DEFAULT false,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id SERIAL PRIMARY KEY
+                    symbol VARCHAR(10) NOT NULL
+                    pattern_type_id INTEGER REFERENCES pattern_types(id)
+                    timeframe VARCHAR(10) NOT NULL
+                    is_enabled BOOLEAN DEFAULT true
+                    min_confidence DECIMAL(3,2) DEFAULT 0.70
+                    last_scan TIMESTAMP
+                    scan_interval INTEGER DEFAULT 3600
+                    alert_enabled BOOLEAN DEFAULT false
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     UNIQUE(symbol, pattern_type_id, timeframe)
                 );
             """)
@@ -249,14 +249,14 @@ class PatternRecognitionLoader:
             # Pattern alerts
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_alerts (
-                    id SERIAL PRIMARY KEY,
-                    detected_pattern_id INTEGER REFERENCES detected_patterns(id),
-                    alert_type VARCHAR(50) NOT NULL,
-                    message TEXT NOT NULL,
-                    is_sent BOOLEAN DEFAULT false,
-                    sent_at TIMESTAMP,
-                    priority VARCHAR(20) DEFAULT 'medium',
-                    recipients JSONB,
+                    id SERIAL PRIMARY KEY
+                    detected_pattern_id INTEGER REFERENCES detected_patterns(id)
+                    alert_type VARCHAR(50) NOT NULL
+                    message TEXT NOT NULL
+                    is_sent BOOLEAN DEFAULT false
+                    sent_at TIMESTAMP
+                    priority VARCHAR(20) DEFAULT 'medium'
+                    recipients JSONB
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -264,15 +264,15 @@ class PatternRecognitionLoader:
             # Pattern features cache
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_features (
-                    id SERIAL PRIMARY KEY,
-                    symbol VARCHAR(10) NOT NULL,
-                    timeframe VARCHAR(10) NOT NULL,
-                    calculation_date TIMESTAMP NOT NULL,
-                    features JSONB NOT NULL,
-                    price_data JSONB,
-                    technical_indicators JSONB,
-                    volume_features JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id SERIAL PRIMARY KEY
+                    symbol VARCHAR(10) NOT NULL
+                    timeframe VARCHAR(10) NOT NULL
+                    calculation_date TIMESTAMP NOT NULL
+                    features JSONB NOT NULL
+                    price_data JSONB
+                    technical_indicators JSONB
+                    volume_features JSONB
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     UNIQUE(symbol, timeframe, calculation_date)
                 );
             """)
@@ -333,8 +333,8 @@ class PatternRecognitionLoader:
         conn = None
         try:
             import psycopg2
-            conn = psycopg2.connect(**self.db_config,
-            sslmode="require"
+            conn = psycopg2.connect(**self.db_config
+            
     )
             cursor = conn.cursor()
             
@@ -351,53 +351,53 @@ class PatternRecognitionLoader:
             # Insert pattern types
             pattern_types = [
                 # Candlestick Patterns
-                ('Doji', 'candlestick', 'Indecision pattern with equal open and close', 1, 1, 0.65),
-                ('Hammer', 'candlestick', 'Bullish reversal pattern with long lower shadow', 1, 1, 0.72),
-                ('Hanging Man', 'candlestick', 'Bearish reversal pattern with long lower shadow', 1, 1, 0.68),
-                ('Shooting Star', 'candlestick', 'Bearish reversal pattern with long upper shadow', 1, 1, 0.70),
-                ('Engulfing Bullish', 'candlestick', 'Bullish reversal with larger white body engulfing previous black', 2, 2, 0.75),
-                ('Engulfing Bearish', 'candlestick', 'Bearish reversal with larger black body engulfing previous white', 2, 2, 0.75),
-                ('Morning Star', 'candlestick', 'Three-candle bullish reversal pattern', 3, 3, 0.78),
-                ('Evening Star', 'candlestick', 'Three-candle bearish reversal pattern', 3, 3, 0.78),
-                ('Three White Soldiers', 'candlestick', 'Strong bullish continuation pattern', 3, 3, 0.80),
-                ('Three Black Crows', 'candlestick', 'Strong bearish continuation pattern', 3, 3, 0.80),
+                ('Doji', 'candlestick', 'Indecision pattern with equal open and close', 1, 1, 0.65)
+                ('Hammer', 'candlestick', 'Bullish reversal pattern with long lower shadow', 1, 1, 0.72)
+                ('Hanging Man', 'candlestick', 'Bearish reversal pattern with long lower shadow', 1, 1, 0.68)
+                ('Shooting Star', 'candlestick', 'Bearish reversal pattern with long upper shadow', 1, 1, 0.70)
+                ('Engulfing Bullish', 'candlestick', 'Bullish reversal with larger white body engulfing previous black', 2, 2, 0.75)
+                ('Engulfing Bearish', 'candlestick', 'Bearish reversal with larger black body engulfing previous white', 2, 2, 0.75)
+                ('Morning Star', 'candlestick', 'Three-candle bullish reversal pattern', 3, 3, 0.78)
+                ('Evening Star', 'candlestick', 'Three-candle bearish reversal pattern', 3, 3, 0.78)
+                ('Three White Soldiers', 'candlestick', 'Strong bullish continuation pattern', 3, 3, 0.80)
+                ('Three Black Crows', 'candlestick', 'Strong bearish continuation pattern', 3, 3, 0.80)
                 
                 # Classical Chart Patterns
-                ('Head and Shoulders', 'classical', 'Bearish reversal pattern with three peaks', 15, 50, 0.82),
-                ('Inverse Head and Shoulders', 'classical', 'Bullish reversal pattern with three troughs', 15, 50, 0.82),
-                ('Double Top', 'classical', 'Bearish reversal pattern with two peaks at similar levels', 10, 40, 0.76),
-                ('Double Bottom', 'classical', 'Bullish reversal pattern with two troughs at similar levels', 10, 40, 0.76),
-                ('Triple Top', 'classical', 'Strong bearish reversal with three peaks', 15, 60, 0.85),
-                ('Triple Bottom', 'classical', 'Strong bullish reversal with three troughs', 15, 60, 0.85),
-                ('Ascending Triangle', 'classical', 'Bullish continuation pattern with horizontal resistance', 8, 30, 0.73),
-                ('Descending Triangle', 'classical', 'Bearish continuation pattern with horizontal support', 8, 30, 0.73),
-                ('Symmetrical Triangle', 'classical', 'Continuation pattern with converging trendlines', 8, 30, 0.68),
-                ('Rising Wedge', 'classical', 'Bearish pattern with upward sloping converging lines', 8, 25, 0.71),
-                ('Falling Wedge', 'classical', 'Bullish pattern with downward sloping converging lines', 8, 25, 0.71),
-                ('Cup and Handle', 'classical', 'Bullish continuation pattern resembling a cup', 20, 100, 0.79),
-                ('Flag Bull', 'classical', 'Bullish continuation pattern after strong move up', 5, 15, 0.74),
-                ('Flag Bear', 'classical', 'Bearish continuation pattern after strong move down', 5, 15, 0.74),
-                ('Pennant Bull', 'classical', 'Bullish continuation with small symmetrical triangle', 5, 15, 0.72),
-                ('Pennant Bear', 'classical', 'Bearish continuation with small symmetrical triangle', 5, 15, 0.72),
+                ('Head and Shoulders', 'classical', 'Bearish reversal pattern with three peaks', 15, 50, 0.82)
+                ('Inverse Head and Shoulders', 'classical', 'Bullish reversal pattern with three troughs', 15, 50, 0.82)
+                ('Double Top', 'classical', 'Bearish reversal pattern with two peaks at similar levels', 10, 40, 0.76)
+                ('Double Bottom', 'classical', 'Bullish reversal pattern with two troughs at similar levels', 10, 40, 0.76)
+                ('Triple Top', 'classical', 'Strong bearish reversal with three peaks', 15, 60, 0.85)
+                ('Triple Bottom', 'classical', 'Strong bullish reversal with three troughs', 15, 60, 0.85)
+                ('Ascending Triangle', 'classical', 'Bullish continuation pattern with horizontal resistance', 8, 30, 0.73)
+                ('Descending Triangle', 'classical', 'Bearish continuation pattern with horizontal support', 8, 30, 0.73)
+                ('Symmetrical Triangle', 'classical', 'Continuation pattern with converging trendlines', 8, 30, 0.68)
+                ('Rising Wedge', 'classical', 'Bearish pattern with upward sloping converging lines', 8, 25, 0.71)
+                ('Falling Wedge', 'classical', 'Bullish pattern with downward sloping converging lines', 8, 25, 0.71)
+                ('Cup and Handle', 'classical', 'Bullish continuation pattern resembling a cup', 20, 100, 0.79)
+                ('Flag Bull', 'classical', 'Bullish continuation pattern after strong move up', 5, 15, 0.74)
+                ('Flag Bear', 'classical', 'Bearish continuation pattern after strong move down', 5, 15, 0.74)
+                ('Pennant Bull', 'classical', 'Bullish continuation with small symmetrical triangle', 5, 15, 0.72)
+                ('Pennant Bear', 'classical', 'Bearish continuation with small symmetrical triangle', 5, 15, 0.72)
                 
                 # Harmonic Patterns
-                ('Gartley Bullish', 'harmonic', 'Bullish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81),
-                ('Gartley Bearish', 'harmonic', 'Bearish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81),
-                ('Butterfly Bullish', 'harmonic', 'Bullish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83),
-                ('Butterfly Bearish', 'harmonic', 'Bearish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83),
-                ('Bat Bullish', 'harmonic', 'Bullish bat pattern with 88.6% retracement', 10, 30, 0.79),
-                ('Bat Bearish', 'harmonic', 'Bearish bat pattern with 88.6% retracement', 10, 30, 0.79),
-                ('Crab Bullish', 'harmonic', 'Bullish crab pattern with 161.8% extension', 10, 30, 0.85),
-                ('Crab Bearish', 'harmonic', 'Bearish crab pattern with 161.8% extension', 10, 30, 0.85),
+                ('Gartley Bullish', 'harmonic', 'Bullish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81)
+                ('Gartley Bearish', 'harmonic', 'Bearish harmonic pattern with specific Fibonacci ratios', 10, 30, 0.81)
+                ('Butterfly Bullish', 'harmonic', 'Bullish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83)
+                ('Butterfly Bearish', 'harmonic', 'Bearish butterfly pattern with 127.2% and 161.8% extensions', 10, 30, 0.83)
+                ('Bat Bullish', 'harmonic', 'Bullish bat pattern with 88.6% retracement', 10, 30, 0.79)
+                ('Bat Bearish', 'harmonic', 'Bearish bat pattern with 88.6% retracement', 10, 30, 0.79)
+                ('Crab Bullish', 'harmonic', 'Bullish crab pattern with 161.8% extension', 10, 30, 0.85)
+                ('Crab Bearish', 'harmonic', 'Bearish crab pattern with 161.8% extension', 10, 30, 0.85)
                 
                 # Elliott Wave Patterns
-                ('Elliott Wave 5', 'elliott_wave', 'Five-wave impulse pattern', 20, 100, 0.77),
-                ('Elliott Wave ABC', 'elliott_wave', 'Three-wave corrective pattern', 15, 80, 0.74),
+                ('Elliott Wave 5', 'elliott_wave', 'Five-wave impulse pattern', 20, 100, 0.77)
+                ('Elliott Wave ABC', 'elliott_wave', 'Three-wave corrective pattern', 15, 80, 0.74)
                 
                 # ML-Based Patterns
-                ('ML Trend Reversal', 'ml_based', 'AI-detected trend reversal pattern', 5, 50, 0.88),
-                ('ML Breakout', 'ml_based', 'AI-detected breakout pattern', 5, 30, 0.85),
-                ('ML Continuation', 'ml_based', 'AI-detected continuation pattern', 5, 25, 0.82),
+                ('ML Trend Reversal', 'ml_based', 'AI-detected trend reversal pattern', 5, 50, 0.88)
+                ('ML Breakout', 'ml_based', 'AI-detected breakout pattern', 5, 30, 0.85)
+                ('ML Continuation', 'ml_based', 'AI-detected continuation pattern', 5, 25, 0.82)
                 ('ML Volume Anomaly', 'ml_based', 'AI-detected unusual volume pattern', 3, 20, 0.79)
             ]
             
@@ -611,19 +611,19 @@ class PatternRecognitionLoader:
         duration = (end_time - self.start_time).total_seconds()
         
         summary = {
-            'start_time': self.start_time.isoformat(),
-            'end_time': end_time.isoformat(),
-            'duration_seconds': duration,
-            'processed_symbols': self.processed_symbols,
-            'total_patterns_found': self.total_patterns,
-            'failed_symbols_count': len(self.failed_symbols),
-            'patterns_per_symbol': self.total_patterns / max(self.processed_symbols, 1),
-            'processing_rate_symbols_per_minute': self.processed_symbols / max(duration / 60, 1),
-            'timeframes_processed': self.timeframes,
-            'batch_size': self.batch_size,
-            'symbol_limit': self.symbol_limit,
-            'confidence_threshold': self.confidence_threshold,
-            'memory_usage_mb': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+            'start_time': self.start_time.isoformat()
+            'end_time': end_time.isoformat()
+            'duration_seconds': duration
+            'processed_symbols': self.processed_symbols
+            'total_patterns_found': self.total_patterns
+            'failed_symbols_count': len(self.failed_symbols)
+            'patterns_per_symbol': self.total_patterns / max(self.processed_symbols, 1)
+            'processing_rate_symbols_per_minute': self.processed_symbols / max(duration / 60, 1)
+            'timeframes_processed': self.timeframes
+            'batch_size': self.batch_size
+            'symbol_limit': self.symbol_limit
+            'confidence_threshold': self.confidence_threshold
+            'memory_usage_mb': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
             'failed_symbols_sample': self.failed_symbols[:10]
         }
         
@@ -637,11 +637,11 @@ class PatternRecognitionLoader:
                 VALUES (%s, %s, %s)
                 ON CONFLICT (script_name) 
                 DO UPDATE SET 
-                    last_run = EXCLUDED.last_run, 
+                    last_run = EXCLUDED.last_run
                     details = EXCLUDED.details
             """, (
-                'pattern_recognition_loader',
-                end_time,
+                'pattern_recognition_loader'
+                end_time
                 json.dumps(summary)
             ))
             

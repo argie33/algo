@@ -805,6 +805,19 @@ async function tablesExist(tableNames) {
         return existsMap;
     } catch (error) {
         console.error('Error checking if tables exist:', error);
+        
+        // For critical database connection errors, re-throw to allow caller to handle
+        if (error.message && (
+            error.message.includes('connection') || 
+            error.message.includes('connect') ||
+            error.message.includes('lost') ||
+            error.message.includes('refused') ||
+            error.message.includes('timeout')
+        )) {
+            throw error;
+        }
+        
+        // For other errors, provide fallback behavior
         const fallbackMap = {};
         tableNames.forEach(name => {
             fallbackMap[name] = false;
@@ -1142,7 +1155,21 @@ async function initForLambda() {
  */
 function extractTableName(sql) {
     try {
+        if (!sql || typeof sql !== 'string') {
+            return 'unknown';
+        }
+        
         const cleanSql = sql.trim().toLowerCase();
+        
+        if (!cleanSql) {
+            return 'unknown';
+        }
+        
+        // Handle CTE (Common Table Expression) queries - extract from the inner FROM clause
+        const cteMatch = cleanSql.match(/with\s+\w+\s+as\s*\([^)]*from\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+        if (cteMatch) {
+            return cteMatch[1];
+        }
         
         // Match common SQL patterns
         const patterns = [

@@ -31,8 +31,8 @@ import pandas as pd
 # -------------------------------
 SCRIPT_NAME = os.path.basename(__file__)
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - [%(funcName)s] %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - [%(funcName)s] %(message)s"
     stream=sys.stdout
 )
 
@@ -51,10 +51,10 @@ def get_db_config():
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
+        sec["username"]
+        sec["password"]
+        sec["host"]
+        int(sec["port"])
         sec["dbname"]
     )
 
@@ -332,8 +332,8 @@ def prepare_db():
     user, pwd, host, port, db = get_db_config()
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd, dbname=db
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = True
     cursor = conn.cursor()
@@ -342,7 +342,7 @@ def prepare_db():
     # Create last_updated table if it doesn't exist
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
-        script_name VARCHAR(255) PRIMARY KEY,
+        script_name VARCHAR(255) PRIMARY KEY
         last_run    TIMESTAMP
     );
     """)
@@ -352,41 +352,41 @@ def prepare_db():
     cursor.execute("DROP TABLE IF EXISTS technical_data_weekly;")
     cursor.execute("""
     CREATE TABLE technical_data_weekly (
-        symbol          VARCHAR(50),
-        date            TIMESTAMP,
-        rsi             DOUBLE PRECISION,
-        macd            DOUBLE PRECISION,
-        macd_signal     DOUBLE PRECISION,
-        macd_hist       DOUBLE PRECISION,
-        mom             DOUBLE PRECISION,
-        roc             DOUBLE PRECISION,
-        adx             DOUBLE PRECISION,
-        plus_di         DOUBLE PRECISION,
-        minus_di        DOUBLE PRECISION,
-        atr             DOUBLE PRECISION,
-        ad              DOUBLE PRECISION,
-        cmf             DOUBLE PRECISION,
-        mfi             DOUBLE PRECISION,
-        td_sequential   DOUBLE PRECISION,
-        td_combo        DOUBLE PRECISION,
-        marketwatch     DOUBLE PRECISION,
-        dm              DOUBLE PRECISION,
-        sma_10          DOUBLE PRECISION,
-        sma_20          DOUBLE PRECISION,
-        sma_50          DOUBLE PRECISION,
-        sma_150         DOUBLE PRECISION,
-        sma_200         DOUBLE PRECISION,
-        ema_4           DOUBLE PRECISION,
-        ema_9           DOUBLE PRECISION,
-        ema_21          DOUBLE PRECISION,
-        bbands_lower    DOUBLE PRECISION,
-        bbands_middle   DOUBLE PRECISION,
-        bbands_upper    DOUBLE PRECISION,
-        pivot_high      DOUBLE PRECISION,
-        pivot_low       DOUBLE PRECISION,
-        pivot_high_triggered DOUBLE PRECISION,
-        pivot_low_triggered DOUBLE PRECISION,
-        fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        symbol          VARCHAR(50)
+        date            TIMESTAMP
+        rsi             DOUBLE PRECISION
+        macd            DOUBLE PRECISION
+        macd_signal     DOUBLE PRECISION
+        macd_hist       DOUBLE PRECISION
+        mom             DOUBLE PRECISION
+        roc             DOUBLE PRECISION
+        adx             DOUBLE PRECISION
+        plus_di         DOUBLE PRECISION
+        minus_di        DOUBLE PRECISION
+        atr             DOUBLE PRECISION
+        ad              DOUBLE PRECISION
+        cmf             DOUBLE PRECISION
+        mfi             DOUBLE PRECISION
+        td_sequential   DOUBLE PRECISION
+        td_combo        DOUBLE PRECISION
+        marketwatch     DOUBLE PRECISION
+        dm              DOUBLE PRECISION
+        sma_10          DOUBLE PRECISION
+        sma_20          DOUBLE PRECISION
+        sma_50          DOUBLE PRECISION
+        sma_150         DOUBLE PRECISION
+        sma_200         DOUBLE PRECISION
+        ema_4           DOUBLE PRECISION
+        ema_9           DOUBLE PRECISION
+        ema_21          DOUBLE PRECISION
+        bbands_lower    DOUBLE PRECISION
+        bbands_middle   DOUBLE PRECISION
+        bbands_upper    DOUBLE PRECISION
+        pivot_high      DOUBLE PRECISION
+        pivot_low       DOUBLE PRECISION
+        pivot_high_triggered DOUBLE PRECISION
+        pivot_low_triggered DOUBLE PRECISION
+        fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, date)
     );
     """)
@@ -405,7 +405,7 @@ def create_connection_pool():
     """Create a connection pool for better database performance"""
     user, pwd, host, port, db = get_db_config()
     return pool.ThreadedConnectionPool(
-        DB_POOL_MIN, DB_POOL_MAX,
+        DB_POOL_MIN, DB_POOL_MAX
         host=host, port=port, user=user, password=pwd, dbname=db
     )
 
@@ -512,15 +512,15 @@ def process_symbol(symbol, conn_pool):
         # Prepare batch data efficiently
         insert_q = """
         INSERT INTO technical_data_weekly (
-          symbol, date,
-          rsi, macd, macd_signal, macd_hist,
-          mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
-          td_sequential, td_combo, marketwatch, dm,
-          sma_10, sma_20, sma_50, sma_150, sma_200,
-          ema_4, ema_9, ema_21,
-          bbands_lower, bbands_middle, bbands_upper,
-          pivot_high, pivot_low,
-          pivot_high_triggered, pivot_low_triggered,
+          symbol, date
+          rsi, macd, macd_signal, macd_hist
+          mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi
+          td_sequential, td_combo, marketwatch, dm
+          sma_10, sma_20, sma_50, sma_150, sma_200
+          ema_4, ema_9, ema_21
+          bbands_lower, bbands_middle, bbands_upper
+          pivot_high, pivot_low
+          pivot_high_triggered, pivot_low_triggered
           fetched_at
         ) VALUES %s;
         """
@@ -536,40 +536,40 @@ def process_symbol(symbol, conn_pool):
                 date_val = pd.Timestamp(date_val).to_pydatetime()
             
             data.append((
-                symbol,
-                date_val,
-                sanitize_value(row.get('rsi')),
-                sanitize_value(row.get('macd')),
-                sanitize_value(row.get('macd_signal')),
-                sanitize_value(row.get('macd_hist')),
-                sanitize_value(row.get('mom')),
-                sanitize_value(row.get('roc')),
-                sanitize_value(row.get('adx')),
-                sanitize_value(row.get('plus_di')),
-                sanitize_value(row.get('minus_di')),
-                sanitize_value(row.get('atr')),
-                sanitize_value(row.get('ad')),
-                sanitize_value(row.get('cmf')),
-                sanitize_value(row.get('mfi')),
-                sanitize_value(row.get('td_sequential')),
-                sanitize_value(row.get('td_combo')),
-                sanitize_value(row.get('marketwatch')),
-                sanitize_value(row.get('dm')),
-                sanitize_value(row.get('sma_10')),
-                sanitize_value(row.get('sma_20')),
-                sanitize_value(row.get('sma_50')),
-                sanitize_value(row.get('sma_150')),
-                sanitize_value(row.get('sma_200')),
-                sanitize_value(row.get('ema_4')),
-                sanitize_value(row.get('ema_9')),
-                sanitize_value(row.get('ema_21')),
-                sanitize_value(row.get('bbands_lower')),
-                sanitize_value(row.get('bbands_middle')),
-                sanitize_value(row.get('bbands_upper')),
-                sanitize_value(row.get('pivot_high')),
-                sanitize_value(row.get('pivot_low')),
-                sanitize_value(row.get('pivot_high_triggered')),
-                sanitize_value(row.get('pivot_low_triggered')),
+                symbol
+                date_val
+                sanitize_value(row.get('rsi'))
+                sanitize_value(row.get('macd'))
+                sanitize_value(row.get('macd_signal'))
+                sanitize_value(row.get('macd_hist'))
+                sanitize_value(row.get('mom'))
+                sanitize_value(row.get('roc'))
+                sanitize_value(row.get('adx'))
+                sanitize_value(row.get('plus_di'))
+                sanitize_value(row.get('minus_di'))
+                sanitize_value(row.get('atr'))
+                sanitize_value(row.get('ad'))
+                sanitize_value(row.get('cmf'))
+                sanitize_value(row.get('mfi'))
+                sanitize_value(row.get('td_sequential'))
+                sanitize_value(row.get('td_combo'))
+                sanitize_value(row.get('marketwatch'))
+                sanitize_value(row.get('dm'))
+                sanitize_value(row.get('sma_10'))
+                sanitize_value(row.get('sma_20'))
+                sanitize_value(row.get('sma_50'))
+                sanitize_value(row.get('sma_150'))
+                sanitize_value(row.get('sma_200'))
+                sanitize_value(row.get('ema_4'))
+                sanitize_value(row.get('ema_9'))
+                sanitize_value(row.get('ema_21'))
+                sanitize_value(row.get('bbands_lower'))
+                sanitize_value(row.get('bbands_middle'))
+                sanitize_value(row.get('bbands_upper'))
+                sanitize_value(row.get('pivot_high'))
+                sanitize_value(row.get('pivot_low'))
+                sanitize_value(row.get('pivot_high_triggered'))
+                sanitize_value(row.get('pivot_low_triggered'))
                 datetime.now()
             ))
             

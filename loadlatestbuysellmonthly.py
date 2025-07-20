@@ -22,8 +22,8 @@ from psycopg2.extras import RealDictCursor, execute_values
 
 SCRIPT_NAME = "loadlatestbuysellmonthly.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -45,42 +45,42 @@ secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
 creds = json.loads(secret_resp["SecretString"])
 
 DB_CONFIG = {
-    "host": creds["host"],
-    "port": int(creds.get("port", 5432)),
-    "user": creds["username"],
-    "password": creds["password"],
-    "dbname": creds["dbname"],
+    "host": creds["host"]
+    "port": int(creds.get("port", 5432))
+    "user": creds["username"]
+    "password": creds["password"]
+    "dbname": creds["dbname"]
     "sslmode": "require"
 }
 
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG,
-            sslmode="require"
+    return psycopg2.connect(**DB_CONFIG
+            
     )
 
 def create_buy_sell_table_if_not_exists(cur):
     """Create buy_sell_monthly table if it doesn't exist"""
     cur.execute("""
         CREATE TABLE IF NOT EXISTS buy_sell_monthly (
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            timeframe VARCHAR(10) NOT NULL DEFAULT 'monthly',
-            signal_type VARCHAR(10) NOT NULL,
-            confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-            price DECIMAL(12,4),
-            rsi DECIMAL(5,2),
-            macd DECIMAL(10,6),
-            volume BIGINT,
-            volume_avg_3m BIGINT,
-            price_vs_ma6m DECIMAL(5,2),
-            price_vs_ma12m DECIMAL(5,2),
-            bollinger_position DECIMAL(5,2),
-            support_level DECIMAL(12,4),
-            resistance_level DECIMAL(12,4),
-            pattern_score DECIMAL(5,2),
-            momentum_score DECIMAL(5,2),
-            risk_score DECIMAL(5,2),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            symbol VARCHAR(20) NOT NULL
+            date DATE NOT NULL
+            timeframe VARCHAR(10) NOT NULL DEFAULT 'monthly'
+            signal_type VARCHAR(10) NOT NULL
+            confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0
+            price DECIMAL(12,4)
+            rsi DECIMAL(5,2)
+            macd DECIMAL(10,6)
+            volume BIGINT
+            volume_avg_3m BIGINT
+            price_vs_ma6m DECIMAL(5,2)
+            price_vs_ma12m DECIMAL(5,2)
+            bollinger_position DECIMAL(5,2)
+            support_level DECIMAL(12,4)
+            resistance_level DECIMAL(12,4)
+            pattern_score DECIMAL(5,2)
+            momentum_score DECIMAL(5,2)
+            risk_score DECIMAL(5,2)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             PRIMARY KEY (symbol, date, timeframe, signal_type)
         );
         
@@ -106,9 +106,9 @@ def get_available_data_range(cur, symbol):
     """Get the date range of available monthly price and technical data"""
     cur.execute("""
         SELECT 
-            MIN(p.date) as min_price_date,
-            MAX(p.date) as max_price_date,
-            MIN(t.date) as min_tech_date,
+            MIN(p.date) as min_price_date
+            MAX(p.date) as max_price_date
+            MIN(t.date) as min_tech_date
             MAX(t.date) as max_tech_date
         FROM price_monthly p
         LEFT JOIN technical_data_monthly t ON p.symbol = t.symbol AND p.date = t.date
@@ -228,45 +228,45 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
         # Generate signals (very high threshold for monthly - focus on strong trends)
         if buy_score >= 60:
             signals.append({
-                'symbol': symbol,
-                'date': date,
-                'timeframe': 'monthly',
-                'signal_type': 'BUY',
-                'confidence': min(buy_score, 95),
-                'price': close,
-                'rsi': rsi,
-                'macd': macd,
-                'volume': volume,
-                'volume_avg_3m': int(volume_avg) if not pd.isna(volume_avg) else None,
-                'price_vs_ma6m': price_vs_ma6m,
-                'price_vs_ma12m': price_vs_ma12m,
-                'bollinger_position': bollinger_pos,
-                'support_level': support,
-                'resistance_level': resistance,
-                'pattern_score': pattern_score,
-                'momentum_score': momentum_score,
+                'symbol': symbol
+                'date': date
+                'timeframe': 'monthly'
+                'signal_type': 'BUY'
+                'confidence': min(buy_score, 95)
+                'price': close
+                'rsi': rsi
+                'macd': macd
+                'volume': volume
+                'volume_avg_3m': int(volume_avg) if not pd.isna(volume_avg) else None
+                'price_vs_ma6m': price_vs_ma6m
+                'price_vs_ma12m': price_vs_ma12m
+                'bollinger_position': bollinger_pos
+                'support_level': support
+                'resistance_level': resistance
+                'pattern_score': pattern_score
+                'momentum_score': momentum_score
                 'risk_score': risk_score
             })
         
         if sell_score >= 60:
             signals.append({
-                'symbol': symbol,
-                'date': date,
-                'timeframe': 'monthly',
-                'signal_type': 'SELL',
-                'confidence': min(sell_score, 95),
-                'price': close,
-                'rsi': rsi,
-                'macd': macd,
-                'volume': volume,
-                'volume_avg_3m': int(volume_avg) if not pd.isna(volume_avg) else None,
-                'price_vs_ma6m': price_vs_ma6m,
-                'price_vs_ma12m': price_vs_ma12m,
-                'bollinger_position': bollinger_pos,
-                'support_level': support,
-                'resistance_level': resistance,
-                'pattern_score': pattern_score,
-                'momentum_score': momentum_score,
+                'symbol': symbol
+                'date': date
+                'timeframe': 'monthly'
+                'signal_type': 'SELL'
+                'confidence': min(sell_score, 95)
+                'price': close
+                'rsi': rsi
+                'macd': macd
+                'volume': volume
+                'volume_avg_3m': int(volume_avg) if not pd.isna(volume_avg) else None
+                'price_vs_ma6m': price_vs_ma6m
+                'price_vs_ma12m': price_vs_ma12m
+                'bollinger_position': bollinger_pos
+                'support_level': support
+                'resistance_level': resistance
+                'pattern_score': pattern_score
+                'momentum_score': momentum_score
                 'risk_score': risk_score
             })
     
@@ -302,8 +302,8 @@ def process_symbol_incremental(cur, symbol, timeframe='monthly'):
     # Fetch monthly price and technical data
     cur.execute("""
         SELECT 
-            p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
-            t.rsi, t.macd, t.signal_line, t.macd_histogram, t.bb_upper, t.bb_lower,
+            p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume
+            t.rsi, t.macd, t.signal_line, t.macd_histogram, t.bb_upper, t.bb_lower
             t.stoch_k, t.stoch_d, t.williams_r, t.cci, t.adx
         FROM price_monthly p
         LEFT JOIN technical_data_monthly t ON p.symbol = t.symbol AND p.date = t.date
@@ -327,37 +327,37 @@ def process_symbol_incremental(cur, symbol, timeframe='monthly'):
     # Insert new signals
     insert_sql = """
         INSERT INTO buy_sell_monthly (
-            symbol, date, timeframe, signal_type, confidence, price, rsi, macd,
-            volume, volume_avg_3m, price_vs_ma6m, price_vs_ma12m, bollinger_position,
+            symbol, date, timeframe, signal_type, confidence, price, rsi, macd
+            volume, volume_avg_3m, price_vs_ma6m, price_vs_ma12m, bollinger_position
             support_level, resistance_level, pattern_score, momentum_score, risk_score
         ) VALUES %s
         ON CONFLICT (symbol, date, timeframe, signal_type) 
         DO UPDATE SET
-            confidence = EXCLUDED.confidence,
-            price = EXCLUDED.price,
-            rsi = EXCLUDED.rsi,
-            macd = EXCLUDED.macd,
-            volume = EXCLUDED.volume,
-            volume_avg_3m = EXCLUDED.volume_avg_3m,
-            price_vs_ma6m = EXCLUDED.price_vs_ma6m,
-            price_vs_ma12m = EXCLUDED.price_vs_ma12m,
-            bollinger_position = EXCLUDED.bollinger_position,
-            support_level = EXCLUDED.support_level,
-            resistance_level = EXCLUDED.resistance_level,
-            pattern_score = EXCLUDED.pattern_score,
-            momentum_score = EXCLUDED.momentum_score,
-            risk_score = EXCLUDED.risk_score,
+            confidence = EXCLUDED.confidence
+            price = EXCLUDED.price
+            rsi = EXCLUDED.rsi
+            macd = EXCLUDED.macd
+            volume = EXCLUDED.volume
+            volume_avg_3m = EXCLUDED.volume_avg_3m
+            price_vs_ma6m = EXCLUDED.price_vs_ma6m
+            price_vs_ma12m = EXCLUDED.price_vs_ma12m
+            bollinger_position = EXCLUDED.bollinger_position
+            support_level = EXCLUDED.support_level
+            resistance_level = EXCLUDED.resistance_level
+            pattern_score = EXCLUDED.pattern_score
+            momentum_score = EXCLUDED.momentum_score
+            risk_score = EXCLUDED.risk_score
             created_at = CURRENT_TIMESTAMP
     """
     
     signal_rows = []
     for signal in signals:
         signal_rows.append((
-            signal['symbol'], signal['date'], signal['timeframe'], signal['signal_type'],
-            signal['confidence'], signal['price'], signal['rsi'], signal['macd'],
-            signal['volume'], signal['volume_avg_3m'], signal['price_vs_ma6m'],
-            signal['price_vs_ma12m'], signal['bollinger_position'], signal['support_level'],
-            signal['resistance_level'], signal['pattern_score'], signal['momentum_score'],
+            signal['symbol'], signal['date'], signal['timeframe'], signal['signal_type']
+            signal['confidence'], signal['price'], signal['rsi'], signal['macd']
+            signal['volume'], signal['volume_avg_3m'], signal['price_vs_ma6m']
+            signal['price_vs_ma12m'], signal['bollinger_position'], signal['support_level']
+            signal['resistance_level'], signal['pattern_score'], signal['momentum_score']
             signal['risk_score']
         ))
     

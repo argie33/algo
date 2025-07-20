@@ -31,8 +31,8 @@ import pandas as pd
 # -------------------------------
 SCRIPT_NAME = os.path.basename(__file__)
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - [%(funcName)s] %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - [%(funcName)s] %(message)s"
     stream=sys.stdout
 )
 
@@ -51,10 +51,10 @@ def get_db_config():
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
+        sec["username"]
+        sec["password"]
+        sec["host"]
+        int(sec["port"])
         sec["dbname"]
     )
 
@@ -164,8 +164,8 @@ def prepare_db():
     user, pwd, host, port, db = get_db_config()
     conn = psycopg2.connect(
         host=host, port=port, user=user, password=pwd, dbname=db
-    ,
-            sslmode="require"
+    
+            
     )
     conn.autocommit = True
     cursor = conn.cursor()
@@ -174,7 +174,7 @@ def prepare_db():
     # Create last_updated table if it doesn't exist
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS last_updated (
-        script_name VARCHAR(255) PRIMARY KEY,
+        script_name VARCHAR(255) PRIMARY KEY
         last_run    TIMESTAMP
     );
     """)
@@ -184,23 +184,23 @@ def prepare_db():
     cursor.execute("DROP TABLE IF EXISTS earnings_metrics;")
     cursor.execute("""
     CREATE TABLE earnings_metrics (
-        symbol                      VARCHAR(50),
-        report_date                 DATE,
-        eps_growth_1q               DOUBLE PRECISION,
-        eps_growth_2q               DOUBLE PRECISION,
-        eps_growth_4q               DOUBLE PRECISION,
-        eps_growth_8q               DOUBLE PRECISION,
-        eps_acceleration_qtrs       DOUBLE PRECISION,
-        eps_surprise_last_q         DOUBLE PRECISION,
-        eps_estimate_revision_1m    DOUBLE PRECISION,
-        eps_estimate_revision_3m    DOUBLE PRECISION,
-        eps_estimate_revision_6m    DOUBLE PRECISION,
-        annual_eps_growth_1y        DOUBLE PRECISION,
-        annual_eps_growth_3y        DOUBLE PRECISION,
-        annual_eps_growth_5y        DOUBLE PRECISION,
-        consecutive_eps_growth_years INTEGER,
-        eps_estimated_change_this_year DOUBLE PRECISION,
-        fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        symbol                      VARCHAR(50)
+        report_date                 DATE
+        eps_growth_1q               DOUBLE PRECISION
+        eps_growth_2q               DOUBLE PRECISION
+        eps_growth_4q               DOUBLE PRECISION
+        eps_growth_8q               DOUBLE PRECISION
+        eps_acceleration_qtrs       DOUBLE PRECISION
+        eps_surprise_last_q         DOUBLE PRECISION
+        eps_estimate_revision_1m    DOUBLE PRECISION
+        eps_estimate_revision_3m    DOUBLE PRECISION
+        eps_estimate_revision_6m    DOUBLE PRECISION
+        annual_eps_growth_1y        DOUBLE PRECISION
+        annual_eps_growth_3y        DOUBLE PRECISION
+        annual_eps_growth_5y        DOUBLE PRECISION
+        consecutive_eps_growth_years INTEGER
+        eps_estimated_change_this_year DOUBLE PRECISION
+        fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         PRIMARY KEY (symbol, report_date)
     );
     """)
@@ -219,7 +219,7 @@ def create_connection_pool():
     """Create a connection pool for better database performance"""
     user, pwd, host, port, db = get_db_config()
     return pool.ThreadedConnectionPool(
-        DB_POOL_MIN, DB_POOL_MAX,
+        DB_POOL_MIN, DB_POOL_MAX
         host=host, port=port, user=user, password=pwd, dbname=db
     )
 
@@ -249,7 +249,7 @@ def process_symbol(symbol, conn_pool):
         
         # Get earnings estimates data
         cursor.execute("""
-            SELECT period, avg_estimate, low_estimate, high_estimate, year_ago_eps, 
+            SELECT period, avg_estimate, low_estimate, high_estimate, year_ago_eps
                    number_of_analysts, growth
             FROM earnings_estimates 
             WHERE symbol = %s 
@@ -260,7 +260,7 @@ def process_symbol(symbol, conn_pool):
         
         # Get revenue estimates data
         cursor.execute("""
-            SELECT period, avg_estimate, low_estimate, high_estimate, 
+            SELECT period, avg_estimate, low_estimate, high_estimate
                    number_of_analysts, year_ago_revenue, growth
             FROM revenue_estimates 
             WHERE symbol = %s 
@@ -322,22 +322,22 @@ def process_symbol(symbol, conn_pool):
             eps_estimated_change_this_year = calculate_estimated_change_from_db(symbol, earnings_estimates)
             
             data.append((
-                symbol,
-                date.date(),
-                sanitize_value(eps_growth_1q),
-                sanitize_value(eps_growth_2q),
-                sanitize_value(eps_growth_4q),
-                sanitize_value(eps_growth_8q),
-                sanitize_value(eps_acceleration_qtrs),
-                sanitize_value(eps_surprise_last_q),
-                sanitize_value(eps_estimate_revision_1m),
-                sanitize_value(eps_estimate_revision_3m),
-                sanitize_value(eps_estimate_revision_6m),
-                sanitize_value(annual_eps_growth_1y),
-                sanitize_value(annual_eps_growth_3y),
-                sanitize_value(annual_eps_growth_5y),
-                consecutive_eps_growth_years if consecutive_eps_growth_years is not None else None,
-                sanitize_value(eps_estimated_change_this_year),
+                symbol
+                date.date()
+                sanitize_value(eps_growth_1q)
+                sanitize_value(eps_growth_2q)
+                sanitize_value(eps_growth_4q)
+                sanitize_value(eps_growth_8q)
+                sanitize_value(eps_acceleration_qtrs)
+                sanitize_value(eps_surprise_last_q)
+                sanitize_value(eps_estimate_revision_1m)
+                sanitize_value(eps_estimate_revision_3m)
+                sanitize_value(eps_estimate_revision_6m)
+                sanitize_value(annual_eps_growth_1y)
+                sanitize_value(annual_eps_growth_3y)
+                sanitize_value(annual_eps_growth_5y)
+                consecutive_eps_growth_years if consecutive_eps_growth_years is not None else None
+                sanitize_value(eps_estimated_change_this_year)
                 datetime.now()
             ))
         
@@ -345,10 +345,10 @@ def process_symbol(symbol, conn_pool):
         if data:
             insert_q = """
             INSERT INTO earnings_metrics (
-                symbol, report_date, eps_growth_1q, eps_growth_2q, eps_growth_4q, eps_growth_8q,
-                eps_acceleration_qtrs, eps_surprise_last_q, eps_estimate_revision_1m,
-                eps_estimate_revision_3m, eps_estimate_revision_6m, annual_eps_growth_1y,
-                annual_eps_growth_3y, annual_eps_growth_5y, consecutive_eps_growth_years,
+                symbol, report_date, eps_growth_1q, eps_growth_2q, eps_growth_4q, eps_growth_8q
+                eps_acceleration_qtrs, eps_surprise_last_q, eps_estimate_revision_1m
+                eps_estimate_revision_3m, eps_estimate_revision_6m, annual_eps_growth_1y
+                annual_eps_growth_3y, annual_eps_growth_5y, consecutive_eps_growth_years
                 eps_estimated_change_this_year, fetched_at
             ) VALUES %s;
             """

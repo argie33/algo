@@ -16,7 +16,7 @@ from psycopg2.extras import execute_values
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
 # Send all INFO+ logs to stdout so awslogs picks them up
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+logging.basicConfig(stream=sys.stdout, level=logging.INFO
                     format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
 logger = logging.getLogger()
 
@@ -30,10 +30,10 @@ def get_db_creds():
     resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
     sec = json.loads(resp["SecretString"])
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
+        sec["username"]
+        sec["password"]
+        sec["host"]
+        int(sec["port"])
         sec["dbname"]
     )
 
@@ -65,8 +65,8 @@ def get_fred_release_calendar():
         # FRED releases/dates endpoint
         url = "https://api.stlouisfed.org/fred/releases/dates"
         params = {
-            'api_key': FRED_API_KEY,
-            'file_type': 'json',
+            'api_key': FRED_API_KEY
+            'file_type': 'json'
             'include_release_dates_with_no_data': 'true',  # Include future dates
             'limit': '50'
         }
@@ -88,17 +88,17 @@ def get_fred_release_calendar():
             # Only include future dates within next 30 days
             if release_date >= today and release_date <= today + timedelta(days=30):
                 event = {
-                    'Event': release.get('release_name', 'Economic Release'),
-                    'Date': release['date'],
+                    'Event': release.get('release_name', 'Economic Release')
+                    'Date': release['date']
                     'Time': '08:30',  # Most releases are at 8:30 AM
-                    'Country': 'United States',
-                    'Category': categorize_fred_release(release.get('release_name', '')),
-                    'Importance': get_fred_importance(release.get('release_name', '')),
-                    'Currency': 'USD',
-                    'Forecast': 'TBD',
-                    'Previous': 'See FRED data',
-                    'Unit': '',
-                    'Frequency': 'Monthly',
+                    'Country': 'United States'
+                    'Category': categorize_fred_release(release.get('release_name', ''))
+                    'Importance': get_fred_importance(release.get('release_name', ''))
+                    'Currency': 'USD'
+                    'Forecast': 'TBD'
+                    'Previous': 'See FRED data'
+                    'Unit': ''
+                    'Frequency': 'Monthly'
                     'Source': 'Federal Reserve Economic Data (FRED)'
                 }
                 events.append(event)
@@ -135,17 +135,17 @@ def get_scheduled_economic_events():
     fomc_dates = get_next_fomc_dates(today)
     for date in fomc_dates:
         events.append({
-            'Event': 'FOMC Rate Decision',
-            'Date': date.strftime('%Y-%m-%d'),
-            'Time': '14:00',
-            'Country': 'United States',
-            'Category': 'monetary_policy',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': 'Market expectations vary',
-            'Previous': '5.25-5.50%',
-            'Unit': '%',
-            'Frequency': 'Irregular',
+            'Event': 'FOMC Rate Decision'
+            'Date': date.strftime('%Y-%m-%d')
+            'Time': '14:00'
+            'Country': 'United States'
+            'Category': 'monetary_policy'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': 'Market expectations vary'
+            'Previous': '5.25-5.50%'
+            'Unit': '%'
+            'Frequency': 'Irregular'
             'Source': 'Federal Reserve'
         })
     
@@ -153,17 +153,17 @@ def get_scheduled_economic_events():
     employment_dates = get_next_employment_dates(today)
     for date in employment_dates:
         events.append({
-            'Event': 'Nonfarm Payrolls',
-            'Date': date.strftime('%Y-%m-%d'),
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'employment',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': 'Estimate varies',
-            'Previous': '227K',
-            'Unit': 'K',
-            'Frequency': 'Monthly',
+            'Event': 'Nonfarm Payrolls'
+            'Date': date.strftime('%Y-%m-%d')
+            'Time': '08:30'
+            'Country': 'United States'
+            'Category': 'employment'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': 'Estimate varies'
+            'Previous': '227K'
+            'Unit': 'K'
+            'Frequency': 'Monthly'
             'Source': 'Bureau of Labor Statistics'
         })
     
@@ -171,17 +171,17 @@ def get_scheduled_economic_events():
     cpi_dates = get_next_cpi_dates(today)
     for date in cpi_dates:
         events.append({
-            'Event': 'Consumer Price Index',
-            'Date': date.strftime('%Y-%m-%d'),
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'inflation',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': 'Estimate varies',
-            'Previous': '2.6% Y/Y',
-            'Unit': '%',
-            'Frequency': 'Monthly',
+            'Event': 'Consumer Price Index'
+            'Date': date.strftime('%Y-%m-%d')
+            'Time': '08:30'
+            'Country': 'United States'
+            'Category': 'inflation'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': 'Estimate varies'
+            'Previous': '2.6% Y/Y'
+            'Unit': '%'
+            'Frequency': 'Monthly'
             'Source': 'Bureau of Labor Statistics'
         })
     
@@ -191,59 +191,59 @@ def get_mock_calendar_data():
     """Generate mock economic calendar data for testing."""
     mock_events = [
         {
-            'Event': 'Federal Reserve Meeting',
-            'Date': '2025-01-29',
-            'Time': '14:00',
-            'Country': 'United States',
-            'Category': 'monetary_policy',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '0.25% rate cut expected',
-            'Previous': '5.25-5.50%',
-            'Unit': '%',
-            'Frequency': 'Monthly',
+            'Event': 'Federal Reserve Meeting'
+            'Date': '2025-01-29'
+            'Time': '14:00'
+            'Country': 'United States'
+            'Category': 'monetary_policy'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': '0.25% rate cut expected'
+            'Previous': '5.25-5.50%'
+            'Unit': '%'
+            'Frequency': 'Monthly'
             'Source': 'Federal Reserve'
-        },
+        }
         {
-            'Event': 'Consumer Price Index',
-            'Date': '2025-01-15',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'inflation',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '2.4% Y/Y',
-            'Previous': '2.6% Y/Y',
-            'Unit': '%',
-            'Frequency': 'Monthly',
+            'Event': 'Consumer Price Index'
+            'Date': '2025-01-15'
+            'Time': '08:30'
+            'Country': 'United States'
+            'Category': 'inflation'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': '2.4% Y/Y'
+            'Previous': '2.6% Y/Y'
+            'Unit': '%'
+            'Frequency': 'Monthly'
             'Source': 'Bureau of Labor Statistics'
-        },
+        }
         {
-            'Event': 'Nonfarm Payrolls',
-            'Date': '2025-01-10',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'employment',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '160K',
-            'Previous': '227K',
-            'Unit': 'K',
-            'Frequency': 'Monthly',
+            'Event': 'Nonfarm Payrolls'
+            'Date': '2025-01-10'
+            'Time': '08:30'
+            'Country': 'United States'
+            'Category': 'employment'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': '160K'
+            'Previous': '227K'
+            'Unit': 'K'
+            'Frequency': 'Monthly'
             'Source': 'Bureau of Labor Statistics'
-        },
+        }
         {
-            'Event': 'Gross Domestic Product',
-            'Date': '2025-01-30',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'gdp',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '2.8% QoQ',
-            'Previous': '2.8% QoQ',
-            'Unit': '%',
-            'Frequency': 'Quarterly',
+            'Event': 'Gross Domestic Product'
+            'Date': '2025-01-30'
+            'Time': '08:30'
+            'Country': 'United States'
+            'Category': 'gdp'
+            'Importance': 'High'
+            'Currency': 'USD'
+            'Forecast': '2.8% QoQ'
+            'Previous': '2.8% QoQ'
+            'Unit': '%'
+            'Frequency': 'Quarterly'
             'Source': 'Bureau of Economic Analysis'
         }
     ]
@@ -257,18 +257,18 @@ def process_calendar_events(events):
     for event in events:
         try:
             processed_event = {
-                'Event': event.get('Event', 'Unknown Event'),
-                'Date': event.get('Date', datetime.now().strftime('%Y-%m-%d')),
-                'Time': event.get('Time', ''),
-                'Country': event.get('Country', 'United States'),
-                'Category': categorize_event(event.get('Event', '')),
-                'Importance': event.get('Importance', 'Medium'),
-                'Currency': event.get('Currency', 'USD'),
-                'Forecast': event.get('Forecast', ''),
-                'Previous': event.get('Previous', ''),
-                'Actual': event.get('Actual', ''),
-                'Unit': event.get('Unit', ''),
-                'Frequency': event.get('Frequency', 'Monthly'),
+                'Event': event.get('Event', 'Unknown Event')
+                'Date': event.get('Date', datetime.now().strftime('%Y-%m-%d'))
+                'Time': event.get('Time', '')
+                'Country': event.get('Country', 'United States')
+                'Category': categorize_event(event.get('Event', ''))
+                'Importance': event.get('Importance', 'Medium')
+                'Currency': event.get('Currency', 'USD')
+                'Forecast': event.get('Forecast', '')
+                'Previous': event.get('Previous', '')
+                'Actual': event.get('Actual', '')
+                'Unit': event.get('Unit', '')
+                'Frequency': event.get('Frequency', 'Monthly')
                 'Source': event.get('Source', '')
             }
             processed.append(processed_event)
@@ -322,13 +322,13 @@ def get_next_fomc_dates(today):
     # FOMC meetings are roughly every 6-7 weeks
     # 2025 FOMC dates: Jan 28-29, Mar 18-19, Apr 29-30, Jun 10-11, Jul 29-30, Sep 16-17, Oct 31-Nov 1, Dec 16-17
     fomc_2025_dates = [
-        datetime(2025, 1, 29).date(),
-        datetime(2025, 3, 19).date(),
-        datetime(2025, 4, 30).date(),
-        datetime(2025, 6, 11).date(),
-        datetime(2025, 7, 30).date(),
-        datetime(2025, 9, 17).date(),
-        datetime(2025, 11, 1).date(),
+        datetime(2025, 1, 29).date()
+        datetime(2025, 3, 19).date()
+        datetime(2025, 4, 30).date()
+        datetime(2025, 6, 11).date()
+        datetime(2025, 7, 30).date()
+        datetime(2025, 9, 17).date()
+        datetime(2025, 11, 1).date()
         datetime(2025, 12, 17).date()
     ]
     
@@ -398,13 +398,13 @@ def handler(event, context):
         
         # Use proven connection pattern from working loaders
         ssl_config = {
-            'host': host,
-            'port': port,
-            'user': user,
-            'password': pwd,
-            'dbname': db,
-            'sslmode': 'require',
-            'connect_timeout': 30,
+            'host': host
+            'port': port
+            'user': user
+            'password': pwd
+            'dbname': db
+            'sslmode': 'require'
+            'connect_timeout': 30
             'application_name': 'econdata-loader'
         }
         
@@ -414,35 +414,35 @@ def handler(event, context):
         # 2) Ensure tables exist
         cur.execute("""
             CREATE TABLE IF NOT EXISTS economic_data (
-                series_id TEXT NOT NULL,
-                date       DATE NOT NULL,
-                value      DOUBLE PRECISION,
+                series_id TEXT NOT NULL
+                date       DATE NOT NULL
+                value      DOUBLE PRECISION
                 PRIMARY KEY (series_id, date)
             );
         """)
         
         cur.execute("""
             CREATE TABLE IF NOT EXISTS economic_calendar (
-                id SERIAL PRIMARY KEY,
-                event_id VARCHAR(50) UNIQUE,
-                event_name VARCHAR(255) NOT NULL,
-                country VARCHAR(10) DEFAULT 'US',
-                category VARCHAR(100),
-                importance VARCHAR(20) NOT NULL,
-                currency VARCHAR(3) DEFAULT 'USD',
-                event_date DATE NOT NULL,
-                event_time TIME,
-                timezone VARCHAR(50) DEFAULT 'America/New_York',
-                actual_value VARCHAR(100),
-                forecast_value VARCHAR(100),
-                previous_value VARCHAR(100),
-                unit VARCHAR(50),
-                frequency VARCHAR(20),
-                source VARCHAR(100),
-                description TEXT,
-                impact_analysis TEXT,
-                is_revised BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id SERIAL PRIMARY KEY
+                event_id VARCHAR(50) UNIQUE
+                event_name VARCHAR(255) NOT NULL
+                country VARCHAR(10) DEFAULT 'US'
+                category VARCHAR(100)
+                importance VARCHAR(20) NOT NULL
+                currency VARCHAR(3) DEFAULT 'USD'
+                event_date DATE NOT NULL
+                event_time TIME
+                timezone VARCHAR(50) DEFAULT 'America/New_York'
+                actual_value VARCHAR(100)
+                forecast_value VARCHAR(100)
+                previous_value VARCHAR(100)
+                unit VARCHAR(50)
+                frequency VARCHAR(20)
+                source VARCHAR(100)
+                description TEXT
+                impact_analysis TEXT
+                is_revised BOOLEAN DEFAULT FALSE
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -451,13 +451,13 @@ def handler(event, context):
         # 3) Series list
         series_ids = [
             # — U.S. Output & Demand —
-            "GDPC1","PCECC96","GPDI","GCEC1","EXPGSC1","IMPGSC1",
+            "GDPC1","PCECC96","GPDI","GCEC1","EXPGSC1","IMPGSC1"
             # — U.S. Labor Market —
-            "UNRATE","PAYEMS","CIVPART","CES0500000003","AWHAE","JTSJOL","ICSA","OPHNFB","U6RATE",
+            "UNRATE","PAYEMS","CIVPART","CES0500000003","AWHAE","JTSJOL","ICSA","OPHNFB","U6RATE"
             # — U.S. Inflation & Prices —
-            "CPIAUCSL","CPILFESL","PCEPI","PCEPILFE","PPIACO","MICH","T5YIFR",
+            "CPIAUCSL","CPILFESL","PCEPI","PCEPILFE","PPIACO","MICH","T5YIFR"
             # — U.S. Financial & Monetary —
-            "FEDFUNDS","DGS2","DGS10","T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
+            "FEDFUNDS","DGS2","DGS10","T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB"
             # — U.S. Housing & Construction —
             "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC"
         ]
@@ -482,13 +482,13 @@ def handler(event, context):
 
             # bulk upsert
             execute_values(
-                cur,
+                cur
                 """
                 INSERT INTO economic_data (series_id, date, value)
                 VALUES %s
                 ON CONFLICT (series_id, date) DO UPDATE
                   SET value = EXCLUDED.value;
-                """,
+                """
                 rows
             )
             conn.commit()
@@ -508,38 +508,38 @@ def handler(event, context):
                 
                 cur.execute("""
                     INSERT INTO economic_calendar (
-                        event_id, event_name, country, category, importance, currency,
-                        event_date, event_time, timezone, forecast_value, previous_value,
+                        event_id, event_name, country, category, importance, currency
+                        event_date, event_time, timezone, forecast_value, previous_value
                         unit, frequency, source, description, updated_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (event_id) DO UPDATE SET
-                        event_name = EXCLUDED.event_name,
-                        category = EXCLUDED.category,
-                        importance = EXCLUDED.importance,
-                        event_date = EXCLUDED.event_date,
-                        event_time = EXCLUDED.event_time,
-                        forecast_value = EXCLUDED.forecast_value,
-                        previous_value = EXCLUDED.previous_value,
-                        unit = EXCLUDED.unit,
-                        frequency = EXCLUDED.frequency,
-                        source = EXCLUDED.source,
-                        description = EXCLUDED.description,
+                        event_name = EXCLUDED.event_name
+                        category = EXCLUDED.category
+                        importance = EXCLUDED.importance
+                        event_date = EXCLUDED.event_date
+                        event_time = EXCLUDED.event_time
+                        forecast_value = EXCLUDED.forecast_value
+                        previous_value = EXCLUDED.previous_value
+                        unit = EXCLUDED.unit
+                        frequency = EXCLUDED.frequency
+                        source = EXCLUDED.source
+                        description = EXCLUDED.description
                         updated_at = CURRENT_TIMESTAMP
                 """, (
-                    event_id,
-                    event['Event'],
-                    'US',
-                    event['Category'],
-                    event['Importance'],
-                    event['Currency'],
-                    event['Date'],
-                    event['Time'] if event['Time'] else None,
-                    'America/New_York',
-                    event['Forecast'],
-                    event['Previous'],
-                    event['Unit'],
-                    event['Frequency'],
-                    event['Source'],
+                    event_id
+                    event['Event']
+                    'US'
+                    event['Category']
+                    event['Importance']
+                    event['Currency']
+                    event['Date']
+                    event['Time'] if event['Time'] else None
+                    'America/New_York'
+                    event['Forecast']
+                    event['Previous']
+                    event['Unit']
+                    event['Frequency']
+                    event['Source']
                     f"Expected: {event['Forecast']}, Previous: {event['Previous']}"
                 ))
             
@@ -556,7 +556,7 @@ def handler(event, context):
         conn.close()
 
         return {
-            "statusCode": 200,
+            "statusCode": 200
             "body": json.dumps({"status": "success"})
         }
 
@@ -569,13 +569,13 @@ def handler(event, context):
         except:
             pass
         return {
-            "statusCode": 500,
+            "statusCode": 500
             "body": json.dumps({"error": str(e)})
         }
 
 
 if __name__ == "__main__":
-    # When run as a standalone script (e.g. via "python loadecondata.py"),
+    # When run as a standalone script (e.g. via "python loadecondata.py")
     # invoke the handler so all your logging executes.
     result = handler({}, None)
     # Print the result so you can see success/failure in the logs.

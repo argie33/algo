@@ -22,8 +22,8 @@ import yfinance as yf
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -41,10 +41,10 @@ def get_db_config():
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
+        "host":   sec["host"]
+        "port":   int(sec.get("port", 5432))
+        "user":   sec["username"]
+        "password": sec["password"]
         "dbname": sec["dbname"]
     }
 
@@ -53,14 +53,14 @@ def create_table(cur):
     cur.execute("DROP TABLE IF EXISTS analyst_upgrade_downgrade;")
     cur.execute("""
         CREATE TABLE analyst_upgrade_downgrade (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(20) NOT NULL,
-            firm         VARCHAR(128),
-            action       VARCHAR(32),
-            from_grade   VARCHAR(64),
-            to_grade     VARCHAR(64),
-            date         DATE NOT NULL,
-            details      TEXT,
+            id           SERIAL PRIMARY KEY
+            symbol       VARCHAR(20) NOT NULL
+            firm         VARCHAR(128)
+            action       VARCHAR(32)
+            from_grade   VARCHAR(64)
+            to_grade     VARCHAR(64)
+            date         DATE NOT NULL
+            details      TEXT
             fetched_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -92,12 +92,12 @@ def load_analyst_actions(symbols, cur, conn):
         rows = []
         for dt, row in df.iterrows():
             rows.append([
-                symbol,
-                row.get("Firm"),
-                row.get("Action"),
-                row.get("From Grade"),
-                row.get("To Grade"),
-                dt.date() if hasattr(dt, 'date') else dt,
+                symbol
+                row.get("Firm")
+                row.get("Action")
+                row.get("From Grade")
+                row.get("To Grade")
+                dt.date() if hasattr(dt, 'date') else dt
                 row.get("Details") if "Details" in row else None
             ])
         if not rows:
@@ -160,13 +160,13 @@ def lambda_handler(event, context):
             
             # Use same connection pattern as working loadaaiidata.py
             ssl_config = {
-                'host': cfg["host"],
-                'port': cfg["port"],
-                'user': cfg["user"],
-                'password': cfg["password"],
-                'dbname': cfg["dbname"],
-                'sslmode': 'disable',
-                'connect_timeout': 10,
+                'host': cfg["host"]
+                'port': cfg["port"]
+                'user': cfg["user"]
+                'password': cfg["password"]
+                'dbname': cfg["dbname"]
+                'sslmode': 'disable'
+                'connect_timeout': 10
                 'application_name': 'analyst-data-loader'
             }
             
@@ -211,9 +211,9 @@ def lambda_handler(event, context):
     conn.close()
     logging.info("All done.")
     return {
-        "total": t,
-        "inserted": i,
-        "failed": f,
+        "total": t
+        "inserted": i
+        "failed": f
         "peak_rss_mb": peak
     }
 

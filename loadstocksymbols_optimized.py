@@ -25,8 +25,8 @@ class OptimizedStockSymbolsLoader:
     def __init__(self):
         """Initialize the optimized loader."""
         self.loader = DataLoaderOptimizer(
-            loader_name="stock_symbols_optimized",
-            table_name="stock_symbols",
+            loader_name="stock_symbols_optimized"
+            table_name="stock_symbols"
             batch_size=2000  # Increased batch size for better performance
         )
         
@@ -36,15 +36,15 @@ class OptimizedStockSymbolsLoader:
         
         # Enhanced exclusion patterns for better data quality
         self.exclusion_patterns = [
-            r"\bpreferred\b",
-            r"\bredeemable warrant(s)?\b", 
-            r"\bwarrant(s)?\b",
-            r"\bright(s)?\b",
-            r"\bunit(s)?\b",
-            r"\bclass [abc]\b",
-            r"\bseries [abc]\b",
-            r"\bdepositary share(s)?\b",
-            r"\btest\b",
+            r"\bpreferred\b"
+            r"\bredeemable warrant(s)?\b"
+            r"\bwarrant(s)?\b"
+            r"\bright(s)?\b"
+            r"\bunit(s)?\b"
+            r"\bclass [abc]\b"
+            r"\bseries [abc]\b"
+            r"\bdepositary share(s)?\b"
+            r"\btest\b"
             r"\bwhen issued\b"
         ]
         
@@ -53,11 +53,11 @@ class OptimizedStockSymbolsLoader:
         
         # Create data validator
         self.data_validator = create_data_validator(
-            required_fields=['symbol', 'name', 'exchange', 'market_category'],
+            required_fields=['symbol', 'name', 'exchange', 'market_category']
             field_validators={
-                'symbol': self._validate_symbol,
-                'name': self._validate_name,
-                'exchange': self._validate_exchange,
+                'symbol': self._validate_symbol
+                'name': self._validate_name
+                'exchange': self._validate_exchange
                 'market_category': self._validate_market_category
             }
         )
@@ -132,14 +132,14 @@ class OptimizedStockSymbolsLoader:
                         continue
                     
                     yield {
-                        'symbol': symbol,
-                        'name': name,
-                        'exchange': 'NASDAQ',
-                        'market_category': market_category,
+                        'symbol': symbol
+                        'name': name
+                        'exchange': 'NASDAQ'
+                        'market_category': market_category
                         'sector': None,  # Not available in NASDAQ data
                         'industry': None,  # Not available in NASDAQ data
-                        'country': 'USA',
-                        'is_etf': self._detect_etf(name),
+                        'country': 'USA'
+                        'is_etf': self._detect_etf(name)
                         'updated_at': 'NOW()'
                     }
             
@@ -171,9 +171,9 @@ class OptimizedStockSymbolsLoader:
             reader = csv.reader(data_lines, delimiter='|')
             
             exchange_mapping = {
-                'A': 'AMEX',
-                'N': 'NYSE', 
-                'P': 'ARCA',
+                'A': 'AMEX'
+                'N': 'NYSE'
+                'P': 'ARCA'
                 'Z': 'BATS'
             }
             
@@ -191,14 +191,14 @@ class OptimizedStockSymbolsLoader:
                     exchange = exchange_mapping.get(exchange_code, 'OTHER')
                     
                     yield {
-                        'symbol': symbol,
-                        'name': name,
-                        'exchange': exchange,
-                        'market_category': exchange_code,
+                        'symbol': symbol
+                        'name': name
+                        'exchange': exchange
+                        'market_category': exchange_code
                         'sector': None,  # Not available in other data
                         'industry': None,  # Not available in other data
-                        'country': 'USA',
-                        'is_etf': self._detect_etf(name),
+                        'country': 'USA'
+                        'is_etf': self._detect_etf(name)
                         'updated_at': 'NOW()'
                     }
             
@@ -211,10 +211,10 @@ class OptimizedStockSymbolsLoader:
     def _detect_etf(self, name: str) -> bool:
         """Detect if a security is an ETF based on name patterns."""
         etf_patterns = [
-            r'\betf\b',
-            r'\bfund\b',
-            r'\btrust\b',
-            r'\bindex\b',
+            r'\betf\b'
+            r'\bfund\b'
+            r'\btrust\b'
+            r'\bindex\b'
             r'\bshares\b'
         ]
         
@@ -241,14 +241,14 @@ class OptimizedStockSymbolsLoader:
     def validate_table_schema(self) -> bool:
         """Validate that the stock_symbols table has the required schema."""
         required_columns = [
-            {'name': 'symbol', 'type': 'varchar'},
-            {'name': 'name', 'type': 'varchar'},
-            {'name': 'exchange', 'type': 'varchar'},
-            {'name': 'market_category', 'type': 'varchar'},
-            {'name': 'sector', 'type': 'varchar'},
-            {'name': 'industry', 'type': 'varchar'},
-            {'name': 'country', 'type': 'varchar'},
-            {'name': 'is_etf', 'type': 'boolean'},
+            {'name': 'symbol', 'type': 'varchar'}
+            {'name': 'name', 'type': 'varchar'}
+            {'name': 'exchange', 'type': 'varchar'}
+            {'name': 'market_category', 'type': 'varchar'}
+            {'name': 'sector', 'type': 'varchar'}
+            {'name': 'industry', 'type': 'varchar'}
+            {'name': 'country', 'type': 'varchar'}
+            {'name': 'is_etf', 'type': 'boolean'}
             {'name': 'updated_at', 'type': 'timestamp'}
         ]
         
@@ -262,7 +262,7 @@ class OptimizedStockSymbolsLoader:
             Processing results and metrics
         """
         log_data_loader_start(
-            "OptimizedStockSymbolsLoader",
+            "OptimizedStockSymbolsLoader"
             "Load stock symbols from NASDAQ and other exchanges with enhanced validation"
         )
         
@@ -273,14 +273,14 @@ class OptimizedStockSymbolsLoader:
             
             # Process data with optimization
             result = self.loader.process_data_with_validation(
-                data_source_func=self.combined_data_source,
-                data_validator_func=self.data_validator,
+                data_source_func=self.combined_data_source
+                data_validator_func=self.data_validator
                 conflict_columns=['symbol']  # Use symbol as the unique key for conflict resolution
             )
             
             log_data_loader_end(
-                "OptimizedStockSymbolsLoader",
-                result['success'],
+                "OptimizedStockSymbolsLoader"
+                result['success']
                 result.get('metrics')
             )
             

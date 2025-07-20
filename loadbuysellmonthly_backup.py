@@ -16,8 +16,8 @@ import logging
 # -------------------------------
 SCRIPT_NAME = "loadbuysellmonthly.py"
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(message)s"
     stream=sys.stdout
 )
 
@@ -45,14 +45,14 @@ DB_NAME     = creds["dbname"]
 def get_db_connection():
     # Set statement timeout to 30 seconds (30000 ms)
     conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        dbname=DB_NAME,
+        host=DB_HOST
+        port=DB_PORT
+        user=DB_USER
+        password=DB_PASSWORD
+        dbname=DB_NAME
         options='-c statement_timeout=30000'
-    ,
-            sslmode="require"
+    
+            
     )
     return conn
 
@@ -82,20 +82,20 @@ def create_buy_sell_table(cur):
     cur.execute("DROP TABLE IF EXISTS buy_sell_monthly;")
     cur.execute("""
       CREATE TABLE buy_sell_monthly (
-        id           SERIAL PRIMARY KEY,
-        symbol       VARCHAR(20)    NOT NULL,
-        timeframe    VARCHAR(10)    NOT NULL,
-        date         DATE           NOT NULL,
-        open         REAL,
-        high         REAL,
-        low          REAL,
-        close        REAL,
-        volume       BIGINT,
-        signal       VARCHAR(10),
-        buylevel     REAL,
-        stoplevel    REAL,
-        inposition   BOOLEAN,
-        strength     REAL,
+        id           SERIAL PRIMARY KEY
+        symbol       VARCHAR(20)    NOT NULL
+        timeframe    VARCHAR(10)    NOT NULL
+        date         DATE           NOT NULL
+        open         REAL
+        high         REAL
+        low          REAL
+        close        REAL
+        volume       BIGINT
+        signal       VARCHAR(10)
+        buylevel     REAL
+        stoplevel    REAL
+        inposition   BOOLEAN
+        strength     REAL
         UNIQUE(symbol, timeframe, date)
       );
     """)
@@ -103,8 +103,8 @@ def create_buy_sell_table(cur):
 def insert_symbol_results(cur, symbol, timeframe, df):
     insert_q = """
       INSERT INTO buy_sell_monthly (
-        symbol, timeframe, date,
-        open, high, low, close, volume,
+        symbol, timeframe, date
+        open, high, low, close, volume
         signal, buylevel, stoplevel, inposition, strength
       ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
@@ -113,18 +113,18 @@ def insert_symbol_results(cur, symbol, timeframe, df):
     for idx, row in df.iterrows():
         try:
             # Check for NaNs or missing values
-            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
+            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume')
                     row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
             if any(pd.isnull(v) for v in vals):
                 logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
                 continue
             cur.execute(insert_q, (
-                symbol,
-                timeframe,
-                row['date'].date(),
-                float(row['open']), float(row['high']), float(row['low']),
-                float(row['close']), int(row['volume']),
-                row['Signal'], float(row['buyLevel']),
+                symbol
+                timeframe
+                row['date'].date()
+                float(row['open']), float(row['high']), float(row['low'])
+                float(row['close']), int(row['volume'])
+                row['Signal'], float(row['buyLevel'])
                 float(row['stopLevel']), bool(row['inPosition']), float(row['strength'])
             ))
             inserted += 1
@@ -152,13 +152,13 @@ def fetch_symbol_from_db(symbol, timeframe):
     tf = timeframe.lower()
     # Table name mapping for consistency with loader scripts
     price_table_map = {
-        "daily": "price_daily",
-        "weekly": "price_weekly",
+        "daily": "price_daily"
+        "weekly": "price_weekly"
         "monthly": "price_monthly"
     }
     tech_table_map = {
-        "daily": "technical_data_daily",
-        "weekly": "technical_data_weekly",
+        "daily": "technical_data_daily"
+        "weekly": "technical_data_weekly"
         "monthly": "technical_data_monthly"
     }
     if tf not in price_table_map or tf not in tech_table_map:
@@ -170,10 +170,10 @@ def fetch_symbol_from_db(symbol, timeframe):
     try:
         sql = f"""
           SELECT
-            p.date, p.open, p.high, p.low, p.close, p.volume,
-            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
-            t.sma_50,
-            t.pivot_high,
+            p.date, p.open, p.high, p.low, p.close, p.volume
+            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di
+            t.sma_50
+            t.pivot_high
             t.pivot_low
           FROM {price_table} p
           JOIN {tech_table}  t
@@ -197,8 +197,8 @@ def fetch_symbol_from_db(symbol, timeframe):
 
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
-    num_cols = ['open','high','low','close','volume',
-                'rsi','atr','adx','plus_di','minus_di',
+    num_cols = ['open','high','low','close','volume'
+                'rsi','atr','adx','plus_di','minus_di'
                 'sma_50','pivot_high','pivot_low']
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -453,10 +453,10 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
     avg    = np.mean(rets) if n else 0.0
     std    = np.std(rets, ddof=1) if n>1 else 0.0
     return {
-      'num_trades':     n,
-      'win_rate':       len(wins)/n,
-      'avg_return':     avg,
-      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
+      'num_trades':     n
+      'win_rate':       len(wins)/n
+      'avg_return':     avg
+      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf')
       'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
     }
 
@@ -501,8 +501,8 @@ def main():
     create_buy_sell_table(cur)
     conn.commit()
 
-    results = {'Daily':{'rets':[],'durs':[]},
-               'Weekly':{'rets':[],'durs':[]},
+    results = {'Daily':{'rets':[],'durs':[]}
+               'Weekly':{'rets':[],'durs':[]}
                'Monthly':{'rets':[],'durs':[]}}
 
     for sym in symbols:
@@ -528,7 +528,7 @@ def main():
     logging.info("=========================")
     for tf in ['Daily','Weekly','Monthly']:
         analyze_trade_returns_fixed_capital(
-            results[tf]['rets'], results[tf]['durs'],
+            results[tf]['rets'], results[tf]['durs']
             f"[{tf} (Overall)]", annual_rfr
         )
 

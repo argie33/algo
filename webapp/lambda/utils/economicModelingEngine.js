@@ -227,7 +227,7 @@ class EconomicModelingEngine {
         trend: this.analyzeInflationTrend(inflationData.historical),
         components: components ? await this.getInflationComponents(period) : null,
         forecast: await this.generateInflationForecast(inflationData),
-        fed_target_comparison: this.compareTo FedTarget(inflationData.current)
+        fed_target_comparison: this.compareToFedTarget(inflationData.current)
       };
 
       return analysis;
@@ -370,6 +370,22 @@ class EconomicModelingEngine {
 
     const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
     return slope;
+  }
+
+  compareToFedTarget(currentInflation) {
+    const fedTarget = 2.0; // Fed's inflation target is 2%
+    const deviation = currentInflation - fedTarget;
+    
+    return {
+      target: fedTarget,
+      current: currentInflation,
+      deviation: deviation,
+      deviationPercent: (deviation / fedTarget) * 100,
+      status: Math.abs(deviation) <= 0.5 ? 'within_target' : 
+              deviation > 0.5 ? 'above_target' : 'below_target',
+      message: Math.abs(deviation) <= 0.5 ? 'Inflation is within Fed target range' :
+               deviation > 0.5 ? 'Inflation is above Fed target' : 'Inflation is below Fed target'
+    };
   }
 
   parseHorizon(horizon) {

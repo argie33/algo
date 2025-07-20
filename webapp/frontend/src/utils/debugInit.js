@@ -136,26 +136,10 @@ class DebugInit {
   }
 
   setupTestSchedules() {
-    // Run comprehensive tests every 5 minutes
-    setInterval(() => {
-      console.log('⏰ Running scheduled diagnostic tests...');
-      testRunner.runAllTests().then(results => {
-        console.log('📈 Scheduled test results:', results);
-      }).catch(error => {
-        console.error('❌ Scheduled tests failed:', error);
-      });
-    }, 5 * 60 * 1000); // 5 minutes
-    
-    // Run React-specific tests every minute
-    setInterval(() => {
-      testRunner.runTestSuite('react-hooks').then(results => {
-        if (results.failedTests > 0) {
-          console.warn('⚠️ React hooks tests failing:', results);
-        }
-      }).catch(error => {
-        console.error('❌ React hooks tests failed:', error);
-      });
-    }, 60 * 1000); // 1 minute
+    // DISABLED: Automatic test execution to prevent infinite recursion
+    // Tests can be run manually via window.debugTools.runAllTests()
+    console.log('🚫 Automatic test schedules disabled to prevent recursion');
+    console.log('💡 Run tests manually: window.debugTools.runAllTests()');
   }
 
   async setupHealthMonitoring() {
@@ -307,15 +291,11 @@ class DebugInit {
       const health = await healthChecker.getDetailedStatus();
       console.log('💓 Initial health status:', health);
       
-      // Run basic React tests
-      const reactTests = await testRunner.runTestSuite('react-hooks');
-      console.log('🧪 Initial React tests:', reactTests);
+      // DISABLED: Initial test execution to prevent infinite recursion
+      console.log('🚫 Initial test execution disabled to prevent recursion');
+      console.log('💡 Run tests manually: window.debugTools.runAllTests()');
       
-      // Run use-sync-external-store tests
-      const useSyncTests = await testRunner.runTestSuite('use-sync-external-store');
-      console.log('🔄 Initial use-sync-external-store tests:', useSyncTests);
-      
-      console.log('✅ Initial diagnostics completed');
+      console.log('✅ Initial diagnostics completed (tests disabled)');
       
     } catch (error) {
       console.error('❌ Initial diagnostics failed:', error);

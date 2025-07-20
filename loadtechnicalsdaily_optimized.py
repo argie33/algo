@@ -64,8 +64,8 @@ class TechnicalIndicators:
         if len(prices) < slow_period:
             nan_array = np.full(len(prices), np.nan)
             return {
-                'macd': nan_array,
-                'signal': nan_array,
+                'macd': nan_array
+                'signal': nan_array
                 'histogram': nan_array
             }
         
@@ -77,8 +77,8 @@ class TechnicalIndicators:
         histogram = macd - signal
         
         return {
-            'macd': macd,
-            'signal': signal,
+            'macd': macd
+            'signal': signal
             'histogram': histogram
         }
     
@@ -88,8 +88,8 @@ class TechnicalIndicators:
         if len(prices) < period:
             nan_array = np.full(len(prices), np.nan)
             return {
-                'upper_band': nan_array,
-                'middle_band': nan_array,
+                'upper_band': nan_array
+                'middle_band': nan_array
                 'lower_band': nan_array
             }
         
@@ -100,8 +100,8 @@ class TechnicalIndicators:
         lower_band = sma - (rolling_std * std_dev)
         
         return {
-            'upper_band': upper_band,
-            'middle_band': sma,
+            'upper_band': upper_band
+            'middle_band': sma
             'lower_band': lower_band
         }
     
@@ -111,7 +111,7 @@ class TechnicalIndicators:
         if len(high) < k_period:
             nan_array = np.full(len(high), np.nan)
             return {
-                'stoch_k': nan_array,
+                'stoch_k': nan_array
                 'stoch_d': nan_array
             }
         
@@ -125,7 +125,7 @@ class TechnicalIndicators:
         stoch_d = pd.Series(stoch_k).rolling(window=d_period, min_periods=d_period).mean()
         
         return {
-            'stoch_k': stoch_k.values,
+            'stoch_k': stoch_k.values
             'stoch_d': stoch_d.values
         }
     
@@ -159,8 +159,8 @@ class OptimizedTechnicalsDailyLoader:
     def __init__(self):
         """Initialize the optimized technicals daily loader."""
         self.loader = DataLoaderOptimizer(
-            loader_name="technicals_daily_optimized",
-            table_name="technicals_daily",
+            loader_name="technicals_daily_optimized"
+            table_name="technicals_daily"
             batch_size=1000  # Optimal batch size for technical indicators
         )
         
@@ -182,12 +182,12 @@ class OptimizedTechnicalsDailyLoader:
         
         # Create data validator
         self.data_validator = create_data_validator(
-            required_fields=['symbol', 'date', 'close'],
+            required_fields=['symbol', 'date', 'close']
             field_validators={
-                'symbol': self._validate_symbol,
-                'date': self._validate_date,
-                'close': self._validate_price,
-                'sma_20': self._validate_indicator,
+                'symbol': self._validate_symbol
+                'date': self._validate_date
+                'close': self._validate_price
+                'sma_20': self._validate_indicator
                 'rsi_14': self._validate_rsi
             }
         )
@@ -334,12 +334,12 @@ class OptimizedTechnicalsDailyLoader:
         # Generate records for each date
         for i, date in enumerate(dates):
             record = {
-                'symbol': symbol,
-                'date': date.date(),
-                'open': float(open_prices[i]),
-                'high': float(high_prices[i]),
-                'low': float(low_prices[i]),
-                'close': float(close_prices[i]),
+                'symbol': symbol
+                'date': date.date()
+                'open': float(open_prices[i])
+                'high': float(high_prices[i])
+                'low': float(low_prices[i])
+                'close': float(close_prices[i])
                 'volume': int(volume[i]) if not pd.isna(volume[i]) else None
             }
             
@@ -429,14 +429,14 @@ class OptimizedTechnicalsDailyLoader:
     def validate_table_schema(self) -> bool:
         """Validate that the technicals_daily table has the required schema."""
         required_columns = [
-            {'name': 'symbol', 'type': 'varchar'},
-            {'name': 'date', 'type': 'date'},
-            {'name': 'open', 'type': 'double precision'},
-            {'name': 'high', 'type': 'double precision'},
-            {'name': 'low', 'type': 'double precision'},
-            {'name': 'close', 'type': 'double precision'},
-            {'name': 'volume', 'type': 'bigint'},
-            {'name': 'sma_20', 'type': 'double precision'},
+            {'name': 'symbol', 'type': 'varchar'}
+            {'name': 'date', 'type': 'date'}
+            {'name': 'open', 'type': 'double precision'}
+            {'name': 'high', 'type': 'double precision'}
+            {'name': 'low', 'type': 'double precision'}
+            {'name': 'close', 'type': 'double precision'}
+            {'name': 'volume', 'type': 'bigint'}
+            {'name': 'sma_20', 'type': 'double precision'}
             {'name': 'rsi_14', 'type': 'double precision'}
         ]
         
@@ -450,7 +450,7 @@ class OptimizedTechnicalsDailyLoader:
             Processing results and metrics
         """
         log_data_loader_start(
-            "OptimizedTechnicalsDailyLoader",
+            "OptimizedTechnicalsDailyLoader"
             "Calculate and load technical indicators for all symbols with enhanced optimization"
         )
         
@@ -461,11 +461,11 @@ class OptimizedTechnicalsDailyLoader:
             
             # Process data with optimization
             result = self.loader.process_data_with_validation(
-                data_source_func=self.technicals_data_source,
-                data_validator_func=self.data_validator,
+                data_source_func=self.technicals_data_source
+                data_validator_func=self.data_validator
                 conflict_columns=['symbol', 'date'],  # Unique constraint on symbol + date
-                update_columns=['open', 'high', 'low', 'close', 'volume', 'sma_5', 'sma_10', 'sma_20', 'sma_50', 'sma_200',
-                               'ema_12', 'ema_26', 'ema_50', 'rsi_14', 'macd', 'macd_signal', 'macd_histogram',
+                update_columns=['open', 'high', 'low', 'close', 'volume', 'sma_5', 'sma_10', 'sma_20', 'sma_50', 'sma_200'
+                               'ema_12', 'ema_26', 'ema_50', 'rsi_14', 'macd', 'macd_signal', 'macd_histogram'
                                'bb_upper', 'bb_middle', 'bb_lower', 'stoch_k', 'stoch_d', 'atr']
             )
             
@@ -480,8 +480,8 @@ class OptimizedTechnicalsDailyLoader:
                 logger.info(f"   ⏱️  Duration: {performance.get('total_duration_seconds', 0):.2f}s")
             
             log_data_loader_end(
-                "OptimizedTechnicalsDailyLoader",
-                result['success'],
+                "OptimizedTechnicalsDailyLoader"
+                result['success']
                 result.get('metrics')
             )
             
