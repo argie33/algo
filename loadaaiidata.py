@@ -472,23 +472,31 @@ if __name__ == "__main__":
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
+                    'sslmode': 'require',
                     'connect_timeout': 30,
                     'application_name': 'aaii-data-loader'
                 }
                 
-                # Fixed SSL FALLBACK STRATEGY
+                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
                 if attempt == 1:
-                    # First attempt: Disable SSL completely (fastest)
-                    ssl_config['sslmode'] = 'disable'
-                    logging.info("🔐 Attempt 1: Using SSL disable mode")
+                    # First attempt: Use CA certificate with verification
+                    if ca_cert_path and os.path.exists(ca_cert_path):
+                        ssl_config['sslrootcert'] = ca_cert_path
+                        logging.info(f"🔐 Attempt 1: Using SSL with CA certificate verification: {ca_cert_path}")
+                    else:
+                        logging.info("🔐 Attempt 1: Using SSL without CA certificate verification")
                 elif attempt == 2:
-                    # Second attempt: Use SSL prefer (allows fallback)
-                    ssl_config['sslmode'] = 'prefer'
-                    logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
-                else:
-                    # Third attempt: Force SSL
+                    # Second attempt: Use SSL but skip certificate verification
                     ssl_config['sslmode'] = 'require'
-                    logging.info("🔐 Attempt 3: Using SSL require mode")
+                    if 'sslrootcert' in ssl_config:
+                        del ssl_config['sslrootcert']
+                    logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
+                else:
+                    # Third attempt: Disable SSL completely
+                    ssl_config['sslmode'] = 'prefer'
+                    if 'sslrootcert' in ssl_config:
+                        del ssl_config['sslrootcert']
+                    logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
                 
                 conn = psycopg2.connect(**ssl_config)
                 
