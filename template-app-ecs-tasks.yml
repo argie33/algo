@@ -1039,8 +1039,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: analyst-upgradedowngrade-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1933,8 +1933,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: aaiidata-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -2166,8 +2166,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: annualbalancesheet-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -2402,8 +2402,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: annualcashflow-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
