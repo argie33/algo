@@ -79,7 +79,7 @@ Resources:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       DBParameterGroupName: !Sub stocks-pg-params-${AWS::StackName}
-      Family: postgres15
+      Family: postgres17
       Description: Custom parameter group for Stocks PostgreSQL database with proper SSL configuration
       Parameters:
         # SSL Configuration - DISABLE SSL for development
@@ -119,7 +119,7 @@ Resources:
       OptionGroupName: !Sub 'stocks-ssl-options-${AWS::StackName}'
       OptionGroupDescription: 'SSL configuration options for PostgreSQL RDS'
       EngineName: postgres
-      MajorEngineVersion: '15'
+      MajorEngineVersion: '17'
       Tags:
         - Key: 'Project'
           Value: 'financial-dashboard'
@@ -165,7 +165,7 @@ Resources:
       DBInstanceIdentifier: stocks
       DBName: stocks
       Engine: postgres
-      EngineVersion: '15.4'
+      EngineVersion: '17.4'
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
       MasterUsername: !Ref RDSUsername
