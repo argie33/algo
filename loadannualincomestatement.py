@@ -17,8 +17,8 @@ import pandas as pd
 
 SCRIPT_NAME = "loadannualincomestatement.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -38,13 +38,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host": sec["host"]
-        "port": int(sec.get("port", 5432))
-        "user": sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 def safe_convert_to_float(value) -> Optional[float]:
     """Safely convert value to float, handling various edge cases"""
@@ -250,15 +250,63 @@ def create_table(cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # Connect to DB
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
+    # Connect to DB - IDENTICAL to loadcalendar.py
+    user, pwd, host, port, dbname = get_db_config()
     
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
             
-    )
+            # Test basic connectivity first
+            logging.info("🔌 Testing basic network connectivity...")
+            import socket
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(10)
+            test_result = test_socket.connect_ex((host, port))
+            
+            if test_result == 0:
+                logging.info("✅ Network connectivity test passed")
+                local_addr = test_socket.getsockname()
+                peer_addr = test_socket.getpeername()
+                logging.info(f"🔍 Local socket: {local_addr[0]}:{local_addr[1]}")
+                logging.info(f"🔍 Remote socket: {peer_addr[0]}:{peer_addr[1]}")
+            else:
+                logging.error(f"❌ Network connectivity test failed with code: {test_result}")
+                if test_result == 111:
+                    logging.error("🔍 DIAGNOSIS: Connection refused - PostgreSQL not running or not accepting connections")
+                elif test_result == 113:
+                    logging.error("🔍 DIAGNOSIS: No route to host - network routing or security group issue")
+                elif test_result == 110:
+                    logging.error("🔍 DIAGNOSIS: Connection timeout - security group blocking or RDS not accessible")
+                else:
+                    logging.error(f"🔍 DIAGNOSIS: Unknown network error code {test_result}")
+            test_socket.close()
+            
+            # Clean connection pattern (auto-negotiate SSL) - IDENTICAL to loadcalendar.py
+            conn = psycopg2.connect(
+                host=host, port=port,
+                user=user, password=pwd,
+                dbname=dbname,
+                cursor_factory=RealDictCursor
+            )
+            logging.info("✅ Database connection established successfully")
+            break
+            
+        except psycopg2.OperationalError as e:
+            error_msg = str(e)
+            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
+            
+            if attempt < max_retries:
+                logging.info(f"⏳ Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logging.error(f"❌ All {max_retries} connection attempts failed")
+                raise
+    
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
