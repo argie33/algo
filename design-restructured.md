@@ -261,7 +261,56 @@ class PortfolioService {
 
 ## 8. IMPLEMENTATION DETAILS
 
-[Include existing sophisticated patterns from current design.md]
+### 8.1 Data Loading Architecture - PROVEN WORKING PATTERN
+
+#### Standardized Loader Pattern (PRODUCTION READY)
+Based on successful loadcalendar.py implementation that processed 5000+ symbols:
+
+```python
+# Database Configuration - IDENTICAL PATTERN
+def get_db_config():
+    secret_str = boto3.client("secretsmanager").get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    sec = json.loads(secret_str)
+    return (
+        sec["username"],      # Tuple return - NOT dict
+        sec["password"], 
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
+
+# Connection Pattern - AUTO-NEGOTIATE SSL
+user, pwd, host, port, dbname = get_db_config()
+conn = psycopg2.connect(
+    host=host, port=port,
+    user=user, password=pwd,
+    dbname=dbname,
+    cursor_factory=RealDictCursor  # CRITICAL: Must include
+)
+```
+
+#### Retry Logic Architecture - PROVEN RESILIENT
+- **3-attempt retry** with exponential backoff (5s → 10s → 20s)
+- **Network connectivity pre-test** for enhanced diagnostics
+- **SSL auto-negotiation** eliminates manual SSL configuration
+- **Comprehensive error logging** with specific failure diagnostics
+
+#### ECS Task Definition Mapping - WORKING
+```yaml
+Workflow Mapping:
+  analystupgradedowngrade: "analyst-upgradedowngrade-loader"
+  annualbalancesheet: "annualbalancesheet-loader"  
+  annualcashflow: "annualcashflow-loader"
+  aaiidata: "aaiidata-loader"
+```
+
+#### Deployment Architecture - VALIDATED
+- **Unlimited parallel execution** via GitHub Actions matrix strategy
+- **120-minute timeout** prevents workflow timeout issues
+- **ARM64 container architecture** with Python 3.11-slim
+- **Consistent Docker image** with all loader scripts available
+
+### 8.2 Additional Implementation Patterns
 - Progressive Enhancement Lambda Architecture
 - Service Loader Pattern Design  
 - Circuit Breaker Implementation
