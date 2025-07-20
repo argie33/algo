@@ -141,6 +141,39 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+
+  # S3 Bucket for test results (accessible by Claude Code)
+  TestResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'algo-test-results-${EnvironmentName}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldTestResults
+            Status: Enabled
+            ExpirationInDays: 90
+            NoncurrentVersionExpirationInDays: 30
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
   # Origin Access Control for CloudFront (newer than OAI)
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
@@ -165,6 +198,27 @@ Resources:
             Condition:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # Bucket policy for test results bucket (public read access)
+  TestResultsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TestResultsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadAccess
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${TestResultsBucket}/*'
+          - Sid: PublicListAccess
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:ListBucket
+            Resource: !Ref TestResultsBucket
 
   # Log Group for Database Initialization
   DatabaseInitLogGroup:
@@ -286,6 +340,44 @@ Resources:
 
 
 
+  # IAM Role for GitHub Actions to upload test results
+  GitHubActionsTestResultsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActionsTestResultsRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+              StringLike:
+                'token.actions.githubusercontent.com:sub': 'repo:argie33/algo:*'
+      Policies:
+        - PolicyName: TestResultsUploadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub '${TestResultsBucket}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Ref TestResultsBucket
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/financial-dashboard-dev/*'
+
   # IAM Role for Lambda execution
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -339,6 +431,21 @@ Resources:
                   - kms:Decrypt
                   - kms:DescribeKey
                 Resource: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*'
+        - PolicyName: TestResultsUpload
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub '${TestResultsBucket}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Ref TestResultsBucket
 
   # CloudWatch Alarm for Lambda performance
   LambdaPerformanceAlarm:
@@ -628,4 +735,29 @@ Outputs:
     Value: !Ref DatabaseInitTaskDefinition
     Export:
       Name: !Sub '${AWS::StackName}-DatabaseInitTaskDefArn'
+
+  # Test Results S3 Bucket Outputs
+  TestResultsBucketName:
+    Description: Name of the S3 bucket for test results
+    Value: !Ref TestResultsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-TestResultsBucketName'
+
+  TestResultsBucketUrl:
+    Description: URL of the test results S3 bucket
+    Value: !Sub 'https://${TestResultsBucket}.s3.amazonaws.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-TestResultsBucketUrl'
+
+  LatestTestResultsUrl:
+    Description: URL to access the latest test results
+    Value: !Sub 'https://${TestResultsBucket}.s3.amazonaws.com/latest-unit-test-run.json'
+    Export:
+      Name: !Sub '${AWS::StackName}-LatestTestResultsUrl'
+
+  GitHubActionsTestResultsRoleArn:
+    Description: ARN of the GitHub Actions role for uploading test results
+    Value: !GetAtt GitHubActionsTestResultsRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubActionsTestResultsRoleArn'
 
