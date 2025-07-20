@@ -3,6 +3,9 @@
  * Comprehensive testing of all API-related components
  */
 
+// Import global mocks first
+import '../../setup/global-mocks.js'
+
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

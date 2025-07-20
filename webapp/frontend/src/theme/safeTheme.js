@@ -69,6 +69,10 @@ export const createSafeTheme = (mode = 'light') => {
         800: '#424242',
         900: '#212121'
       },
+      common: {
+        black: '#000000',
+        white: '#ffffff'
+      },
       background: {
         default: isLight ? '#fafafa' : '#121212',
         paper: isLight ? '#ffffff' : '#1e1e1e'

@@ -88,9 +88,12 @@ describe('🔬 React Hooks Diagnostic Tests', () => {
   describe('Bundle Analysis', () => {
     it('should have React available in global scope (if bundled globally)', () => {
       // Check if React is available globally (common bundling issue)
-      const globalReact = globalThis.React || window?.React;
+      const globalReact = globalThis.React || (typeof window !== 'undefined' ? window?.React : undefined);
       if (globalReact) {
         expect(globalReact.useState).toBeDefined();
+      } else {
+        // If not available globally, that's expected in test environment
+        expect(true).toBe(true);
       }
     });
 

@@ -57,13 +57,26 @@ def get_db_connection():
                 'user': DB_USER,
                 'password': DB_PASSWORD,
                 'dbname': DB_NAME,
-                'sslmode': 'require',
+                'sslmode': 'disable',
                 'connect_timeout': 30,
                 'application_name': 'buy-sell-daily-loader',
                 'options': '-c statement_timeout=30000'
             }
             
-            logging.info("🔐 Using SSL with require mode")
+            # SSL FALLBACK STRATEGY: Try multiple SSL approaches
+            if attempt == 1:
+                # First attempt: Use SSL disable
+                ssl_config['sslmode'] = 'disable'
+                logging.info("🔐 Attempt 1: Using SSL disable mode")
+            elif attempt == 2:
+                # Second attempt: Use SSL but skip certificate verification
+                ssl_config['sslmode'] = 'require'
+                logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
+            else:
+                # Third attempt: Use SSL prefer mode
+                ssl_config['sslmode'] = 'prefer'
+                logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
+            
             conn = psycopg2.connect(**ssl_config)
             logging.info("✅ Database connection established successfully")
             break

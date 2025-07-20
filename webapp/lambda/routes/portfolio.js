@@ -769,7 +769,7 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
 
         const total = parseInt(totalCount.rows[0]?.total || 0);
         
-        return res.portfolioSuccess({
+        return res.success({
           holdings: formattedHoldings,
           summary: {
             totalValue: totalValue,
@@ -785,7 +785,7 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
             offset: parseInt(offset),
             hasMore: (parseInt(offset) + parseInt(limit)) < total
           }
-        }, accountType, null, { requestId });
+        }, { requestId });
       }
       
       // If no stored data, try to get fresh data from broker API with comprehensive error handling
@@ -838,17 +838,9 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           recommendation: 'Check API key configuration and database connectivity'
         });
         
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to retrieve API credentials',
-          message: 'There was an error accessing your API credentials. Please try again or contact support.',
-          error_code: 'API_CREDENTIALS_ERROR',
-          details: process.env.NODE_ENV === 'development' ? credentialsError.message : 'Internal error',
-          request_info: {
-            request_id: requestId,
-            error_duration_ms: credentialsDuration,
-            timestamp: new Date().toISOString()
-          }
+        return res.serverError('Failed to retrieve API credentials', {
+          requestId,
+          errorDurationMs: credentialsDuration
         });
       }
       
@@ -886,11 +878,10 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
             recommendation: 'Check API key validity and Alpaca service status'
           });
           
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to initialize trading service',
+          return res.serverError('Failed to initialize trading service', {
+            requestId,
             message: 'Unable to connect to your broker. Please verify your API credentials or try again later.',
-            error_code: 'TRADING_SERVICE_INIT_ERROR',
+            errorCode: 'TRADING_SERVICE_INIT_ERROR',
             details: process.env.NODE_ENV === 'development' ? serviceError.message : 'Service initialization failed',
             provider: 'alpaca',
             environment: credentials.isSandbox ? 'sandbox' : 'live',
@@ -900,11 +891,7 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
               'Try switching between Paper Trading and Live Trading modes',
               'Contact broker support if the issue persists'
             ],
-            request_info: {
-              request_id: requestId,
-              error_duration_ms: serviceInitDuration,
-              timestamp: new Date().toISOString()
-            }
+            errorDurationMs: serviceInitDuration
           });
         }
         
@@ -964,24 +951,19 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           }
           
           if (positionsError.status === 401 || positionsError.message?.includes('unauthorized')) {
-            return res.status(401).json({
-              success: false,
-              error: 'Invalid API credentials',
+            return res.unauthorized('Invalid API credentials', {
+              requestId,
               message: 'Your API credentials appear to be invalid or expired. Please update them in Settings.',
-              error_code: 'BROKER_API_UNAUTHORIZED',
+              errorCode: 'BROKER_API_UNAUTHORIZED',
               provider: 'alpaca',
               environment: credentials.isSandbox ? 'sandbox' : 'live',
               actions: [
                 'Go to Settings > API Keys',
                 'Update your Alpaca API credentials',
-                'Ensure you\'re using the correct environment (Paper vs Live)',
+                'Ensure you are using the correct environment (Paper vs Live)',
                 'Verify your API keys have trading permissions'
               ],
-              request_info: {
-                request_id: requestId,
-                error_duration_ms: positionsDuration,
-                timestamp: new Date().toISOString()
-              }
+              errorDurationMs: positionsDuration
             });
           }
           
@@ -1058,25 +1040,21 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
             environment: credentials.isSandbox ? 'sandbox' : 'live'
           });
           
-          return res.json({
-            success: true,
-            data: {
-              holdings: formattedHoldings,
-              summary: {
-                totalValue: totalValue,
-                totalGainLoss: totalGainLoss,
-                totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-                numPositions: positions.length,
-                accountType: credentials.isSandbox ? 'paper' : 'live'
-              }
+          return res.success({
+            holdings: formattedHoldings,
+            summary: {
+              totalValue: totalValue,
+              totalGainLoss: totalGainLoss,
+              totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+              numPositions: positions.length,
+              accountType: credentials.isSandbox ? 'paper' : 'live'
             },
-            timestamp: new Date().toISOString(),
-            dataSource: 'alpaca_api',
-            provider: 'alpaca',
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            request_info: {
-              request_id: requestId,
-              total_duration_ms: totalDuration
+            metadata: {
+              dataSource: 'alpaca_api',
+              provider: 'alpaca',
+              environment: credentials.isSandbox ? 'sandbox' : 'live',
+              requestId,
+              totalDurationMs: totalDuration
             }
           });
         } else {
@@ -1118,23 +1096,18 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           impact: 'Cannot use API credentials for requested account type'
         });
         
-        return res.status(400).json({
-          success: false,
-          error: 'Account type mismatch',
+        return res.badRequest('Account type mismatch', {
+          requestId,
           message: `Your configured API credentials are for ${credentials.isSandbox ? 'Paper Trading' : 'Live Trading'}, but you requested ${isSandbox ? 'Paper Trading' : 'Live Trading'} data.`,
-          error_code: 'ACCOUNT_TYPE_MISMATCH',
-          configured_type: credentials.isSandbox ? 'paper' : 'live',
-          requested_type: isSandbox ? 'paper' : 'live',
+          errorCode: 'ACCOUNT_TYPE_MISMATCH',
+          configuredType: credentials.isSandbox ? 'paper' : 'live',
+          requestedType: isSandbox ? 'paper' : 'live',
           actions: [
             'Go to Settings > API Keys',
             `Configure API credentials for ${isSandbox ? 'Paper Trading' : 'Live Trading'}`,
             `Or switch to ${credentials.isSandbox ? 'Paper Trading' : 'Live Trading'} mode`,
             'Verify you have the correct API keys for the desired environment'
-          ],
-          request_info: {
-            request_id: requestId,
-            timestamp: new Date().toISOString()
-          }
+          ]
         });
       }
     } catch (error) {
@@ -1234,26 +1207,24 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
               allocation: totalValue > 0 ? (data.value / totalValue) * 100 : 0
             })).sort((a, b) => b.value - a.value);
 
-            return res.json({
-              success: true,
-              data: {
-                holdings: formattedHoldings,
-                sectorAllocation: sectorAllocation,
-                summary: {
-                  totalValue: totalValue,
-                  totalGainLoss: totalGainLoss,
-                  totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-                  numPositions: holdings.length,
-                  accountType: accountType
-                }
+            return res.success({
+              holdings: formattedHoldings,
+              sectorAllocation: sectorAllocation,
+              summary: {
+                totalValue: totalValue,
+                totalGainLoss: totalGainLoss,
+                totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+                numPositions: holdings.length,
+                accountType: accountType
               },
-              database_status: {
-                tables_available: tableDeps.hasRequiredTables,
-                missing_tables: tableDeps.missingRequired,
-                symbols_table_used: symbolsTable || 'none'
-              },
-              timestamp: new Date().toISOString(),
-              dataSource: 'database'
+              metadata: {
+                databaseStatus: {
+                  tablesAvailable: tableDeps.hasRequiredTables,
+                  missingTables: tableDeps.missingRequired,
+                  symbolsTableUsed: symbolsTable || 'none'
+                },
+                dataSource: 'database'
+              }
             });
           }
       } catch (error) {
@@ -1270,34 +1241,29 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
     const totalValue = 0;
     const totalGainLoss = 0;
 
-    return res.json({
-      success: true,
-      data: {
-        holdings: emptyHoldings,
-        summary: {
-          totalValue: totalValue,
-          totalGainLoss: totalGainLoss,
-          totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-          numPositions: 0,
-          accountType: accountType
-        }
+    return res.success({
+      holdings: emptyHoldings,
+      summary: {
+        totalValue: totalValue,
+        totalGainLoss: totalGainLoss,
+        totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+        numPositions: 0,
+        accountType: accountType
       },
-      database_status: {
-        tables_available: tableDeps ? tableDeps.hasRequiredTables : false,
-        missing_tables: tableDeps ? tableDeps.missingRequired : PORTFOLIO_TABLES.required,
-        status: 'No portfolio data available - connect your broker to import holdings'
-      },
-      timestamp: new Date().toISOString(),
-      dataSource: 'empty'
+      metadata: {
+        databaseStatus: {
+          tablesAvailable: tableDeps ? tableDeps.hasRequiredTables : false,
+          missingTables: tableDeps ? tableDeps.missingRequired : PORTFOLIO_TABLES.required,
+          status: 'No portfolio data available - connect your broker to import holdings'
+        },
+        dataSource: 'empty'
+      }
     });
 
   } catch (error) {
     console.error('Error in portfolio holdings endpoint:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch portfolio holdings',
-      details: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to fetch portfolio holdings', {
+      details: error.message
     });
   }
 });
@@ -1345,25 +1311,23 @@ router.get('/account', async (req, res) => {
             const portfolioValue = parseFloat(accountData.total_market_value || 0);
             const dayChange = parseFloat(accountData.total_unrealized_pl || 0) * 0.1; // Approximate
             
-            return res.json({
-              success: true,
-              data: {
-                accountType: accountData.account_type || accountType,
-                balance: equity + (equity * 0.5), // Estimate total balance
-                equity: equity,
-                dayChange: dayChange,
-                dayChangePercent: equity > 0 ? (dayChange / equity) * 100 : 0,
-                buyingPower: equity * 0.5, // Estimate buying power
-                portfolioValue: portfolioValue,
-                cash: equity - portfolioValue,
-                pendingDeposits: 0,
-                patternDayTrader: false,
-                tradingBlocked: false,
-                accountBlocked: false,
-                createdAt: accountData.last_sync || new Date().toISOString()
-              },
-              timestamp: new Date().toISOString(),
-              dataSource: 'database'
+            return res.success({
+              accountType: accountData.account_type || accountType,
+              balance: equity + (equity * 0.5), // Estimate total balance
+              equity: equity,
+              dayChange: dayChange,
+              dayChangePercent: equity > 0 ? (dayChange / equity) * 100 : 0,
+              buyingPower: equity * 0.5, // Estimate buying power
+              portfolioValue: portfolioValue,
+              cash: equity - portfolioValue,
+              pendingDeposits: 0,
+              patternDayTrader: false,
+              tradingBlocked: false,
+              accountBlocked: false,
+              createdAt: accountData.last_sync || new Date().toISOString(),
+              metadata: {
+                dataSource: 'database'
+              }
             });
           }
         }
@@ -1401,35 +1365,30 @@ router.get('/account', async (req, res) => {
       }
     });
     
-    return res.json({
-      success: true,
-      data: {
-        account: {
-          accountId: null,
-          accountType: accountType,
-          balance: 0,
-          availableBalance: 0,
-          totalValue: 0,
-          dayChange: 0,
-          dayChangePercent: 0,
-          buyingPower: 0,
-          maintenance: 0,
-          currency: 'USD',
-          lastUpdated: new Date().toISOString()
-        }
+    return res.success({
+      account: {
+        accountId: null,
+        accountType: accountType,
+        balance: 0,
+        availableBalance: 0,
+        totalValue: 0,
+        dayChange: 0,
+        dayChangePercent: 0,
+        buyingPower: 0,
+        maintenance: 0,
+        currency: 'USD',
+        lastUpdated: new Date().toISOString()
       },
-      message: 'No account data available - configure your broker API keys',
-      timestamp: new Date().toISOString(),
-      dataSource: 'empty'
+      metadata: {
+        message: 'No account data available - configure your broker API keys',
+        dataSource: 'empty'
+      }
     });
 
   } catch (error) {
     console.error('Error in account info endpoint:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch account info',
-      details: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to fetch account info', {
+      details: error.message
     });
   }
 });
@@ -1475,19 +1434,12 @@ router.get('/accounts', authenticateToken, async (req, res) => {
       });
     }
     
-    res.json({
-      success: true,
-      data: availableAccounts,
-      timestamp: new Date().toISOString()
-    });
+    res.success(availableAccounts);
     
   } catch (error) {
     console.error('Error fetching available accounts:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch available accounts',
-      details: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to fetch available accounts', {
+      details: error.message
     });
   }
 });
@@ -1500,9 +1452,7 @@ router.get('/analytics', async (req, res) => {
   try {
     const userId = req.user?.sub;
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
+      return res.unauthorized('Authentication required', {
         message: 'User must be authenticated to access portfolio analytics'
       });
     }
@@ -1541,40 +1491,38 @@ router.get('/analytics', async (req, res) => {
             riskScore: Math.min(10, Math.max(1, portfolioSummary.riskMetrics.volatility * 10)) // 1-10 scale
           };
 
-          return res.json({
-            success: true,
-            data: {
-              holdings: positions.map(pos => ({
-                symbol: pos.symbol,
-                quantity: pos.quantity,
-                market_value: pos.marketValue,
-                cost_basis: pos.costBasis,
-                pnl: pos.unrealizedPL,
-                pnl_percent: pos.unrealizedPLPercent,
-                weight: totalValue > 0 ? (pos.marketValue / totalValue) : 0,
-                sector: portfolioSummary.sectorAllocation[pos.symbol] || 'Technology',
-                last_updated: new Date().toISOString()
-              })),
-              analytics: analytics,
-              summary: {
-                totalValue: totalValue,
-                totalPnL: analytics.totalReturn,
-                numPositions: positions.length,
-                topSector: Object.entries(portfolioSummary.sectorAllocation)
-                  .sort((a, b) => b[1].weight - a[1].weight)[0]?.[0] || 'Technology',
-                concentration: positions.length > 0 ? 
-                  (Math.max(...positions.map(p => p.marketValue)) / totalValue) : 0,
-                riskScore: analytics.riskScore
-              },
-              sectorAllocation: Object.fromEntries(
-                Object.entries(portfolioSummary.sectorAllocation)
-                  .map(([sector, data]) => [sector, data.weight])
-              )
+          return res.success({
+            holdings: positions.map(pos => ({
+              symbol: pos.symbol,
+              quantity: pos.quantity,
+              market_value: pos.marketValue,
+              cost_basis: pos.costBasis,
+              pnl: pos.unrealizedPL,
+              pnl_percent: pos.unrealizedPLPercent,
+              weight: totalValue > 0 ? (pos.marketValue / totalValue) : 0,
+              sector: portfolioSummary.sectorAllocation[pos.symbol] || 'Technology',
+              last_updated: new Date().toISOString()
+            })),
+            analytics: analytics,
+            summary: {
+              totalValue: totalValue,
+              totalPnL: analytics.totalReturn,
+              numPositions: positions.length,
+              topSector: Object.entries(portfolioSummary.sectorAllocation)
+                .sort((a, b) => b[1].weight - a[1].weight)[0]?.[0] || 'Technology',
+              concentration: positions.length > 0 ? 
+                (Math.max(...positions.map(p => p.marketValue)) / totalValue) : 0,
+              riskScore: analytics.riskScore
             },
-            timestamp: new Date().toISOString(),
-            dataSource: 'alpaca_api',
-            provider: 'alpaca',
-            environment: credentials.isSandbox ? 'sandbox' : 'live'
+            sectorAllocation: Object.fromEntries(
+              Object.entries(portfolioSummary.sectorAllocation)
+                .map(([sector, data]) => [sector, data.weight])
+            ),
+            metadata: {
+              dataSource: 'alpaca_api',
+              provider: 'alpaca',
+              environment: credentials.isSandbox ? 'sandbox' : 'live'
+            }
           });
         }
       }
@@ -1589,34 +1537,32 @@ router.get('/analytics', async (req, res) => {
     // Check if database is available
     if (req.dbError) {
       console.log('📋 Database unavailable, returning mock analytics...');
-      return res.json({
-        success: true,
-        data: {
-          performance: {
-            totalReturn: 15.3,
-            totalReturnPercent: 15.3,
-            annualizedReturn: 12.1,
-            volatility: 18.7,
-            sharpeRatio: 1.2,
-            maxDrawdown: -8.4,
-            winRate: 65.2,
-            numTrades: 0,
-            avgWin: 0,
-            avgLoss: 0,
-            profitFactor: 0
-          },
-          timeframe: timeframe,
-          dataPoints: [],
-          benchmarkComparison: {
-            portfolioReturn: 15.3,
-            spyReturn: 12.8,
-            alpha: 2.5,
-            beta: 1.1,
-            rSquared: 0.85
-          }
+      return res.success({
+        performance: {
+          totalReturn: 15.3,
+          totalReturnPercent: 15.3,
+          annualizedReturn: 12.1,
+          volatility: 18.7,
+          sharpeRatio: 1.2,
+          maxDrawdown: -8.4,
+          winRate: 65.2,
+          numTrades: 0,
+          avgWin: 0,
+          avgLoss: 0,
+          profitFactor: 0
         },
-        timestamp: new Date().toISOString(),
-        dataSource: 'mock'
+        timeframe: timeframe,
+        dataPoints: [],
+        benchmarkComparison: {
+          portfolioReturn: 15.3,
+          spyReturn: 12.8,
+          alpha: 2.5,
+          beta: 1.1,
+          rSquared: 0.85
+        },
+        metadata: {
+          dataSource: 'mock'
+        }
       });
     }
 
@@ -1638,9 +1584,7 @@ router.get('/analytics', async (req, res) => {
     const holdingsResult = await query(holdingsQuery, [userId]);
     
     if (holdingsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'No portfolio data found',
+      return res.notFound('No portfolio data found', {
         message: 'Import portfolio holdings first from your broker or add holdings manually'
       });
     }
@@ -1674,34 +1618,32 @@ router.get('/analytics', async (req, res) => {
       'Other': 5.0
     };
 
-    res.json({
-      success: true,
-      data: {
-        holdings: holdings.map(h => ({
-          symbol: h.symbol,
-          quantity: parseFloat(h.quantity || 0),
-          market_value: parseFloat(h.market_value || 0),
-          cost_basis: parseFloat(h.cost_basis || 0) * parseFloat(h.quantity || 0),
-          pnl: parseFloat(h.pnl || 0),
-          pnl_percent: parseFloat(h.pnl_percent || 0),
-          weight: totalValue > 0 ? (parseFloat(h.market_value) / totalValue) : 0,
-          sector: 'Technology', // Default sector since we can't reliably get this from DB
-          last_updated: h.last_updated
-        })),
-        analytics: analytics,
-        summary: {
-          totalValue: totalValue,
-          totalPnL: analytics.totalReturn,
-          numPositions: holdings.length,
-          topSector: 'Technology',
-          concentration: holdings.length > 0 ? (parseFloat(holdings[0].market_value) / totalValue) : 0,
-          riskScore: analytics.riskScore
-        },
-        sectorAllocation: simpleSectorAllocation
+    res.success({
+      holdings: holdings.map(h => ({
+        symbol: h.symbol,
+        quantity: parseFloat(h.quantity || 0),
+        market_value: parseFloat(h.market_value || 0),
+        cost_basis: parseFloat(h.cost_basis || 0) * parseFloat(h.quantity || 0),
+        pnl: parseFloat(h.pnl || 0),
+        pnl_percent: parseFloat(h.pnl_percent || 0),
+        weight: totalValue > 0 ? (parseFloat(h.market_value) / totalValue) : 0,
+        sector: 'Technology', // Default sector since we can't reliably get this from DB
+        last_updated: h.last_updated
+      })),
+      analytics: analytics,
+      summary: {
+        totalValue: totalValue,
+        totalPnL: analytics.totalReturn,
+        numPositions: holdings.length,
+        topSector: 'Technology',
+        concentration: holdings.length > 0 ? (parseFloat(holdings[0].market_value) / totalValue) : 0,
+        riskScore: analytics.riskScore
       },
-      timestamp: new Date().toISOString(),
-      dataSource: 'database',
-      note: 'Database analytics with simplified sector allocation. Connect broker API for enhanced analytics.'
+      sectorAllocation: simpleSectorAllocation,
+      metadata: {
+        dataSource: 'database',
+        note: 'Database analytics with simplified sector allocation. Connect broker API for enhanced analytics.'
+      }
     });
     
   } catch (error) {
@@ -1720,30 +1662,28 @@ router.get('/analytics', async (req, res) => {
 
     // Return empty data structure instead of error
     console.warn('⚠️ No portfolio data available, returning empty structure');
-    return res.status(200).json({
-      success: true,
-      data: {
-        holdings: [],
-        analytics: {
-          totalReturn: 0,
-          totalReturnPercent: 0,
-          sharpeRatio: 0,
-          volatility: 0,
-          beta: 1,
-          maxDrawdown: 0,
-          riskScore: 5
-        },
-        sectorAllocation: [],
-        riskMetrics: {
-          volatility: 0,
-          sharpeRatio: 0,
-          maxDrawdown: 0,
-          beta: 1
-        },
-        dataSource: 'none'
+    return res.success({
+      holdings: [],
+      analytics: {
+        totalReturn: 0,
+        totalReturnPercent: 0,
+        sharpeRatio: 0,
+        volatility: 0,
+        beta: 1,
+        maxDrawdown: 0,
+        riskScore: 5
       },
-      message: 'No portfolio data found. Please import your portfolio data from your broker first.',
-      timestamp: new Date().toISOString()
+      sectorAllocation: [],
+      riskMetrics: {
+        volatility: 0,
+        sharpeRatio: 0,
+        maxDrawdown: 0,
+        beta: 1
+      },
+      metadata: {
+        message: 'No portfolio data found. Please import your portfolio data from your broker first.',
+        dataSource: 'none'
+      }
     });
   }
 });
@@ -1769,19 +1709,15 @@ router.get('/health', async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
+    res.success({
       status: dbHealth.status === 'healthy' && tablesExist ? 'ready' : 'configuration_required',
       database: dbHealth,
-      tablesExist: tablesExist,
-      timestamp: new Date().toISOString()
+      tablesExist: tablesExist
     });
 
   } catch (error) {
     console.error('Health check error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Health check failed',
+    res.serverError('Health check failed', {
       details: error.message
     });
   }
@@ -1793,17 +1729,13 @@ router.post('/setup', async (req, res) => {
     console.log('Setting up portfolio database tables...');
     await initializeDatabase();
     
-    res.json({
-      success: true,
-      message: 'Portfolio database tables created successfully',
-      timestamp: new Date().toISOString()
+    res.success({
+      message: 'Portfolio database tables created successfully'
     });
 
   } catch (error) {
     console.error('Database setup error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create portfolio database tables',
+    res.serverError('Failed to create portfolio database tables', {
       details: error.message
     });
   }
@@ -1815,10 +1747,7 @@ router.get('/data-loading-status', async (req, res) => {
     const userId = req.user?.sub;
     
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User authentication required'
-      });
+      return res.unauthorized('User authentication required');
     }
 
     console.log(`🔄 Data loading status request for user: ${userId}`);
@@ -1826,17 +1755,11 @@ router.get('/data-loading-status', async (req, res) => {
     // Get comprehensive data loading status
     const status = await portfolioDataRefreshService.getDataLoadingStatus(userId);
     
-    res.json({
-      success: true,
-      data: status,
-      timestamp: new Date().toISOString()
-    });
+    res.success(status);
 
   } catch (error) {
     console.error('Error getting data loading status:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get data loading status',
+    res.serverError('Failed to get data loading status', {
       details: error.message
     });
   }
@@ -1848,10 +1771,7 @@ router.post('/trigger-data-refresh', async (req, res) => {
     const userId = req.user?.sub;
     
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User authentication required'
-      });
+      return res.unauthorized('User authentication required');
     }
 
     const { provider, symbols } = req.body;
@@ -1864,18 +1784,13 @@ router.post('/trigger-data-refresh', async (req, res) => {
       symbols || []
     );
     
-    res.json({
-      success: true,
-      data: result,
-      message: 'Portfolio data refresh triggered successfully',
-      timestamp: new Date().toISOString()
+    res.success(result, {
+      message: 'Portfolio data refresh triggered successfully'
     });
 
   } catch (error) {
     console.error('Error triggering data refresh:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to trigger data refresh',
+    res.serverError('Failed to trigger data refresh', {
       details: error.message
     });
   }
@@ -1913,12 +1828,9 @@ router.get('/performance', createValidationMiddleware(portfolioValidationSchemas
       console.log(`✅ [${requestId}] Database test passed in ${Date.now() - dbTestStart}ms`);
     } catch (dbError) {
       console.error(`❌ [${requestId}] Database test failed:`, dbError.message);
-      return res.status(503).json({
-        success: false,
-        error: 'Database connectivity issue',
+      return res.serviceUnavailable('Database connectivity issue', {
         message: dbError.message,
-        duration: Date.now() - startTime,
-        timestamp: new Date().toISOString()
+        duration: Date.now() - startTime
       });
     }
 
@@ -2043,45 +1955,34 @@ router.get('/performance', createValidationMiddleware(portfolioValidationSchemas
             };
             
             if (shouldLog('INFO')) console.log(`✅ [${requestId}] Returning advanced analytics after ${Date.now() - startTime}ms`);
-            return res.json({
-              success: true,
-              data: { 
-                performance: performanceData, 
-                metrics: metrics,
-                sectorAnalysis: sectorAnalysis.sectorAllocation || []
-              },
-              timestamp: new Date().toISOString(),
-              dataSource: 'database',
-              duration: Date.now() - startTime
+            return res.success({ 
+              performance: performanceData, 
+              metrics: metrics,
+              sectorAnalysis: sectorAnalysis.sectorAllocation || [],
+              metadata: {
+                dataSource: 'database',
+                duration: Date.now() - startTime
+              }
             });
           } else {
             console.log(`⚠️ [${requestId}] No portfolio data found for user`);
-            return res.status(404).json({
-              success: false,
-              error: 'No portfolio data found',
+            return res.notFound('No portfolio data found', {
               message: 'No portfolio holdings found for this user.',
-              duration: Date.now() - startTime,
-              timestamp: new Date().toISOString()
+              duration: Date.now() - startTime
             });
           }
       } catch (queryError) {
         console.error(`❌ [${requestId}] Portfolio query failed:`, queryError.message);
-        return res.status(500).json({
-          success: false,
-          error: 'Database query failed',
+        return res.serverError('Database query failed', {
           message: queryError.message,
-          duration: Date.now() - startTime,
-          timestamp: new Date().toISOString()
+          duration: Date.now() - startTime
         });
       }
     } else {
       console.log(`⚠️ [${requestId}] No authenticated user`);
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
+      return res.unauthorized('Authentication required', {
         message: 'Please log in to view portfolio performance data',
-        duration: Date.now() - startTime,
-        timestamp: new Date().toISOString()
+        duration: Date.now() - startTime
       });
     }
 
@@ -2107,20 +2008,16 @@ router.get('/benchmark', async (req, res) => {
     // Generate mock benchmark data for now
     const mockBenchmarkData = generateMockBenchmarkData(timeframe);
     
-    res.json({
-      success: true,
-      data: mockBenchmarkData,
-      timestamp: new Date().toISOString(),
-      dataSource: 'mock'
+    res.success(mockBenchmarkData, {
+      metadata: {
+        dataSource: 'mock'
+      }
     });
 
   } catch (error) {
     console.error('Error in portfolio benchmark endpoint:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch benchmark data',
-      details: error.message,
-      timestamp: new Date().toISOString()
+    res.serverError('Failed to fetch benchmark data', {
+      details: error.message
     });
   }
 });

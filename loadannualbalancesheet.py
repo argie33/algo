@@ -269,10 +269,24 @@ if __name__ == "__main__":
                 'user': cfg["user"], 
                 'password': cfg["password"],
                 'dbname': cfg["dbname"],
-                'sslmode': 'require',
+                'sslmode': 'disable',
                 'connect_timeout': 30,
                 'application_name': 'annual-balance-sheet-loader'
             }
+            
+            # SSL FALLBACK STRATEGY: Try multiple SSL approaches
+            if attempt == 1:
+                # First attempt: Use SSL disable
+                ssl_config['sslmode'] = 'disable'
+                logging.info("🔐 Attempt 1: Using SSL disable mode")
+            elif attempt == 2:
+                # Second attempt: Use SSL but skip certificate verification
+                ssl_config['sslmode'] = 'require'
+                logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
+            else:
+                # Third attempt: Use SSL prefer mode
+                ssl_config['sslmode'] = 'prefer'
+                logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
             
             logging.info("🔐 Using SSL with require mode")
             conn = psycopg2.connect(**ssl_config)

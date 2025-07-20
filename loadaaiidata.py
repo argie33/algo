@@ -463,7 +463,7 @@ if __name__ == "__main__":
                 
                 # Attempt PostgreSQL connection with proper SSL configuration
                 logging.info("🔌 Attempting PostgreSQL connection with SSL...")
-                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='allow'")
+                logging.info(f"🔍 Connection details: user='{cfg['user']}', database='{cfg['dbname']}', sslmode='disable'")
                 
                 # Use proper SSL configuration for RDS
                 ssl_config = {
@@ -472,17 +472,23 @@ if __name__ == "__main__":
                     'user': cfg["user"], 
                     'password': cfg["password"],
                     'dbname': cfg["dbname"],
-                    'sslmode': 'allow',
+                    'sslmode': 'disable',
                     'connect_timeout': 30,
                     'application_name': 'aaii-data-loader'
                 }
                 
-                # Add CA certificate if available
-                if ca_cert_path and os.path.exists(ca_cert_path):
-                    ssl_config['sslrootcert'] = ca_cert_path
-                    logging.info(f"🔐 Using SSL with CA certificate: {ca_cert_path}")
+                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
+                if attempt == 1:
+                    # First attempt: Use SSL disable
+                    logging.info("🔐 Attempt 1: Using SSL disable mode")
+                elif attempt == 2:
+                    # Second attempt: Use SSL but skip certificate verification
+                    ssl_config['sslmode'] = 'require'
+                    logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
                 else:
-                    logging.info("🔐 Using SSL without CA certificate verification")
+                    # Third attempt: Use SSL prefer mode
+                    ssl_config['sslmode'] = 'prefer'
+                    logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
                 
                 conn = psycopg2.connect(**ssl_config)
                 

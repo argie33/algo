@@ -54,14 +54,49 @@ beforeAll(async () => {
     })),
   })
   
-  // Mock localStorage
+  // Mock localStorage with working implementation
+  const localStorageData = {}
   const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
+    getItem: vi.fn((key) => localStorageData[key] || null),
+    setItem: vi.fn((key, value) => { localStorageData[key] = String(value) }),
+    removeItem: vi.fn((key) => { delete localStorageData[key] }),
+    clear: vi.fn(() => { Object.keys(localStorageData).forEach(key => delete localStorageData[key]) }),
+    length: 0,
+    key: vi.fn((index) => Object.keys(localStorageData)[index] || null)
   }
   global.localStorage = localStorageMock
+  
+  // Mock window and document if not available
+  if (typeof window === 'undefined') {
+    global.window = {}
+  }
+  
+  if (typeof document === 'undefined') {
+    global.document = {}
+  }
+  
+  // Additional browser API mocks
+  global.URL = {
+    createObjectURL: vi.fn(),
+    revokeObjectURL: vi.fn(),
+  }
+  
+  global.Blob = vi.fn()
+  global.FileReader = vi.fn()
+  global.FormData = vi.fn()
+  
+  // Mock common React hooks that might be used
+  global.React = global.React || {}
+  
+  // Mock fetch if not available
+  if (!global.fetch) {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({}),
+      text: vi.fn().mockResolvedValue(''),
+      status: 200
+    })
+  }
   
   console.log('✅ Test environment setup complete')
 })

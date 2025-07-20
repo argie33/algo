@@ -7,7 +7,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/tests/setup.js'],
+    setupFiles: ['./src/tests/setup/global-mocks.js', './src/tests/setup.js'],
+    pool: 'threads',
     env: {
       VITE_API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
       NODE_ENV: 'test'

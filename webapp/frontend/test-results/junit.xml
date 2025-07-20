@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="12" failures="0" errors="0" time="1.17">
-    <testsuite name="src/tests/unit/react-hooks-diagnostic.test.js" timestamp="2025-07-20T09:53:01.645Z" hostname="LAPTOP-J9NJ3854" tests="12" failures="0" errors="0" skipped="0" time="0.009">
+<testsuites name="vitest tests" tests="12" failures="1" errors="0" time="1.222">
+    <testsuite name="src/tests/unit/react-hooks-diagnostic.test.js" timestamp="2025-07-20T12:59:37.220Z" hostname="LAPTOP-J9NJ3854" tests="12" failures="1" errors="0" skipped="0" time="0.013">
         <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have React available" time="0.001">
         </testcase>
-        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have useState hook available" time="0">
+        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have useState hook available" time="0.001">
         </testcase>
-        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have useEffect hook available" time="0.001">
+        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have useEffect hook available" time="0">
         </testcase>
         <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; React Core Availability &gt; should have useSyncExternalStore hook available" time="0">
         </testcase>
@@ -13,13 +13,25 @@
         </testcase>
         <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; use-sync-external-store-shim Package &gt; should have compatible React version for useSyncExternalStore" time="0">
         </testcase>
-        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; useState Error Reproduction &gt; should not throw &quot;Cannot read properties of undefined&quot; when accessing useState" time="0.001">
+        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; useState Error Reproduction &gt; should not throw &quot;Cannot read properties of undefined&quot; when accessing useState" time="0">
         </testcase>
-        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; useState Error Reproduction &gt; should allow useState to be destructured from React" time="0">
+        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; useState Error Reproduction &gt; should allow useState to be destructured from React" time="0.001">
         </testcase>
         <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; useState Error Reproduction &gt; should detect if React is undefined when useState is accessed" time="0">
         </testcase>
-        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; Bundle Analysis &gt; should have React available in global scope (if bundled globally)" time="0">
+        <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; Bundle Analysis &gt; should have React available in global scope (if bundled globally)" time="0.005">
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/unit/react-hooks-diagnostic.test.js:93:38
+            </failure>
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/unit/react-hooks-diagnostic.test.js:93:38
+            </failure>
+            <failure message="expected undefined not to be undefined" type="AssertionError">
+AssertionError: expected undefined not to be undefined
+ ❯ src/tests/unit/react-hooks-diagnostic.test.js:93:38
+            </failure>
         </testcase>
         <testcase classname="src/tests/unit/react-hooks-diagnostic.test.js" name="🔬 React Hooks Diagnostic Tests &gt; Bundle Analysis &gt; should import React successfully" time="0">
         </testcase>
