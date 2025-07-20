@@ -696,7 +696,7 @@ jobs:
           
           # Upload the unit test results
           echo "📤 Uploading unit test results..."
-          if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+          if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive; then
             echo "✅ Unit test results uploaded successfully"
           else
             echo "❌ Failed to upload unit test results"
@@ -705,8 +705,8 @@ jobs:
           
           # Upload latest pointer
           echo "📤 Uploading latest unit run pointer..."
-          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json" --acl public-read
-          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json" --acl public-read
+          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json"
+          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json"
           
           echo "✅ Unit test results uploaded successfully!"
           echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/SUMMARY.md"
@@ -1186,7 +1186,7 @@ jobs:
           
           # Upload the integration test results
           echo "📤 Uploading integration test results..."
-          if aws s3 cp "integration-upload/" "s3://${BUCKET_NAME}/integration-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+          if aws s3 cp "integration-upload/" "s3://${BUCKET_NAME}/integration-tests/${BRANCH_NAME}/" --recursive; then
             echo "✅ Integration test results uploaded successfully"
           else
             echo "❌ Failed to upload integration test results"
@@ -1195,8 +1195,8 @@ jobs:
           
           # Upload latest pointer
           echo "📤 Uploading latest integration run pointer..."
-          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run.json" --acl public-read
-          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run-${BRANCH_NAME}.json" --acl public-read
+          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run.json"
+          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run-${BRANCH_NAME}.json"
           
           echo "✅ Integration test results uploaded successfully!"
           echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/SUMMARY.md"
