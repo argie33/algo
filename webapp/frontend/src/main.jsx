@@ -40,29 +40,29 @@ console.log('Error handling health:', getSystemHealth());
 console.log('🤖 Automated testing framework: LOADING CONDITIONALLY');
 console.groupEnd();
 
-// Initialize automated testing in development after React is ready
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-  console.log('🧪 Development environment detected - loading automated testing...');
-  
-  // Load testing framework after React is fully initialized
-  setTimeout(async () => {
-    try {
-      console.log('🚀 Loading automated testing framework...');
-      const testModule = await import('./utils/automatedTestFramework.js');
-      const automatedTestFramework = testModule.default;
-      
-      console.log('🚀 Running initial automated tests...');
-      const results = await automatedTestFramework.runReactHooksTests();
-      console.log('✅ Initial React hooks tests completed:', results);
-      
-      // Expose to window for manual testing
-      window.automatedTestFramework = automatedTestFramework;
-      
-    } catch (error) {
-      console.error('❌ Failed to load automated testing framework:', error);
-    }
-  }, 3000); // Give more time for React to fully initialize
-}
+// Initialize automated testing in development after React is ready - DISABLED
+// if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+//   console.log('🧪 Development environment detected - loading automated testing...');
+//   
+//   // Load testing framework after React is fully initialized
+//   setTimeout(async () => {
+//     try {
+//       console.log('🚀 Loading automated testing framework...');
+//       const testModule = await import('./utils/automatedTestFramework.js');
+//       const automatedTestFramework = testModule.default;
+//       
+//       console.log('🚀 Running initial automated tests...');
+//       const results = await automatedTestFramework.runReactHooksTests();
+//       console.log('✅ Initial React hooks tests completed:', results);
+//       
+//       // Expose to window for manual testing
+//       window.automatedTestFramework = automatedTestFramework;
+//       
+//     } catch (error) {
+//       console.error('❌ Failed to load automated testing framework:', error);
+//     }
+//   }, 3000); // Give more time for React to fully initialize
+// }
 
 // Configure Amplify for authentication - but don't let it crash the app
 import { configureAmplify } from './config/amplify'

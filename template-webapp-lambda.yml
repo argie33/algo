@@ -212,13 +212,13 @@ Resources:
             Principal: '*'
             Action:
               - s3:GetObject
-            Resource: !Sub '${TestResultsBucket}/*'
+            Resource: !Sub '${TestResultsBucket.Arn}/*'
           - Sid: PublicListAccess
             Effect: Allow
             Principal: '*'
             Action:
               - s3:ListBucket
-            Resource: !Ref TestResultsBucket
+            Resource: !GetAtt TestResultsBucket.Arn
 
   # Log Group for Database Initialization
   DatabaseInitLogGroup:

@@ -15,29 +15,22 @@ describe('📈 Market Data Routes Integration Tests', () => {
   beforeAll(async () => {
     testDb = await setupTestDatabase();
     
-    if (testDb.createTestUser) {
-      testUser = await testDb.createTestUser({
-        email: 'market-data-test@example.com',
-        username: 'marketdatatest',
-        cognito_user_id: 'market-data-test-cognito-789'
-      });
-      
-      await testDb.createTestApiKeys(testUser.user_id, {
-        alpaca_key: 'PKTEST_MARKETDATA_777',
-        alpaca_secret: 'test_marketdata_secret_888'
-      });
-      
-      authHeaders = { 'x-user-id': testUser.user_id };
-    } else {
-      testUser = { user_id: 'mock-market-data-test-user' };
-      authHeaders = { 'x-user-id': testUser.user_id };
-    }
+    testUser = await testDb.createTestUser({
+      email: 'market-data-test@example.com',
+      username: 'marketdatatest',
+      cognito_user_id: 'market-data-test-cognito-789'
+    });
+    
+    await testDb.createTestApiKeys(testUser.user_id, {
+      alpaca_key: 'PKTEST_MARKETDATA_777',
+      alpaca_secret: 'test_marketdata_secret_888'
+    });
+    
+    authHeaders = { 'x-user-id': testUser.user_id };
   });
 
   afterAll(async () => {
-    if (testDb.cleanupTestUser && testUser.user_id !== 'mock-market-data-test-user') {
-      await testDb.cleanupTestUser(testUser.user_id);
-    }
+    await testDb.cleanupTestUser(testUser.user_id);
     await cleanupTestDatabase();
   });
 

@@ -19,10 +19,10 @@ router.get('/', authenticateToken, async (req, res) => {
       ORDER BY w.created_at DESC
     `, [userId]);
     
-    res.json(result.rows);
+    res.success(result.rows);
   } catch (error) {
     console.error('Error fetching watchlists:', error);
-    res.status(500).json({ error: 'Failed to fetch watchlists' });
+    res.serverError('Failed to fetch watchlists');
   }
 });
 
@@ -38,7 +38,7 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
     `, [id, userId]);
     
     if (watchlistResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Watchlist not found' });
+      return res.notFound('Watchlist');
     }
     
     const result = await query(`
@@ -65,10 +65,10 @@ router.get('/:id/items', authenticateToken, async (req, res) => {
       ORDER BY wi.position_order ASC, wi.added_at DESC
     `, [id]);
     
-    res.json(result.rows);
+    res.success(result.rows);
   } catch (error) {
     console.error('Error fetching watchlist items:', error);
-    res.status(500).json({ error: 'Failed to fetch watchlist items' });
+    res.serverError('Failed to fetch watchlist items');
   }
 });
 
@@ -79,7 +79,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const { name, description, color } = req.body;
     
     if (!name || name.trim() === '') {
-      return res.status(400).json({ error: 'Watchlist name is required' });
+      return res.badRequest('Watchlist name is required');
     }
     
     // Check if database/table is available
@@ -99,7 +99,7 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error.code === '23505') { // unique constraint violation
-      return res.status(409).json({ error: 'Watchlist name already exists' });
+      return res.conflict('Watchlist name already exists');
     }
     console.error('Error creating watchlist:', error);
     res.status(500).json({ 
@@ -117,7 +117,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { name, description, color } = req.body;
     
     if (!name || name.trim() === '') {
-      return res.status(400).json({ error: 'Watchlist name is required' });
+      return res.badRequest('Watchlist name is required');
     }
     
     const result = await query(`
@@ -131,13 +131,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Watchlist not found' });
     }
     
-    res.json(result.rows[0]);
+    res.success(result.rows[0]);
   } catch (error) {
     if (error.code === '23505') { // unique constraint violation
-      return res.status(409).json({ error: 'Watchlist name already exists' });
+      return res.conflict('Watchlist name already exists');
     }
     console.error('Error updating watchlist:', error);
-    res.status(500).json({ error: 'Failed to update watchlist' });
+    res.serverError('Failed to update watchlist');
   }
 });
 
@@ -157,10 +157,10 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Watchlist not found' });
     }
     
-    res.json({ message: 'Watchlist deleted successfully' });
+    res.successEmpty('Watchlist deleted successfully');
   } catch (error) {
     console.error('Error deleting watchlist:', error);
-    res.status(500).json({ error: 'Failed to delete watchlist' });
+    res.serverError('Failed to delete watchlist');
   }
 });
 
@@ -181,7 +181,7 @@ router.post('/:id/items', authenticateToken, async (req, res) => {
     `, [id, userId]);
     
     if (watchlistResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Watchlist not found' });
+      return res.notFound('Watchlist');
     }
     
     // Get the next position order
@@ -204,7 +204,7 @@ router.post('/:id/items', authenticateToken, async (req, res) => {
       return res.status(409).json({ error: 'Symbol already exists in this watchlist' });
     }
     console.error('Error adding item to watchlist:', error);
-    res.status(500).json({ error: 'Failed to add item to watchlist' });
+    res.serverError('Failed to add item to watchlist');
   }
 });
 
@@ -221,7 +221,7 @@ router.put('/:id/items/:itemId', authenticateToken, async (req, res) => {
     `, [id, userId]);
     
     if (watchlistResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Watchlist not found' });
+      return res.notFound('Watchlist');
     }
     
     const result = await query(`
@@ -254,7 +254,7 @@ router.delete('/:id/items/:itemId', authenticateToken, async (req, res) => {
     `, [id, userId]);
     
     if (watchlistResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Watchlist not found' });
+      return res.notFound('Watchlist');
     }
     
     const result = await query(`
@@ -291,7 +291,7 @@ router.post('/:id/items/reorder', authenticateToken, async (req, res) => {
     `, [id, userId]);
     
     if (watchlistResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Watchlist not found' });
+      return res.notFound('Watchlist');
     }
     
     // Update position order for each item

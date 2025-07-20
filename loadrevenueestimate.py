@@ -184,7 +184,7 @@ def lambda_handler(event, context):
         'user': cfg["user"],
         'password': cfg["password"],
         'dbname': cfg["dbname"],
-        'sslmode': 'disable',
+        'sslmode': 'require',
         'connect_timeout': 30,
         'application_name': 'revenue-estimate-loader'
     }

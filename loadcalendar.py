@@ -234,7 +234,7 @@ def main():
     try:
         user, pwd, host, port, dbname = get_db_config()
         
-        # EXACT copy from working loadaaiidata.py
+        # Clean SSL strategy - consistent sslmode='require'
         max_retries = 3
         retry_delay = 5
         
@@ -277,31 +277,17 @@ def main():
                 logger.info("🔌 Attempting PostgreSQL connection with SSL...")
                 logger.info(f"🔍 Connection details: user='{user}', database='{dbname}', sslmode='require'")
                 
-                # Use proper SSL configuration for RDS
+                # Use clean SSL configuration for RDS
                 ssl_config = {
-                    'host': host, 
-                    'port': port,
-                    'user': user, 
+                    'host': host,
+                    'port': port, 
+                    'user': user,
                     'password': pwd,
                     'dbname': dbname,
-                    'sslmode': 'disable',
+                    'sslmode': 'require',
                     'connect_timeout': 30,
-                    'application_name': 'calendar-data-loader',
-                    'cursor_factory': DictCursor
+                    'application_name': 'calendar-loader'
                 }
-                
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
-                if attempt == 1:
-                    # First attempt: Use SSL disable
-                    logger.info("🔐 Attempt 1: Using SSL disable mode")
-                elif attempt == 2:
-                    # Second attempt: Use SSL but skip certificate verification
-                    ssl_config['sslmode'] = 'require'
-                    logger.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
-                else:
-                    # Third attempt: Use SSL prefer mode
-                    ssl_config['sslmode'] = 'prefer'
-                    logger.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
                 
                 conn = psycopg2.connect(**ssl_config)
                 
@@ -310,10 +296,7 @@ def main():
                 
             except psycopg2.OperationalError as e:
                 error_msg = str(e)
-                error_code = getattr(e, 'pgcode', 'NO_CODE')
-                logger.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
-                logger.error(f"🔍 Error Code: {error_code}")
-                logger.error(f"🔍 Error Message: {error_msg}")
+                logger.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
                 
                 if attempt < max_retries:
                     logger.info(f"⏳ Retrying in {retry_delay} seconds...")

@@ -20,7 +20,7 @@ let verifier = null;
 let verifierPromise = null;
 
 // Development authentication settings
-const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
 const allowDevBypass = process.env.ALLOW_DEV_AUTH_BYPASS === 'true' || isDevelopment;
 
 /**

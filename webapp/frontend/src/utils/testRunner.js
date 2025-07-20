@@ -609,8 +609,8 @@ export const runTestSuite = (suiteName) => testRunner.runTestSuiteByName(suiteNa
 export const diagnoseReactError = (error) => testRunner.diagnoseReactError(error);
 export const exportTestResults = () => testRunner.exportTestResults();
 
-// Auto-run tests when loaded
-setTimeout(() => {
-  console.log('🚀 Auto-running diagnostic tests...');
-  testRunner.runAllTests();
-}, 2000);
+// Auto-run tests when loaded - DISABLED to prevent infinite recursion
+// setTimeout(() => {
+//   console.log('🚀 Auto-running diagnostic tests...');
+//   testRunner.runAllTests();
+// }, 2000);

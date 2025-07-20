@@ -15,24 +15,17 @@ describe('🚀 Basic API Routes Integration Tests', () => {
   beforeAll(async () => {
     testDb = await setupTestDatabase();
     
-    if (testDb.createTestUser) {
-      testUser = await testDb.createTestUser({
-        email: 'basic-routes@example.com',
-        username: 'basicroutes',
-        cognito_user_id: 'basic-routes-cognito-123'
-      });
-      
-      authHeaders = { 'x-user-id': testUser.user_id };
-    } else {
-      testUser = { user_id: 'mock-basic-routes-user' };
-      authHeaders = { 'x-user-id': testUser.user_id };
-    }
+    testUser = await testDb.createTestUser({
+      email: 'basic-routes@example.com',
+      username: 'basicroutes',
+      cognito_user_id: 'basic-routes-cognito-123'
+    });
+    
+    authHeaders = { 'x-user-id': testUser.user_id };
   });
 
   afterAll(async () => {
-    if (testDb.cleanupTestUser && testUser.user_id !== 'mock-basic-routes-user') {
-      await testDb.cleanupTestUser(testUser.user_id);
-    }
+    await testDb.cleanupTestUser(testUser.user_id);
     await cleanupTestDatabase();
   });
 

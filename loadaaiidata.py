@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v6.4 - XLRD DEPENDENCY FIX - added xlrd/openpyxl to main Dockerfile
+# Trigger deploy-app-stocks workflow - loadaaiidata update v6.2 - SSL PRODUCTION TEST - comprehensive SSL certificate validation
 import sys
 import time
 import logging
@@ -477,26 +477,12 @@ if __name__ == "__main__":
                     'application_name': 'aaii-data-loader'
                 }
                 
-                # SSL FALLBACK STRATEGY: Try multiple SSL approaches
-                if attempt == 1:
-                    # First attempt: Use CA certificate with verification
-                    if ca_cert_path and os.path.exists(ca_cert_path):
-                        ssl_config['sslrootcert'] = ca_cert_path
-                        logging.info(f"🔐 Attempt 1: Using SSL with CA certificate verification: {ca_cert_path}")
-                    else:
-                        logging.info("🔐 Attempt 1: Using SSL without CA certificate verification")
-                elif attempt == 2:
-                    # Second attempt: Use SSL but skip certificate verification
-                    ssl_config['sslmode'] = 'require'
-                    if 'sslrootcert' in ssl_config:
-                        del ssl_config['sslrootcert']
-                    logging.info("🔐 Attempt 2: Using SSL without certificate verification (sslmode='require' only)")
+                # Add CA certificate if available
+                if ca_cert_path and os.path.exists(ca_cert_path):
+                    ssl_config['sslrootcert'] = ca_cert_path
+                    logging.info(f"🔐 Using SSL with CA certificate: {ca_cert_path}")
                 else:
-                    # Third attempt: Disable SSL completely
-                    ssl_config['sslmode'] = 'prefer'
-                    if 'sslrootcert' in ssl_config:
-                        del ssl_config['sslrootcert']
-                    logging.info("🔐 Attempt 3: Fallback to SSL preferred mode (allows non-SSL)")
+                    logging.info("🔐 Using SSL without CA certificate verification")
                 
                 conn = psycopg2.connect(**ssl_config)
                 
@@ -505,37 +491,17 @@ if __name__ == "__main__":
                 
             except psycopg2.OperationalError as e:
                 error_msg = str(e)
-                error_code = getattr(e, 'pgcode', 'NO_CODE')
-                logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
-                logging.error(f"🔍 Error Code: {error_code}")
-                logging.error(f"🔍 Error Message: {error_msg}")
+                logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
                 
-                # Basic error diagnosis without method call
-                if "certificate verify failed" in error_msg.lower():
-                    logging.error(f"🔍 DIAGNOSIS: SSL Certificate Verification Failed")
-                    logging.error(f"🔍 DETAILS: RDS SSL certificate doesn't match downloaded CA certificate")
-                    logging.error(f"🔍 SUGGESTED FIX: Fallback to SSL without certificate verification")
-                elif "connection refused" in error_msg.lower():
-                    logging.error(f"🔍 DIAGNOSIS: Connection Refused - Database not accepting connections")
-                    logging.error(f"🔍 DETAILS: PostgreSQL may not be running or security groups blocking")
-                    logging.error(f"🔍 SUGGESTED FIX: Check RDS instance status and security group rules")
-                elif "timeout" in error_msg.lower():
-                    logging.error(f"🔍 DIAGNOSIS: Connection Timeout")
-                    logging.error(f"🔍 DETAILS: Network connectivity issue or long connection delay")
-                    logging.error(f"🔍 SUGGESTED FIX: Check network routing and increase timeout")
-                else:
-                    logging.error(f"🔍 DIAGNOSIS: PostgreSQL operational error")
-                    logging.error(f"🔍 DETAILS: {error_msg}")
-                    logging.error(f"🔍 SUGGESTED FIX: Check database configuration and connectivity")
-                
-                # Log connection attempt details for debugging
-                logging.error(f"🔍 Connection Details:")
-                logging.error(f"   Host: {cfg['host']}")
-                logging.error(f"   Port: {cfg['port']}")
-                logging.error(f"   Database: {cfg['dbname']}")
-                logging.error(f"   User: {cfg['user']}")
-                logging.error(f"   SSL Mode: {ssl_config.get('sslmode', 'unknown')}")
-                logging.error(f"   SSL Cert: {ssl_config.get('sslrootcert', 'none')}")
+                # Parse specific error types
+                if "pg_hba.conf" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: pg_hba.conf entry missing - this is a server-side PostgreSQL configuration issue")
+                    if "no encryption" in error_msg:
+                        logging.error("🔍 DIAGNOSIS: Server requires encrypted connection - now using sslmode='require'")
+                elif "Connection refused" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: PostgreSQL server not accepting connections on this port")
+                elif "timeout" in error_msg:
+                    logging.error("🔍 DIAGNOSIS: Connection timeout - network or server performance issue")
                 
                 if attempt < max_retries:
                     logging.info(f"⏳ Retrying in {retry_delay} seconds...")
@@ -543,28 +509,15 @@ if __name__ == "__main__":
                     retry_delay *= 2  # Exponential backoff
                 else:
                     logging.error(f"❌ All {max_retries} connection attempts failed")
-                    logging.error(f"❌ FINAL ERROR: Unable to establish database connection after {max_retries} attempts")
-                    logging.error(f"❌ Last error: {error_msg}")
                     raise
                     
             except Exception as e:
-                logging.error(f"❌ Unexpected connection error (attempt {attempt}/{max_retries})")
-                logging.error(f"🔍 Error Type: {type(e).__name__}")
-                logging.error(f"🔍 Error Message: {str(e)}")
-                
-                # Get full stack trace
-                import traceback
-                full_trace = traceback.format_exc()
-                logging.error(f"🔍 Full Stack Trace:\n{full_trace}")
-                
+                logging.error(f"❌ Unexpected connection error (attempt {attempt}/{max_retries}): {e}")
                 if attempt < max_retries:
                     logging.info(f"⏳ Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 else:
-                    logging.error(f"❌ All {max_retries} connection attempts failed")
-                    logging.error(f"❌ FINAL ERROR: Unexpected error during database connection")
-                    logging.error(f"❌ Last error: {str(e)}")
                     raise
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)

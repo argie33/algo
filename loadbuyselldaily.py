@@ -43,59 +43,42 @@ DB_PORT     = int(creds.get("port", 5432))
 DB_NAME     = creds["dbname"]
 
 def get_db_connection():
-    # SSL fallback connection strategy with statement timeout
+    # Clean SSL strategy using working configuration
     max_retries = 3
     retry_delay = 5
-    conn = None
     
     for attempt in range(1, max_retries + 1):
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {DB_HOST}:{DB_PORT}")
             
-            # Use proper SSL configuration with fallback strategy
             ssl_config = {
                 'host': DB_HOST,
                 'port': DB_PORT,
                 'user': DB_USER,
                 'password': DB_PASSWORD,
                 'dbname': DB_NAME,
+                'sslmode': 'require',
                 'connect_timeout': 30,
                 'application_name': 'buy-sell-daily-loader',
                 'options': '-c statement_timeout=30000'
             }
             
-            # Simple SSL strategy: disable -> prefer -> require
-            if attempt == 1:
-                ssl_config['sslmode'] = 'disable'
-                logging.info("🔐 Attempt 1: Using SSL disable mode")
-            elif attempt == 2:
-                ssl_config['sslmode'] = 'prefer'
-                logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
-            else:
-                ssl_config['sslmode'] = 'require'
-                logging.info("🔐 Attempt 3: Using SSL require mode")
-            
+            logging.info("🔐 Using SSL with require mode")
             conn = psycopg2.connect(**ssl_config)
-            
             logging.info("✅ Database connection established successfully")
             break
             
         except psycopg2.OperationalError as e:
             error_msg = str(e)
-            error_code = getattr(e, 'pgcode', 'NO_CODE')
-            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
-            logging.error(f"🔍 Error Code: {error_code}")
-            logging.error(f"🔍 Error Message: {error_msg}")
+            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
             
             if attempt < max_retries:
                 logging.info(f"⏳ Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+                retry_delay *= 2
             else:
-                logging.error("❌ All connection attempts failed")
-                logging.error("❌ FINAL ERROR: Unable to establish database connection after 3 attempts")
-                logging.error(f"❌ Last error: {error_msg}")
-                raise e
+                logging.error(f"❌ All {max_retries} connection attempts failed")
+                raise
     
     return conn
 

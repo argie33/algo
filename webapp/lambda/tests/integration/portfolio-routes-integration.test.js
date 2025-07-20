@@ -15,29 +15,22 @@ describe('💼 Portfolio Routes Integration Tests', () => {
   beforeAll(async () => {
     testDb = await setupTestDatabase();
     
-    if (testDb.createTestUser) {
-      testUser = await testDb.createTestUser({
-        email: 'portfolio-test@example.com',
-        username: 'portfoliotest',
-        cognito_user_id: 'portfolio-test-cognito-456'
-      });
-      
-      await testDb.createTestApiKeys(testUser.user_id, {
-        alpaca_key: 'PKTEST_PORTFOLIO_555',
-        alpaca_secret: 'test_portfolio_secret_666'
-      });
-      
-      authHeaders = { 'x-user-id': testUser.user_id };
-    } else {
-      testUser = { user_id: 'mock-portfolio-test-user' };
-      authHeaders = { 'x-user-id': testUser.user_id };
-    }
+    testUser = await testDb.createTestUser({
+      email: 'portfolio-test@example.com',
+      username: 'portfoliotest',
+      cognito_user_id: 'portfolio-test-cognito-456'
+    });
+    
+    await testDb.createTestApiKeys(testUser.user_id, {
+      alpaca_key: 'PKTEST_PORTFOLIO_555',
+      alpaca_secret: 'test_portfolio_secret_666'
+    });
+    
+    authHeaders = { 'x-user-id': testUser.user_id };
   });
 
   afterAll(async () => {
-    if (testDb.cleanupTestUser && testUser.user_id !== 'mock-portfolio-test-user') {
-      await testDb.cleanupTestUser(testUser.user_id);
-    }
+    await testDb.cleanupTestUser(testUser.user_id);
     await cleanupTestDatabase();
   });
 

@@ -253,61 +253,43 @@ def create_table(cur, conn):
 if __name__ == "__main__":
     log_mem("startup")
 
-    # Connect to DB with SSL fallback strategy
+    # Connect to DB - clean SSL strategy
     cfg = get_db_config()
     
-    # SSL fallback connection strategy
     max_retries = 3
     retry_delay = 5
-    conn = None
     
     for attempt in range(1, max_retries + 1):
         try:
             logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
             
-            # Use proper SSL configuration with fallback strategy
             ssl_config = {
                 'host': cfg["host"], 
                 'port': cfg["port"],
                 'user': cfg["user"], 
                 'password': cfg["password"],
                 'dbname': cfg["dbname"],
+                'sslmode': 'require',
                 'connect_timeout': 30,
                 'application_name': 'annual-balance-sheet-loader'
             }
             
-            # Simple SSL strategy: disable -> prefer -> require
-            if attempt == 1:
-                ssl_config['sslmode'] = 'disable'
-                logging.info("🔐 Attempt 1: Using SSL disable mode")
-            elif attempt == 2:
-                ssl_config['sslmode'] = 'prefer'
-                logging.info("🔐 Attempt 2: Using SSL prefer mode (allows fallback)")
-            else:
-                ssl_config['sslmode'] = 'require'
-                logging.info("🔐 Attempt 3: Using SSL require mode")
-            
+            logging.info("🔐 Using SSL with require mode")
             conn = psycopg2.connect(**ssl_config)
-            
             logging.info("✅ Database connection established successfully")
             break
             
         except psycopg2.OperationalError as e:
             error_msg = str(e)
-            error_code = getattr(e, 'pgcode', 'NO_CODE')
-            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries})")
-            logging.error(f"🔍 Error Code: {error_code}")
-            logging.error(f"🔍 Error Message: {error_msg}")
+            logging.error(f"❌ PostgreSQL connection error (attempt {attempt}/{max_retries}): {error_msg}")
             
             if attempt < max_retries:
                 logging.info(f"⏳ Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+                retry_delay *= 2
             else:
-                logging.error("❌ All connection attempts failed")
-                logging.error("❌ FINAL ERROR: Unable to establish database connection after 3 attempts")
-                logging.error(f"❌ Last error: {error_msg}")
-                raise e
+                logging.error(f"❌ All {max_retries} connection attempts failed")
+                raise
     
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

@@ -5,19 +5,7 @@
 
 const request = require('supertest');
 
-// Import app with error handling
-let app;
-try {
-  app = require('../../index');
-} catch (error) {
-  console.error('Failed to import app:', error.message);
-  // Create a minimal Express app for testing
-  const express = require('express');
-  app = express();
-  app.get('*', (req, res) => {
-    res.status(503).json({ success: false, error: 'Service unavailable' });
-  });
-}
+const { app } = require('../../index');
 
 describe('🔐 Authentication Routes Integration Tests', () => {
   describe('🏥 Auth Health and Status', () => {
