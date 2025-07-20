@@ -66,13 +66,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 # -------------------------------
 # Download AAII sentiment data
@@ -386,17 +386,8 @@ if __name__ == "__main__":
         except Exception as e:
             logging.warning(f"⚠️ Could not get network info: {e}")
 
-        # Connect to DB with enhanced error handling
-        logging.info("🔌 Loading database configuration...")
-        cfg = get_db_config()
-        
-        # Log detailed connection info for debugging
-        logging.info(f"🔌 DB Connection Details:")
-        logging.info(f"  Host: {cfg['host']}")
-        logging.info(f"  Port: {cfg['port']}")
-        logging.info(f"  Database: {cfg['dbname']}")
-        logging.info(f"  User: {cfg['user']}")
-        logging.info(f"  SSL Mode: require")
+        # Connect to DB - consistent with loadcalendar.py
+        user, pwd, host, port, dbname = get_db_config()
         
         # Get container IP for debugging
         import socket
@@ -429,13 +420,13 @@ if __name__ == "__main__":
         
         for attempt in range(1, max_retries + 1):
             try:
-                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
                 
                 # Test basic connectivity first
                 logging.info("🔌 Testing basic network connectivity...")
                 test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 test_socket.settimeout(10)
-                test_result = test_socket.connect_ex((cfg["host"], cfg["port"]))
+                test_result = test_socket.connect_ex((host, port))
                 
                 if test_result == 0:
                     logging.info("✅ Network connectivity test passed")
@@ -462,13 +453,13 @@ if __name__ == "__main__":
                 test_socket.close()
                 
                 # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
-                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+                logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
                 logging.info("✅ Clean connection pattern: Auto-negotiate SSL v2")
                 
                 conn = psycopg2.connect(
-                    host=cfg["host"], port=cfg["port"],
-                    user=cfg["user"], password=cfg["password"],
-                    dbname=cfg["dbname"],
+                    host=host, port=port,
+                    user=user, password=pwd,
+                    dbname=dbname,
                     cursor_factory=RealDictCursor
                 )
                 

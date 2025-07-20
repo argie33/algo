@@ -41,13 +41,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 def safe_convert_to_float(value) -> Optional[float]:
     """Safely convert value to float with robust error handling and data validation"""
@@ -254,22 +254,22 @@ if __name__ == "__main__":
     log_mem("startup")
 
     # Connect to DB - clean SSL strategy
-    cfg = get_db_config()
+    user, pwd, host, port, dbname = get_db_config()
     
     max_retries = 3
     retry_delay = 5
     
     for attempt in range(1, max_retries + 1):
         try:
-            logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {cfg['host']}:{cfg['port']}")
+            logging.info(f"🔌 Connection attempt {attempt}/{max_retries} to {host}:{port}")
             
             # Clean connection pattern (auto-negotiate SSL) - Group 1 test v2
             logging.info("✅ Clean connection pattern: Auto-negotiate SSL - Group 1 v2")
             
             conn = psycopg2.connect(
-                host=cfg["host"], port=cfg["port"],
-                user=cfg["user"], password=cfg["password"],
-                dbname=cfg["dbname"],
+                host=host, port=port,
+                user=user, password=pwd,
+                dbname=dbname,
                 cursor_factory=RealDictCursor
             )
             logging.info("✅ Database connection established successfully")
