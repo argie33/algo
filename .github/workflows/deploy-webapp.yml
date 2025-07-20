@@ -571,6 +571,130 @@ jobs:
             webapp/lambda/package.json
           retention-days: 30
           
+      - name: Configure AWS credentials for S3 upload
+        if: always()
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsTestResultsRole
+          aws-region: us-east-1
+
+      - name: 📤 Upload Unit Test Results to S3
+        if: always()
+        continue-on-error: true
+        run: |
+          # Install jq if not available
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Create timestamped directory for this test run
+          TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+          RUN_ID="${{ github.run_id }}"
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          
+          echo "📊 Preparing unit test results for S3 upload..."
+          echo "Timestamp: ${TIMESTAMP}"
+          echo "Run ID: ${RUN_ID}"
+          echo "Branch: ${BRANCH_NAME}"
+          
+          # Create local directory structure
+          mkdir -p "test-upload/unit-tests-${TIMESTAMP}"
+          
+          # Copy unit test artifacts if they exist
+          if [ -d "unit-test-artifacts" ]; then
+            cp -r unit-test-artifacts/* "test-upload/unit-tests-${TIMESTAMP}/"
+            echo "✅ Copied unit-test-artifacts directory"
+          else
+            echo "⚠️ No unit-test-artifacts directory found"
+          fi
+          
+          # Copy frontend test results
+          if [ -d "webapp/frontend/test-results" ]; then
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/frontend"
+            cp -r webapp/frontend/test-results/* "test-upload/unit-tests-${TIMESTAMP}/frontend/"
+            echo "✅ Copied frontend test results"
+          fi
+          
+          # Copy frontend coverage
+          if [ -d "webapp/frontend/coverage" ]; then
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend"
+            cp -r webapp/frontend/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend/"
+            echo "✅ Copied frontend coverage"
+          fi
+          
+          # Copy backend test results
+          if [ -d "webapp/lambda/test-results" ]; then
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/backend"
+            cp -r webapp/lambda/test-results/* "test-upload/unit-tests-${TIMESTAMP}/backend/"
+            echo "✅ Copied backend test results"
+          fi
+          
+          # Copy backend coverage
+          if [ -d "webapp/lambda/coverage" ]; then
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/backend"
+            cp -r webapp/lambda/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/backend/"
+            echo "✅ Copied backend coverage"
+          fi
+          
+          # Copy unit test report
+          if [ -f "unit-test-coverage-report.md" ]; then
+            cp "unit-test-coverage-report.md" "test-upload/unit-tests-${TIMESTAMP}/SUMMARY.md"
+            echo "✅ Copied unit test report as SUMMARY.md"
+          fi
+          
+          # Create a latest.json pointer file
+          echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/\"}" > "test-upload/latest-unit-run.json"
+          
+          # Get bucket name
+          STACK_NAME="${{ needs.setup.outputs.stack_name }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
+          
+          # Try to get bucket name from CloudFormation stack first
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+          
+          # If CloudFormation query fails, construct bucket name
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
+          else
+            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          fi
+          
+          echo "📤 Uploading unit test results to S3 bucket: ${BUCKET_NAME}"
+          
+          # Verify AWS credentials
+          echo "🔐 Testing AWS credentials..."
+          aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
+          
+          # Check if bucket exists
+          echo "🪣 Checking bucket accessibility..."
+          if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
+            echo "✅ Bucket is accessible"
+          else
+            echo "❌ Bucket is not accessible or does not exist"
+            exit 1
+          fi
+          
+          # Upload the unit test results
+          echo "📤 Uploading unit test results..."
+          if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+            echo "✅ Unit test results uploaded successfully"
+          else
+            echo "❌ Failed to upload unit test results"
+            exit 1
+          fi
+          
+          # Upload latest pointer
+          echo "📤 Uploading latest unit run pointer..."
+          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json" --acl public-read
+          aws s3 cp "test-upload/latest-unit-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json" --acl public-read
+          
+          echo "✅ Unit test results uploaded successfully!"
+          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/SUMMARY.md"
+          echo "🔗 Latest: https://${BUCKET_NAME}.s3.amazonaws.com/latest-unit-test-run.json"
+
       - name: 📊 Unit test completion summary
         if: always()
         run: |
@@ -580,6 +704,7 @@ jobs:
           echo "🕒 Completion Time: $(date)"
           echo "📊 Workflow Status: Unit tests finished"
           echo "📁 Artifacts: Uploaded as 'unit-test-results-${{ github.run_id }}'"
+          echo "☁️ S3 Results: Available in S3 bucket"
           echo "🔗 Download Link: Available in workflow summary"
           echo "⏭️ Next Step: Proceeding to integration tests"
           echo ""
@@ -919,6 +1044,130 @@ jobs:
             webapp/lambda/package.json
           retention-days: 30
           
+      - name: Configure AWS credentials for Integration S3 upload
+        if: always()
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsTestResultsRole
+          aws-region: us-east-1
+
+      - name: 📤 Upload Integration Test Results to S3
+        if: always()
+        continue-on-error: true
+        run: |
+          # Install jq if not available
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Create timestamped directory for this test run
+          TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+          RUN_ID="${{ github.run_id }}"
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          
+          echo "📊 Preparing integration test results for S3 upload..."
+          echo "Timestamp: ${TIMESTAMP}"
+          echo "Run ID: ${RUN_ID}"
+          echo "Branch: ${BRANCH_NAME}"
+          
+          # Create local directory structure
+          mkdir -p "integration-upload/integration-tests-${TIMESTAMP}"
+          
+          # Copy integration test artifacts if they exist
+          if [ -d "test-artifacts" ]; then
+            cp -r test-artifacts/* "integration-upload/integration-tests-${TIMESTAMP}/"
+            echo "✅ Copied test-artifacts directory"
+          else
+            echo "⚠️ No test-artifacts directory found"
+          fi
+          
+          # Copy frontend test results
+          if [ -d "webapp/frontend/test-results" ]; then
+            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/frontend"
+            cp -r webapp/frontend/test-results/* "integration-upload/integration-tests-${TIMESTAMP}/frontend/"
+            echo "✅ Copied frontend test results"
+          fi
+          
+          # Copy frontend coverage
+          if [ -d "webapp/frontend/coverage" ]; then
+            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/coverage/frontend"
+            cp -r webapp/frontend/coverage/* "integration-upload/integration-tests-${TIMESTAMP}/coverage/frontend/"
+            echo "✅ Copied frontend coverage"
+          fi
+          
+          # Copy backend test results
+          if [ -d "webapp/lambda/test-results" ]; then
+            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/backend"
+            cp -r webapp/lambda/test-results/* "integration-upload/integration-tests-${TIMESTAMP}/backend/"
+            echo "✅ Copied backend test results"
+          fi
+          
+          # Copy backend coverage
+          if [ -d "webapp/lambda/coverage" ]; then
+            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/coverage/backend"
+            cp -r webapp/lambda/coverage/* "integration-upload/integration-tests-${TIMESTAMP}/coverage/backend/"
+            echo "✅ Copied backend coverage"
+          fi
+          
+          # Copy integration test report
+          if [ -f "integration-test-results.md" ]; then
+            cp "integration-test-results.md" "integration-upload/integration-tests-${TIMESTAMP}/SUMMARY.md"
+            echo "✅ Copied integration test report as SUMMARY.md"
+          fi
+          
+          # Create a latest.json pointer file
+          echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/\"}" > "integration-upload/latest-integration-run.json"
+          
+          # Get bucket name
+          STACK_NAME="${{ needs.setup.outputs.stack_name }}"
+          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
+          
+          # Try to get bucket name from CloudFormation stack first
+          BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
+          
+          # If CloudFormation query fails, construct bucket name
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
+            echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
+          else
+            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
+          fi
+          
+          echo "📤 Uploading integration test results to S3 bucket: ${BUCKET_NAME}"
+          
+          # Verify AWS credentials
+          echo "🔐 Testing AWS credentials..."
+          aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
+          
+          # Check if bucket exists
+          echo "🪣 Checking bucket accessibility..."
+          if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
+            echo "✅ Bucket is accessible"
+          else
+            echo "❌ Bucket is not accessible or does not exist"
+            exit 1
+          fi
+          
+          # Upload the integration test results
+          echo "📤 Uploading integration test results..."
+          if aws s3 cp "integration-upload/" "s3://${BUCKET_NAME}/integration-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
+            echo "✅ Integration test results uploaded successfully"
+          else
+            echo "❌ Failed to upload integration test results"
+            exit 1
+          fi
+          
+          # Upload latest pointer
+          echo "📤 Uploading latest integration run pointer..."
+          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run.json" --acl public-read
+          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run-${BRANCH_NAME}.json" --acl public-read
+          
+          echo "✅ Integration test results uploaded successfully!"
+          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/SUMMARY.md"
+          echo "🔗 Latest: https://${BUCKET_NAME}.s3.amazonaws.com/latest-integration-test-run.json"
+
       - name: 📊 Integration test completion summary
         if: always()
         run: |
@@ -928,6 +1177,7 @@ jobs:
           echo "🕒 Completion Time: $(date)"
           echo "📊 Workflow Status: Integration tests finished"
           echo "📁 Artifacts: Uploaded as 'integration-test-results-${{ github.run_id }}'"
+          echo "☁️ S3 Results: Available in S3 bucket"
           echo "🔗 Download Link: Available in workflow summary"
           echo "⏭️ Next Step: Proceeding to infrastructure deployment"
           echo "=================================================="
