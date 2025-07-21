@@ -86,173 +86,28 @@ jobs:
       run: |
         cd webapp/frontend
         
-        # Install jq if not available
-        if ! command -v jq &> /dev/null; then
-          sudo apt-get update && sudo apt-get install -y jq
-        fi
-        
-        # Create timestamped directory for this test run
+        # Create simple JSON summary
         TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
-        RUN_ID="${{ github.run_id }}"
-        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        cat > test-summary.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "workflow_run": "${{ github.run_id }}",
+          "commit": "${{ github.sha }}",
+          "branch": "${GITHUB_REF#refs/heads/}",
+          "success": $([ -f "test-results/results.json" ] && jq -r '.success // false' test-results/results.json || echo "false")
+        }
+        EOF
         
-        echo "📊 Preparing test results for upload..."
-        echo "Timestamp: ${TIMESTAMP}"
-        echo "Run ID: ${RUN_ID}"
-        echo "Branch: ${BRANCH_NAME}"
+        # Create upload directory with only essential files
+        mkdir -p test-upload
+        [ -f "test-results/results.json" ] && cp test-results/results.json test-upload/
+        [ -f "test-summary.json" ] && cp test-summary.json test-upload/
         
-        # Create local directory structure
-        mkdir -p "test-upload/unit-tests-${TIMESTAMP}"
+        # Upload to S3
+        BUCKET="algo-test-results-dev-${{ secrets.AWS_ACCOUNT_ID }}"
+        aws s3 cp test-upload/ s3://${BUCKET}/unit-tests/${GITHUB_REF#refs/heads/}/${TIMESTAMP}/ --recursive
         
-        # Always copy test-results directory even if tests failed
-        if [ -d "test-results" ]; then
-          cp -r test-results/* "test-upload/unit-tests-${TIMESTAMP}/"
-          echo "✅ Copied test-results directory"
-        else
-          echo "⚠️ No test-results directory found"
-          echo "No test results available" > "test-upload/unit-tests-${TIMESTAMP}/NO_RESULTS.txt"
-        fi
-        
-        # Copy coverage if it exists
-        if [ -d "coverage" ]; then
-          mkdir -p "test-upload/coverage-${TIMESTAMP}"
-          cp -r coverage/* "test-upload/coverage-${TIMESTAMP}/"
-          echo "✅ Copied coverage directory"
-        fi
-        
-        # Create comprehensive summary file
-        SUMMARY_FILE="test-upload/unit-tests-${TIMESTAMP}/SUMMARY.md"
-        echo "# Unit Test Results - ${TIMESTAMP}" > "${SUMMARY_FILE}"
-        echo "" >> "${SUMMARY_FILE}"
-        echo "**Test Run:** $(date)" >> "${SUMMARY_FILE}"
-        echo "**Branch:** ${BRANCH_NAME}" >> "${SUMMARY_FILE}"
-        echo "**Commit:** ${GITHUB_SHA}" >> "${SUMMARY_FILE}"
-        echo "**Workflow Run:** ${RUN_ID}" >> "${SUMMARY_FILE}"
-        echo "**GitHub Actor:** ${{ github.actor }}" >> "${SUMMARY_FILE}"
-        echo "" >> "${SUMMARY_FILE}"
-        
-        # Try to extract detailed metrics from results.json
-        RESULTS_FILE="test-results/results.json"
-        if [ -f "${RESULTS_FILE}" ]; then
-          echo "## Test Summary" >> "${SUMMARY_FILE}"
-          echo "" >> "${SUMMARY_FILE}"
-          
-          if command -v jq &> /dev/null; then
-            TOTAL_TESTS=$(jq -r '.numTotalTests // "N/A"' "${RESULTS_FILE}" 2>/dev/null || echo "N/A")
-            PASSED_TESTS=$(jq -r '.numPassedTests // "N/A"' "${RESULTS_FILE}" 2>/dev/null || echo "N/A")
-            FAILED_TESTS=$(jq -r '.numFailedTests // "N/A"' "${RESULTS_FILE}" 2>/dev/null || echo "N/A")
-            PENDING_TESTS=$(jq -r '.numPendingTests // "N/A"' "${RESULTS_FILE}" 2>/dev/null || echo "N/A")
-            SUCCESS=$(jq -r '.success // false' "${RESULTS_FILE}" 2>/dev/null || echo "false")
-            
-            echo "- **Total Tests:** ${TOTAL_TESTS}" >> "${SUMMARY_FILE}"
-            echo "- **Passed:** ${PASSED_TESTS}" >> "${SUMMARY_FILE}"
-            echo "- **Failed:** ${FAILED_TESTS}" >> "${SUMMARY_FILE}"
-            echo "- **Pending:** ${PENDING_TESTS}" >> "${SUMMARY_FILE}"
-            echo "- **Success:** ${SUCCESS}" >> "${SUMMARY_FILE}"
-            echo "" >> "${SUMMARY_FILE}"
-            
-            # Extract failed test details if any
-            if [ "${FAILED_TESTS}" != "0" ] && [ "${FAILED_TESTS}" != "N/A" ]; then
-              echo "## Failed Tests" >> "${SUMMARY_FILE}"
-              echo "" >> "${SUMMARY_FILE}"
-              jq -r '.testResults[] | select(.status == "failed") | "- " + .name' "${RESULTS_FILE}" >> "${SUMMARY_FILE}" 2>/dev/null || echo "Failed test details not available" >> "${SUMMARY_FILE}"
-              echo "" >> "${SUMMARY_FILE}"
-            fi
-          else
-            echo "- **Status:** Unable to parse results (jq not available)" >> "${SUMMARY_FILE}"
-          fi
-          
-          echo "**Raw Results:** Available in \`results.json\`" >> "${SUMMARY_FILE}"
-        else
-          echo "## Test Status" >> "${SUMMARY_FILE}"
-          echo "" >> "${SUMMARY_FILE}"
-          echo "⚠️ **No results.json found** - tests may have failed to complete" >> "${SUMMARY_FILE}"
-          echo "" >> "${SUMMARY_FILE}"
-          
-          echo "**Available files:**" >> "${SUMMARY_FILE}"
-          echo "\`\`\`" >> "${SUMMARY_FILE}"
-          ls -la test-results/ >> "${SUMMARY_FILE}" 2>/dev/null || echo "No test-results directory found" >> "${SUMMARY_FILE}"
-          echo "\`\`\`" >> "${SUMMARY_FILE}"
-        fi
-        
-        echo "" >> "${SUMMARY_FILE}"
-        echo "---" >> "${SUMMARY_FILE}"
-        echo "**S3 Location:** \`s3://algo-test-results/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/\`" >> "${SUMMARY_FILE}"
-        echo "**Accessible via:** Claude Code can read these results directly from S3" >> "${SUMMARY_FILE}"
-        
-        # Create a latest.json pointer file
-        echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/\"}" > "test-upload/latest-run.json"
-        
-        # Get the actual bucket name from CloudFormation stack
-        STACK_NAME="stocks-webapp-dev"
-        AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-        
-        echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
-        echo "🆔 AWS Account ID: ${AWS_ACCOUNT_ID}"
-        
-        # Try to get bucket name from CloudFormation stack first
-        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>/dev/null)
-        
-        # If CloudFormation query fails, construct bucket name based on naming pattern
-        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
-          echo "⚠️ CloudFormation stack query failed, using constructed bucket name: ${BUCKET_NAME}"
-        else
-          echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
-        fi
-        
-        echo "📤 Uploading test results to S3 bucket: ${BUCKET_NAME}"
-        
-        # Verify AWS credentials are working
-        echo "🔐 Testing AWS credentials..."
-        aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
-        
-        # Check if bucket exists and is accessible
-        echo "🪣 Checking bucket accessibility..."
-        if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
-          echo "✅ Bucket is accessible"
-        else
-          echo "❌ Bucket is not accessible or does not exist"
-          echo "📝 Attempting to list available buckets..."
-          aws s3 ls
-          exit 1
-        fi
-        
-        # Show what we're about to upload
-        echo "📂 Files to upload:"
-        find test-upload/ -type f | head -20
-        
-        # Upload the test results with error handling
-        echo "📤 Uploading test results directory..."
-        if aws s3 cp "test-upload/" "s3://${BUCKET_NAME}/unit-tests/${BRANCH_NAME}/" --recursive --acl public-read; then
-          echo "✅ Test results uploaded successfully"
-        else
-          echo "❌ Failed to upload test results"
-          exit 1
-        fi
-        
-        # Upload latest pointer
-        echo "📤 Uploading latest run pointer..."
-        if aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run.json" --acl public-read; then
-          echo "✅ Latest run pointer uploaded"
-        else
-          echo "❌ Failed to upload latest run pointer"
-          exit 1
-        fi
-        
-        # Also create a branch-specific latest pointer
-        echo "📤 Uploading branch-specific pointer..."
-        if aws s3 cp "test-upload/latest-run.json" "s3://${BUCKET_NAME}/latest-unit-test-run-${BRANCH_NAME}.json" --acl public-read; then
-          echo "✅ Branch-specific pointer uploaded"
-        else
-          echo "❌ Failed to upload branch-specific pointer"
-          exit 1
-        fi
-        
-        echo "✅ Test results uploaded successfully!"
-        echo "📋 Summary available at: https://${BUCKET_NAME}.s3.amazonaws.com/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/SUMMARY.md"
-        echo "📊 Results available at: https://${BUCKET_NAME}.s3.amazonaws.com/unit-tests/${BRANCH_NAME}/unit-tests-${TIMESTAMP}/results.json"
-        echo "🔗 Latest run info: https://${BUCKET_NAME}.s3.amazonaws.com/latest-unit-test-run.json"
+        echo "✅ Test results uploaded to S3"
           
   # Integration Tests - DISABLED: Now handled by deploy-webapp.yml
   integration-tests:
@@ -538,72 +393,26 @@ jobs:
     - name: Download all test artifacts
       uses: actions/download-artifact@v4
       
-    - name: Generate comprehensive test report
+    - name: Generate simple test summary
       run: |
-        echo "# Comprehensive Test Report" > test-summary.md
-        echo "" >> test-summary.md
-        echo "## Test Results Overview" >> test-summary.md
-        echo "" >> test-summary.md
-        
-        # Unit Tests
-        if [ -d "unit-test-results" ]; then
-          echo "✅ Unit Tests: Completed" >> test-summary.md
-        else
-          echo "❌ Unit Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        # Integration Tests
-        if [ -d "integration-test-results" ]; then
-          echo "✅ Integration Tests: Completed" >> test-summary.md
-        else
-          echo "❌ Integration Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        # Performance Tests
-        if [ -d "performance-test-results" ]; then
-          echo "✅ Performance Tests: Completed" >> test-summary.md
-        else
-          echo "❌ Performance Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        # Security Tests
-        if [ -d "security-test-results" ]; then
-          echo "✅ Security Tests: Completed" >> test-summary.md
-        else
-          echo "❌ Security Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        # React Hooks Tests
-        if [ -d "react-hooks-test-results" ]; then
-          echo "✅ React Hooks Tests: Completed" >> test-summary.md
-        else
-          echo "❌ React Hooks Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        # E2E Tests
-        if [ -d "e2e-test-results" ]; then
-          echo "✅ E2E Tests: Completed" >> test-summary.md
-        else
-          echo "❌ E2E Tests: Failed or Skipped" >> test-summary.md
-        fi
-        
-        echo "" >> test-summary.md
-        echo "## Test Artifacts" >> test-summary.md
-        echo "" >> test-summary.md
-        echo "- Unit Test Results: $(ls -la unit-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        echo "- Integration Test Results: $(ls -la integration-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        echo "- Performance Test Results: $(ls -la performance-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        echo "- Security Test Results: $(ls -la security-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        echo "- React Hooks Test Results: $(ls -la react-hooks-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        echo "- E2E Test Results: $(ls -la e2e-test-results/ 2>/dev/null | wc -l) files" >> test-summary.md
-        
-        cat test-summary.md
+        # Create JSON summary
+        cat > test-summary.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "workflow_run": "${{ github.run_id }}",
+          "unit_tests": $([ -d "unit-test-results" ] && echo "true" || echo "false"),
+          "integration_tests": $([ -d "integration-test-results" ] && echo "true" || echo "false"),
+          "performance_tests": $([ -d "performance-test-results" ] && echo "true" || echo "false"),
+          "security_tests": $([ -d "security-test-results" ] && echo "true" || echo "false")
+        }
+        EOF
+        echo "Test summary generated"
         
     - name: Upload test summary
       uses: actions/upload-artifact@v4
       with:
         name: test-summary
-        path: test-summary.md
+        path: test-summary.json
         
     - name: Comment PR with test results
       if: github.event_name == 'pull_request'
@@ -611,13 +420,15 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const summary = fs.readFileSync('test-summary.md', 'utf8');
+          const summary = JSON.parse(fs.readFileSync('test-summary.json', 'utf8'));
+          const passed = Object.values(summary).filter(v => v === true).length;
+          const total = Object.keys(summary).filter(k => k.includes('tests')).length;
           
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: summary
+            body: `## Test Results\n\n${passed}/${total} test suites completed successfully.\n\nWorkflow: ${summary.workflow_run}`
           });
           
   # Quality Gates

@@ -314,239 +314,47 @@ jobs:
           echo "Duration: $SECONDS seconds"
           echo "=================================================="
 
-      - name: 📊 Generate comprehensive unit test report
+      - name: 📊 Create unit test summary
         run: |
-          echo "📋 GENERATING COMPREHENSIVE UNIT TEST REPORT"
-          echo "=================================================="
-          echo "🕒 Report Generation Time: $(date)"
-          echo ""
-          
-          # Create detailed unit test report
-          cat > unit-test-coverage-report.md << EOF
-          # 🧪 Unit Test Coverage Report
-          
-          **Generated:** $(date)  
-          **Environment:** ${{ needs.setup.outputs.environment }}  
-          **Workflow:** ${{ github.workflow }}  
-          **Run ID:** ${{ github.run_id }}  
-          **Commit:** ${{ github.sha }}  
-          
-          ## 📱 Frontend Unit Test Coverage
-          
-          **Working Directory:** `webapp/frontend`  
-          **Test Command:** `npm run test:unit`  
-          **Node Version:** $(node --version)  
-          **Test Framework:** Vitest with React Testing Library
-          **Coverage Files:** `src/tests/unit/`
-          
-          ### Frontend Unit Test Files:
-          ```
-          $(cd webapp/frontend && find src/tests/unit -name "*.test.js" -o -name "*.test.jsx" | wc -l) test files found
-          $(cd webapp/frontend && find src/tests/unit -name "*.test.js" -o -name "*.test.jsx" | head -15 || echo "No test files found")
-          ```
-          
-          ### Frontend Services Tested:
-          - **API Key Service (44 tests):** Authentication, credential retrieval, encryption
-          - **Settings Service (45 tests):** Backend API integration, settings persistence
-          - **Portfolio Optimizer (42/51 tests):** Modern Portfolio Theory, financial algorithms
-          - **Speech Service (52 tests):** Speech-to-text, text-to-speech, browser compatibility
-          - **Notification Service (49/61 tests):** Browser API interactions, permission handling
-          - **Real-time Data Service:** WebSocket management, live data streaming
-          - **Cache Service:** Memory management, performance optimization
-          - **News Service:** News API integration, data normalization
-          - **Symbol Service:** Symbol lookup, search functionality
-          - **API Wrapper (28/35 tests):** API standardization, error handling
-          
-          ### Frontend Coverage Summary:
-          ```
-          $(cd webapp/frontend && npm run test:coverage 2>/dev/null | tail -15 || echo "Coverage data not available - run 'npm run test:coverage' locally")
-          ```
-          
-          ## 🔧 Backend Unit Test Coverage
-          
-          **Working Directory:** `webapp/lambda`  
-          **Test Command:** `npm run test:unit`  
-          **Node Version:** $(node --version)  
-          **Test Framework:** Jest with Supertest for API testing
-          **Coverage Files:** `tests/unit/`
-          
-          ### Backend Unit Test Files:
-          ```
-          $(cd webapp/lambda && find tests/unit -name "*.test.js" | wc -l) test files found
-          $(cd webapp/lambda && find tests/unit -name "*.test.js" | head -15 || echo "No test files found")
-          ```
-          
-          ### Backend Services Tested:
-          - **Lambda Handler Functions:** All API routes with authentication
-          - **Database Services:** Connection pooling, transaction management, circuit breakers
-          - **Security Services:** JWT verification, API key encryption (AES-256-GCM)
-          - **Financial Services:** Portfolio calculations, risk metrics, trading algorithms
-          - **External API Services:** Alpaca, Polygon, Finnhub integrations with failover
-          - **Utility Services:** Caching, logging, error handling, timeout management
-          - **Health Monitoring:** Circuit breaker status, performance metrics
-          - **Authentication Service:** JWT validation, token management
-          
-          ### Backend Coverage Summary:
-          ```
-          $(cd webapp/lambda && npm run test:coverage 2>/dev/null | tail -15 || echo "Coverage data not available - run 'npm run test:coverage' locally")
-          ```
-          
-          ## 📊 Test Quality Metrics
-          
-          - **Real Implementation Standard:** 100% real business logic testing (zero mocks/placeholders)
-          - **Financial Algorithm Validation:** Modern Portfolio Theory, VaR calculations, risk metrics
-          - **Service Coverage:** 14/15 critical services with comprehensive test suites (93% coverage)
-          - **Browser API Testing:** Speech, notifications, WebSocket compatibility validation
-          - **Edge Case Coverage:** Error handling, boundary conditions, performance edge cases
-          - **Security Testing:** API key encryption, JWT validation, input sanitization
-          - **Performance Testing:** Concurrent operations, memory management, response times
-          
-          ## 🔍 Quality Gates Enforced
-          
-          - ✅ **Test Execution:** All unit tests must pass before proceeding to integration tests
-          - ✅ **Coverage Threshold:** 80% minimum coverage requirements enforced
-          - ✅ **Real Implementation:** Zero tolerance for mock/placeholder business logic
-          - ✅ **Financial Accuracy:** Mathematical validation for all financial calculations
-          - ✅ **Security Validation:** Encryption, authentication, and authorization testing
-          - ✅ **Performance Standards:** Memory usage, response time, and concurrency testing
-          
-          ## 🛡️ Critical Financial Platform Requirements
-          
-          - **Regulatory Compliance:** SEC/FINRA compliance through comprehensive testing
-          - **Data Integrity:** Financial calculation accuracy with edge case validation
-          - **Security Standards:** AES-256-GCM encryption, JWT authentication, input validation
-          - **Performance Standards:** Sub-second response times, efficient memory usage
-          - **Reliability Standards:** Circuit breaker patterns, graceful error handling
-          
-          ## 🔍 Troubleshooting Information
-          
-          If unit tests fail, check:
-          1. **Service Dependencies:** Ensure all required services are properly mocked
-          2. **Test Environment:** Verify NODE_ENV=test and proper test configuration
-          3. **Financial Calculations:** Check mathematical accuracy and edge cases
-          4. **Browser APIs:** Verify compatibility and proper mocking of browser features
-          5. **Security Services:** Ensure encryption and authentication services work correctly
-          
-          ## 📊 System Information
-          
-          - **OS:** $(uname -a)
-          - **Memory:** $(free -h | head -2)
-          - **Disk Space:** $(df -h / | tail -1)
-          - **Network:** $(ping -c 1 8.8.8.8 > /dev/null && echo "Connected" || echo "No connectivity")
-          
+          # Create simple JSON summary
+          cat > unit-test-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run": "${{ github.run_id }}",
+            "commit": "${{ github.sha }}",
+            "environment": "${{ needs.setup.outputs.environment }}",
+            "frontend_exit_code": ${FRONTEND_UNIT_EXIT_CODE:-1},
+            "backend_exit_code": ${BACKEND_UNIT_EXIT_CODE:-1},
+            "frontend_success": $([ "${FRONTEND_UNIT_EXIT_CODE:-1}" = "0" ] && echo "true" || echo "false"),
+            "backend_success": $([ "${BACKEND_UNIT_EXIT_CODE:-1}" = "0" ] && echo "true" || echo "false"),
+            "overall_success": $([ "${FRONTEND_UNIT_EXIT_CODE:-1}" = "0" ] && [ "${BACKEND_UNIT_EXIT_CODE:-1}" = "0" ] && echo "true" || echo "false")
+          }
           EOF
-          
-          echo "✅ Comprehensive unit test report generated successfully"
-          echo ""
-          echo "📄 Report Contents:"
-          echo "==================="
-          cat unit-test-coverage-report.md
-          echo "==================="
-          echo ""
-          echo "📊 Unit Test Execution Summary:"
-          echo "- Report file: unit-test-coverage-report.md"
-          echo "- Frontend test directory: webapp/frontend/src/tests/unit/"
-          echo "- Backend test directory: webapp/lambda/tests/unit/"
-          echo "- Test artifacts will be uploaded for 30 days"
-          echo "- Coverage reports available in individual directories"
-          echo "=================================================="
+          echo "✅ Unit test summary created"
 
-      - name: 📤 Upload comprehensive unit test artifacts and logs
+      - name: 📤 Upload unit test results to S3
         if: always()
         run: |
-          echo "📤 UPLOADING UNIT TEST ARTIFACTS AND LOGS"
-          echo "=================================================="
-          echo "🕒 Upload Time: $(date)"
-          echo ""
+          # Create simple directory structure
+          mkdir -p unit-test-upload
           
-          # Create artifacts directory structure
-          mkdir -p unit-test-artifacts/{frontend,backend,reports,logs,coverage}
+          # Copy only essential test results
+          [ -f "webapp/frontend/test-results/results.json" ] && cp webapp/frontend/test-results/results.json unit-test-upload/frontend-results.json
+          [ -f "webapp/lambda/test-results/results.json" ] && cp webapp/lambda/test-results/results.json unit-test-upload/backend-results.json
+          [ -f "unit-test-summary.json" ] && cp unit-test-summary.json unit-test-upload/
           
-          echo "📁 Creating comprehensive unit test artifact package..."
+          # Configure AWS and upload
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set default.region us-east-1
           
-          # Copy frontend results if they exist
-          if [ -d "webapp/frontend/test-results" ]; then
-            cp -r webapp/frontend/test-results/* unit-test-artifacts/frontend/ 2>/dev/null || echo "No frontend test results to copy"
-            echo "✅ Frontend test results copied"
-          else
-            echo "⚠️ No frontend test-results directory found"
-          fi
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BUCKET="algo-test-results-dev-${{ secrets.AWS_ACCOUNT_ID }}"
           
-          # Copy frontend coverage if it exists
-          if [ -d "webapp/frontend/coverage" ]; then
-            cp -r webapp/frontend/coverage/* unit-test-artifacts/coverage/frontend/ 2>/dev/null || echo "No frontend coverage to copy"
-            echo "✅ Frontend coverage copied"
-          else
-            echo "⚠️ No frontend coverage directory found"
-          fi
+          # Upload to S3
+          aws s3 cp unit-test-upload/ s3://${BUCKET}/unit-tests/${{ github.ref_name }}/${TIMESTAMP}/ --recursive
           
-          # Copy backend results if they exist
-          if [ -d "webapp/lambda/test-results" ]; then
-            cp -r webapp/lambda/test-results/* unit-test-artifacts/backend/ 2>/dev/null || echo "No backend test results to copy"
-            echo "✅ Backend test results copied"
-          else
-            echo "⚠️ No backend test-results directory found"
-          fi
-          
-          # Copy backend coverage if it exists
-          if [ -d "webapp/lambda/coverage" ]; then
-            cp -r webapp/lambda/coverage/* unit-test-artifacts/coverage/backend/ 2>/dev/null || echo "No backend coverage to copy"
-            echo "✅ Backend coverage copied"
-          else
-            echo "⚠️ No backend coverage directory found"
-          fi
-          
-          # Copy reports
-          cp unit-test-coverage-report.md unit-test-artifacts/reports/ 2>/dev/null || echo "⚠️ No unit test report found"
-          
-          # Generate unit test diagnostics
-          echo "🔍 Generating unit test diagnostics..."
-          cat > unit-test-artifacts/logs/unit-test-diagnostics.log << DIAG_EOF
-          UNIT TEST SYSTEM DIAGNOSTICS
-          ============================
-          
-          Timestamp: $(date)
-          Workflow Run: ${{ github.run_id }}
-          Commit: ${{ github.sha }}
-          
-          SYSTEM INFORMATION:
-          OS: $(uname -a)
-          Node Version: $(node --version)
-          NPM Version: $(npm --version)
-          
-          MEMORY USAGE:
-          $(free -h)
-          
-          DISK USAGE:
-          $(df -h /)
-          
-          ENVIRONMENT VARIABLES:
-          NODE_ENV: ${NODE_ENV}
-          
-          FRONTEND PACKAGE INFO:
-          $(cd webapp/frontend && npm list --depth=0 | grep -E "(vitest|jest|testing|playwright)" | head -10 || echo "No test packages found")
-          
-          BACKEND PACKAGE INFO:
-          $(cd webapp/lambda && npm list --depth=0 | grep -E "(vitest|jest|testing|supertest)" | head -10 || echo "No test packages found")
-          
-          UNIT TEST DIRECTORY STRUCTURE:
-          Frontend Unit Tests: $(find webapp/frontend/src/tests/unit -type f | wc -l) files
-          Backend Unit Tests: $(find webapp/lambda/tests/unit -type f | wc -l) files
-          
-          FRONTEND TEST FILES:
-          $(find webapp/frontend/src/tests/unit -name "*.test.js" -o -name "*.test.jsx" | head -15)
-          
-          BACKEND TEST FILES:
-          $(find webapp/lambda/tests/unit -name "*.test.js" | head -15)
-          
-          DIAG_EOF
-          
-          echo "✅ Unit test diagnostics generated"
-          
-          # List all artifacts being uploaded
-          echo ""
-          echo "📋 Unit test artifacts being uploaded:"
-          find unit-test-artifacts -type f -exec ls -la {} \; | head -30
+          echo "✅ Unit test results uploaded to S3"
           
           echo ""
           echo "📊 Upload Summary:"
@@ -1072,135 +880,28 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          # Install jq if not available
-          if ! command -v jq &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y jq
-          fi
-          
-          # Create timestamped directory for this test run
+          # Create simple summary
           TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
-          RUN_ID="${{ github.run_id }}"
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          cat > integration-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run": "${{ github.run_id }}",
+            "commit": "${{ github.sha }}",
+            "success": $([ "${INTEGRATION_EXIT_CODE:-1}" = "0" ] && echo "true" || echo "false"),
+            "exit_code": ${INTEGRATION_EXIT_CODE:-1}
+          }
+          EOF
           
-          echo "📊 Preparing integration test results for S3 upload..."
-          echo "Timestamp: ${TIMESTAMP}"
-          echo "Run ID: ${RUN_ID}"
-          echo "Branch: ${BRANCH_NAME}"
+          # Create upload directory with only essential files
+          mkdir -p integration-upload
+          [ -f "webapp/lambda/test-results/integration-junit.xml" ] && cp webapp/lambda/test-results/integration-junit.xml integration-upload/
+          [ -f "integration-summary.json" ] && cp integration-summary.json integration-upload/
           
-          # Create local directory structure
-          mkdir -p "integration-upload/integration-tests-${TIMESTAMP}"
+          # Upload to S3
+          BUCKET="algo-test-results-dev-${{ secrets.AWS_ACCOUNT_ID }}"
+          aws s3 cp integration-upload/ s3://${BUCKET}/integration-tests/${{ github.ref_name }}/${TIMESTAMP}/ --recursive
           
-          # Copy integration test artifacts if they exist
-          if [ -d "test-artifacts" ]; then
-            cp -r test-artifacts/* "integration-upload/integration-tests-${TIMESTAMP}/"
-            echo "✅ Copied test-artifacts directory"
-          else
-            echo "⚠️ No test-artifacts directory found"
-          fi
-          
-          # Copy frontend test results
-          if [ -d "webapp/frontend/test-results" ]; then
-            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/frontend"
-            cp -r webapp/frontend/test-results/* "integration-upload/integration-tests-${TIMESTAMP}/frontend/"
-            echo "✅ Copied frontend test results"
-          fi
-          
-          # Copy frontend coverage
-          if [ -d "webapp/frontend/coverage" ]; then
-            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/coverage/frontend"
-            cp -r webapp/frontend/coverage/* "integration-upload/integration-tests-${TIMESTAMP}/coverage/frontend/"
-            echo "✅ Copied frontend coverage"
-          fi
-          
-          # Copy backend test results
-          if [ -d "webapp/lambda/test-results" ]; then
-            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/backend"
-            cp -r webapp/lambda/test-results/* "integration-upload/integration-tests-${TIMESTAMP}/backend/"
-            echo "✅ Copied backend test results"
-          fi
-          
-          # Copy backend coverage
-          if [ -d "webapp/lambda/coverage" ]; then
-            mkdir -p "integration-upload/integration-tests-${TIMESTAMP}/coverage/backend"
-            cp -r webapp/lambda/coverage/* "integration-upload/integration-tests-${TIMESTAMP}/coverage/backend/"
-            echo "✅ Copied backend coverage"
-          fi
-          
-          # Copy integration test report
-          if [ -f "integration-test-results.md" ]; then
-            cp "integration-test-results.md" "integration-upload/integration-tests-${TIMESTAMP}/SUMMARY.md"
-            echo "✅ Copied integration test report as SUMMARY.md"
-          fi
-          
-          # Create a latest.json pointer file
-          echo "{\"timestamp\":\"${TIMESTAMP}\",\"runId\":\"${RUN_ID}\",\"branch\":\"${BRANCH_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"path\":\"integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/\"}" > "integration-upload/latest-integration-run.json"
-          
-          # Get bucket name
-          STACK_NAME="${{ needs.setup.outputs.stack_name }}"
-          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          
-          echo "🔍 Checking CloudFormation stack: ${STACK_NAME}"
-          
-          # Try to get bucket name from CloudFormation stack first with enhanced error handling
-          set +e  # Don't exit on command failure
-          AWS_CLI_OUTPUT=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`TestResultsBucketName`].OutputValue' --output text 2>&1)
-          AWS_CLI_EXIT_CODE=$?
-          set -e  # Re-enable exit on error
-          
-          echo "🔍 AWS CLI exit code: ${AWS_CLI_EXIT_CODE}"
-          if [ ${AWS_CLI_EXIT_CODE} -eq 0 ] && [ -n "$AWS_CLI_OUTPUT" ] && [ "$AWS_CLI_OUTPUT" != "None" ]; then
-            BUCKET_NAME="$AWS_CLI_OUTPUT"
-            echo "✅ Found bucket name from CloudFormation: ${BUCKET_NAME}"
-          else
-            BUCKET_NAME="algo-test-results-dev-${AWS_ACCOUNT_ID}"
-            echo "⚠️ CloudFormation stack query failed (exit code: ${AWS_CLI_EXIT_CODE}), using constructed bucket name: ${BUCKET_NAME}"
-            echo "⚠️ AWS CLI output: ${AWS_CLI_OUTPUT}"
-            
-            # Check if stack exists at all
-            set +e
-            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].StackStatus' --output text 2>&1)
-            STACK_CHECK_EXIT=$?
-            set -e
-            
-            if [ ${STACK_CHECK_EXIT} -eq 0 ]; then
-              echo "⚠️ Stack exists but no TestResultsBucketName output found. Stack status: ${STACK_STATUS}"
-            else
-              echo "⚠️ Stack does not exist or is not accessible: ${STACK_STATUS}"
-            fi
-          fi
-          
-          echo "📤 Uploading integration test results to S3 bucket: ${BUCKET_NAME}"
-          
-          # Verify AWS credentials
-          echo "🔐 Testing AWS credentials..."
-          aws sts get-caller-identity || (echo "❌ AWS credentials not working" && exit 1)
-          
-          # Check if bucket exists
-          echo "🪣 Checking bucket accessibility..."
-          if aws s3 ls "s3://${BUCKET_NAME}/" >/dev/null 2>&1; then
-            echo "✅ Bucket is accessible"
-          else
-            echo "❌ Bucket is not accessible or does not exist"
-            exit 1
-          fi
-          
-          # Upload the integration test results
-          echo "📤 Uploading integration test results..."
-          if aws s3 cp "integration-upload/" "s3://${BUCKET_NAME}/integration-tests/${BRANCH_NAME}/" --recursive; then
-            echo "✅ Integration test results uploaded successfully"
-          else
-            echo "❌ Failed to upload integration test results"
-            exit 1
-          fi
-          
-          # Upload latest pointer
-          echo "📤 Uploading latest integration run pointer..."
-          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run.json"
-          aws s3 cp "integration-upload/latest-integration-run.json" "s3://${BUCKET_NAME}/latest-integration-test-run-${BRANCH_NAME}.json"
-          
-          echo "✅ Integration test results uploaded successfully!"
-          echo "📋 Summary: https://${BUCKET_NAME}.s3.amazonaws.com/integration-tests/${BRANCH_NAME}/integration-tests-${TIMESTAMP}/SUMMARY.md"
-          echo "🔗 Latest: https://${BUCKET_NAME}.s3.amazonaws.com/latest-integration-test-run.json"
+          echo "✅ Integration test summary uploaded to S3"
 
       - name: 📊 Integration test completion summary
         if: always()
