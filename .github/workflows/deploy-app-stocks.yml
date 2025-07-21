@@ -76,8 +76,8 @@ jobs:
             exit 0
           fi
           
-          # Check if infrastructure files changed
-          INFRA_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(template-.*\.yml|requirements.txt|Dockerfile|\.github/workflows/)" || true)
+          # Check if infrastructure files changed (excluding this workflow file)
+          INFRA_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(template-.*\.yml|requirements-.*\.txt|Dockerfile\.)" || true)
           if [[ -n "$INFRA_FILES" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Infrastructure changes detected: $INFRA_FILES"
@@ -92,18 +92,26 @@ jobs:
           # Get all available loaders
           ALL_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
           
+          echo "🔍 Loader Detection Debug:"
+          echo "  - Manual input loaders: '${{ github.event.inputs.loaders }}'"
+          echo "  - Force all flag: '${{ github.event.inputs.force_all }}'"
+          echo "  - Infrastructure changed: '${{ steps.infra.outputs.changed }}'"
+          echo "  - Available loaders: $ALL_LOADERS"
+          
           # Determine which loaders to run
           if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
             # Manual input
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
-            echo "Manual loader selection: $LOADERS_TO_RUN"
+            echo "📝 Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
             # Force all or infrastructure changed - ALL WORKING LOADERS INCLUDING PRICE LOADERS
             LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily calendar pricedaily priceweekly pricemonthly"
-            echo "Running all working loaders including price loaders"
+            echo "🔄 Running all working loaders (force_all or infrastructure changed)"
           else
-            # Auto-detect based on file changes - ONLY GROUP 1 WORKING LOADERS
+            # Auto-detect based on file changes - ONLY WORKING LOADERS
             CHANGED_LOADERS=$(git diff --name-only HEAD~1 HEAD | grep '^load.*\.py$' | sed 's/load//' | sed 's/\.py$//' | sort || true)
+            echo "🔍 Changed loader files detected: $CHANGED_LOADERS"
+            
             if [[ -n "$CHANGED_LOADERS" ]]; then
               # Filter to all working loaders including price loaders
               LOADERS_TO_RUN=""
@@ -111,13 +119,17 @@ jobs:
                 case $loader in
                   stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|calendar|pricedaily|priceweekly|pricemonthly)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
+                    echo "✅ Including working loader: $loader"
+                    ;;
+                  *)
+                    echo "⏭️  Skipping non-working loader: $loader"
                     ;;
                 esac
               done
-              echo "Auto-detected working loaders including price loaders: $LOADERS_TO_RUN"
+              echo "🎯 Auto-detected working loaders: $LOADERS_TO_RUN"
             else
               LOADERS_TO_RUN=""
-              echo "No loader changes detected"
+              echo "📭 No loader changes detected"
             fi
           fi
           
@@ -126,11 +138,13 @@ jobs:
             # Create matrix with priority classification
             MATRIX_JSON='{"include":['
             FIRST=true
+            LOADER_COUNT=0
             for loader in $LOADERS_TO_RUN; do
               if [[ "$FIRST" == "false" ]]; then
                 MATRIX_JSON+=','
               fi
               FIRST=false
+              LOADER_COUNT=$((LOADER_COUNT + 1))
               
               # All test loaders get normal priority
               PRIORITY="normal"
@@ -142,11 +156,11 @@ jobs:
             
             echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
             echo "has-changes=true" >> $GITHUB_OUTPUT
-            echo "Generated matrix: $MATRIX_JSON"
+            echo "🚀 Generated matrix for $LOADER_COUNT loaders: $MATRIX_JSON"
           else
             echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
             echo "has-changes=false" >> $GITHUB_OUTPUT
-            echo "No loaders to run"
+            echo "⭕ No loaders to run"
           fi
 
   # 2. Build Docker images when loaders need to run

@@ -165,6 +165,29 @@ class DatabaseConnectionManager {
     };
   }
   
+  async healthCheck() {
+    try {
+      if (!this.isInitialized || !this.pool) {
+        return { healthy: false, error: 'Database not initialized' };
+      }
+      
+      await this.testConnection();
+      const status = this.getStatus();
+      
+      return {
+        healthy: true,
+        status: status,
+        message: 'Database connection healthy'
+      };
+    } catch (error) {
+      return {
+        healthy: false,
+        error: error.message,
+        status: this.getStatus()
+      };
+    }
+  }
+  
   // Emergency recovery methods
   async forceReset() {
     console.log('🚨 EMERGENCY: Force resetting database connection...');

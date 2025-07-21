@@ -7,7 +7,7 @@
 const logger = require('../utils/logger');
 const { query, healthCheck } = require('../utils/database');
 const timeoutHelper = require('../utils/timeoutHelper');
-const yfinance = require('yfinance');
+// const yfinance = require('yfinance'); // Python package - not available in Node.js
 
 class MarketDataService {
   constructor() {

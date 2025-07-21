@@ -6,7 +6,7 @@
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { EnhancedAuthService } = require('../services/EnhancedAuthService');
+const EnhancedAuthService = require('../services/enhancedAuthService');
 const logger = require('../utils/logger');
 
 class EnhancedAuthMiddleware {
