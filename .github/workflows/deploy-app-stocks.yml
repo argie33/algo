@@ -109,7 +109,7 @@ jobs:
               LOADERS_TO_RUN=""
               for loader in $CHANGED_LOADERS; do
                 case $loader in
-                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|technicalsdaily|calendar)
+                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|calendar)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
                     ;;
                 esac
