@@ -21,33 +21,52 @@ The system scope includes web application frontend, serverless API services, rea
 
 ## 2. SYSTEM ARCHITECTURE OVERVIEW
 
-### 2.1 Critical Testing Architecture Issues
+### 2.1 Frontend Architecture Code Quality Issues
 
-**UNIT TEST ARCHITECTURE CRISIS DISCOVERED**: 53% of unit tests use fake mock-based patterns that provide false confidence while real business logic remains untested.
+**FRONTEND COMPONENT ARCHITECTURE CRISIS DISCOVERED**: 441 lint errors including 102 undefined variables causing runtime component failures and broken user interfaces.
 
-**Anti-Pattern: Mock-Heavy Testing (DO NOT USE)**
+**Anti-Pattern: Undefined Variables and Missing Imports**
 ```javascript
-// FAKE TEST PATTERN - ELIMINATES BUSINESS LOGIC VALIDATION
-jest.mock('../../utils/portfolioMath', () => ({
-  calculateCovarianceMatrix: jest.fn(),
-  meanVarianceOptimization: jest.fn(),  // Core financial logic mocked out
-  calculateRiskMetrics: jest.fn()
-}));
-
-// Tests mock interactions, not real calculations
-test('portfolio optimization', () => {
-  mockPortfolioMath.meanVarianceOptimization.mockReturnValue({
-    weights: [0.4, 0.6],  // Fake response
-    sharpeRatio: 1.5      // Fake calculation
+// BROKEN COMPONENT PATTERN - UNDEFINED VARIABLES
+function AnalystInsights() {
+  const { data } = useSimpleFetch({
+    queryFn: async () => {
+      const url = `${API_BASE}/analysts/upgrades`;  // API_BASE not imported
+      return fetch(url);
+    }
   });
-  // Test passes even if real optimization is completely broken
-});
+}
+
+function BiometricAuth() {
+  const checkAvailability = async () => {
+    // PublicKeyCredential not checked for browser support
+    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  };
+}
 ```
 
-**Required Pattern: Real Implementation Testing**
+**Required Pattern: Proper Import Management**
 ```javascript
-// REAL TEST PATTERN - TESTS ACTUAL BUSINESS LOGIC
-const PortfolioMath = require('../../utils/portfolioMath');  // NO MOCKS
+// CORRECT COMPONENT PATTERN - PROPER IMPORTS AND SCOPING
+import { API_BASE } from '../config/production';  // Explicit import
+
+function AnalystInsights() {
+  const { data } = useSimpleFetch({
+    queryFn: async () => {
+      const url = `${API_BASE}/analysts/upgrades`;  // API_BASE properly imported
+      return fetch(url);
+    }
+  });
+}
+
+function BiometricAuth() {
+  const checkAvailability = async () => {
+    // Browser API availability check
+    const available = window.PublicKeyCredential 
+      ? await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+      : false;
+  };
+}
 const OptimizationEngine = require('../../services/optimizationEngine');
 
 test('real portfolio optimization calculations', async () => {

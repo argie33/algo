@@ -134,7 +134,7 @@ function StockExplorer() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filters, setFilters] = useState(INITIAL_FILTERS)
-  const [viewMode] = useState('advanced') // Always use advanced view with full table
+  const [viewMode, setViewMode] = useState('advanced') // Always use advanced view with full table
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25) // Reduced from potentially higher default
   const [orderBy, setOrderBy] = useState('symbol') // Default to alphabetical

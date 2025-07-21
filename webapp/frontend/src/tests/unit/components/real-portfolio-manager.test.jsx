@@ -638,12 +638,21 @@ describe('💼 Real PortfolioManager Component', () => {
     it('should support keyboard navigation', async () => {
       const user = userEvent.setup();
       
+      // Ensure there are interactive elements to focus
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(0);
+      
       // Tab through interactive elements
       await user.tab();
       
       const focusedElement = document.activeElement;
-      expect(focusedElement).toHaveClass('MuiButton-root') ||
-             expect(focusedElement.tagName).toBe('BUTTON');
+      
+      // Check if focused element is a button or has button role
+      const isButtonElement = focusedElement.tagName === 'BUTTON';
+      const hasButtonRole = focusedElement.getAttribute('role') === 'button';
+      const hasMUIButtonClass = focusedElement.classList.contains('MuiButton-root');
+      
+      expect(isButtonElement || hasButtonRole || hasMUIButtonClass).toBe(true);
     });
 
     it('should have proper heading hierarchy', () => {

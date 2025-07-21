@@ -9,6 +9,12 @@ class ApiKeyService {
   async getApiKeys() {
     try {
       const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
+      
+      if (!token) {
+        console.warn('No authentication token available for API key request');
+        return [];
+      }
+      
       const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys`, {
         method: 'GET',
         headers: {
@@ -44,6 +50,12 @@ class ApiKeyService {
   async testAndGetApiKey(keyId) {
     try {
       const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
+      
+      if (!token) {
+        console.warn('No authentication token available for API key test');
+        return { success: false, error: 'Authentication required' };
+      }
+      
       const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/test-connection/${keyId}`, {
         method: 'POST',
         headers: {

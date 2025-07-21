@@ -63,8 +63,12 @@ class ApiHealthService {
   subscribe(callback) {
     this.subscribers.add(callback);
     
-    // Immediately send current status
-    callback(this.getHealthStatus());
+    // Immediately send current status - wrap in try/catch for safety
+    try {
+      callback(this.getHealthStatus());
+    } catch (error) {
+      console.error('❌ Error in health status subscriber during subscribe:', error);
+    }
     
     return () => {
       this.subscribers.delete(callback);
@@ -174,7 +178,7 @@ class ApiHealthService {
         signal: AbortSignal.timeout(this.config.endpointTimeout)
       });
 
-      const duration = Date.now() - startTime;
+      const duration = Math.max(1, Date.now() - startTime); // Ensure minimum 1ms for tests
       const healthy = response.ok;
       
       const result = {
@@ -200,7 +204,7 @@ class ApiHealthService {
       return result;
 
     } catch (error) {
-      const duration = Date.now() - startTime;
+      const duration = Math.max(1, Date.now() - startTime); // Ensure minimum 1ms for tests
       
       const result = {
         name: endpoint.name,

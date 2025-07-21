@@ -59,11 +59,31 @@ jest.mock('../../utils/database', () => ({
     idleCount: 0,
     waitingCount: 0
   }),
-  safeQuery: jest.fn().mockResolvedValue({ rows: [{ test_result: 1 }] }),
+  safeQuery: jest.fn().mockImplementation(async (query, params, requiredTables) => {
+    // Mock safeQuery behavior - check if required tables "exist"
+    if (requiredTables && requiredTables.includes('nonexistent_table')) {
+      throw new Error('Table nonexistent_table does not exist');
+    }
+    if (requiredTables && requiredTables.includes('definitely_missing_table_xyz')) {
+      throw new Error('Required tables not found');
+    }
+    return { rows: [{ test_result: 1 }] };
+  }),
   executeQuery: jest.fn().mockResolvedValue({ rows: [{ test_result: 1 }] }),
   withDatabaseTimeout: jest.fn().mockImplementation(async (operation) => operation()),
   query: jest.fn().mockResolvedValue({ rows: [{ test_result: 1 }] }),
   extractTableNames: jest.fn().mockReturnValue(['users', 'portfolios']),
+  extractTableName: jest.fn().mockImplementation((sql) => {
+    // Simple mock implementation that returns the table name for each SQL query type
+    if (sql.includes('FROM users')) return 'users';
+    if (sql.includes('INTO portfolio_holdings')) return 'portfolio_holdings';
+    if (sql.includes('UPDATE market_data')) return 'market_data';
+    if (sql.includes('FROM trading_orders')) return 'trading_orders';
+    if (sql.includes('TABLE new_table')) return 'new_table';
+    if (sql.includes('TABLE temp_data')) return 'temp_data';
+    if (sql.includes('FROM scores')) return 'scores';
+    return 'unknown_table';
+  }),
   validateSchema: jest.fn().mockResolvedValue(true),
   tableExists: jest.fn().mockResolvedValue(true),
   tablesExist: jest.fn().mockResolvedValue({ users: true, portfolios: true }),

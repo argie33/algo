@@ -41,10 +41,11 @@ export default defineConfig(({ mode }) => {
               }
               // Keep Emotion in main bundle to ensure proper initialization order
               
-              // Chart libraries
-              if (id.includes('recharts')) {
-                return 'charts';
-              }
+              // Chart libraries - Keep recharts in main bundle to prevent initialization errors
+              // Similar to Emotion, recharts has variable initialization timing issues when split
+              // if (id.includes('recharts')) {
+              //   return 'charts';
+              // }
               
               // AWS services
               if (id.includes('aws-amplify') || id.includes('@aws-amplify')) {
@@ -79,9 +80,10 @@ export default defineConfig(({ mode }) => {
               const page = id.split('/pages/')[1].split('/')[0].split('.')[0];
               return `page-${page}`;
             }
-            if (id.includes('/components/') && id.includes('Chart')) {
-              return 'chart-components';
-            }
+            // Keep chart components with main bundle to avoid recharts dependency issues
+            // if (id.includes('/components/') && id.includes('Chart')) {
+            //   return 'chart-components';
+            // }
             if (id.includes('/components/')) {
               return 'components';
             }
@@ -141,7 +143,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': resolve(__dirname, 'src')
       },
-      dedupe: ['react', 'react-dom', 'use-sync-external-store', '@emotion/react', '@emotion/styled']
+      dedupe: ['react', 'react-dom', 'use-sync-external-store', '@emotion/react', '@emotion/styled', 'recharts']
     }
   }
 })

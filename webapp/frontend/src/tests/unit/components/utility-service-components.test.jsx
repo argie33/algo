@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock Heroicons
@@ -152,13 +152,19 @@ describe('🔧 Utility and Service Components', () => {
         );
 
         const startButton = screen.getByTestId('start-loading');
-        await userEvent.click(startButton);
+        
+        await act(async () => {
+          await userEvent.click(startButton);
+        });
 
         expect(screen.getByTestId('loading-status')).toHaveTextContent('true');
         expect(screen.getByTestId('loading-states-count')).toHaveTextContent('1');
 
         const stopButton = screen.getByTestId('stop-loading');
-        await userEvent.click(stopButton);
+        
+        await act(async () => {
+          await userEvent.click(stopButton);
+        });
 
         expect(screen.getByTestId('loading-status')).toHaveTextContent('false');
       });
@@ -171,13 +177,19 @@ describe('🔧 Utility and Service Components', () => {
         );
 
         const errorButton = screen.getByTestId('set-error');
-        await userEvent.click(errorButton);
+        
+        await act(async () => {
+          await userEvent.click(errorButton);
+        });
 
         expect(screen.getByTestId('error-message')).toHaveTextContent('Test error');
         expect(screen.getByTestId('errors-count')).toHaveTextContent('1');
 
         const clearButton = screen.getByTestId('clear-error');
-        await userEvent.click(clearButton);
+        
+        await act(async () => {
+          await userEvent.click(clearButton);
+        });
 
         expect(screen.getByTestId('error-message')).toHaveTextContent('no-error');
         expect(screen.getByTestId('errors-count')).toHaveTextContent('0');
@@ -192,12 +204,18 @@ describe('🔧 Utility and Service Components', () => {
 
         // Set error first
         const errorButton = screen.getByTestId('set-error');
-        await userEvent.click(errorButton);
+        
+        await act(async () => {
+          await userEvent.click(errorButton);
+        });
         expect(screen.getByTestId('error-message')).toHaveTextContent('Test error');
 
         // Start loading should clear error
         const startButton = screen.getByTestId('start-loading');
-        await userEvent.click(startButton);
+        
+        await act(async () => {
+          await userEvent.click(startButton);
+        });
         expect(screen.getByTestId('error-message')).toHaveTextContent('no-error');
       });
 

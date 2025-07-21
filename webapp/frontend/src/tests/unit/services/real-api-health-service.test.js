@@ -43,16 +43,9 @@ describe('🏥 Real API Health Service', () => {
     };
     apiHealthService.subscribers.clear();
     
-    // Mock successful fetch by default
-    global.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: {
-        get: vi.fn(() => 'application/json')
-      },
-      json: vi.fn().mockResolvedValue({ status: 'healthy' })
-    });
-
+    // Clear fetch mock - don't set a default here to allow test-specific mocks to work
+    global.fetch.mockClear();
+    
     // Mock console to avoid noise
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -90,6 +83,14 @@ describe('🏥 Real API Health Service', () => {
 
   describe('Monitoring Lifecycle', () => {
     it('should start monitoring and perform initial health check', async () => {
+      // Mock successful responses for this test
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: vi.fn(() => 'application/json') },
+        json: vi.fn().mockResolvedValue({ status: 'healthy' })
+      });
+      
       apiHealthService.startMonitoring();
       
       expect(apiHealthService.monitoringActive).toBe(true);
@@ -121,20 +122,30 @@ describe('🏥 Real API Health Service', () => {
     });
 
     it('should perform periodic health checks', async () => {
+      // Mock successful responses for this test
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: vi.fn(() => 'application/json') },
+        json: vi.fn().mockResolvedValue({ status: 'healthy' })
+      });
+      
       apiHealthService.startMonitoring();
       
-      // Clear the initial call count
+      // Clear the initial call count (initial health check calls 5 endpoints)
       global.fetch.mockClear();
       
       // Fast forward to trigger health check intervals
       await vi.advanceTimersByTimeAsync(30000); // 1 interval
       
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      // Each health check interval calls 5 endpoints
+      expect(global.fetch).toHaveBeenCalledTimes(5);
       
       // Advance another interval
       await vi.advanceTimersByTimeAsync(30000); // 2nd interval
       
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      // Should have called 5 endpoints twice = 10 total
+      expect(global.fetch).toHaveBeenCalledTimes(10);
     });
   });
 
@@ -187,8 +198,14 @@ describe('🏥 Real API Health Service', () => {
       });
       const normalCallback = vi.fn();
       
-      apiHealthService.subscribe(errorCallback);
-      apiHealthService.subscribe(normalCallback);
+      // Subscribe operations should not throw even if callback errors
+      expect(() => {
+        apiHealthService.subscribe(errorCallback);
+        apiHealthService.subscribe(normalCallback);
+      }).not.toThrow();
+      
+      // Clear previous calls and test notifySubscribers separately
+      vi.clearAllMocks();
       
       expect(() => {
         apiHealthService.notifySubscribers();
@@ -200,6 +217,14 @@ describe('🏥 Real API Health Service', () => {
 
   describe('Health Check Execution', () => {
     it('should check all defined endpoints', async () => {
+      // Mock successful responses
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: vi.fn(() => 'application/json') },
+        json: vi.fn().mockResolvedValue({ status: 'healthy' })
+      });
+      
       await apiHealthService.performHealthCheck();
       
       const expectedEndpoints = [
@@ -228,6 +253,14 @@ describe('🏥 Real API Health Service', () => {
     });
 
     it('should update health status after successful checks', async () => {
+      // Mock successful responses
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: vi.fn(() => 'application/json') },
+        json: vi.fn().mockResolvedValue({ status: 'healthy' })
+      });
+      
       await apiHealthService.performHealthCheck();
       
       const status = apiHealthService.getHealthStatus();
@@ -244,6 +277,8 @@ describe('🏥 Real API Health Service', () => {
     });
 
     it('should handle endpoint failures correctly', async () => {
+      // Reset and ensure all fetch calls fail
+      global.fetch.mockClear();
       global.fetch.mockRejectedValue(new Error('Network error'));
       
       await apiHealthService.performHealthCheck();
@@ -568,6 +603,8 @@ describe('🏥 Real API Health Service', () => {
 
   describe('Error Handling and Edge Cases', () => {
     it('should handle fetch network errors', async () => {
+      // Reset and ensure all fetch calls fail
+      global.fetch.mockClear();
       global.fetch.mockRejectedValue(new Error('Network unreachable'));
       
       await apiHealthService.performHealthCheck();
@@ -585,6 +622,7 @@ describe('🏥 Real API Health Service', () => {
     });
 
     it('should handle very slow endpoint responses', async () => {
+      global.fetch.mockClear();
       global.fetch.mockImplementation(() => 
         new Promise(resolve => 
           setTimeout(() => resolve({ ok: true, status: 200, headers: { get: () => null } }), 10000)
@@ -596,7 +634,7 @@ describe('🏥 Real API Health Service', () => {
       // Should timeout and mark endpoints as unhealthy
       const status = apiHealthService.getHealthStatus();
       expect(status.overall).toBe('down');
-    });
+    }, 35000); // Increase timeout for this slow test
 
     it('should handle concurrent health checks safely', async () => {
       const promises = Array.from({ length: 5 }, () => 
@@ -611,6 +649,8 @@ describe('🏥 Real API Health Service', () => {
     });
 
     it('should handle HTTP error status codes', async () => {
+      // Reset and ensure all fetch calls fail with 503
+      global.fetch.mockClear();
       global.fetch.mockResolvedValue({
         ok: false,
         status: 503,
@@ -661,27 +701,37 @@ describe('🏥 Real API Health Service', () => {
   describe('Real-World Scenarios', () => {
     it('should handle gradual system degradation', async () => {
       // Start healthy
+      global.fetch.mockClear();
+      global.fetch.mockResolvedValue({
+        ok: true, 
+        status: 200, 
+        headers: { get: () => 'application/json' },
+        json: vi.fn().mockResolvedValue({ status: 'healthy' })
+      });
+      
       await apiHealthService.performHealthCheck();
       expect(apiHealthService.getHealthStatus().overall).toBe('healthy');
       
-      // Simulate one endpoint failing
+      // Simulate one non-critical endpoint failing (should still be healthy)
+      global.fetch.mockClear();
       global.fetch
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockRejectedValueOnce(new Error('Fail'))
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } });
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // health - critical - pass
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // api-health - critical - pass
+        .mockRejectedValueOnce(new Error('Non-critical fail')) // emergency-health - non-critical - fail
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // settings - non-critical - pass
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }); // stocks - non-critical - pass
       
       await apiHealthService.performHealthCheck();
       expect(apiHealthService.getHealthStatus().overall).toBe('healthy'); // Still healthy
       
-      // Simulate critical endpoint failing
+      // Simulate one critical endpoint failing (should be degraded)
+      global.fetch.mockClear();
       global.fetch
-        .mockRejectedValueOnce(new Error('Critical fail'))
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } })
-        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } });
+        .mockRejectedValueOnce(new Error('Critical fail')) // health - critical - fail
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // api-health - critical - pass
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // emergency-health - non-critical - pass
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }) // settings - non-critical - pass
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null } }); // stocks - non-critical - pass
       
       await apiHealthService.performHealthCheck();
       expect(apiHealthService.getHealthStatus().overall).toBe('degraded');
