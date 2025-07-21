@@ -144,8 +144,18 @@ The testing infrastructure implements enterprise-grade automated testing with mu
 ### 7.2 CI/CD Validation Infrastructure
 The continuous integration and deployment pipeline includes sophisticated validation mechanisms with comprehensive deployment issue detection achieving 87% test pass rate. The validation framework tests configuration file compatibility including PostCSS ES module compatibility, package.json ES module configuration, and Vite configuration validation. Build process validation ensures production builds complete without PostCSS errors, validates Chart.js migration to recharts, and confirms MUI icon configuration integrity.
 
-### 7.3 Financial Services Specialized Testing
-The testing framework includes specialized validation for financial calculations including Value at Risk computation accuracy, Sharpe ratio calculation verification, correlation matrix generation testing, and portfolio optimization algorithm validation. Performance testing validates API response times under load, database query performance under concurrent access, real-time data streaming latency, and system behavior under various failure scenarios.
+### 7.3 Real AWS Infrastructure Integration Testing
+The testing framework implements REAL integration testing against actual deployed AWS services. Integration tests make actual HTTP requests to deployed API Gateway endpoints, connect to real RDS PostgreSQL databases via Secrets Manager authentication, invoke real Lambda functions, and validate real CloudFormation stack resources. This approach ensures tests discover real infrastructure issues, permission problems, and deployment failures that mock tests cannot detect.
+
+**REAL Integration Test Architecture**:
+- **Real HTTP Requests**: Tests use axios to call actual API Gateway endpoints
+- **Real Database Connections**: Tests connect to deployed RDS PostgreSQL instances  
+- **Real AWS Service Authentication**: Tests use AWS SDK with real credentials
+- **Real Lambda Invocation**: Tests directly invoke deployed Lambda functions
+- **Real Infrastructure Validation**: Tests validate CloudFormation stack resources exist
+- **Real Error Discovery**: Tests fail with actual AWS permission and connection errors
+
+**NO Mock Integration Testing**: The system explicitly prohibits mock databases, fake HTTP responses, or simulated AWS services in integration tests. All integration tests must use real infrastructure to validate actual deployment and connectivity issues.
 
 ### 7.4 Security Testing Integration
 Security testing includes comprehensive vulnerability scanning, API security validation, authentication and authorization testing, data encryption verification, and compliance testing for financial regulations. The security framework validates API key encryption and storage, tests circuit breaker functionality under failure conditions, and ensures proper error handling without information disclosure.
@@ -161,8 +171,23 @@ The deployment architecture utilizes comprehensive AWS serverless infrastructure
 ### 8.2 Infrastructure as Code Implementation
 All infrastructure deployment utilizes CloudFormation templates providing complete Infrastructure as Code capabilities. Templates define networking configurations including VPC setup and security groups, database configurations with connection pooling and backup policies, Lambda function deployments with environment variable management, API Gateway configurations with routing and authentication rules, and CloudFront distributions with caching and security policies.
 
-### 8.3 Environment Management Strategy
-The system implements comprehensive environment management including development environments for feature development and testing, staging environments for integration testing and validation, and production environments with full monitoring and alerting. Environment promotion follows automated pipelines with comprehensive validation at each stage including automated testing, security scanning, and performance validation.
+### 8.3 GitHub Actions Deployment Strategy
+The system implements fully automated deployment via GitHub Actions workflows with no manual AWS console configuration required. All environments are provisioned through Infrastructure as Code using CloudFormation templates. The deployment pipeline includes:
+
+**Automated Infrastructure Provisioning**:
+- CloudFormation templates define all AWS resources (Lambda, API Gateway, RDS, CloudFront)
+- GitHub Actions automatically deploys infrastructure changes on code push
+- Environment-specific stack names (e.g., `stocks-webapp-dev` for initialbuild branch)
+- Automatic configuration of environment variables and AWS secrets
+
+**Real Integration Testing Pipeline**:
+- Tests execute against actual deployed AWS infrastructure
+- Real database connections to RDS PostgreSQL via Secrets Manager
+- Real HTTP requests to deployed API Gateway endpoints
+- Real Lambda function invocation and validation
+- Automatic test environment provisioning and cleanup
+
+**Zero Manual Configuration**: Developers never need to manually configure AWS resources through the console - everything is automated through GitHub Actions and CloudFormation.
 
 ### 8.4 Monitoring and Alerting Architecture
 Production monitoring implements comprehensive observability including CloudWatch metrics for system performance tracking, custom metrics for business logic monitoring, log aggregation and analysis for troubleshooting, real-time alerting for critical system events, and dashboard visualization for operational awareness. Monitoring covers application performance, database health, external API availability, user experience metrics, and financial calculation accuracy.
