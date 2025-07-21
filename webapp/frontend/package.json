@@ -65,7 +65,7 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
-    "test:unit": "vitest run --reporter=verbose",
+    "test:unit": "vitest run --reporter=verbose --coverage",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "playwright test",
     "test:integration:comprehensive": "playwright test src/tests/integration/ --config=playwright.config.js",

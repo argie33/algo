@@ -28,7 +28,13 @@ router.post('/validate', (req, res) => {
   const { token } = req.body;
   
   if (!token) {
-    return res.status(400).json(error('Token is required'));
+    const errorResponse = error('Token is required', 400);
+    return res.status(errorResponse.statusCode).json(errorResponse.response);
+  }
+
+  if (token === '') {
+    const errorResponse = error('Token is required', 400);
+    return res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 
   // This would validate the JWT token

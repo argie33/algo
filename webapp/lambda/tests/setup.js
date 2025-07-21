@@ -41,8 +41,16 @@ beforeAll(async () => {
 
 // Global test cleanup
 afterAll(async () => {
-  // Close any remaining database connections
   console.log('🧹 Jest Test Environment Cleanup');
+  
+  try {
+    // Close any remaining database connections
+    const { closeDatabase } = require('../utils/database');
+    await closeDatabase();
+    console.log('✅ Test database connections closed');
+  } catch (error) {
+    console.warn('⚠️ Error closing test database connections:', error.message);
+  }
   
   // Give time for async operations to complete
   await new Promise(resolve => setTimeout(resolve, 1000));

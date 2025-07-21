@@ -3,7 +3,7 @@
  * Configures test environment for integration tests with real database connections
  */
 
-const { DatabaseTestUtils } = require('../utils/database-test-utils');
+const { DatabaseTestUtils, dbTestUtils } = require('../utils/database-test-utils');
 
 // Configure test environment for authentication
 if (!process.env.NODE_ENV) {
@@ -37,11 +37,12 @@ let dbUtils;
  */
 async function setupTestDatabase() {
   try {
-    // Always try to connect to real database
-    dbUtils = new DatabaseTestUtils();
-    await dbUtils.initialize(); // No config parameter needed - uses environment variables
-    console.log('✅ Real test database connection established');
-    return dbUtils;
+    // Initialize the global singleton instance first
+    await dbTestUtils.initialize();
+    console.log('✅ Global database test utilities initialized');
+    
+    // Return the global instance for consistency
+    return dbTestUtils;
   } catch (error) {
     console.error('❌ Real database connection failed:', error.message);
     console.error('❌ Tests require real database connection - no fallbacks');
@@ -53,8 +54,8 @@ async function setupTestDatabase() {
  * Cleanup test database
  */
 async function cleanupTestDatabase() {
-  if (dbUtils && dbUtils.cleanup) {
-    await dbUtils.cleanup();
+  if (dbTestUtils && dbTestUtils.cleanup) {
+    await dbTestUtils.cleanup();
   }
 }
 
@@ -62,7 +63,7 @@ async function cleanupTestDatabase() {
  * Get database utilities for tests
  */
 function getTestDatabase() {
-  return dbUtils;
+  return dbTestUtils;
 }
 
 module.exports = {

@@ -63,7 +63,9 @@ describe('📋 Additional Routes Integration Tests', () => {
       
       if (response.status === 200) {
         expect(response.body).toBeDefined();
-        expect(Array.isArray(response.body)).toBe(true);
+        expect(response.body).toHaveProperty('success', true);
+        expect(response.body).toHaveProperty('data');
+        expect(Array.isArray(response.body.data)).toBe(true);
       }
 
       console.log(`✅ Alert types: ${response.status}`);

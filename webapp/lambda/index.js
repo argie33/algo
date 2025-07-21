@@ -1024,6 +1024,39 @@ app.get('/api/error-stats', asyncErrorHandler(async (req, res) => {
 
 console.log('✅ Financial Dashboard API Lambda ready with comprehensive error handling');
 
+// Graceful shutdown handlers to prevent memory leaks
+const { closeDatabase } = require('./utils/database');
+
+async function gracefulShutdown(signal) {
+  console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
+  
+  try {
+    // Close database connections
+    await closeDatabase();
+    console.log('✅ Database connections closed');
+    
+    // Additional cleanup can be added here
+    console.log('✅ Graceful shutdown completed');
+    
+    // Only exit in non-Lambda environments
+    if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      process.exit(0);
+    }
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error);
+    if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      process.exit(1);
+    }
+  }
+}
+
+// Register shutdown handlers (only in non-Lambda environments to avoid interference)
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('beforeExit', () => gracefulShutdown('beforeExit'));
+}
+
 // Export the handler for AWS Lambda
 module.exports.handler = serverless(app);
 

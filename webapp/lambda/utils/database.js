@@ -1092,14 +1092,24 @@ async function safeQuery(text, params = [], requiredTables = []) {
 
 
 /**
- * Close database connections
+ * Close database connections and clean up resources
  */
 async function closeDatabase() {
     if (pool) {
+        console.log('🔄 Closing database connections...');
+        
+        // Remove all event listeners to prevent memory leaks
+        pool.removeAllListeners();
+        
+        // Close the pool
         await pool.end();
+        
+        // Reset state
         pool = null;
         dbInitialized = false;
         dbConfig = null;
+        
+        console.log('✅ Database connections closed and resources cleaned up');
     }
 }
 

@@ -1,104 +1,650 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="Integration Tests" tests="17" failures="10" errors="0" time="2.053">
-  <testsuite name="🔐 Authentication Routes Integration Tests" errors="0" failures="10" skipped="0" timestamp="2025-07-21T05:32:42" time="2.027" tests="17">
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🏥 Auth Health and Status" name="GET /api/auth/health - Auth service health" time="0.153">
+<testsuites name="jest tests" tests="256" failures="19" errors="0" time="26.024">
+  <testsuite name="📋 Additional Routes Integration Tests" errors="0" failures="19" skipped="0" timestamp="2025-07-21T05:42:01" time="3.316" tests="24">
+    <testcase classname="📋 Additional Routes Integration Tests › 🔔 Alerts Routes" name="GET /api/alerts - Get alerts service info" time="0.118">
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🏥 Auth Health and Status" name="GET /api/auth/status - Auth service status" time="0.022">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔑 Token Validation" name="POST /api/auth/validate - Token validation with valid structure" time="0.025">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔑 Token Validation" name="POST /api/auth/validate - Token validation without token" time="0.021">
-      <failure>Error: expect(received).toHaveProperty(path, value)
+    <testcase classname="📋 Additional Routes Integration Tests › 🔔 Alerts Routes" name="GET /api/alerts/types - Get alert types" time="0.024">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
 
-Expected path: &quot;success&quot;
-Received path: []
-
-Expected value: false
-Received value: {&quot;response&quot;: {&quot;error&quot;: &quot;Token is required&quot;, &quot;success&quot;: false, &quot;timestamp&quot;: &quot;2025-07-21T05:32:43.654Z&quot;}, &quot;statusCode&quot;: 500}
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:68:29)
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:66:46)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔑 Token Validation" name="POST /api/auth/validate - Token validation with empty token" time="0.018">
-      <failure>Error: expect(received).toHaveProperty(path, value)
+    <testcase classname="📋 Additional Routes Integration Tests › 🔔 Alerts Routes" name="GET /api/alerts/notifications - Get user notifications" time="0.038">
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 🔔 Alerts Routes" name="POST /api/alerts - Create new alert" time="0.04">
+      <failure>Error: expect(received).toContain(expected) // indexOf
 
-Expected path: &quot;success&quot;
-Received path: []
-
-Expected value: false
-Received value: {&quot;response&quot;: {&quot;error&quot;: &quot;Token is required&quot;, &quot;success&quot;: false, &quot;timestamp&quot;: &quot;2025-07-21T05:32:43.676Z&quot;}, &quot;statusCode&quot;: 500}
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:85:29)
+Expected value: 404
+Received array: [200, 201, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:97:41)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔑 Token Validation" name="POST /api/auth/validate - Token validation with invalid JSON" time="0.02">
+    <testcase classname="📋 Additional Routes Integration Tests › 🔔 Alerts Routes" name="Authentication required for protected alert endpoints" time="0.065">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:123:30)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📰 News Routes" name="GET /api/news/health - News service health" time="0.014">
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📰 News Routes" name="GET /api/news - News service root" time="0.011">
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📰 News Routes" name="GET /api/news/articles - Get news articles" time="0.026">
       <failure>Error: expect(received).toContain(expected) // indexOf
 
 Expected value: 500
-Received array: [400]
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:98:21)
+Received array: [200, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:161:31)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 📝 Request/Response Format" name="Auth endpoints return proper JSON format" time="0.496">
-      <failure>Error: expect(received).toBe(expected) // Object.is equality
+    <testcase classname="📋 Additional Routes Integration Tests › 📰 News Routes" name="GET /api/news/articles with query parameters" time="0.024">
+      <failure>Error: expect(received).toContain(expected) // indexOf
 
-Expected: true
-Received: false
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:132:37)
+Expected value: 500
+Received array: [200, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:184:36)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 📝 Request/Response Format" name="Auth endpoints include timestamps" time="0.021">
-      <failure>Error: expect(received).toHaveProperty(path)
-
-Matcher error: received value must not be null nor undefined
-
-Received has value: undefined
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:142:34)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🛡️ Security Headers" name="Auth endpoints include security headers" time="0.021">
-      <failure>Error: expect(received).toBeDefined()
-
-Received: undefined
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:158:58)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🛡️ Security Headers" name="Auth endpoints remove sensitive headers" time="0.017">
-      <failure>Error: expect(received).toBeUndefined()
-
-Received: &quot;Express&quot;
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:170:48)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🌐 CORS Support" name="Auth endpoints support CORS" time="0.017">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🌐 CORS Support" name="OPTIONS requests handled for auth endpoints" time="0.007">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › ⚡ Performance Testing" name="Auth endpoints respond quickly" time="0.033">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › ⚡ Performance Testing" name="Token validation performance" time="0.067">
-    </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔄 Error Handling" name="Invalid HTTP methods handled" time="0.018">
+    <testcase classname="📋 Additional Routes Integration Tests › 📰 News Routes" name="GET /api/news/sentiment - News sentiment analysis" time="0.019">
       <failure>Error: expect(received).toContain(expected) // indexOf
 
 Expected value: 429
-Received array: [404, 405]
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:276:26)
+Received array: [200, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:195:36)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔄 Error Handling" name="Malformed requests handled gracefully" time="0.03">
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="GET /api/technical - Technical analysis data" time="0.015">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:213:36)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="GET /api/technical with different timeframes" time="0.044">
       <failure>Error: expect(received).toBe(expected) // Object.is equality
 
 Expected: true
 Received: false
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:314:26)
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:241:24)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Integration.🔐 Authentication Routes Integration Tests › 🔄 Integration Summary" name="Authentication integration test summary" time="0.072">
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="GET /api/technical with pagination" time="0.017">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:258:36)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="GET /api/technical with date range" time="0.015">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:275:36)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="GET /api/technical input validation" time="0.013">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:294:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 📊 Technical Analysis Routes" name="Technical routes require authentication" time="0.015">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [401, 403, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:305:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="GET /api/watchlist - Get user watchlists" time="0.016">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:318:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="POST /api/watchlist - Create new watchlist" time="0.017">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 201, 400, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:339:41)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="GET /api/watchlist/:id/items - Get watchlist items" time="0.014">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 404, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:351:36)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="POST /api/watchlist/:id/items - Add item to watchlist" time="0.016">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 201, 400, 404, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:368:46)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="DELETE /api/watchlist/:id - Delete watchlist" time="0.015">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 404, 401, 503]
+    at Object.toContain (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:379:36)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 👁️ Watchlist Routes" name="Watchlist routes require authentication" time="0.041">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:409:30)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › ⚡ Performance Testing" name="Additional routes respond within reasonable time" time="0.072">
+    </testcase>
+    <testcase classname="📋 Additional Routes Integration Tests › 🔄 Integration Summary" name="Additional routes integration test summary" time="0.067">
       <failure>Error: expect(received).toBe(expected) // Object.is equality
 
 Expected: 5
 Received: 0
-    at Object.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/tests/integration/auth-routes-integration.test.js:379:31)
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:532:31)
     at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="" name="Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>{&quot;message&quot;:&quot;&quot;,&quot;stack&quot;:&quot;TypeError: testDb.cleanupTestUser is not a function\n    at Object.cleanupTestUser (/home/stocks/algo/webapp/lambda/tests/integration/additional-routes-integration.test.js:33:18)\n    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)\n    at new Promise (&lt;anonymous&gt;)\n    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)\n    at _callCircusHook (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:281:40)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:154:7)\n    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)\n    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)\n    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)\n    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)\n    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)\n    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)&quot;}</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Timeout Helper Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:05" time="13.423" tests="41">
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="has correct default timeout values" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="initializes with empty circuit breakers map" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="executes operation successfully within timeout" time="0.005">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="throws timeout error when operation exceeds timeout" time="0.06">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="propagates operation errors correctly" time="0.007">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="uses default timeout when not specified" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="retries failed operations according to retry count" time="0.033">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="succeeds on retry after initial failure" time="0.012">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="applies exponential backoff for retry delays" time="0.153">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="does not retry without explicit retry count" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records success and resets circuit breaker" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records failure and updates circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="opens circuit after threshold failures" time="0.006">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="rejects operations when circuit is open" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="transitions to half-open after timeout period" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="makes successful HTTP request with default options" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles POST requests with JSON body" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="throws error for non-OK HTTP responses" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles request timeout with AbortController" time="3.155">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="executes database query with circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="applies database-specific timeout" time="1.103">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="retries failed database queries" time="1.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="executes Alpaca API call with service-specific settings" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="uses Alpaca-specific timeout and retry settings" time="6.577">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › News API Integration" name="executes news API call without circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="processes items in batches with concurrency limit" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="handles errors in batch processing" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="stops on first error when continueOnError is false" time="0.004">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.all with timeout and fail-fast" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.allSettled for partial success" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="times out batch operations" time="0.101">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides comprehensive circuit breaker status" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides detailed metrics with performance data" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="calculates recent activity correctly" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides risk level assessment" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides recovery predictions" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Delay Utility" name="provides accurate delay functionality" time="0.051">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return null or undefined" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent access to circuit breakers safely" time="0.004">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="maintains circuit breaker history size limit" time="0.01">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles malformed options gracefully" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Universal Error Handler Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:18" time="2.188" tests="48">
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes circuit breaker errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes database errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes timeout errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authentication errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authorization errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes validation errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes external service errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes rate limit errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes business logic errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes server errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="returns UNKNOWN_ERROR for unrecognized errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns CRITICAL severity to database and server errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns HIGH severity to external service and circuit breaker errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns MEDIUM severity to auth and timeout errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns LOW severity to validation and rate limit errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="returns UNKNOWN for unrecognized error types" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies recoverable errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies non-recoverable errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="generates appropriate user messages for each category" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="uses custom message for business logic errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="falls back to default message for unknown categories" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="enriches error with comprehensive context" time="0.022">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="handles missing user context gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="calculates performance metrics correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="formats error response with correct structure" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes development details when NODE_ENV is development" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="excludes development details in production" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes retry information for recoverable errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="maps status codes correctly by category" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="catches async errors and passes them to next" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles non-promise functions gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles functions that return non-promise values" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="processes error and sends formatted response" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="handles errors without correlation ID gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="executes fallback function when provided" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when fallback fails" time="0.004">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when no fallback provided" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws retry error for retryable errors within retry limit" time="1.011">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error when retry limit exceeded" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error for non-retryable errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="applies exponential backoff with maximum delay" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="logs errors with appropriate severity levels" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="triggers critical error alert for critical errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="uses fallback logger when request logger not available" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with undefined message" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with null properties" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles request objects with missing properties gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles circular reference in error objects" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Authentication Middleware Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:20" time="1.175" tests="33">
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="allows access without token in development mode" time="0.007">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="validates development JWT tokens correctly" time="0.004">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="generates valid development tokens" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="falls back to development mode when Cognito is unavailable" time="0.004">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="requires authentication token in production mode" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="rejects invalid tokens in production mode" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="handles malformed authorization headers" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles expired JWT tokens" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="validates JWT token structure and claims" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles malformed JWT tokens gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user has required role" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user is in required group" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user lacks required role" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user is not authenticated" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="handles multiple role requirements" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues without authentication when no token provided" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="authenticates when valid token is provided" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues silently when authentication fails" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="enriches user object with request context" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="generates request ID when not provided" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="handles missing client IP gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="loads configuration from environment variables" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="handles missing Cognito configuration gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="uses default region when not specified" time="0">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="returns comprehensive authentication status" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="handles status check errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles network errors during token verification" time="0.006">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles concurrent authentication requests safely" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="preserves original user data when authentication fails in development" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles missing authorization header gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates tokens with correct expiration" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates unique tokens for different users" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="uses custom JWT secret when provided" time="0.018">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests (Industry Standard)" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:22" time="1.143" tests="12">
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from simple SELECT queries" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from INSERT queries" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from CTE queries" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="returns &quot;unknown&quot; for malformed queries" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Query Validation" name="validates safe queries with required tables" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Query Validation" name="rejects queries when required tables are missing" time="0.007">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Connection Pool Configuration" name="calculates optimal pool size for Lambda environment" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Connection Pool Configuration" name="uses default configuration for non-Lambda environment" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Transaction Management" name="executes transaction with proper commit" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Transaction Management" name="rolls back transaction on error" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Health Checks" name="reports healthy status when database is responsive" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Health Checks" name="reports unhealthy status on database error" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Circuit Breaker Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:23" time="1.204" tests="29">
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="initializes with correct default state" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="sets production-ready configuration values" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="executes operations successfully when circuit is closed" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="records failure but stays closed below threshold" time="0.01">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="decrements failure count on successful operations" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="opens circuit when failure threshold is reached" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="rejects operations immediately when circuit is open" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="includes remaining time in error message" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="transitions to half-open after recovery timeout" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="allows limited operations in half-open state" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="closes circuit after sufficient successes" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="reopens circuit on failure in half-open state" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="tracks success count correctly in half-open state" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="tracks comprehensive metrics" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="maintains request history with limited size" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records operation duration in history" time="0.051">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records error details in failure history" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports healthy when failures are below 50% of threshold" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when failures are above 50% of threshold" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when circuit is not closed" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="calculates time to recovery correctly" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="resets circuit breaker to clean state" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="allows operations after force reset" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles concurrent operations safely" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles mixed concurrent success and failure operations" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that throw non-Error objects" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return undefined" time="0">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="maintains state consistency during rapid state transitions" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles timestamp edge cases" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:24" time="1.24" tests="39">
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="loads configuration from complete environment variables" time="0.021">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="calculates optimal pool configuration for Lambda environment" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="handles missing database configuration gracefully" time="0.035">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="validates SSL configuration settings" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="initializes connection pool with proper configuration" time="0.009">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="tests database connection during initialization" time="0.006">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles connection pool initialization errors" time="0.006">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="provides pool status and metrics" time="0.006">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles pool warming for Lambda optimization" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="executes queries through database manager with circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles query errors and provides detailed logging" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="extracts table names from SQL queries correctly" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles safe queries with table existence validation" time="0.004">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="rejects safe queries when required tables are missing" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="executes successful transactions with proper commit" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="rolls back transactions on errors" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="ensures client release even on transaction errors" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="validates database schema comprehensively" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks individual table existence" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks multiple table existence efficiently" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="provides detailed schema requirements structure" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="handles schema validation errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="performs comprehensive health checks" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="handles circuit breaker open state in health checks" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="reports unhealthy state for database connection failures" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="initializes database optimally for Lambda environment" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="handles Lambda initialization failures gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="calculates appropriate pool sizes for Lambda concurrency" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="closes database connections properly" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="handles connection cleanup errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="provides pool instance access with validation" time="0.007">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="tracks pool utilization metrics" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="provides adaptive pool sizing recommendations" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Performance Monitoring and Metrics" name="monitors pool events and connections" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles malformed SQL queries gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent initialization requests" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="validates environment variable data types" time="0.001">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles missing optional configuration gracefully" time="0">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="preserves state consistency during error recovery" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="AdvancedPerformanceAnalytics" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:25" time="1.107" tests="11">
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="calculates basic performance metrics correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="handles empty portfolio history" time="0">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateRiskMetrics" name="calculates risk metrics correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateMaxDrawdown" name="calculates maximum drawdown correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateAttributionAnalysis" name="calculates attribution analysis correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateSectorAnalysis" name="calculates sector analysis correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDiversificationScore" name="calculates diversification score correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › generatePerformanceReport" name="generates comprehensive performance report" time="0.016">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › getPerformanceGrade" name="assigns correct performance grades" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › assessRiskProfile" name="assesses risk profile correctly" time="0.001">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDaysInPeriod" name="calculates days in period correctly" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="Circuit Breaker Utilities Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-21T05:42:26" time="1.17" tests="19">
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should initialize with production-ready thresholds" time="0.007">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should track failure counts correctly" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should transition states correctly (closed -&gt; open -&gt; half-open -&gt; closed)" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should record event history correctly" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate metrics correctly" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should handle recent activity tracking" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate risk levels accurately" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should initialize with correct production configuration" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should execute operations and track results" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should handle operation failures correctly" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should open circuit after threshold failures" time="0.009">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should provide detailed status information" time="0.002">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should force reset correctly" time="0.018">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset all circuit breakers" time="0.008">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset specific circuit breaker" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should get comprehensive circuit breaker status" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should handle non-existent circuit breaker reset gracefully" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should limit history size to prevent memory leaks" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should handle rapid state changes efficiently" time="0.003">
     </testcase>
   </testsuite>
 </testsuites>

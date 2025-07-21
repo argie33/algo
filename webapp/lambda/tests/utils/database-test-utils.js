@@ -328,6 +328,13 @@ class DatabaseTestUtils {
   }
 
   /**
+   * Generate a unique test user ID
+   */
+  createTestUserId() {
+    return `test-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
    * Create test API keys for a user
    */
   async createTestApiKeys(userId, apiKeys = {}) {
@@ -535,6 +542,13 @@ async function createTestUser(userPrefix = 'test-user') {
 }
 
 /**
+ * Helper function: Create test user ID
+ */
+function createTestUserId() {
+  return dbTestUtils.createTestUserId();
+}
+
+/**
  * Helper function: Create test API keys
  */
 async function createTestApiKeys(userId, apiKeys = {}) {
@@ -594,6 +608,7 @@ module.exports = {
   dbTestUtils,
   DatabaseTestUtils,
   createTestUser,
+  createTestUserId,
   createTestApiKeys,
   cleanupTestUser,
   withDatabaseTransaction
