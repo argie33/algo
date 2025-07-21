@@ -77,7 +77,10 @@ def load_prices(table_name, symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    # Get batch configuration from environment variables with defaults
+    CHUNK_SIZE = int(os.environ.get('BATCH_SIZE', '30'))
+    PAUSE = float(os.environ.get('BATCH_PAUSE', '0.05'))
+    logging.info(f"[OPTIMIZED] Batch size: {CHUNK_SIZE}, Pause: {PAUSE}s")
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):

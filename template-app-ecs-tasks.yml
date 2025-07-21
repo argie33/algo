@@ -569,8 +569,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: pricedaily-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -596,6 +596,10 @@ Resources:
               Value: !ImportValue StocksApp-DBUsername
             - Name: DB_SSL
               Value: 'false'
+            - Name: BATCH_SIZE
+              Value: '30'
+            - Name: BATCH_PAUSE
+              Value: '0.05'
           LogConfiguration:
             LogDriver: awslogs
             Options:
