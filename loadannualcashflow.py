@@ -80,10 +80,11 @@ def get_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
     try:
         ticker = yf.Ticker(symbol)
         
-        # Try multiple methods in order of preference
+        # Try multiple methods in order of preference  
         methods_to_try = [
-            ('cash_flow', 'annual cash flow (new method)'),
-            ('cashflow', 'annual cash flow (legacy method)')
+            ('cashflow', 'annual cash flow (primary method)'),
+            ('cash_flow', 'annual cash flow (alternative method)'),
+            ('quarterly_cashflow', 'quarterly cash flow (fallback)')
         ]
         
         cash_flow = None
@@ -94,11 +95,19 @@ def get_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
                     logging.info(f"Trying {method_name} for {symbol}")
                     cash_flow = getattr(ticker, method_name)
                     
+                    logging.info(f"DEBUG: {method_name} returned type: {type(cash_flow)}")
+                    if isinstance(cash_flow, pd.DataFrame):
+                        logging.info(f"DEBUG: DataFrame shape: {cash_flow.shape}")
+                        logging.info(f"DEBUG: DataFrame empty: {cash_flow.empty}")
+                        if not cash_flow.empty:
+                            logging.info(f"DEBUG: Columns: {list(cash_flow.columns)[:3]}")
+                            logging.info(f"DEBUG: Index: {list(cash_flow.index)[:5]}")
+                    
                     if cash_flow is not None and not cash_flow.empty:
                         logging.info(f"✓ Successfully got data using {method_name} for {symbol}")
                         break
                     else:
-                        logging.warning(f"{method_name} returned empty data for {symbol}")
+                        logging.warning(f"{method_name} returned empty/null data for {symbol}")
                 else:
                     logging.warning(f"Method {method_name} not available for {symbol}")
             except Exception as e:
