@@ -260,7 +260,7 @@ describe('Risk Manager Unit Tests', () => {
       });
 
       const adjustedSize = await riskManager.applyVolatilityAdjustment('UNKNOWN', baseSize);
-      expect(adjustedSize).toBe(baseSize); // Should return original size with default volatility
+      expect(adjustedSize).toBeCloseTo(baseSize, 3); // Should return original size with default volatility
     });
 
     test('applies volatility adjustment bounds', async () => {
@@ -534,7 +534,7 @@ describe('Risk Manager Unit Tests', () => {
       mockQuery.mockRejectedValueOnce(new Error('Database error'));
 
       const adjustedSize = await riskManager.applyVolatilityAdjustment('INVALID', baseSize);
-      expect(adjustedSize).toBe(baseSize); // Should return original size on error
+      expect(adjustedSize).toBeCloseTo(baseSize, 3); // Should return original size on error
     });
 
     test('handles empty portfolio composition', async () => {

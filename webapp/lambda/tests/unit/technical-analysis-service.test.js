@@ -3,6 +3,12 @@
  * Comprehensive testing of technical indicators: RSI, MACD, Bollinger Bands, SMA, EMA, etc.
  */
 
+// Mock market data service before requiring technical analysis service
+jest.mock('../../services/marketDataService', () => ({
+  getHistoricalData: jest.fn(),
+  getQuote: jest.fn()
+}));
+
 const TechnicalAnalysisService = require('../../services/technicalAnalysisService');
 
 describe('Technical Analysis Service Unit Tests', () => {
