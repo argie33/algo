@@ -1,410 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="Integration Tests" tests="15" failures="15" errors="0" time="1.392">
-  <testsuite name="REAL AWS Infrastructure Integration Tests" errors="0" failures="15" skipped="0" timestamp="2025-07-21T14:08:07" time="1.369" tests="15">
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real API Gateway Integration" name="API Gateway returns proper CORS headers" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+<testsuites name="jest tests" tests="11" failures="2" errors="0" time="1.433">
+  <testsuite name="Portfolio Service Pure Unit Tests" errors="0" failures="2" skipped="0" timestamp="2025-07-21T14:13:57" time="1.412" tests="11">
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize without AlpacaService API keys" time="0.005">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real API Gateway Integration" name="Health endpoint returns real status from deployed Lambda" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize AlpacaService on demand" time="0.002">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real API Gateway Integration" name="Authentication endpoints work with real AWS infrastructure" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should not initialize AlpacaService without API keys" time="0.002">
+      <failure>Error: expect(received).toBeNull()
+
+Received: {&quot;getAccount&quot;: [Function mockConstructor], &quot;getPositions&quot;: [Function mockConstructor]}
+    at Object.toBeNull (/home/stocks/algo/webapp/lambda/tests/unit/portfolio-service-unit.test.js:62:29)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Lambda Function Integration" name="Lambda function exists and is active" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should retrieve user portfolio with mocked database" time="0.003">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Lambda Function Integration" name="Lambda function responds to direct invocation" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should update portfolio holdings with mocked database" time="0.003">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Lambda Function Integration" name="Lambda function logs are accessible" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should save portfolio metadata with mocked database" time="0.002">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Database Integration" name="Database connection works" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should return health check status" time="0.002">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Database Integration" name="Required tables exist" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should sync portfolio from broker with valid API keys" time="0.003">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Database Integration" name="Database performance is acceptable" time="0.001">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should fail to sync portfolio without API keys" time="0.002">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: {&quot;positionsCount&quot;: 0, &quot;source&quot;: &quot;alpaca&quot;, &quot;success&quot;: true, &quot;syncedAt&quot;: &quot;2025-07-21T14:13:58.079Z&quot;, &quot;totalValue&quot;: 50000}
+    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/portfolio-service-unit.test.js:206:13)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real External API Integration" name="Can fetch real stock data from external APIs" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle database errors gracefully" time="0.01">
     </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Error Handling Integration" name="API handles invalid routes gracefully" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
-    </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Error Handling Integration" name="API handles malformed requests gracefully" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
-    </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Error Handling Integration" name="API returns proper error structure" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
-    </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Performance Integration" name="API response times are acceptable" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
-    </testcase>
-    <testcase classname="Integration.REAL AWS Infrastructure Integration Tests › Real Performance Integration" name="API can handle concurrent requests" time="0">
-      <failure>AccessDeniedException: User: arn:aws:iam::626216981288:user/reader is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-credentials-dev because no identity-based policy allows the secretsmanager:GetSecretValue action
-    at Request.extractError (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/protocol/json.js:80:27)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:106:20)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:78:10)
-    at Request.emit (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:686:14)
-    at Request.transition (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:22:10)
-    at AcceptorStateMachine.runTo (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:14:12)
-    at /home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/state_machine.js:26:10
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:38:9)
-    at Request.&lt;anonymous&gt; (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/request.js:688:12)
-    at Request.callListeners (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:116:18)
-    at callNextListener (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/sequential_executor.js:96:12)
-    at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/aws-sdk/lib/event_listeners.js:417:13)
-    at IncomingMessage.emit (node:events:529:35)
-    at IncomingMessage.emit (node:domain:489:12)
-    at endReadableNT (node:internal/streams/readable:1400:12)
-    at processTicksAndRejections (node:internal/process/task_queues:82:21)</failure>
+    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle transaction errors gracefully" time="0.005">
     </testcase>
   </testsuite>
 </testsuites>

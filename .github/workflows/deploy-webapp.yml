@@ -821,54 +821,46 @@ jobs:
           echo "=================================================="
         continue-on-error: true
 
-      - name: 🔧 Run backend integration tests with comprehensive logging
+      - name: Run integration tests
         run: |
-          echo "🖥️ BACKEND INTEGRATION TESTS STARTING"
+          echo "INTEGRATION TESTS STARTING"
           echo "=================================================="
-          echo "🕒 Start Time: $(date)"
-          echo "📍 Working Directory: $(pwd)/webapp/lambda"
-          echo "🔧 Node Version: $(node --version)"
-          echo "📦 NPM Version: $(npm --version)"
+          echo "Start Time: $(date)"
+          echo "Working Directory: $(pwd)/webapp/lambda"
+          echo "Node Version: $(node --version)"
+          echo "NPM Version: $(npm --version)"
           echo ""
           
           cd webapp/lambda
-          echo "📋 Package.json test scripts:"
+          echo "Package.json test scripts:"
           npm run | grep test: || echo "No test scripts found"
           echo ""
           
-          echo "📁 Test Directory Structure:"
-          find tests -name "*.test.js" | head -20 || echo "No test files found"
+          echo "Integration test files:"
+          find tests/integration -name "REAL-*.test.js" | head -20 || echo "No integration test files found"
           echo ""
           
-          echo "🗄️ Database Configuration Check:"
-          echo "TEST_DB_HOST: ${TEST_DB_HOST:-'not set'}"
-          echo "TEST_DB_USER: ${TEST_DB_USER:-'not set'}"
-          echo "TEST_DB_NAME: ${TEST_DB_NAME:-'not set'}"
+          echo "Configuration:"
+          echo "AWS_REGION: ${AWS_REGION:-'not set'}"
+          echo "DB_SECRET_ARN: ${DB_SECRET_ARN:-'not set'}"
           echo "TEST_API_URL: ${TEST_API_URL:-'not set'}"
           echo ""
           
-          echo "🚀 EXECUTING BACKEND INTEGRATION TESTS..."
-          echo "Command: npm run test:integration"
+          echo "Running integration tests..."
           echo "=========================================="
           
-          # Capture both stdout and stderr with timestamps
-          if npm run test:integration 2>&1 | while IFS= read -r line; do echo "[$(date '+%H:%M:%S')] $line"; done; then
-            BACKEND_EXIT_CODE=0
-            echo ""
-            echo "✅ BACKEND INTEGRATION TESTS COMPLETED SUCCESSFULLY"
-          else
-            BACKEND_EXIT_CODE=$?
-            echo ""
-            echo "❌ BACKEND INTEGRATION TESTS FAILED (Exit Code: $BACKEND_EXIT_CODE)"
-            echo "⚠️ Continuing deployment despite test failures for debugging purposes"
-          fi
+          # Set environment variables
+          export INTEGRATION_TEST=true
+          export REAL_AWS_TEST=true
+          export API_KEY_ENCRYPTION_SECRET_ARN="arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:api-key-encryption"
           
-          echo ""
-          echo "📊 Backend Test Summary:"
-          echo "Exit Code: $BACKEND_EXIT_CODE"
-          echo "End Time: $(date)"
-          echo "Duration: $SECONDS seconds"
-          echo "=================================================="
+          # Run tests
+          if npm run test:integration; then
+            echo "Integration tests passed"
+          else
+            echo "Integration tests failed"
+            echo "Continuing deployment for debugging"
+          fi
         continue-on-error: true
 
       - name: 📊 Generate comprehensive integration test report

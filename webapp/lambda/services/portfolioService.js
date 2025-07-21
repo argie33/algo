@@ -12,7 +12,16 @@ const crypto = require('crypto');
 
 class PortfolioService {
   constructor() {
-    this.alpacaService = new AlpacaService();
+    // Only initialize AlpacaService when not in test environment or when explicitly required
+    this.alpacaService = null;
+  }
+
+  // Initialize AlpacaService on demand when needed
+  getAlpacaService(apiKey, apiSecret, isPaper = true) {
+    if (!this.alpacaService && apiKey && apiSecret) {
+      this.alpacaService = new AlpacaService(apiKey, apiSecret, isPaper);
+    }
+    return this.alpacaService;
   }
 
   /**
@@ -257,9 +266,16 @@ class PortfolioService {
     try {
       logger.info(`Syncing portfolio from broker for user ${userId}`);
 
+      // Initialize AlpacaService with provided API keys
+      const alpacaService = this.getAlpacaService(brokerApiKeys.key, brokerApiKeys.secret, brokerApiKeys.isPaper);
+      
+      if (!alpacaService) {
+        throw new Error('Failed to initialize Alpaca service with provided API keys');
+      }
+
       // Get positions from broker API
-      const alpacaPositions = await this.alpacaService.getPositions(brokerApiKeys);
-      const alpacaAccount = await this.alpacaService.getAccount(brokerApiKeys);
+      const alpacaPositions = await alpacaService.getPositions();
+      const alpacaAccount = await alpacaService.getAccount();
 
       // Transform broker data to our format
       const holdings = alpacaPositions.map(position => ({

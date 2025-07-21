@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Dashboard</title>
-    <!-- FORCE CACHE BUST - 2025-07-11 22:00 - Debug React loading -->
+    <!-- FORCE CACHE BUST - 2025-07-21 ULTIMATE FIX - All shim files eliminated -->
     <meta name="description" content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,8 +34,25 @@
         console.warn('⚠️ Failed to load config.js - using fallback config');
       };
       document.head.appendChild(script);
+      
+      // NUCLEAR CACHE CLEARING - Force reload if shim error detected
+      window.addEventListener('error', (e) => {
+        if (e.filename && e.filename.includes('use-sync-external-store-shim')) {
+          console.log('🚨 DETECTED CACHED SHIM FILE - FORCING REFRESH');
+          localStorage.setItem('shimErrorDetected', Date.now());
+          window.location.reload(true); // Force reload bypassing cache
+        }
+      });
+      
+      // Clear any cached modules
+      if ('caches' in window) {
+        caches.keys().then(names => names.forEach(name => caches.delete(name)));
+      }
     </script>
-    <script type="module" crossorigin src="/assets/index-DSAigFlh.js"></script>
+    <script type="module" crossorigin src="/assets/index-DSAigFlh.js?v=1737536589&nocache=true"></script>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <link rel="modulepreload" crossorigin href="/assets/date-utils-BWiYpiLr.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-CZrIxB8N.js">
     <link rel="modulepreload" crossorigin href="/assets/emotion-hxcgelDF.js">
@@ -109,7 +126,7 @@
     <link rel="modulepreload" crossorigin href="/assets/page-ProtectedPortfolio-BrUNfEeu.js">
     <link rel="modulepreload" crossorigin href="/assets/page-ProtectedSettings-BzD4ATuC.js">
     <link rel="modulepreload" crossorigin href="/assets/page-ProtectedTradeHistory-C4SvRlY1.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-B2K3ikU1.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-B2K3ikU1.css?v=1753107232&nocache=true">
   </head>
   <body>
     <div id="root">

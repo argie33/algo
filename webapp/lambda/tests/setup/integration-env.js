@@ -14,7 +14,13 @@ process.env.USE_REAL_AWS = 'true';
 process.env.INTEGRATION_TEST = 'true';
 
 // Database configuration for integration tests
-// Note: These will be overridden by values from CloudFormation outputs
+// Use DB_SECRET_ARN from GitHub Actions environment
+if (process.env.DB_SECRET_ARN) {
+  console.log('Using DB_SECRET_ARN from environment:', process.env.DB_SECRET_ARN);
+} else {
+  console.log('DB_SECRET_ARN not found in environment, will use fallback configuration');
+}
+
 process.env.DB_SSL = 'false'; // Test environment doesn't need SSL
 process.env.DB_POOL_MAX = '5'; // Smaller pool for tests
 process.env.DB_POOL_IDLE_TIMEOUT = '30000';

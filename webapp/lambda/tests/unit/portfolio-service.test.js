@@ -3,6 +3,21 @@
  * Tests for real database integration portfolio service
  */
 
+// Mock AlpacaService before importing portfolioService to avoid API key requirement
+jest.mock('../../utils/alpacaService', () => {
+  return jest.fn().mockImplementation(() => ({
+    getPositions: jest.fn().mockResolvedValue([]),
+    getAccount: jest.fn().mockResolvedValue({
+      account_number: 'TEST123',
+      account_type: 'margin',
+      equity: 50000.00,
+      buying_power: 25000.00,
+      cash: 5000.00,
+      daytrade_count: 2
+    })
+  }));
+});
+
 const portfolioService = require('../../services/portfolioService');
 const { dbTestUtils } = require('../utils/database-test-utils');
 

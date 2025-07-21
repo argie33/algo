@@ -10,10 +10,10 @@
 const axios = require('axios');
 const AWS = require('aws-sdk');
 
-// REAL AWS Configuration - No Mocks
-const API_BASE_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
-const AWS_REGION = 'us-east-1';
-const STACK_NAME = 'stocks-webapp-dev';
+// AWS Configuration 
+const API_BASE_URL = process.env.TEST_API_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const STACK_NAME = process.env.ENVIRONMENT_NAME === 'dev' ? 'stocks-webapp-dev' : 'stocks-webapp-prod';
 
 AWS.config.update({ region: AWS_REGION });
 
