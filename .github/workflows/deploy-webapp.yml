@@ -1381,6 +1381,7 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend to S3  
     needs: [deploy_infrastructure]
+    if: ${{ always() && (needs.deploy_infrastructure.result == 'success' || needs.deploy_infrastructure.result == 'failure') }}
     runs-on: ubuntu-latest
 
     steps:

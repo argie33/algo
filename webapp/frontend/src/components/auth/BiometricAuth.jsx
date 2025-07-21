@@ -44,7 +44,10 @@ class BiometricService {
 
     try {
       // Check for platform authenticator availability (Touch ID, Face ID, Windows Hello)
-      const platformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      const platformAuthenticatorAvailable = 
+        window.PublicKeyCredential 
+          ? await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+          : false;
       
       // Detect specific biometric types based on user agent and platform
       const userAgent = navigator.userAgent.toLowerCase();
