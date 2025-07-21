@@ -615,7 +615,7 @@ jobs:
   integration_tests:
     name: Run integration tests
     needs: [setup, filter, unit_tests, deploy_infrastructure]
-    if: ${{ always() && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') && needs.deploy_infrastructure.result == 'success' }}
+    if: ${{ always() && github.event.inputs.deployment_type == 'quality' && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
