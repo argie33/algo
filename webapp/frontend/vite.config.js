@@ -150,13 +150,7 @@ export default defineConfig(({ mode }) => {
         // Force React to be resolved from node_modules to prevent duplicates
         'react': resolve(__dirname, 'node_modules/react'),
         'react-dom': resolve(__dirname, 'node_modules/react-dom'),
-        // PERMANENT FIX: Replace ALL problematic shim imports with our safe implementation
-        'use-sync-external-store/shim': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
-        'use-sync-external-store/shim/index': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
-        'use-sync-external-store/shim/index.js': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
-        'use-sync-external-store/shim/with-selector': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
-        'use-sync-external-store/shim/with-selector.js': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
-        'use-sync-external-store': resolve(__dirname, 'src/utils/useSyncExternalStoreFix.js'),
+        // Force React consistency - no shim aliases needed with use-sync-external-store@1.2.2
       },
       dedupe: ['react', 'react-dom']
     }
