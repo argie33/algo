@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { useNavigate } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { screenStocks, addWatchlistItem, getWatchlists } from '../services/api'
@@ -176,7 +176,7 @@ function StockScreener() {
   }
 
   // Fetch screener results
-  const { data: screenResults, isLoading, error, refetch } = useQuery({
+  const { data: screenResults, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['stockScreener', filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
       try {

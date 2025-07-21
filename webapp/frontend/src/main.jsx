@@ -62,16 +62,16 @@ console.log('🔍 PRE-IMPORT React state check - React Query about to load:', {
   timestamp: Date.now()
 });
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SimpleQueryClient, SimpleQueryProvider } from './hooks/useSimpleFetch.js'
 
-// CRITICAL: Track React state after React Query import
-console.log('🔍 POST-IMPORT React state check - After React Query loaded:', {
+// CRITICAL: Track React state after simple query import
+console.log('🔍 POST-IMPORT React state check - After Simple Query loaded:', {
   reactUseState: typeof React?.useState,
   reactUseSyncExternalStore: typeof React?.useSyncExternalStore,
   reactOnWindow: typeof window?.React,
   timestamp: Date.now(),
-  QueryClient: typeof QueryClient,
-  QueryClientProvider: typeof QueryClientProvider
+  SimpleQueryClient: typeof SimpleQueryClient,
+  SimpleQueryProvider: typeof SimpleQueryProvider
 });
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
@@ -141,8 +141,8 @@ setTimeout(() => {
   }
 }, 100);
 
-// Create a client
-const queryClient = new QueryClient({
+// Create a simple client (no external store dependencies)
+const queryClient = new SimpleQueryClient({
   defaultOptions: {
     queries: {
       retry: 3,
@@ -177,9 +177,9 @@ try {
   root.render(
     <ErrorBoundary>
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
+        <SimpleQueryProvider client={queryClient}>
           <AppWithProviders />
-        </QueryClientProvider>
+        </SimpleQueryProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

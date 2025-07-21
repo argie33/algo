@@ -52,7 +52,7 @@ import {
   AreaChart, Area, BarChart as RechartsBarChart, Bar, Cell, PieChart, Pie, RadialBarChart, RadialBar, 
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals, getWatchlists, getWatchlistItems } from '../services/api';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -89,7 +89,7 @@ const WIDGET_COLORS = ['#1976d2', '#43a047', '#ffb300', '#8e24aa', '#e53935'];
 
 // Real portfolio data hook - integrated with user API keys
 function usePortfolioData() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-portfolio'],
     queryFn: async () => {
       try {
@@ -196,7 +196,7 @@ function usePortfolioData() {
 
 // Live sector performance data hook
 function useSectorPerformance() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-sector-performance'],
     queryFn: async () => {
       try {
@@ -230,7 +230,7 @@ function useSectorPerformance() {
 
 // Live top stocks data hook
 function useTopStocks() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-top-stocks'],
     queryFn: async () => {
       try {
@@ -264,7 +264,7 @@ function useTopStocks() {
 
 // Live market sentiment data hook  
 function useMarketSentiment() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-market-sentiment'],
     queryFn: async () => {
       try {
@@ -307,7 +307,7 @@ function useMarketSentiment() {
 
 // Live economic indicators data hook
 function useEconomicIndicators() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-economic-indicators'],
     queryFn: async () => {
       try {
@@ -341,7 +341,7 @@ function useEconomicIndicators() {
 function useUserWatchlistData() {
   const { isAuthenticated } = useAuth();
   
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['dashboard-user-watchlist'],
     queryFn: async () => {
       try {
@@ -401,7 +401,7 @@ const BRAND_NAME = 'ProTrade Analytics';
 
 // Market Summary Widget Component
 function MarketSummaryWidget() {
-  const { data: marketData, isLoading, error } = useQuery({
+  const { data: marketData, isLoading, error } = useSimpleFetch({
     queryKey: ['market-summary'],
     queryFn: async () => {
       try {
@@ -484,7 +484,7 @@ function MarketSummaryWidget() {
 
 // Enhanced data fetching hooks
 function useMarketOverview() {
-  return useQuery({
+  return useSimpleFetch({
     queryKey: ['market-overview'],
     queryFn: async () => {
       return dataCache.get('/market/overview', {}, {
@@ -508,7 +508,7 @@ function useMarketOverview() {
 
 
 function useUser() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useSimpleFetch({
     queryKey: ['dashboard-user'],
     queryFn: async () => {
       try {
@@ -533,7 +533,7 @@ function useUser() {
 }
 
 function TechnicalSignalsWidget() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useSimpleFetch({
     queryKey: ['dashboard-technical-signals'],
     queryFn: async () => {
       try {
@@ -771,7 +771,7 @@ const Dashboard = () => {
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
   
   // Dynamic symbol options from database using centralized symbol service
-  const { data: symbolOptionsData, isLoading: symbolsLoading } = useQuery({
+  const { data: symbolOptionsData, isLoading: symbolsLoading } = useSimpleFetch({
     queryKey: ['dashboard-symbols'],
     queryFn: async () => {
       const { symbolService } = await import('../services/symbolService');
@@ -789,7 +789,7 @@ const Dashboard = () => {
   const { data: topStocksData } = useTopStocks();
   const { data: userWatchlistData, isLoading: watchlistLoading } = useUserWatchlistData();
   
-  const { data: priceData, isLoading: priceLoading } = useQuery({
+  const { data: priceData, isLoading: priceLoading } = useSimpleFetch({
     queryKey: ['stock-prices', selectedSymbol],
     queryFn: async () => {
       try {
@@ -809,7 +809,7 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000
   });
   
-  const { data: metricsData, isLoading: metricsLoading } = useQuery({
+  const { data: metricsData, isLoading: metricsLoading } = useSimpleFetch({
     queryKey: ['stock-metrics', selectedSymbol],
     queryFn: async () => {
       try {

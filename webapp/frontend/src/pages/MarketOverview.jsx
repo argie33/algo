@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
@@ -424,7 +424,7 @@ function MarketOverview() {
   const [selectedSector, setSelectedSector] = useState('all')
   const [fullscreen, setFullscreen] = useState(false)
   
-  const { data: marketData, isLoading: marketLoading, error: marketError } = useQuery({
+  const { data: marketData, isLoading: marketLoading, error: marketError } = useSimpleFetch({
     queryKey: ['market-overview'],
     queryFn: fetchMarketOverview,
     refetchInterval: 60000,
@@ -432,42 +432,42 @@ function MarketOverview() {
     staleTime: 30000
   })
 
-  const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
+  const { data: sentimentData, isLoading: sentimentLoading } = useSimpleFetch({
     queryKey: ['market-sentiment-history'],
     queryFn: () => fetchSentimentHistory(30),
     enabled: tabValue === 1,
     staleTime: 30000
   })
 
-  const { data: sectorData, isLoading: sectorLoading } = useQuery({
+  const { data: sectorData, isLoading: sectorLoading } = useSimpleFetch({
     queryKey: ['market-sector-performance'],
     queryFn: fetchSectorPerformance,
     enabled: tabValue === 2,
     staleTime: 30000
   })
 
-  const { data: breadthData, isLoading: breadthLoading } = useQuery({
+  const { data: breadthData, isLoading: breadthLoading } = useSimpleFetch({
     queryKey: ['market-breadth'],
     queryFn: fetchMarketBreadth,
     enabled: tabValue === 3,
     staleTime: 30000
   })
 
-  const { data: economicData, isLoading: economicLoading } = useQuery({
+  const { data: economicData, isLoading: economicLoading } = useSimpleFetch({
     queryKey: ['economic-indicators'],
     queryFn: () => fetchEconomicIndicators(90),
     enabled: tabValue === 4,
     staleTime: 30000
   })
 
-  const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
+  const { data: seasonalityData, isLoading: seasonalityLoading } = useSimpleFetch({
     queryKey: ['seasonality-data'],
     queryFn: fetchSeasonalityData,
     enabled: tabValue === 5,
     staleTime: 30000
   })
 
-  const { data: researchData, isLoading: researchLoading } = useQuery({
+  const { data: researchData, isLoading: researchLoading } = useSimpleFetch({
     queryKey: ['market-research-indicators'],
     queryFn: fetchResearchIndicators,
     enabled: tabValue === 6,

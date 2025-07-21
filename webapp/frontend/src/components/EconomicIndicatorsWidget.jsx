@@ -32,14 +32,14 @@ import {
   Timeline,
   Analytics
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import economicDataService from '../services/economicDataService';
 
 const EconomicIndicatorsWidget = ({ height = 400, autoRefresh = true }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
   // Fetch economic dashboard data
-  const { data: economicData, isLoading, error, refetch } = useQuery({
+  const { data: economicData, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['economic-dashboard'],
     queryFn: () => economicDataService.getDashboardData(),
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -1,7 +1,7 @@
 /**
  * Custom React Query hook implementation that bypasses useSyncExternalStore issues
  * 
- * This provides the same API as useQuery but uses our custom sync external store
+ * This provides the same API as useSimpleFetch but uses our custom sync external store
  * implementation to avoid the production useState error
  */
 import React, { useContext, useCallback, useEffect, useState } from 'react';

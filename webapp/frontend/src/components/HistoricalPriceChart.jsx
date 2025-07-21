@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import {
   Box,
   Card,
@@ -33,7 +33,7 @@ const HistoricalPriceChart = ({ symbol = 'AAPL', defaultPeriod = 30 }) => {
   const [period, setPeriod] = useState(defaultPeriod);
   const [timeframe, setTimeframe] = useState('daily');
 
-  const { data: priceData, isLoading, error, refetch } = useQuery({
+  const { data: priceData, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['historical-prices', symbol, timeframe, period],
     queryFn: async () => {
       console.log(`Fetching ${timeframe} prices for ${symbol}, ${period} periods`);

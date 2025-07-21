@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import { createComponentLogger } from '../utils/errorLogger';
 import {
   Box,
@@ -58,13 +58,13 @@ function TechnicalAnalysis() {
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
   const navigate = useNavigate();
-  // --- FIX: Move these above useQuery ---
+  // --- FIX: Move these above useSimpleFetch ---
   const [indicatorFilter, setIndicatorFilter] = useState('');
   const [indicatorMin, setIndicatorMin] = useState('');
   const [indicatorMax, setIndicatorMax] = useState('');
 
   // Fetch technical data
-  const { data: technicalData, isLoading, error, refetch } = useQuery({
+  const { data: technicalData, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
       // Map frontend parameters to backend parameters

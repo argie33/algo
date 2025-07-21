@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
@@ -97,7 +97,7 @@ function FinancialData() {
   const [period, setPeriod] = useState('annual')
 
   // Get list of companies for dropdown
-  const { data: companiesData } = useQuery({
+  const { data: companiesData } = useSimpleFetch({
     queryKey: ['companies'],
     queryFn: () => getStocks({ limit: 1000, sortBy: 'ticker' }),
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -135,7 +135,7 @@ function FinancialData() {
   }
   
   // Comprehensive financial data queries
-  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useQuery({
+  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useSimpleFetch({
     queryKey: ['balanceSheet', ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
@@ -146,7 +146,7 @@ function FinancialData() {
     }
   })
 
-  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
+  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useSimpleFetch({
     queryKey: ['incomeStatement', ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
@@ -157,7 +157,7 @@ function FinancialData() {
     }
   })
   
-  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
+  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useSimpleFetch({
     queryKey: ['cashFlowStatement', ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
@@ -177,7 +177,7 @@ function FinancialData() {
     cashFlowStatement: { hasData: !!cashFlowStatement, isLoading: cashFlowLoading, hasError: !!cashFlowError }
   });
 
-  const { data: keyMetrics, isLoading: keyMetricsLoading, error: keyMetricsError } = useQuery({
+  const { data: keyMetrics, isLoading: keyMetricsLoading, error: keyMetricsError } = useSimpleFetch({
     queryKey: ['keyMetrics', ticker],
     queryFn: () => getKeyMetrics(ticker),
     enabled: !!ticker && tabValue === 3,

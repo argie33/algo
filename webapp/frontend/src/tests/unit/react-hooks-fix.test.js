@@ -89,7 +89,7 @@ describe('🔧 React Hooks Fix Validation', () => {
     it('should work with external store pattern', () => {
       // Test the basic pattern that was failing
       expect(() => {
-        // This simulates what libraries like @tanstack/react-query do
+        // This simulates what libraries like ../hooks/useSimpleFetch.js do
         const subscribe = () => () => {};
         const getSnapshot = () => 'test';
         
@@ -179,8 +179,8 @@ describe('🔧 React Hooks Fix Validation', () => {
   });
 
   describe('Third-party Library Compatibility', () => {
-    it('should be compatible with @tanstack/react-query pattern', () => {
-      // Test the pattern that @tanstack/react-query uses internally
+    it('should be compatible with ../hooks/useSimpleFetch.js pattern', () => {
+      // Test the pattern that ../hooks/useSimpleFetch.js uses internally
       expect(() => {
         const createStore = () => {
           const listeners = new Set();

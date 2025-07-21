@@ -11,7 +11,7 @@ import {
   ExpandMore, MonitorHeart, BugReport, Timeline, Assessment
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import { getApiConfig } from '../services/api';
 
 const { apiUrl: API_BASE } = getApiConfig();
@@ -21,7 +21,7 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
 
   // System Health Query
-  const { data: systemHealth, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
+  const { data: systemHealth, isLoading: healthLoading, refetch: refetchHealth } = useSimpleFetch({
     queryKey: ['system-health'],
     queryFn: async () => {
       const response = await fetch(`${API_BASE}/api/health`);
@@ -33,7 +33,7 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
   });
 
   // Database Health Query
-  const { data: dbHealth, isLoading: dbLoading } = useQuery({
+  const { data: dbHealth, isLoading: dbLoading } = useSimpleFetch({
     queryKey: ['database-health'],
     queryFn: async () => {
       const response = await fetch(`${API_BASE}/api/health/database`);
@@ -45,7 +45,7 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
   });
 
   // Performance Metrics Query
-  const { data: performanceMetrics, isLoading: perfLoading } = useQuery({
+  const { data: performanceMetrics, isLoading: perfLoading } = useSimpleFetch({
     queryKey: ['performance-metrics'],
     queryFn: async () => {
       const response = await fetch(`${API_BASE}/api/metrics/performance`);
@@ -57,7 +57,7 @@ const ProductionMonitoringDashboard = ({ compact = false }) => {
   });
 
   // Deployment Status Query
-  const { data: deploymentStatus, isLoading: deployLoading } = useQuery({
+  const { data: deploymentStatus, isLoading: deployLoading } = useSimpleFetch({
     queryKey: ['deployment-status'],
     queryFn: async () => {
       // Check critical endpoints to determine deployment health

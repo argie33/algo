@@ -11,7 +11,7 @@ import performanceMonitor from './utils/performanceMonitor.js'
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '../hooks/useSimpleFetch.js'
 import { BrowserRouter } from 'react-router-dom'
 
 // Core TailwindCSS styling only

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createComponentLogger } from '../utils/errorLogger';
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters';
@@ -70,7 +70,7 @@ function AnalystInsights() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
   // Fetch analyst upgrades/downgrades
-  const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useQuery({
+  const { data: upgradesData, isLoading: upgradesLoading, error: upgradesError } = useSimpleFetch({
     queryKey: ['analystUpgrades', page, rowsPerPage],
     queryFn: async () => {
       try {

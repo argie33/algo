@@ -1,6 +1,6 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { createComponentLogger } from '../utils/errorLogger'
 import {
   Box,
@@ -75,7 +75,7 @@ function StockDetail() {
   const { symbol } = useParams()
   const [tabValue, setTabValue] = React.useState(0)
   // Fetch stock profile data
-  const { data: profile, isLoading: profileLoading, error: profileError } = useQuery({
+  const { data: profile, isLoading: profileLoading, error: profileError } = useSimpleFetch({
     queryKey: ['stockProfile', symbol],
     queryFn: () => api.getStockProfile(symbol),
     enabled: !!symbol,
@@ -83,14 +83,14 @@ function StockDetail() {
   })
 
   // Fetch key metrics
-  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery({
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useSimpleFetch({
     queryKey: ['stockMetrics', symbol],
     queryFn: () => api.getStockMetrics(symbol),
     enabled: !!symbol,
     onError: (error) => logger.queryError('stockMetrics', error, { symbol })
   })
   // Fetch financial data
-  const { data: financials, isLoading: financialsLoading, error: financialsError } = useQuery({
+  const { data: financials, isLoading: financialsLoading, error: financialsError } = useSimpleFetch({
     queryKey: ['stockFinancials', symbol],
     queryFn: () => api.getStockFinancials(symbol),
     enabled: !!symbol,
@@ -98,39 +98,39 @@ function StockDetail() {
   })
 
   // Fetch analyst recommendations
-  const { data: recommendations, isLoading: recLoading, error: recError } = useQuery({
+  const { data: recommendations, isLoading: recLoading, error: recError } = useSimpleFetch({
     queryKey: ['stockRecommendations', symbol],
     queryFn: () => api.getAnalystRecommendations(symbol),
     enabled: !!symbol,
     onError: (error) => logger.queryError('analystRecommendations', error, { symbol })  })
 
   // Fetch comprehensive financial statements
-  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useQuery({
+  const { data: balanceSheet, isLoading: balanceSheetLoading, error: balanceSheetError } = useSimpleFetch({
     queryKey: ['balanceSheet', symbol, 'annual'],
     queryFn: () => api.getBalanceSheet(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('balanceSheet', error, { symbol, period: 'annual' })
   })
-  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useQuery({
+  const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useSimpleFetch({
     queryKey: ['incomeStatement', symbol, 'annual'],
     queryFn: () => api.getIncomeStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('incomeStatement', error, { symbol, period: 'annual' })
   })
-  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useQuery({
+  const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useSimpleFetch({
     queryKey: ['cashFlowStatement', symbol, 'annual'],
     queryFn: () => api.getCashFlowStatement(symbol, 'annual'),
     enabled: !!symbol && tabValue === 2,
     onError: (error) => logger.queryError('cashFlowStatement', error, { symbol, period: 'annual' })
   })  // Fetch comprehensive analyst data
-  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useQuery({
+  const { data: analystOverview, isLoading: analystOverviewLoading, error: analystOverviewError } = useSimpleFetch({
     queryKey: ['analystOverview', symbol],
     queryFn: () => api.getAnalystOverview(symbol),
     enabled: !!symbol && tabValue === 4,
     onError: (error) => logger.queryError('analystOverview', error, { symbol })
   })
   // Fetch recent price data only when Price tab is selected - lightweight and fast
-  const { data: recentPrices, isLoading: recentPricesLoading, error: recentPricesError } = useQuery({
+  const { data: recentPrices, isLoading: recentPricesLoading, error: recentPricesError } = useSimpleFetch({
     queryKey: ['stockPricesRecent', symbol],
     queryFn: () => api.getStockPricesRecent(symbol, 30), // Only 30 days for performance
     enabled: !!symbol && tabValue === 1, // Only load when Price tab is selected

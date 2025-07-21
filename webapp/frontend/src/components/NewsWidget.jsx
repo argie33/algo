@@ -29,7 +29,7 @@ import {
   Schedule,
   Language
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import newsService from '../services/newsService';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -45,7 +45,7 @@ const NewsWidget = ({
   const [selectedCategory, setSelectedCategory] = useState(category || 'market');
 
   // Fetch news data
-  const { data: newsData, isLoading, error, refetch } = useQuery({
+  const { data: newsData, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['news', symbols, selectedCategory, limit],
     queryFn: async () => {
       if (selectedCategory === 'market') {

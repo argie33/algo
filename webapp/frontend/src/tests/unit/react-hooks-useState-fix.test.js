@@ -74,7 +74,7 @@ describe('🔧 React useState Fix Test', () => {
 
     it('should work with external store pattern (common in React Query)', () => {
       expect(() => {
-        // Simulate what @tanstack/react-query does internally
+        // Simulate what ../hooks/useSimpleFetch.js does internally
         const store = {
           state: { data: 'test' },
           listeners: new Set(),

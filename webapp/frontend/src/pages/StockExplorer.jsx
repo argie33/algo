@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
@@ -173,7 +173,7 @@ function StockExplorer() {
   }
 
   // Fetch screener results with optimized settings
-  const { data: stocksData, isLoading, error, refetch } = useQuery({
+  const { data: stocksData, isLoading, error, refetch } = useSimpleFetch({
     queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
     queryFn: async () => {
       try {

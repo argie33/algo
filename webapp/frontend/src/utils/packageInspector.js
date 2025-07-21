@@ -54,7 +54,7 @@ const PackageInspector = {
       expectedPackages: {
         'react': '^18.3.1',
         'react-dom': '^18.3.1',
-        '@tanstack/react-query': '^4.35.3',
+        '../hooks/useSimpleFetch.js': '^4.35.3',
         'use-sync-external-store': 'REMOVED (should not be present)'
       },
       actuallyLoaded: this.getActuallyLoadedPackages(),
@@ -162,7 +162,7 @@ const PackageInspector = {
     
     try {
       // Check if React Query is available
-      const reactQuery = require('@tanstack/react-query');
+      const reactQuery = require('../hooks/useSimpleFetch.js');
       analysis.available = true;
       analysis.version = reactQuery.version || 'unknown';
       

@@ -1,5 +1,5 @@
 import React, { useState, Fragment } from 'react';
-import { Disclosure, Dialog, Transition } from '@headlessui/react';
+import { Disclosure, Dialog, Transition } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Bars3Icon, 

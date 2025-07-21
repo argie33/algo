@@ -282,7 +282,7 @@ class ReactHooksDebugger {
     // Check for common conflicts
     const potentialConflicts = [
       'react', 'react-dom', 'use-sync-external-store',
-      '@headlessui/react', '@tanstack/react-query', '@aws-amplify/ui-react'
+      'react', '../hooks/useSimpleFetch.js', '@aws-amplify/ui-react'
     ];
     
     potentialConflicts.forEach(pkg => {

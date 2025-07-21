@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
@@ -79,7 +79,7 @@ function EarningsCalendar() {
   const [epsInput, setEpsInput] = useState('AAPL');
 
   // Fetch calendar events
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useQuery({
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useSimpleFetch({
     queryKey: ['calendarEvents', timeFilter, page, rowsPerPage],
     queryFn: async () => {
       try {
@@ -112,7 +112,7 @@ function EarningsCalendar() {
   });
 
   // Fetch earnings estimates
-  const { data: estimatesData, isLoading: estimatesLoading } = useQuery({
+  const { data: estimatesData, isLoading: estimatesLoading } = useSimpleFetch({
     queryKey: ['earningsEstimates', page, rowsPerPage],
     queryFn: async () => {
       return await getEarningsEstimates({ page: page + 1, limit: rowsPerPage });
@@ -122,7 +122,7 @@ function EarningsCalendar() {
   });
 
   // Fetch earnings history
-  const { data: historyData, isLoading: historyLoading } = useQuery({
+  const { data: historyData, isLoading: historyLoading } = useSimpleFetch({
     queryKey: ['earningsHistory', page, rowsPerPage],
     queryFn: async () => {
       return await getEarningsHistory({ page: page + 1, limit: rowsPerPage });
@@ -132,7 +132,7 @@ function EarningsCalendar() {
   });
 
   // EPS Revisions fetch
-  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useQuery({
+  const { data: epsRevisionsData, isLoading: epsRevisionsLoading, error: epsRevisionsError, refetch: refetchEps } = useSimpleFetch({
     queryKey: ['epsRevisions', epsSymbol],
     queryFn: async () => {
       return await getEpsRevisions(epsSymbol);
@@ -142,7 +142,7 @@ function EarningsCalendar() {
   });
 
   // EPS Trend fetch
-  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useQuery({
+  const { data: epsTrendData, isLoading: epsTrendLoading, error: epsTrendError, refetch: refetchEpsTrend } = useSimpleFetch({
     queryKey: ['epsTrend', epsSymbol],
     queryFn: async () => {
       return await getEpsTrend(epsSymbol);
@@ -152,7 +152,7 @@ function EarningsCalendar() {
   });
 
   // Earnings Metrics fetch
-  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useQuery({
+  const { data: earningsMetricsData, isLoading: earningsMetricsLoading, error: earningsMetricsError, refetch: refetchEarningsMetrics } = useSimpleFetch({
     queryKey: ['earningsMetrics', epsSymbol, page, rowsPerPage],
     queryFn: async () => {
       return await getEarningsMetrics(epsSymbol, page, rowsPerPage);

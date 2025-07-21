@@ -3,7 +3,7 @@
  * Integrates with our error management system for better logging and recovery
  */
 
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '../hooks/useSimpleFetch.js';
 import ErrorManager from '../error/ErrorManager';
 
 // Create enhanced query client with comprehensive error handling
@@ -101,7 +101,7 @@ export const createErrorAwareQueryClient = () => {
   });
 };
 
-// Enhanced useQuery hook with error handling
+// Enhanced useSimpleFetch hook with error handling
 export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
   const enhancedOptions = {
     ...options,
@@ -109,7 +109,7 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
       // Custom error handling
       const enhancedError = ErrorManager.handleError({
         type: 'use_query_error',
-        message: `useQuery hook error: ${JSON.stringify(queryKey)}`,
+        message: `useSimpleFetch hook error: ${JSON.stringify(queryKey)}`,
         error: error,
         category: ErrorManager.CATEGORIES.API,
         severity: ErrorManager.SEVERITY.MEDIUM,
@@ -117,7 +117,7 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
           queryKey,
           componentStack: new Error().stack,
           hookOptions: options,
-          source: 'useQuery_hook'
+          source: 'useSimpleFetch_hook'
         }
       });
 
@@ -130,13 +130,13 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
       // Log successful data fetching
       ErrorManager.handleError({
         type: 'use_query_success',
-        message: `useQuery hook success: ${JSON.stringify(queryKey)}`,
+        message: `useSimpleFetch hook success: ${JSON.stringify(queryKey)}`,
         category: ErrorManager.CATEGORIES.API,
         severity: ErrorManager.SEVERITY.LOW,
         context: {
           queryKey,
           dataSize: JSON.stringify(data).length,
-          source: 'useQuery_hook'
+          source: 'useSimpleFetch_hook'
         }
       });
 
@@ -147,7 +147,7 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
     }
   };
 
-  return useQuery(queryKey, queryFn, enhancedOptions);
+  return useSimpleFetch(queryKey, queryFn, enhancedOptions);
 };
 
 // Enhanced useMutation hook with error handling
