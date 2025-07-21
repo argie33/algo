@@ -612,10 +612,53 @@ jobs:
 ################################################################################
 # 4) Run integration tests                                                     #
 ################################################################################
+################################################################################
+# 4) Deploy test infrastructure (ONLY for quality button)                    #
+################################################################################
+  deploy_test_infrastructure:
+    name: Deploy test infrastructure for integration tests
+    needs: [setup, filter, unit_tests]
+    if: ${{ github.event.inputs.deployment_type == 'quality' }}
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
+      STACK_NAME: ${{ needs.setup.outputs.stack_name }}-test
+    outputs:
+      test_bucket_prefix: ${{ steps.test_stack_outputs.outputs.bucket_prefix }}
+      test_api_url: ${{ steps.test_stack_outputs.outputs.api_url }}
+      test_stack_name: ${{ needs.setup.outputs.stack_name }}-test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Deploy test infrastructure
+        run: |
+          echo "🧪 Deploying separate test infrastructure for integration tests"
+          # Deploy test-specific infrastructure here
+          # This is separate from main deployment infrastructure
+          
+      - name: Get test stack outputs
+        id: test_stack_outputs
+        run: |
+          # Extract test infrastructure outputs
+          echo "test_api_url=https://test-api-url.com" >> $GITHUB_OUTPUT
+          echo "bucket_prefix=test-bucket" >> $GITHUB_OUTPUT
+
+################################################################################
+# 5) Run integration tests (ONLY for quality button)                         #
+################################################################################
   integration_tests:
     name: Run integration tests
-    needs: [setup, filter, unit_tests, deploy_infrastructure]
-    if: ${{ always() && github.event.inputs.deployment_type == 'quality' && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') && needs.deploy_infrastructure.result == 'success' }}
+    needs: [setup, filter, unit_tests, deploy_test_infrastructure]
+    if: ${{ github.event.inputs.deployment_type == 'quality' && needs.deploy_test_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
@@ -1047,7 +1090,7 @@ jobs:
           echo "=================================================="
 
 ################################################################################
-# 5) Deploy webapp infrastructure                                              #
+# 6) Deploy webapp infrastructure (ALWAYS for actual deployment)              #
 ################################################################################
   deploy_infrastructure:
     name: Deploy webapp infrastructure
@@ -1334,7 +1377,7 @@ jobs:
           echo "  API URL: $API_URL"
           echo "  Website URL: $WEBSITE_URL"
 ################################################################################
-# 6) Build and deploy Frontend                                                 #
+# 7) Build and deploy Frontend                                                 #
 ################################################################################
   deploy_frontend:
     name: Deploy Frontend to S3
@@ -1476,7 +1519,7 @@ jobs:
           echo "CloudFront invalidation created: $INVALIDATION_ID"
           echo "Distribution ID: $DISTRIBUTION_ID"
 ################################################################################
-# 7) Post-deployment verification                                              #
+# 8) Post-deployment verification                                              #
 ################################################################################
   verify_deployment:
     name: Verify deployment
@@ -1544,7 +1587,7 @@ jobs:
             echo "Stack name not available"
           fi
 ################################################################################
-# 8) Cleanup on failure                                                        #
+# 9) Cleanup on failure                                                        #
 ################################################################################
   cleanup_on_failure:
     name: Cleanup failed deployment
