@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+import puppeteer from 'puppeteer';
 
 async function captureError() {
   console.log('🔍 Starting methodical error capture...');

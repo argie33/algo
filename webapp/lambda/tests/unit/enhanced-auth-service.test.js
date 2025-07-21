@@ -559,11 +559,19 @@ describe('Enhanced Authentication Service Unit Tests', () => {
 
     test('validates JWT token successfully', async () => {
       const user = {
-        user_id: 123,
+        userId: 123,
         email: 'test@example.com',
         role: 'user'
       };
-      const session = { id: 'session-123' };
+      const session = { 
+        id: 'session-123',
+        isActive: true,
+        lastActivity: new Date(),
+        expiresAt: new Date(Date.now() + 3600000) // 1 hour from now
+      };
+      
+      // Add session to active sessions map
+      authService.activeSessions.set(session.id, session);
       
       const tokens = await authService.generateTokens(user, session);
       const result = await authService.validateAccessToken(tokens.accessToken);
@@ -616,51 +624,51 @@ describe('Enhanced Authentication Service Unit Tests', () => {
       expect(authService.activeSessions.has(session.id)).toBe(true);
     });
 
-    test('validates active session', () => {
+    test('validates active session', async () => {
       const sessionData = {
         userId: 'user-123',
         ipAddress: '192.168.1.1',
         userAgent: 'Mozilla/5.0...'
       };
 
-      const session = authService.createSession(sessionData);
-      const isValid = authService.validateSession(session.sessionId);
+      const session = await authService.createSession(sessionData);
+      const isValid = authService.validateSession(session.id);
 
       expect(isValid).toBe(true);
     });
 
-    test('rejects expired session', () => {
+    test('rejects expired session', async () => {
       const sessionData = {
         userId: 'user-123',
         ipAddress: '192.168.1.1',
         userAgent: 'Mozilla/5.0...'
       };
 
-      const session = authService.createSession(sessionData);
+      const session = await authService.createSession(sessionData);
       
       // Manually expire the session
       session.expiresAt = Date.now() - 1000;
-      authService.activeSessions.set(session.sessionId, session);
+      authService.activeSessions.set(session.id, session);
 
-      const isValid = authService.validateSession(session.sessionId);
+      const isValid = authService.validateSession(session.id);
 
       expect(isValid).toBe(false);
     });
 
-    test('invalidates session successfully', () => {
+    test('invalidates session successfully', async () => {
       const sessionData = {
         userId: 'user-123',
         ipAddress: '192.168.1.1',
         userAgent: 'Mozilla/5.0...'
       };
 
-      const session = authService.createSession(sessionData);
+      const session = await authService.createSession(sessionData);
       
-      expect(authService.activeSessions.has(session.sessionId)).toBe(true);
+      expect(authService.activeSessions.has(session.id)).toBe(true);
       
-      authService.invalidateSession(session.sessionId);
+      await authService.invalidateSession(session.id);
       
-      expect(authService.activeSessions.has(session.sessionId)).toBe(false);
+      expect(authService.activeSessions.has(session.id)).toBe(false);
     });
   });
 
@@ -727,15 +735,15 @@ describe('Enhanced Authentication Service Unit Tests', () => {
   });
 
   describe('Service Statistics', () => {
-    test('returns comprehensive statistics', () => {
+    test('returns comprehensive statistics', async () => {
       // Create some test data
-      const session1 = authService.createSession({
+      const session1 = await authService.createSession({
         userId: 'user-1',
         ipAddress: '192.168.1.1',
         userAgent: 'Mozilla/5.0...'
       });
       
-      const session2 = authService.createSession({
+      const session2 = await authService.createSession({
         userId: 'user-2',
         ipAddress: '192.168.1.2',
         userAgent: 'Chrome/91.0...'

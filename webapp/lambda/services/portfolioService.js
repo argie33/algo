@@ -18,7 +18,10 @@ class PortfolioService {
 
   // Initialize AlpacaService on demand when needed
   getAlpacaService(apiKey, apiSecret, isPaper = true) {
-    if (!this.alpacaService && apiKey && apiSecret) {
+    if (!apiKey || !apiSecret) {
+      return null;
+    }
+    if (!this.alpacaService) {
       this.alpacaService = new AlpacaService(apiKey, apiSecret, isPaper);
     }
     return this.alpacaService;

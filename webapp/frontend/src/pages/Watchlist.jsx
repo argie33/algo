@@ -81,7 +81,23 @@ import {
   reorderWatchlistItems 
 } from '../services/api';
 import { formatCurrency, formatPercentage } from '../utils/formatters';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
 
 function TabPanel({ children, value, index }) {
@@ -89,6 +105,284 @@ function TabPanel({ children, value, index }) {
     <div hidden={value !== index}>
       {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
     </div>
+  );
+}
+
+function SortableRow({ item, index, alerts, onToggleAlert, onRemoveItem }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+  };
+
+  const changeColor = item.change >= 0 ? '#4caf50' : '#f44336';
+  const changeIcon = item.change >= 0 ? <TrendingUp /> : <TrendingDown />;
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      sx={{ '&:nth-of-type(odd)': { backgroundColor: '#f9f9f9' } }}
+    >
+      <TableCell>
+        <IconButton
+          size="small"
+          {...listeners}
+          sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+        >
+          <DragIndicator fontSize="small" />
+        </IconButton>
+      </TableCell>
+      <TableCell>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box>
+            <Typography variant="body2" fontWeight="bold">
+              {item.symbol}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {item.name}
+            </Typography>
+          </Box>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2" fontWeight="bold">
+          {formatCurrency(item.price)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, color: changeColor }}>
+          {changeIcon}
+          <Box>
+            <Typography variant="body2" sx={{ color: changeColor }}>
+              {formatCurrency(item.change)}
+            </Typography>
+            <Typography variant="caption" sx={{ color: changeColor }}>
+              ({formatPercentage(item.changePercent)})
+            </Typography>
+          </Box>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {item.volume ? item.volume.toLocaleString() : 'N/A'}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {item.marketCap ? formatCurrency(item.marketCap) : 'N/A'}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {item.peRatio || 'N/A'}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title={alerts[item.id] ? 'Remove alert' : 'Set price alert'}>
+            <IconButton
+              size="small"
+              onClick={() => onToggleAlert(item)}
+              color={alerts[item.id] ? 'warning' : 'default'}
+            >
+              {alerts[item.id] ? <NotificationsActive fontSize="small" /> : <Notifications fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Remove from watchlist">
+            <IconButton
+              size="small"
+              onClick={() => onRemoveItem(item)}
+              color="error"
+            >
+              <Delete fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function SortableWatchlistRow({ item, index, onRemove, getPriceColor, getPERating, getVolumeDisplay, getMarketCapColor, formatCurrency, formatPercentage, formatNumber }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+  };
+
+  const peRating = getPERating(item.trailing_pe);
+  const priceRange = item.fifty_two_week_low && item.fifty_two_week_high ? 
+    ((item.current_price - item.fifty_two_week_low) / (item.fifty_two_week_high - item.fifty_two_week_low)) * 100 : 0;
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      sx={{ 
+        '&:hover': { backgroundColor: '#1976d20A' },
+        borderLeft: `3px solid ${getPriceColor(item.day_change_percent)}`,
+      }}
+    >
+      <TableCell {...listeners}>
+        <IconButton
+          size="small"
+          sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+        >
+          <DragIndicator sx={{ color: 'text.disabled' }} />
+        </IconButton>
+      </TableCell>
+      <TableCell>
+        <Box>
+          <Typography variant="body2" fontWeight="bold">
+            {item.symbol}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {item.short_name || item.security_name || 'N/A'}
+          </Typography>
+          {item.sector && (
+            <Chip 
+              label={item.sector} 
+              size="small" 
+              variant="outlined"
+              sx={{ 
+                fontSize: '0.65rem', 
+                height: 18,
+                mt: 0.5,
+                backgroundColor: '#2196f31A'
+              }}
+            />
+          )}
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Box>
+          <Typography variant="body2" fontWeight="bold">
+            {item.current_price ? formatCurrency(item.current_price) : 'N/A'}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {item.previous_close ? `Prev: ${formatCurrency(item.previous_close)}` : ''}
+          </Typography>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Box>
+          <Typography 
+            variant="body2" 
+            color={getPriceColor(item.day_change_percent)}
+            fontWeight="bold"
+          >
+            {item.day_change_amount ? formatCurrency(item.day_change_amount) : 'N/A'}
+          </Typography>
+          <Typography 
+            variant="caption" 
+            color={getPriceColor(item.day_change_percent)}
+          >
+            {item.day_change_percent ? formatPercentage(item.day_change_percent) : 'N/A'}
+          </Typography>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Box>
+          {getVolumeDisplay(item.volume, item.average_volume)}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            Avg: {item.average_volume ? formatNumber(item.average_volume) : 'N/A'}
+          </Typography>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Typography 
+          variant="body2" 
+          color={getMarketCapColor(item.market_cap)}
+          fontWeight="bold"
+        >
+          {item.market_cap ? formatNumber(item.market_cap) : 'N/A'}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Box>
+          <Typography variant="body2" fontWeight="bold">
+            {item.trailing_pe ? item.trailing_pe.toFixed(1) : 'N/A'}
+          </Typography>
+          <Chip 
+            label={peRating.label} 
+            size="small" 
+            sx={{ 
+              fontSize: '0.65rem', 
+              height: 16,
+              backgroundColor: peRating.color + '1A',
+              color: peRating.color,
+              border: `1px solid ${peRating.color + '4D'}`
+            }}
+          />
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Box>
+          <Typography variant="body2">
+            {item.fifty_two_week_low && item.fifty_two_week_high ? 
+              `${formatCurrency(item.fifty_two_week_low)} - ${formatCurrency(item.fifty_two_week_high)}` : 
+              'N/A'
+            }
+          </Typography>
+          {item.fifty_two_week_low && item.fifty_two_week_high && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+              <Box 
+                sx={{ 
+                  width: 40, 
+                  height: 4, 
+                  backgroundColor: '#bdbdbd4D',
+                  borderRadius: 2,
+                  position: 'relative'
+                }}
+              >
+                <Box 
+                  sx={{ 
+                    width: 2, 
+                    height: 8, 
+                    backgroundColor: '#1976d2',
+                    position: 'absolute',
+                    left: `${priceRange}%`,
+                    top: -2,
+                    borderRadius: 1
+                  }}
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                {priceRange.toFixed(0)}%
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </TableCell>
+      <TableCell align="center">
+        <Tooltip title="Remove from watchlist">
+          <IconButton
+            size="small"
+            onClick={() => onRemove(item.id)}
+            color="error"
+          >
+            <Delete />
+          </IconButton>
+        </Tooltip>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -359,16 +653,26 @@ const Watchlist = () => {
     }
   };
 
-  const handleDragEnd = async (result) => {
-    if (!result.destination) return;
+  // Modern drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
     
     const currentWatchlist = watchlists[activeWatchlist];
     if (!currentWatchlist) return;
 
-    const items = Array.from(watchlistItems);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+    const oldIndex = watchlistItems.findIndex((item) => item.id === active.id);
+    const newIndex = watchlistItems.findIndex((item) => item.id === over.id);
     
+    const items = arrayMove(watchlistItems, oldIndex, newIndex);
     setWatchlistItems(items);
     
     // Update order on server
@@ -458,9 +762,15 @@ const Watchlist = () => {
     }
 
     return (
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="watchlist">
-          {(provided) => (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={watchlistItems.map(item => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
             <TableContainer component={Paper} sx={{ mt: 2 }}>
               <Table size="small">
                 <TableHead>
@@ -511,172 +821,27 @@ const Watchlist = () => {
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
-                <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                  {(watchlistItems || []).map((item, index) => {
-                    const peRating = getPERating(item.trailing_pe);
-                    const priceRange = item.fifty_two_week_low && item.fifty_two_week_high ? 
-                      ((item.current_price - item.fifty_two_week_low) / (item.fifty_two_week_high - item.fifty_two_week_low)) * 100 : 0;
-                    
-                    return (
-                      <Draggable key={item.id} draggableId={item.id.toString()} index={index}>
-                        {(provided) => (
-                          <TableRow
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            sx={{ 
-                              '&:hover': { backgroundColor: '#1976d20A' },
-                              borderLeft: `3px solid ${getPriceColor(item.day_change_percent)}`,
-                            }}
-                          >
-                            <TableCell {...provided.dragHandleProps}>
-                              <DragIndicator sx={{ color: 'text.disabled' }} />
-                            </TableCell>
-                            <TableCell>
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {item.symbol}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                  {item.short_name || item.security_name || 'N/A'}
-                                </Typography>
-                                {item.sector && (
-                                  <Chip 
-                                    label={item.sector} 
-                                    size="small" 
-                                    variant="outlined"
-                                    sx={{ 
-                                      fontSize: '0.65rem', 
-                                      height: 18,
-                                      mt: 0.5,
-                                      backgroundColor: '#2196f31A'
-                                    }}
-                                  />
-                                )}
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {item.current_price ? formatCurrency(item.current_price) : 'N/A'}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {item.previous_close ? `Prev: ${formatCurrency(item.previous_close)}` : ''}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography 
-                                  variant="body2" 
-                                  color={getPriceColor(item.day_change_percent)}
-                                  fontWeight="bold"
-                                >
-                                  {item.day_change_amount ? formatCurrency(item.day_change_amount) : 'N/A'}
-                                </Typography>
-                                <Typography 
-                                  variant="caption" 
-                                  color={getPriceColor(item.day_change_percent)}
-                                >
-                                  {item.day_change_percent ? formatPercentage(item.day_change_percent) : 'N/A'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                {getVolumeDisplay(item.volume, item.average_volume)}
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                  Avg: {item.average_volume ? formatNumber(item.average_volume) : 'N/A'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                variant="body2" 
-                                color={getMarketCapColor(item.market_cap)}
-                                fontWeight="bold"
-                              >
-                                {item.market_cap ? formatNumber(item.market_cap) : 'N/A'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {item.trailing_pe ? item.trailing_pe.toFixed(1) : 'N/A'}
-                                </Typography>
-                                <Chip 
-                                  label={peRating.label} 
-                                  size="small" 
-                                  sx={{ 
-                                    fontSize: '0.65rem', 
-                                    height: 16,
-                                    backgroundColor: peRating.color + '1A',
-                                    color: peRating.color,
-                                    border: `1px solid ${peRating.color + '4D'}`
-                                  }}
-                                />
-                              </Box>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box>
-                                <Typography variant="body2">
-                                  {item.fifty_two_week_low && item.fifty_two_week_high ? 
-                                    `${formatCurrency(item.fifty_two_week_low)} - ${formatCurrency(item.fifty_two_week_high)}` : 
-                                    'N/A'
-                                  }
-                                </Typography>
-                                {item.fifty_two_week_low && item.fifty_two_week_high && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                    <Box 
-                                      sx={{ 
-                                        width: 40, 
-                                        height: 4, 
-                                        backgroundColor: '#bdbdbd4D',
-                                        borderRadius: 2,
-                                        position: 'relative'
-                                      }}
-                                    >
-                                      <Box 
-                                        sx={{ 
-                                          width: 2, 
-                                          height: 8, 
-                                          backgroundColor: '#1976d2',
-                                          position: 'absolute',
-                                          left: `${priceRange}%`,
-                                          top: -2,
-                                          borderRadius: 1
-                                        }}
-                                      />
-                                    </Box>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {priceRange.toFixed(0)}%
-                                    </Typography>
-                                  </Box>
-                                )}
-                              </Box>
-                            </TableCell>
-                            <TableCell align="center">
-                              <Tooltip title="Remove from watchlist">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleRemoveStock(item.id)}
-                                  color="error"
-                                >
-                                  <Delete />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Draggable>
-                    );
-                  })}
-                  {provided.placeholder}
+                <TableBody>
+                  {(watchlistItems || []).map((item, index) => (
+                    <SortableWatchlistRow 
+                      key={item.id} 
+                      item={item} 
+                      index={index}
+                      onRemove={handleRemoveStock}
+                      getPriceColor={getPriceColor}
+                      getPERating={getPERating}
+                      getVolumeDisplay={getVolumeDisplay}
+                      getMarketCapColor={getMarketCapColor}
+                      formatCurrency={formatCurrency}
+                      formatPercentage={formatPercentage}
+                      formatNumber={formatNumber}
+                    />
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>
-          )}
-        </Droppable>
-      </DragDropContext>
+        </SortableContext>
+      </DndContext>
     );
   };
 

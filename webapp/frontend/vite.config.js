@@ -149,13 +149,8 @@ export default defineConfig(({ mode }) => {
         // Force React to be resolved from node_modules to prevent duplicates
         'react': resolve(__dirname, 'node_modules/react'),
         'react-dom': resolve(__dirname, 'node_modules/react-dom'),
-        // CRITICAL: Redirect all use-sync-external-store imports to our fallback
-        'use-sync-external-store': resolve(__dirname, 'src/hooks/useSyncExternalStoreFallback.js'),
-        'use-sync-external-store/shim': resolve(__dirname, 'src/hooks/useSyncExternalStoreFallback.js'),
-        'use-sync-external-store/with-selector': resolve(__dirname, 'src/hooks/useSyncExternalStoreFallback.js'),
-        'use-sync-external-store/with-selector.js': resolve(__dirname, 'src/hooks/useSyncExternalStoreFallback.js'),
       },
-      dedupe: ['react', 'react-dom', 'use-sync-external-store']
+      dedupe: ['react', 'react-dom']
     }
   }
 })

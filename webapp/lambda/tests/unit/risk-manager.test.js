@@ -288,16 +288,25 @@ describe('Risk Manager Unit Tests', () => {
         symbol: 'AAPL',
         positionSize: 0.08,
         portfolioValue: 100000,
-        portfolioComposition: [
-          { symbol: 'MSFT', allocation: 0.15, sector: 'Technology' },
-          { symbol: 'GOOGL', allocation: 0.10, sector: 'Technology' }
-        ],
+        portfolioComposition: {
+          'MSFT': 15000, // 15% of $100k
+          'GOOGL': 10000 // 10% of $100k
+        },
         signal: { confidence: 0.8, strength: 'moderate' }
       };
 
-      // Mock correlation data
+      // Mock sector queries for volatility and sector data
       mockQuery.mockResolvedValueOnce({
-        rows: [{ correlation: 0.3 }]
+        rows: [{ close: 150, date: '2024-01-01' }] // Volatility data for AAPL (insufficient for calculation)
+      });
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ sector: 'Technology' }] // Sector data for AAPL
+      });
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ sector: 'Technology' }] // Sector data for MSFT
+      });
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ sector: 'Technology' }] // Sector data for GOOGL
       });
 
       const riskAssessment = await riskManager.assessPositionRisk(params);
