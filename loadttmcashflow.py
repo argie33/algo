@@ -17,8 +17,8 @@ import pandas as pd
 
 SCRIPT_NAME = "loadttmcashflow.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -35,16 +35,15 @@ MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 1.0
 
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    secret_str = boto3.client("secretsmanager").get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host": sec["host"]
-        "port": int(sec.get("port", 5432))
-        "user": sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"], 
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 def safe_convert_to_float(value) -> Optional[float]:
     """Safely convert value to float, handling various edge cases"""
@@ -82,7 +81,7 @@ def calculate_ttm_cash_flow(symbol: str) -> Optional[pd.DataFrame]:
         
         # Try multiple methods to get quarterly data
         methods_to_try = [
-            ('quarterly_cash_flow', 'quarterly cash flow (new method)')
+            ('quarterly_cash_flow', 'quarterly cash flow (new method)'),
             ('quarterly_cashflow', 'quarterly cash flow (legacy method)')
         ]
         
@@ -173,9 +172,9 @@ def process_ttm_cash_flow_data(symbol: str, ttm_cash_flow: pd.DataFrame) -> List
             if safe_value is not None:
                 valid_values += 1
                 processed_data.append((
-                    symbol
-                    safe_date
-                    str(item_name)
+                    symbol,
+                    safe_date,
+                    str(item_name),
                     safe_value
                 ))
     
@@ -216,7 +215,7 @@ def load_ttm_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[st
                             INSERT INTO ttm_cash_flow (symbol, date, item_name, value)
                             VALUES %s
                             ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                                value = EXCLUDED.value
+                                value = EXCLUDED.value,
                                 updated_at = NOW()
                         """, ttm_cash_flow_data)
                         conn.commit()
@@ -251,12 +250,12 @@ def create_table(cur, conn):
     
     create_table_sql = """
         CREATE TABLE ttm_cash_flow (
-            symbol VARCHAR(20) NOT NULL
-            date DATE NOT NULL
-            item_name TEXT NOT NULL
-            value DOUBLE PRECISION NOT NULL
-            created_at TIMESTAMP DEFAULT NOW()
-            updated_at TIMESTAMP DEFAULT NOW()
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY(symbol, date, item_name)
         );
         
@@ -272,13 +271,13 @@ if __name__ == "__main__":
     log_mem("startup")
 
     # Connect to DB
-    cfg = get_db_config()
+    username, password, host, port, dbname = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
-    
-            
+        host=host,
+        port=port,
+        user=username,
+        password=password,
+        dbname=dbname
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
