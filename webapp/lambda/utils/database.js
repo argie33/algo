@@ -634,7 +634,7 @@ async function query(text, params = [], timeoutMs = null) {
         
         const duration = Date.now() - startTime;
         console.log(`✅ [${queryId}] Query completed in ${duration}ms`);
-        console.log(`✅ [${queryId}] Rows returned: ${result.rows?.length || 0}`);
+        console.log(`✅ [${queryId}] Rows returned: ${result?.rows?.length || 0}`);
         
         // Track performance metrics (legacy compatibility)
         try {
