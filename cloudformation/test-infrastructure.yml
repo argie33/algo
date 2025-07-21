@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Integration Test Infrastructure - Isolated test environment with proper teardown
+  Industry standard: Ephemeral, isolated, auto-cleanup
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: integration-test
+    Description: Environment name for test isolation
+
+  TestSuiteId:
+    Type: String
+    Description: Unique ID for this test run (for isolation)
+    Default: !Sub '${AWS::StackName}-${AWS::AccountId}'
+
+Resources:
+  # VPC for test isolation
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.31.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-vpc'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: TestSuite
+          Value: !Ref TestSuiteId
+        - Key: AutoDelete
+          Value: 'true'
+
+  # Subnet for RDS
+  TestSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 172.31.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-subnet-1'
+
+  TestSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 172.31.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-subnet-2'
+
+  # Security Group for test RDS
+  TestDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for integration test RDS
+      VpcId: !Ref TestVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 172.31.0.0/16
+          Description: Allow PostgreSQL from VPC
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/8
+          Description: Allow PostgreSQL from private networks
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-db-sg'
+
+  # DB Subnet Group
+  TestDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for integration test RDS
+      SubnetIds:
+        - !Ref TestSubnet1
+        - !Ref TestSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-db-subnet-group'
+
+  # Test RDS Instance (small, auto-delete)
+  TestRDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub '${EnvironmentName}-${TestSuiteId}-db'
+      DBInstanceClass: db.t3.micro  # Smallest instance for cost
+      Engine: postgres
+      EngineVersion: '13.13'
+      MasterUsername: testuser
+      MasterUserPassword: !Sub 'testpass-${TestSuiteId}'
+      AllocatedStorage: 20
+      StorageType: gp2
+      DBSubnetGroupName: !Ref TestDBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref TestDBSecurityGroup
+      BackupRetentionPeriod: 0  # No backups for test DB
+      MultiAZ: false
+      PubliclyAccessible: false
+      StorageEncrypted: false  # Not needed for test
+      DeletionProtection: false  # Allow auto-deletion
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-${TestSuiteId}-rds'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: TestSuite
+          Value: !Ref TestSuiteId
+        - Key: AutoDelete
+          Value: 'true'
+
+  # Secrets Manager for test DB credentials
+  TestDBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-${TestSuiteId}-db-credentials'
+      Description: Database credentials for integration tests
+      SecretString: !Sub |
+        {
+          "username": "testuser",
+          "password": "testpass-${TestSuiteId}",
+          "engine": "postgres",
+          "host": "${TestRDSInstance.Endpoint.Address}",
+          "port": 5432,
+          "dbname": "postgres"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: TestSuite
+          Value: !Ref TestSuiteId
+        - Key: AutoDelete
+          Value: 'true'
+
+  # Cognito User Pool for auth testing
+  TestUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${EnvironmentName}-${TestSuiteId}-user-pool'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      UserPoolTags:
+        Environment: !Ref EnvironmentName
+        TestSuite: !Ref TestSuiteId
+        AutoDelete: 'true'
+
+  # Cognito User Pool Client
+  TestUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref TestUserPool
+      ClientName: !Sub '${EnvironmentName}-${TestSuiteId}-client'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+
+Outputs:
+  TestDatabaseEndpoint:
+    Description: Test RDS endpoint for integration tests
+    Value: !GetAtt TestRDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-db-endpoint'
+
+  TestDatabaseSecretArn:
+    Description: ARN of the test database secret
+    Value: !Ref TestDBSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-db-secret-arn'
+
+  TestUserPoolId:
+    Description: Test Cognito User Pool ID
+    Value: !Ref TestUserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-user-pool-id'
+
+  TestUserPoolClientId:
+    Description: Test Cognito User Pool Client ID
+    Value: !Ref TestUserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-user-pool-client-id'
+
+  TestSuiteId:
+    Description: Unique test suite identifier
+    Value: !Ref TestSuiteId
+    Export:
+      Name: !Sub '${AWS::StackName}-test-suite-id'
