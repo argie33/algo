@@ -1,9 +1,13 @@
 // CRITICAL FIX: Replace ALL MUI components with TailwindCSS + Comprehensive Error Handling
 // Enhanced with comprehensive unit test integration for CI/CD pipeline - Fixed unit test failures
+// PRODUCTION FIX: Apply React hooks patch to resolve useState errors
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import AppLayout from './components/ui/layout'
 import { GlobalErrorBoundary, ErrorToastContainer } from './error'
+
+// Import React hooks patch for production useState errors
+import { ReactHooksErrorBoundary, initializeReactHooksPatch } from './utils/reactHooksPatch'
 
 // All real page imports
 import Dashboard from './pages/Dashboard'
@@ -86,10 +90,20 @@ function App() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Initialize comprehensive error handling system
+  // Initialize comprehensive error handling system AND React hooks patch
   useEffect(() => {
-    // The comprehensive error system auto-initializes on import
-    // We can optionally check status or perform additional setup here
+    // Initialize React hooks patch system first
+    const initializePatchSystem = async () => {
+      try {
+        console.log('🔧 Initializing React hooks patch system...')
+        const patchResult = initializeReactHooksPatch()
+        console.log('✅ React hooks patch system initialized:', patchResult)
+      } catch (error) {
+        console.error('❌ Failed to initialize React hooks patch:', error)
+      }
+    }
+
+    // Initialize comprehensive error handling system
     const checkSystemStatus = async () => {
       try {
         // Wait a moment for initialization to complete
@@ -106,6 +120,8 @@ function App() {
       }
     }
     
+    // Run both initialization processes
+    initializePatchSystem()
     checkSystemStatus()
     
     // Cleanup on unmount
@@ -146,9 +162,10 @@ function App() {
   );
 
   return (
-    <GlobalErrorBoundary name="App">
-      <ErrorToastContainer />
-      <AppLayout
+    <ReactHooksErrorBoundary>
+      <GlobalErrorBoundary name="App">
+        <ErrorToastContainer />
+        <AppLayout
         headerTitle="Financial Platform"
         user={user}
         notifications={0}
@@ -241,13 +258,14 @@ function App() {
         </Routes>
       </div>
       
-      {/* Authentication Modal */}
-      <AuthModal
-        open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
-      </AppLayout>
-    </GlobalErrorBoundary>
+        {/* Authentication Modal */}
+        <AuthModal
+          open={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+        />
+        </AppLayout>
+      </GlobalErrorBoundary>
+    </ReactHooksErrorBoundary>
   )
 }
 
