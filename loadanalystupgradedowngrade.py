@@ -138,7 +138,7 @@ def lambda_handler(event, context):
             import socket
             test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             test_socket.settimeout(10)
-            test_result = test_socket.connect_ex((cfg["host"], cfg["port"]))
+            test_result = test_socket.connect_ex((host, port))
             
             if test_result == 0:
                 logging.info("✅ Network connectivity test passed")
