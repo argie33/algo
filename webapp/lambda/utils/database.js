@@ -650,25 +650,6 @@ async function query(text, params = [], timeoutMs = null) {
         
         return result;
         
-        const queryDuration = Date.now() - queryStart;
-        const totalDuration = Date.now() - startTime;
-        
-        console.log(`✅ [${queryId}] Query completed in ${queryDuration}ms (total: ${totalDuration}ms)`);
-        console.log(`✅ [${queryId}] Rows returned: ${result.rows?.length || 0}`);
-        
-        // Track performance metrics
-        try {
-            const { performanceMonitor } = require('./performanceMonitor');
-            const operation = text.trim().split(' ')[0].toUpperCase();
-            const table = extractTableName(text);
-            performanceMonitor.trackDbOperation(operation, table, queryDuration, true, queryId);
-        } catch (perfError) {
-            // Don't fail the query if performance monitoring fails
-            console.warn('Performance monitoring failed:', perfError.message);
-        }
-        
-        return result;
-        
     } catch (error) {
         const errorDuration = Date.now() - startTime;
         console.error(`❌ [${queryId}] Query failed after ${errorDuration}ms:`, error.message);

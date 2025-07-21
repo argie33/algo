@@ -94,11 +94,12 @@ const PortfolioManager = () => {
       setLoading(true);
       setError('');
       
-      const data = await getPortfolioData();
-      setPortfolioData(data);
+      const response = await getPortfolioData();
+      const data = response.data || response.holdings || response;
+      setPortfolioData(Array.isArray(data) ? data : []);
       
       // Calculate portfolio summary
-      calculatePortfolioSummary(data);
+      calculatePortfolioSummary(Array.isArray(data) ? data : []);
       
     } catch (err) {
       console.error('Error fetching portfolio data:', err);
@@ -261,6 +262,9 @@ const PortfolioManager = () => {
   };
 
   const formatPercent = (percent) => {
+    if (percent === null || percent === undefined || isNaN(percent)) {
+      return '0.00%';
+    }
     return `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
   };
 
@@ -280,6 +284,11 @@ const PortfolioManager = () => {
 
   return (
     <Box>
+      {/* Page Header */}
+      <Typography variant="h4" component="h1" gutterBottom>
+        Portfolio Overview
+      </Typography>
+
       {/* API Key Status */}
       <Box sx={{ mb: 3 }}>
         <ApiKeyStatusIndicator 

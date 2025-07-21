@@ -29,13 +29,8 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             // Split into smaller, more specific chunks for better caching
             if (id.includes('node_modules')) {
-              // Core React libraries
-              if (id.includes('react') && !id.includes('react-dom') && !id.includes('react-router')) {
-                return 'react';
-              }
-              if (id.includes('react-dom')) {
-                return 'react-dom';
-              }
+              // DON'T separate React and ReactDOM - keep them in main bundle to avoid conflicts
+              // Skip React chunking entirely to prevent SECRET_INTERNALS errors
               if (id.includes('react-router')) {
                 return 'react-router';
               }

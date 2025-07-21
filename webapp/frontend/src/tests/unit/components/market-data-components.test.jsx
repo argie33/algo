@@ -239,9 +239,9 @@ const MarketScreener = ({ stocks, filters, onFilterChange, onStockSelect, loadin
               onChange={(e) => onFilterChange('marketCap', e.target.value)}
             >
               <option value="all">All</option>
-              <option value="large">Large Cap (>$10B)</option>
+              <option value="large">Large Cap (&gt;$10B)</option>
               <option value="mid">Mid Cap ($2B-$10B)</option>
-              <option value="small">Small Cap (<$2B)</option>
+              <option value="small">Small Cap (&lt;$2B)</option>
             </select>
           </label>
           

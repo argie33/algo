@@ -816,7 +816,7 @@ function Portfolio() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-yellow-900">Concentration Risk</p>
-                          <p className="text-sm text-yellow-700">Technology sector > 50%</p>
+                          <p className="text-sm text-yellow-700">Technology sector &gt; 50%</p>
                         </div>
                         <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
                       </div>

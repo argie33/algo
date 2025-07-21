@@ -133,7 +133,7 @@ describe('💼 Real PortfolioManager Component', () => {
     
     // Setup default API mock responses
     getPortfolioData.mockResolvedValue({
-      data: mockPortfolioData,
+      data: mockPortfolioData.holdings,
       success: true
     });
 

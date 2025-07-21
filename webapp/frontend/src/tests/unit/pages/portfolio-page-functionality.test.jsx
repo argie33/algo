@@ -330,11 +330,11 @@ const MockPortfolioPage = () => {
             <h2>Add New Holding</h2>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const formData = new FormData(e.target);
+              const form = e.target;
               handleAddHolding({
-                symbol: formData.get('symbol'),
-                shares: parseInt(formData.get('shares')),
-                currentPrice: parseFloat(formData.get('price'))
+                symbol: form.symbol.value,
+                shares: parseInt(form.shares.value),
+                currentPrice: parseFloat(form.price.value)
               });
             }}>
               <input 
