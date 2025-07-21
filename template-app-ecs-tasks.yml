@@ -506,8 +506,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: econdata-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -537,6 +537,10 @@ Resources:
               Value: 'false'
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
+            - Name: MEMORY_THRESHOLD_MB
+              Value: '1600'
+            - Name: ECS_MEMORY_MB
+              Value: '2048'
           LogConfiguration:
             LogDriver: awslogs
             Options:
