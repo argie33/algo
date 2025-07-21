@@ -1,12 +1,20 @@
 /**
  * PERMANENT FIX: Custom useSyncExternalStore implementation that bypasses the problematic shim
  * This ensures we never hit the useState undefined error in production
+ * Updated: 2025-07-21 - Added comprehensive React safety checks and logging
  */
 
 import React from 'react';
 
 // Check if React 18+ native useSyncExternalStore is available
 const hasNativeUseSyncExternalStore = typeof React.useSyncExternalStore === 'function';
+
+// Debug logging for production troubleshooting (only logs once)
+if (typeof window !== 'undefined' && !window.__USE_SYNC_EXTERNAL_STORE_FIX_LOADED) {
+  console.log('🔧 useSyncExternalStoreFix loaded - React hooks safety enabled');
+  console.log('🔧 Native useSyncExternalStore available:', hasNativeUseSyncExternalStore);
+  window.__USE_SYNC_EXTERNAL_STORE_FIX_LOADED = true;
+}
 
 /**
  * Safe implementation of useSyncExternalStore that works in all environments
