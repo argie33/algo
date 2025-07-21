@@ -3,8 +3,8 @@ import { Select as MuiSelect } from '@mui/material';
 
 export const Select = React.forwardRef(({ className, children, value, onValueChange, ...props }, ref) => {
   return (
-    <div className="mb-4" className={className} size="small">
-      <MuiSelect 
+    <div className={`mb-4 ${className || ''}`}>
+      <MuiSelect size="small" 
         ref={ref} 
         value={value || ''}
         onChange={(e) => onValueChange && onValueChange(e.target.value)}

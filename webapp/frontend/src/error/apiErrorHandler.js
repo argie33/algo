@@ -19,6 +19,7 @@ class ApiErrorHandler {
   async fetch(url, options = {}) {
     const requestId = this.generateRequestId();
     const retryCount = this.retryAttempts.get(url) || 0;
+    let timeoutId;
 
     try {
       // Add request tracking headers
@@ -34,7 +35,7 @@ class ApiErrorHandler {
 
       // Add timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+      timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
       enhancedOptions.signal = controller.signal;
 
       const response = await fetch(url, enhancedOptions);
@@ -48,7 +49,9 @@ class ApiErrorHandler {
 
       return response;
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       return this.handleError(error, url, requestId, options);
     }
   }

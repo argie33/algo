@@ -5,15 +5,15 @@ export const Badge = React.forwardRef(({ className, variant = "default", childre
   const color = variant === "destructive" ? "error" : "default";
   
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+    <span 
       ref={ref} 
-      className={className} 
-      variant={muiVariant}
-      color={color}
-      label={children}
-      size="small"
+      className={className || "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"}
+      data-variant={muiVariant}
+      data-color={color}
       {...props} 
-    />
+    >
+      {children}
+    </span>
   );
 });
 Badge.displayName = "Badge";
