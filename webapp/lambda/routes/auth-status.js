@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAuthStatus, generateTestToken, authenticateToken } = require('../middleware/auth');
-const { success, error } = require('../utils/responseFormatter');
+const { success, forbidden, unauthorized, serverError } = require('../utils/responseFormatter');
 
 /**
  * GET /api/auth-status/status
@@ -23,11 +23,9 @@ router.get('/generate-dev-token', async (req, res) => {
     const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
     
     if (!isDevelopment) {
-      return res.status(403).json({
-        success: false,
-        error: 'Development token generation not allowed in production',
-        message: 'This endpoint is only available in development mode'
-      });
+      const errorResponse = forbidden('Development token generation not allowed in production', 
+        'This endpoint is only available in development mode');
+      return res.status(errorResponse.statusCode).json(errorResponse.response);
     }
 
     const userId = req.query.userId || 'dev-user-' + Date.now();
@@ -35,8 +33,7 @@ router.get('/generate-dev-token', async (req, res) => {
     
     const token = generateTestToken(userId, email);
     
-    res.json({
-      success: true,
+    res.json(success({
       message: 'Development token generated successfully',
       token: token,
       usage: {
@@ -47,15 +44,12 @@ router.get('/generate-dev-token', async (req, res) => {
         expiresIn: '24 hours'
       },
       warning: 'This token is for development use only and should never be used in production'
-    });
+    }));
     
   } catch (err) {
     console.error('Failed to generate development token:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate development token',
-      message: err.message
-    });
+    const errorResponse = serverError('Failed to generate development token', err.message);
+    res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 });
 
@@ -69,17 +63,13 @@ router.get('/validate-token', authenticateToken, async (req, res) => {
     const token = authHeader && authHeader.split(' ')[1];
     
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: 'No token provided',
-        message: 'Authorization header with Bearer token is required'
-      });
+      const errorResponse = unauthorized('No token provided', 'Authorization header with Bearer token is required');
+      return res.status(errorResponse.statusCode).json(errorResponse.response);
     }
 
     // The token validation will be handled by the auth middleware
     // If we get here, the token is valid
-    res.json({
-      success: true,
+    res.json(success({
       message: 'Token is valid',
       user: req.user ? {
         id: req.user.sub,
@@ -96,15 +86,12 @@ router.get('/validate-token', authenticateToken, async (req, res) => {
         expiresAt: req.user?.tokenExpiresAt,
         authMethod: req.user?.authMethod
       }
-    });
+    }));
     
   } catch (err) {
     console.error('Token validation error:', err);
-    res.status(401).json({
-      success: false,
-      error: 'Token validation failed',
-      message: err.message
-    });
+    const errorResponse = unauthorized('Token validation failed', err.message);
+    res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 });
 
@@ -115,15 +102,11 @@ router.get('/validate-token', authenticateToken, async (req, res) => {
 router.get('/user-info', authenticateToken, async (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Not authenticated',
-        message: 'User is not authenticated'
-      });
+      const errorResponse = unauthorized('Not authenticated', 'User is not authenticated');
+      return res.status(errorResponse.statusCode).json(errorResponse.response);
     }
 
-    res.json({
-      success: true,
+    res.json(success({
       user: {
         id: req.user.sub,
         email: req.user.email,
@@ -152,15 +135,12 @@ router.get('/user-info', authenticateToken, async (req, res) => {
           requestId: req.user.requestId
         }
       }
-    });
+    }));
     
   } catch (err) {
     console.error('User info error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get user information',
-      message: err.message
-    });
+    const errorResponse = serverError('Failed to get user information', err.message);
+    res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 });
 
@@ -173,17 +153,15 @@ router.get('/test-endpoints', async (req, res) => {
     const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
     
     if (!isDevelopment) {
-      return res.status(403).json({
-        success: false,
-        error: 'Test endpoints not available in production'
-      });
+      const errorResponse = forbidden('Test endpoints not available in production', 
+        'This endpoint is only available in development mode');
+      return res.status(errorResponse.statusCode).json(errorResponse.response);
     }
 
     const baseUrl = req.protocol + '://' + req.get('host');
     const testToken = generateTestToken('test-user', 'test@example.com');
     
-    res.json({
-      success: true,
+    res.json(success({
       message: 'Authentication test endpoints',
       endpoints: {
         'auth-status': {
@@ -225,15 +203,12 @@ router.get('/test-endpoints', async (req, res) => {
         'test-with-auth': `curl -H "Authorization: Bearer ${testToken}" "${baseUrl}/api/auth-status/user-info"`,
         'test-api-services': `curl -H "Authorization: Bearer ${testToken}" "${baseUrl}/api/health/api-services"`
       }
-    });
+    }));
     
   } catch (err) {
     console.error('Test endpoints error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate test endpoints',
-      message: err.message
-    });
+    const errorResponse = serverError('Failed to generate test endpoints', err.message);
+    res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 });
 

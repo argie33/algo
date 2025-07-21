@@ -1,5 +1,5 @@
 const express = require('express');
-const { success, error } = require('../utils/responseFormatter');
+const { success, badRequest } = require('../utils/responseFormatter');
 
 const router = express.Router();
 
@@ -27,13 +27,8 @@ router.get('/status', (req, res) => {
 router.post('/validate', (req, res) => {
   const { token } = req.body;
   
-  if (!token) {
-    const errorResponse = error('Token is required', 400);
-    return res.status(errorResponse.statusCode).json(errorResponse.response);
-  }
-
-  if (token === '') {
-    const errorResponse = error('Token is required', 400);
+  if (!token || token === '') {
+    const errorResponse = badRequest('Token is required');
     return res.status(errorResponse.statusCode).json(errorResponse.response);
   }
 
