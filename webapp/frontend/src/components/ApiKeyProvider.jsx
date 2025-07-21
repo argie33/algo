@@ -31,7 +31,7 @@ export const ApiKeyProvider = ({ children }) => {
   const validationRules = {
     alpaca: {
       keyId: /^[A-Z0-9]{20}$/,
-      secretKey: /^[A-Za-z0-9\/\+]{40}$/,
+      secretKey: /^[A-Za-z0-9/+]{40}$/,
       name: 'Alpaca Trading API',
       description: 'Paper and live trading API access',
       keyIdFormat: '20 uppercase letters and numbers',

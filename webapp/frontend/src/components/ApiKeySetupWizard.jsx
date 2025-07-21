@@ -255,7 +255,7 @@ const ApiKeySetupWizard = ({
           </Box>
         );
 
-      case 1:
+      case 1: {
         const selectedProvider = getSelectedProvider();
         return (
           <Box>
@@ -388,8 +388,9 @@ const ApiKeySetupWizard = ({
             )}
           </Box>
         );
+      }
 
-      case 2:
+      case 2: {
         const provider = getSelectedProvider();
         return (
           <Box>
@@ -399,7 +400,7 @@ const ApiKeySetupWizard = ({
             
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
-                You'll need to create API keys in your {provider?.name} account first.{' '}
+                You&apos;ll need to create API keys in your {provider?.name} account first.{' '}
                 <Link 
                   href={provider?.docsUrl} 
                   target="_blank" 
@@ -460,6 +461,7 @@ const ApiKeySetupWizard = ({
             </Box>
           </Box>
         );
+      }
 
       case 3:
         return (

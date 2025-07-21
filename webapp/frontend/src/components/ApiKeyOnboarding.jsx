@@ -162,16 +162,16 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
               To provide you with real-time market data and trading capabilities, 
-              we need to connect to your broker's API. This process is secure and 
+              we need to connect to your broker&apos;s API. This process is secure and 
               your credentials are encrypted.
             </Typography>
             <Alert severity="info" sx={{ mb: 2, textAlign: 'left' }}>
               <Typography variant="subtitle2" gutterBottom>
-                What you'll need:
+                What you&apos;ll need:
               </Typography>
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
                 <li>An account with a supported broker (Alpaca or TD Ameritrade)</li>
-                <li>API credentials from your broker's developer portal</li>
+                <li>API credentials from your broker&apos;s developer portal</li>
                 <li>5-10 minutes to complete the setup</li>
               </ul>
             </Alert>
@@ -223,7 +223,7 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
           </Box>
         );
 
-      case 2:
+      case 2: {
         const provider = providerInfo[selectedProvider];
         const keys = apiKeyData[selectedProvider];
         
@@ -288,6 +288,7 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
             )}
           </Box>
         );
+      }
 
       case 3:
         return (
@@ -337,7 +338,7 @@ const ApiKeyOnboarding = ({ onComplete, onSkip }) => {
             
             <Alert severity="success" sx={{ mb: 3, textAlign: 'left' }}>
               <Typography variant="subtitle2" gutterBottom>
-                What's Next:
+                What&apos;s Next:
               </Typography>
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
                 <li>Access your portfolio and real-time data</li>

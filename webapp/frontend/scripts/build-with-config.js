@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console, no-unused-vars */
 
 /**
  * Build script that automatically configures the API URL from CloudFormation
