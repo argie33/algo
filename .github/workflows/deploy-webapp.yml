@@ -155,7 +155,7 @@ jobs:
   unit_tests:
     name: Run unit tests
     needs: [setup, filter]
-    if: ${{ github.event.inputs.deployment_type == 'quality' || (github.base_ref == 'main' && github.event_name == 'pull_request') || github.ref_name == 'initialbuild' || github.event.inputs.deployment_type == 'standard' }}
+    if: ${{ github.event.inputs.deployment_type == 'quality' || (github.base_ref == 'main' && github.event_name == 'pull_request') }}
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
@@ -546,8 +546,8 @@ jobs:
 ################################################################################
   integration_tests:
     name: Run integration tests
-    needs: [setup, filter, deploy_infrastructure]
-    if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
+    needs: [setup, filter, unit_tests, deploy_infrastructure]
+    if: ${{ always() && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
