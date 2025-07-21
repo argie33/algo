@@ -1028,4 +1028,4 @@ console.log('✅ Financial Dashboard API Lambda ready with comprehensive error h
 module.exports.handler = serverless(app);
 
 // Export the app for testing
-module.exports = app;
+module.exports.app = app;

@@ -23,35 +23,71 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
-      chunkSizeWarningLimit: 800,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
           manualChunks(id) {
-            // Split into smaller, more specific chunks
+            // Split into smaller, more specific chunks for better caching
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-                return 'react-core';
+              // Core React libraries
+              if (id.includes('react') && !id.includes('react-dom') && !id.includes('react-router')) {
+                return 'react';
               }
+              if (id.includes('react-dom')) {
+                return 'react-dom';
+              }
+              if (id.includes('react-router')) {
+                return 'react-router';
+              }
+              
+              // UI libraries
+              if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
+                return 'mui';
+              }
+              if (id.includes('@emotion')) {
+                return 'emotion';
+              }
+              
+              // Chart libraries
               if (id.includes('recharts')) {
                 return 'charts';
               }
+              
+              // AWS services
               if (id.includes('aws-amplify') || id.includes('@aws-amplify')) {
                 return 'aws';
               }
+              
+              // Data management
               if (id.includes('@tanstack/react-query')) {
                 return 'react-query';
               }
-              if (id.includes('lodash') || id.includes('date-fns') || id.includes('numeral')) {
-                return 'utils';
+              
+              // Utility libraries  
+              if (id.includes('lodash')) {
+                return 'lodash';
               }
-              // Everything else goes to vendor
+              if (id.includes('date-fns') || id.includes('numeral')) {
+                return 'date-utils';
+              }
+              if (id.includes('framer-motion')) {
+                return 'animations';
+              }
+              if (id.includes('axios')) {
+                return 'http';
+              }
+              
+              // Everything else goes to vendor (smaller now)
               return 'vendor';
             }
             
-            // Split our own code by page/feature
+            // Split our own code by feature for better lazy loading
             if (id.includes('/pages/')) {
               const page = id.split('/pages/')[1].split('/')[0].split('.')[0];
               return `page-${page}`;
+            }
+            if (id.includes('/components/') && id.includes('Chart')) {
+              return 'chart-components';
             }
             if (id.includes('/components/')) {
               return 'components';

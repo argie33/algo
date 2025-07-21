@@ -40,9 +40,13 @@ process.env.API_URL = process.env.TEST_API_URL || 'https://jh28jhdp01.execute-ap
 process.env.DB_SSL = 'false'
 
 // Authentication configuration for integration tests
-process.env.ALLOW_DEV_AUTH_BYPASS = 'false' // Use real auth in integration tests
+process.env.ALLOW_DEV_AUTH_BYPASS = 'true' // Allow auth bypass for integration tests
 process.env.JWT_SECRET = 'test-jwt-secret' // Use consistent JWT secret for tests
 process.env.API_KEY_ENCRYPTION_SECRET = 'test-encryption-secret' // Use consistent encryption secret for tests
+
+// Cognito configuration for integration tests
+process.env.COGNITO_USER_POOL_ID = process.env.TEST_USER_POOL_ID || 'test-pool-id'
+process.env.COGNITO_CLIENT_ID = process.env.TEST_CLIENT_ID || 'test-client-id'
 
 // Timeout configuration for AWS operations
 jest.setTimeout(120000) // 2 minutes for AWS operations

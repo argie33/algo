@@ -204,7 +204,7 @@ class SecurityUtils {
   validateInput(input, type = 'text', options = {}) {
     const validators = {
       email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      phone: /^\+?[\d\s\-\(\)]+$/,
+      phone: /^\+?[\d\s\-()]+$/,
       alphanumeric: /^[a-zA-Z0-9\s]*$/,
       numeric: /^\d*\.?\d*$/,
       url: /^https?:\/\/.+/,
