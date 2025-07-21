@@ -331,15 +331,15 @@ async function main() {
   console.log(`Target: ${productionUrl}`);
   console.log('');
   
-  const debugger = new LiveSiteDebugger(productionUrl);
+  const siteDebugger = new LiveSiteDebugger(productionUrl);
   
   try {
-    await debugger.init();
-    await debugger.loadProductionSite();
-    await debugger.captureNetworkTrace();
+    await siteDebugger.init();
+    await siteDebugger.loadProductionSite();
+    await siteDebugger.captureNetworkTrace();
     
     // Enter interactive mode
-    const report = await debugger.interactiveMode();
+    const report = await siteDebugger.interactiveMode();
     
     if (report.summary.hasUseSyncExternalStoreError) {
       console.log('🎯 Mission accomplished - error captured!');
@@ -351,7 +351,7 @@ async function main() {
     
   } catch (error) {
     console.error('💥 Live site debugger failed:', error);
-    await debugger.close();
+    await siteDebugger.close();
     process.exit(2);
   }
 }

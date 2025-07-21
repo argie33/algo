@@ -310,13 +310,13 @@ class RemoteDebugger {
 async function main() {
   const targetUrl = process.argv[2] || 'http://localhost:8080';
   
-  const debugger = new RemoteDebugger(targetUrl);
+  const remoteDebugger = new RemoteDebugger(targetUrl);
   
   try {
-    await debugger.init();
-    await debugger.loadSite();
-    await debugger.captureScreenshot('initial-load.png');
-    const report = await debugger.keepAlive();
+    await remoteDebugger.init();
+    await remoteDebugger.loadSite();
+    await remoteDebugger.captureScreenshot('initial-load.png');
+    const report = await remoteDebugger.keepAlive();
     
     // Final analysis
     if (report.summary.targetErrors > 0) {
@@ -329,7 +329,7 @@ async function main() {
     
   } catch (error) {
     console.error('💥 Remote debugger failed:', error);
-    await debugger.close();
+    await remoteDebugger.close();
     process.exit(2);
   }
 }

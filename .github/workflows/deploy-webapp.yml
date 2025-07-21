@@ -80,7 +80,6 @@ jobs:
         name: Which files changed?
         uses: dorny/paths-filter@v2
         with:
-          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || github.sha }}
           filters: |
             webapp:
               - 'webapp/**'
@@ -1380,9 +1379,8 @@ jobs:
 # 7) Build and deploy Frontend                                                 #
 ################################################################################
   deploy_frontend:
-    name: Deploy Frontend to S3
-    needs: [filter, deploy_infrastructure]
-    if: ${{ needs.filter.outputs.any == 'true' }}
+    name: Deploy Frontend to S3  
+    needs: [deploy_infrastructure]
     runs-on: ubuntu-latest
 
     steps:
@@ -1523,7 +1521,7 @@ jobs:
 ################################################################################
   verify_deployment:
     name: Verify deployment
-    needs: [setup, deploy_infrastructure, deploy_frontend]
+    needs: [deploy_infrastructure, deploy_frontend]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
 
