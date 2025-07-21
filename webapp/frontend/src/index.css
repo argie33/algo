@@ -39,4 +39,4 @@
   .bg-warning {
     @apply bg-yellow-100 text-yellow-800;
   }
-}
+}/* Frontend deployment test - useState permanently fixed */

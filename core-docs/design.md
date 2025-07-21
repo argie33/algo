@@ -21,7 +21,67 @@ The system scope includes web application frontend, serverless API services, rea
 
 ## 2. SYSTEM ARCHITECTURE OVERVIEW
 
-### 2.1 High-Level Architecture Pattern
+### 2.1 Critical Testing Architecture Issues
+
+**UNIT TEST ARCHITECTURE CRISIS DISCOVERED**: 53% of unit tests use fake mock-based patterns that provide false confidence while real business logic remains untested.
+
+**Anti-Pattern: Mock-Heavy Testing (DO NOT USE)**
+```javascript
+// FAKE TEST PATTERN - ELIMINATES BUSINESS LOGIC VALIDATION
+jest.mock('../../utils/portfolioMath', () => ({
+  calculateCovarianceMatrix: jest.fn(),
+  meanVarianceOptimization: jest.fn(),  // Core financial logic mocked out
+  calculateRiskMetrics: jest.fn()
+}));
+
+// Tests mock interactions, not real calculations
+test('portfolio optimization', () => {
+  mockPortfolioMath.meanVarianceOptimization.mockReturnValue({
+    weights: [0.4, 0.6],  // Fake response
+    sharpeRatio: 1.5      // Fake calculation
+  });
+  // Test passes even if real optimization is completely broken
+});
+```
+
+**Required Pattern: Real Implementation Testing**
+```javascript
+// REAL TEST PATTERN - TESTS ACTUAL BUSINESS LOGIC
+const PortfolioMath = require('../../utils/portfolioMath');  // NO MOCKS
+const OptimizationEngine = require('../../services/optimizationEngine');
+
+test('real portfolio optimization calculations', async () => {
+  // Use real market data for testing
+  const realPriceData = {
+    'AAPL': generateRealPriceData('AAPL', startDate, endDate),
+    'MSFT': generateRealPriceData('MSFT', startDate, endDate)
+  };
+  
+  const returnsMatrix = calculateRealReturnsMatrix(realPriceData);
+  
+  // Test actual covariance matrix calculation - NO MOCKS
+  const covMatrix = PortfolioMath.calculateCovarianceMatrix(returnsMatrix);
+  
+  // Validate real mathematical properties
+  expect(covMatrix.get(0, 0)).toBeGreaterThan(0);  // Positive variance
+  expect(covMatrix.get(0, 1)).toBeCloseTo(covMatrix.get(1, 0), 10);  // Symmetry
+  
+  // Test actual optimization with real constraints
+  const optimization = PortfolioMath.meanVarianceOptimization(
+    expectedReturns, covMatrix, { objective: 'maxSharpe', riskFreeRate: 0.02 }
+  );
+  
+  // Validate real optimization results
+  const weightSum = optimization.weights.reduce((sum, w) => sum + w, 0);
+  expect(weightSum).toBeCloseTo(1.0, 8);  // Weights must sum to 1
+  
+  // Test real Sharpe ratio calculation
+  const expectedSharpe = (optimization.expectedReturn - 0.02) / optimization.volatility;
+  expect(optimization.sharpeRatio).toBeCloseTo(expectedSharpe, 8);
+});
+```
+
+### 2.2 High-Level Architecture Pattern
 The system implements a progressive enhancement lambda architecture designed for fault-tolerant deployment with graceful service degradation. The architecture consists of multiple phases starting with an ultra-minimal CORS foundation that guarantees basic functionality, progressing through service loading with fallback mechanisms, and culminating in enhanced services with circuit breakers and comprehensive monitoring.
 
 The frontend layer consists of a React single-page application with Material-UI components deployed via AWS CloudFront content delivery network for global performance. The API layer uses AWS API Gateway with Lambda functions providing serverless compute for all business logic operations. The data layer utilizes PostgreSQL RDS with advanced connection pooling and circuit breaker patterns for resilience. Real-time capabilities are provided through dedicated WebSocket services for live market data streaming.

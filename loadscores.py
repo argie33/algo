@@ -46,12 +46,12 @@ DB_NAME = creds["dbname"]
 
 def get_db_connection():
     conn = psycopg2.connect(
-        host=DB_HOST
-        port=DB_PORT
-        user=DB_USER
-        password=DB_PASSWORD
-        dbname=DB_NAME
-        
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        dbname=DB_NAME,
+        sslmode='require',
         options='-c statement_timeout=60000'  # 60 seconds for scoring calculations
     )
     return conn

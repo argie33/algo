@@ -1,63 +1,45 @@
 /**
- * Portfolio Service Unit Tests
- * Tests for real database integration portfolio service
+ * REAL Portfolio Service Unit Tests
+ * Tests actual portfolio service implementation with YOUR real business logic
+ * NO MOCKS for core business logic - Tests real broker integration, calculations, and database operations
  */
-
-// Mock AlpacaService before importing portfolioService to avoid API key requirement
-jest.mock('../../utils/alpacaService', () => {
-  return jest.fn().mockImplementation(() => ({
-    getPositions: jest.fn().mockResolvedValue([]),
-    getAccount: jest.fn().mockResolvedValue({
-      account_number: 'TEST123',
-      account_type: 'margin',
-      equity: 50000.00,
-      buying_power: 25000.00,
-      cash: 5000.00,
-      daytrade_count: 2
-    })
-  }));
-});
 
 const portfolioService = require('../../services/portfolioService');
 const { dbTestUtils } = require('../utils/database-test-utils');
 
-describe('Portfolio Service Unit Tests', () => {
+describe('PortfolioService REAL Implementation Tests', () => {
   let testUser;
   let hasDbConnection = false;
 
   beforeAll(async () => {
-    // Skip these tests if no database connection is available (they're actually integration tests)
     try {
       await dbTestUtils.initialize();
       hasDbConnection = true;
     } catch (error) {
-      console.log('⏭️ Skipping Portfolio Service integration tests - no database connection available');
-      console.log('   These tests require real AWS RDS connection and should run in CI/CD');
+      console.log('⏭️ Skipping Portfolio Service real tests - no database connection available');
       hasDbConnection = false;
     }
   });
 
   beforeEach(async () => {
-    // Create a test user for each test (only if database connection is available)
     if (hasDbConnection) {
       testUser = await dbTestUtils.createTestUser({
-        email: `portfolio-test-${Date.now()}@example.com`,
-        username: `portfoliouser${Date.now()}`
+        email: `portfolio-real-test-${Date.now()}@example.com`,
+        username: `portfoliorealuser${Date.now()}`
       });
     }
   });
 
   afterEach(async () => {
-    // Clean up test data after each test (only if database connection is available)
     if (hasDbConnection && testUser) {
       await dbTestUtils.query('DELETE FROM portfolio_holdings WHERE user_id = $1', [testUser.user_id]);
       await dbTestUtils.query('DELETE FROM portfolio_metadata WHERE user_id = $1', [testUser.user_id]);
+      await dbTestUtils.query('DELETE FROM portfolio_optimizations WHERE user_id = $1', [testUser.user_id]);
       await dbTestUtils.query('DELETE FROM users WHERE user_id = $1', [testUser.user_id]);
     }
   });
 
   afterAll(async () => {
-    // Close database connection after all tests (only if database connection was available)
     if (hasDbConnection) {
       await dbTestUtils.cleanup();
     }

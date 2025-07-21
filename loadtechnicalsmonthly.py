@@ -331,9 +331,12 @@ def prepare_db():
     """Set up the database tables"""
     user, pwd, host, port, db = get_db_config()
     conn = psycopg2.connect(
-        host=host, port=port, user=user, password=pwd, dbname=db
-    
-            
+        host=host, 
+        port=port, 
+        user=user, 
+        password=pwd, 
+        dbname=db,
+        sslmode='require'
     )
     conn.autocommit = True
     cursor = conn.cursor()
