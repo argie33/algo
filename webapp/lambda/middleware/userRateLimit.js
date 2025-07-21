@@ -214,7 +214,8 @@ async function applyUserRateLimit(userId, userTier, category, req) {
  * Apply rate limiting for anonymous users (stricter limits)
  */
 function applyAnonymousRateLimit(req, res, next, category) {
-  const clientIP = req.ip || req.connection.remoteAddress;
+  const { getClientIP } = require('../utils/ipDetection');
+  const clientIP = getClientIP(req);
   const now = Date.now();
   const key = `anonymous:${clientIP}:${category}`;
   

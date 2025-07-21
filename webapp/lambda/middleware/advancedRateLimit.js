@@ -260,7 +260,8 @@ class AdvancedRateLimiter {
      * Check rate limit using sliding window algorithm
      */
     async checkRateLimit(req, category = 'api') {
-        const ip = req.ip || req.connection.remoteAddress;
+        const { getClientIP } = require('../utils/ipDetection');
+        const ip = getClientIP(req);
         const userAgent = req.get('User-Agent') || 'unknown';
         const userTier = await this.getUserTier(req);
         const now = Date.now();

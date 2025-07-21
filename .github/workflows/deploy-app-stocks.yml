@@ -98,23 +98,23 @@ jobs:
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
             echo "Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
-            # Force all or infrastructure changed - SYMBOLS + FUNDAMENTALS + ANALYTICS (NO PRICE LOADERS)
-            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily calendar"
-            echo "Running symbols + fundamentals + analytics loaders (NO price loaders)"
+            # Force all or infrastructure changed - ALL WORKING LOADERS INCLUDING PRICE LOADERS
+            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily calendar pricedaily priceweekly pricemonthly"
+            echo "Running all working loaders including price loaders"
           else
             # Auto-detect based on file changes - ONLY GROUP 1 WORKING LOADERS
             CHANGED_LOADERS=$(git diff --name-only HEAD~1 HEAD | grep '^load.*\.py$' | sed 's/load//' | sed 's/\.py$//' | sort || true)
             if [[ -n "$CHANGED_LOADERS" ]]; then
-              # Filter to Groups 1 & 2 fundamentals loaders (NO price loaders)
+              # Filter to all working loaders including price loaders
               LOADERS_TO_RUN=""
               for loader in $CHANGED_LOADERS; do
                 case $loader in
-                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|calendar)
+                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|calendar|pricedaily|priceweekly|pricemonthly)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
                     ;;
                 esac
               done
-              echo "Auto-detected symbols + fundamentals + analytics loaders: $LOADERS_TO_RUN"
+              echo "Auto-detected working loaders including price loaders: $LOADERS_TO_RUN"
             else
               LOADERS_TO_RUN=""
               echo "No loader changes detected"
@@ -345,6 +345,15 @@ jobs:
               ;;
             annualcashflow)
               TASK_DEF_NAME="annualcashflow-loader"
+              ;;
+            pricedaily)
+              TASK_DEF_NAME="pricedaily-loader"
+              ;;
+            priceweekly)
+              TASK_DEF_NAME="priceweekly-loader"
+              ;;
+            pricemonthly)
+              TASK_DEF_NAME="pricemonthly-loader"
               ;;
             *)
               TASK_DEF_NAME="${{ matrix.loader }}-loader"

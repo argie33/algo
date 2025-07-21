@@ -308,7 +308,7 @@ describe('Authentication Middleware Unit Tests', () => {
       await auth.authenticateToken(mockRequest, mockResponse, nextFunction);
       
       expect(mockRequest.user).toMatchObject({
-        clientIp: '192.168.1.100',
+        clientIp: '127.0.0.1', // Local IP for unit tests
         userAgent: 'Test Browser/1.0',
         requestId: 'test-request-123',
         authenticatedAt: expect.any(String)

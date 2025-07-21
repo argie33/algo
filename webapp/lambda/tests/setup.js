@@ -8,6 +8,9 @@ const path = require('path');
 // Load environment variables for testing
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.test') });
 
+// Initialize resource cleanup for test environment
+const resourceCleanup = require('../utils/resourceCleanup');
+
 // Set up test environment variables
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret';
@@ -39,9 +42,40 @@ beforeAll(async () => {
   console.log('- Database SSL:', process.env.DB_SSL);
 });
 
+// Per-test cleanup to ensure isolation
+beforeEach(async () => {
+  try {
+    // Reset database state before each test to ensure isolation
+    const { resetDatabaseState } = require('../utils/database');
+    await resetDatabaseState();
+  } catch (error) {
+    // Non-fatal - some tests may not need database
+    console.warn('⚠️ Database state reset warning:', error.message);
+  }
+});
+
+afterEach(async () => {
+  try {
+    // Clean up any test-specific resources after each test
+    const { closeDatabase } = require('../utils/database');
+    await closeDatabase();
+  } catch (error) {
+    // Non-fatal - database may already be closed
+    console.warn('⚠️ Per-test database cleanup warning:', error.message);
+  }
+});
+
 // Global test cleanup
 afterAll(async () => {
   console.log('🧹 Jest Test Environment Cleanup');
+  
+  try {
+    // Cleanup all tracked resources first
+    await resourceCleanup.forceCleanup();
+    console.log('✅ Resource cleanup completed');
+  } catch (error) {
+    console.warn('⚠️ Error during resource cleanup:', error.message);
+  }
   
   try {
     // Close any remaining database connections
@@ -50,6 +84,28 @@ afterAll(async () => {
     console.log('✅ Test database connections closed');
   } catch (error) {
     console.warn('⚠️ Error closing test database connections:', error.message);
+  }
+  
+  try {
+    // Cleanup performance monitor if it exists
+    const { performanceMonitor } = require('../utils/performanceMonitor');
+    if (performanceMonitor && typeof performanceMonitor.cleanup === 'function') {
+      performanceMonitor.cleanup();
+      console.log('✅ Performance monitor cleaned up');
+    }
+  } catch (error) {
+    console.warn('⚠️ Error cleaning up performance monitor:', error.message);
+  }
+  
+  try {
+    // Cleanup timeout helper if it exists
+    const timeoutHelper = require('../utils/timeoutHelper');
+    if (timeoutHelper && typeof timeoutHelper.cleanup === 'function') {
+      timeoutHelper.cleanup();
+      console.log('✅ Timeout helper cleaned up');
+    }
+  } catch (error) {
+    console.warn('⚠️ Error cleaning up timeout helper:', error.message);
   }
   
   // Give time for async operations to complete

@@ -45,6 +45,14 @@ class PerformanceMonitor {
     this.startTime = Date.now();
     this.alertCallbacks = [];
     
+    // Track timer references for proper cleanup
+    this.timers = {
+      systemMetrics: null,
+      cleanup: null,
+      alerts: null
+    };
+    this.isActive = false;
+    
     // Start background monitoring
     this.startBackgroundMonitoring();
   }
@@ -53,20 +61,75 @@ class PerformanceMonitor {
    * Start background system monitoring
    */
   startBackgroundMonitoring() {
+    if (this.isActive) return;
+    
+    this.isActive = true;
+    
     // Memory and CPU monitoring every 30 seconds
-    setInterval(() => {
+    this.timers.systemMetrics = setInterval(() => {
       this.collectSystemMetrics();
     }, 30000);
 
     // Clean up old metrics every 5 minutes
-    setInterval(() => {
+    this.timers.cleanup = setInterval(() => {
       this.cleanupOldMetrics();
     }, 300000);
 
     // Performance alerts check every minute
-    setInterval(() => {
+    this.timers.alerts = setInterval(() => {
       this.checkPerformanceAlerts();
     }, 60000);
+  }
+
+  /**
+   * Stop background monitoring and clean up resources
+   */
+  stopBackgroundMonitoring() {
+    if (!this.isActive) return;
+    
+    this.isActive = false;
+    
+    // Clear all timers
+    if (this.timers.systemMetrics) {
+      clearInterval(this.timers.systemMetrics);
+      this.timers.systemMetrics = null;
+    }
+    
+    if (this.timers.cleanup) {
+      clearInterval(this.timers.cleanup);
+      this.timers.cleanup = null;
+    }
+    
+    if (this.timers.alerts) {
+      clearInterval(this.timers.alerts);
+      this.timers.alerts = null;
+    }
+    
+    // Clear alert callbacks
+    this.alertCallbacks = [];
+  }
+
+  /**
+   * Clean up all resources
+   */
+  cleanup() {
+    this.stopBackgroundMonitoring();
+    
+    // Clear all metrics
+    this.metrics.apiRequests.clear();
+    this.metrics.apiErrors.clear();
+    this.metrics.responseTimeHistogram.clear();
+    this.metrics.dbConnections.clear();
+    this.metrics.dbQueryTimes.clear();
+    this.metrics.dbErrors.clear();
+    this.metrics.externalApiCalls.clear();
+    this.metrics.memoryUsage = [];
+    this.metrics.cpuUsage = [];
+    
+    // Reset counters
+    this.metrics.activeRequests = 0;
+    this.metrics.totalRequests = 0;
+    this.metrics.totalErrors = 0;
   }
 
   /**

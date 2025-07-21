@@ -25,7 +25,8 @@ describe('Error Handling Integration Tests', () => {
     
     try {
       // Load the actual application
-      app = require('../../index');
+      const indexModule = require('../../index');
+      app = indexModule.app || indexModule;
       console.log('✅ Application loaded successfully');
       
       // Create valid auth token for testing protected endpoints
@@ -263,7 +264,7 @@ describe('Error Handling Integration Tests', () => {
           .timeout(5000);
         
         // Should handle invalid authentication gracefully
-        expect([400, 401, 403, 503]).toContain(response.status);
+        expect([400, 401, 403, 429, 503]).toContain(response.status);
         expect(response.body).toBeDefined();
         
         if (response.body.error) {

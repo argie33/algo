@@ -1035,17 +1035,24 @@ class RealtimeDataPipeline extends EventEmitter {
    * Cleanup and shutdown with enhanced resource management
    */
   shutdown() {
+    // Clear all timers
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
+      this.flushTimer = null;
     }
     
     if (this.performanceTimer) {
       clearInterval(this.performanceTimer);
+      this.performanceTimer = null;
     }
 
     if (this.adaptiveTimer) {
       clearInterval(this.adaptiveTimer);
+      this.adaptiveTimer = null;
     }
+
+    // Clear all data buffers
+    this.clearProcessedBuffers();
 
     // Clear priority queues
     Object.keys(this.priorityQueues).forEach(priority => {
@@ -1056,8 +1063,19 @@ class RealtimeDataPipeline extends EventEmitter {
     this.memoryPool.buffers.length = 0;
     this.memoryPool.currentSize = 0;
 
-    // Final flush
-    this.flushBuffers();
+    // Clear subscriptions
+    this.subscriptions.clear();
+    this.connectionPool.clear();
+
+    // Clear history arrays
+    this.latencyHistory = [];
+    this.throughputHistory = [];
+
+    // Clear flush queue
+    this.flushQueue = [];
+
+    // Remove all event listeners to prevent memory leaks
+    this.removeAllListeners();
     
     this.logger.info('🛑 High-Performance Real-time Data Pipeline shutdown completed', {
       finalMetrics: {
@@ -1067,6 +1085,45 @@ class RealtimeDataPipeline extends EventEmitter {
         adaptiveResizes: this.metrics.adaptiveBufferResizes
       }
     });
+  }
+
+  /**
+   * Complete cleanup of all resources
+   */
+  cleanup() {
+    this.shutdown();
+    
+    // Reset all metrics
+    this.metrics = {
+      messagesReceived: 0,
+      messagesProcessed: 0,
+      messagesDropped: 0,
+      batchesFlushed: 0,
+      averageLatency: 0,
+      lastFlushTime: Date.now(),
+      bufferUtilization: 0,
+      throughputPerSecond: 0,
+      peakThroughput: 0,
+      latencyP95: 0,
+      latencyP99: 0,
+      circuitBreakerTrips: 0,
+      memoryUtilization: 0,
+      concurrentFlushes: 0,
+      adaptiveBufferResizes: 0,
+      priorityQueueSizes: { critical: 0, high: 0, normal: 0, low: 0 }
+    };
+
+    // Reset circuit breaker
+    this.circuitBreaker = {
+      isOpen: false,
+      failures: 0,
+      lastFailureTime: 0,
+      threshold: 5,
+      resetTimeout: 30000
+    };
+
+    // Reset state
+    this.currentFlushes = 0;
   }
 }
 

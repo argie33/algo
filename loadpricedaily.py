@@ -23,8 +23,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadpricedaily.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -50,7 +50,7 @@ RETRY_DELAY         = 0.2   # seconds between download retries
 # Price-daily columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close"
+    "date","open","high","low","close",
     "adj_close","volume","dividends","stock_splits"
 ]
 COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
@@ -62,13 +62,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host":   sec["host"]
-        "port":   int(sec.get("port", 5432))
-        "user":   sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"], 
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 # -------------------------------
 # Main loader with batched inserts
@@ -91,10 +91,10 @@ def load_prices(table_name, symbols, cur, conn):
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
                 df = yf.download(
-                    tickers=yq_batch
-                    period=DATA_PERIOD
-                    interval="1d"
-                    group_by="ticker"
+                    tickers=yq_batch,
+                    period=DATA_PERIOD,
+                    interval="1d",
+                    group_by="ticker",
                     auto_adjust=True,    # preserved
                     actions=True,        # preserved
                     threads=True,        # preserved
@@ -134,15 +134,15 @@ def load_prices(table_name, symbols, cur, conn):
                 rows = []
                 for idx, row in sub.iterrows():
                     rows.append([
-                        orig_sym
-                        idx.date()
-                        None if math.isnan(row["Open"])      else float(row["Open"])
-                        None if math.isnan(row["High"])      else float(row["High"])
-                        None if math.isnan(row["Low"])       else float(row["Low"])
-                        None if math.isnan(row["Close"])     else float(row["Close"])
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"]))
-                        None if math.isnan(row["Volume"])    else int(row["Volume"])
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"])
+                        orig_sym,
+                        idx.date(),
+                        None if math.isnan(row["Open"])      else float(row["Open"]),
+                        None if math.isnan(row["High"])      else float(row["High"]),
+                        None if math.isnan(row["Low"])       else float(row["Low"]),
+                        None if math.isnan(row["Close"])     else float(row["Close"]),
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
+                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
                         0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ])
 
@@ -151,9 +151,8 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                # Use secure SQL builder to prevent injection
-                from secure_sql_utils import secure_execute_values
-                secure_execute_values(cur, table_name, COL_LIST, rows)
+                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+                execute_values(cur, sql, rows)
                 conn.commit()
                 inserted += len(rows)
                 logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
@@ -175,9 +174,9 @@ def load_prices(table_name, symbols, cur, conn):
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Load daily price data for stocks and ETFs')
-    parser.add_argument('--historical', action='store_true'
+    parser.add_argument('--historical', action='store_true',
                        help='Load full historical data (period="max")')
-    parser.add_argument('--incremental', action='store_true'
+    parser.add_argument('--incremental', action='store_true',
                        help='Load recent data only (period="3mo")')
     args = parser.parse_args()
 
@@ -195,12 +194,11 @@ if __name__ == "__main__":
     log_mem("startup")
 
     # Connect to DB
-    cfg  = get_db_config()
+    username, password, host, port, dbname = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
-        
+        host=host, port=port,
+        user=username, password=password,
+        dbname=dbname
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -210,17 +208,17 @@ if __name__ == "__main__":
     cur.execute("DROP TABLE IF EXISTS price_daily;")
     cur.execute("""
         CREATE TABLE price_daily (
-            id           SERIAL PRIMARY KEY
-            symbol       VARCHAR(10) NOT NULL
-            date         DATE         NOT NULL
-            open         DOUBLE PRECISION
-            high         DOUBLE PRECISION
-            low          DOUBLE PRECISION
-            close        DOUBLE PRECISION
-            adj_close    DOUBLE PRECISION
-            volume       BIGINT
-            dividends    DOUBLE PRECISION
-            stock_splits DOUBLE PRECISION
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -229,17 +227,17 @@ if __name__ == "__main__":
     cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
     cur.execute("""
         CREATE TABLE etf_price_daily (
-            id           SERIAL PRIMARY KEY
-            symbol       VARCHAR(10) NOT NULL
-            date         DATE         NOT NULL
-            open         DOUBLE PRECISION
-            high         DOUBLE PRECISION
-            low          DOUBLE PRECISION
-            close        DOUBLE PRECISION
-            adj_close    DOUBLE PRECISION
-            volume       BIGINT
-            dividends    DOUBLE PRECISION
-            stock_splits DOUBLE PRECISION
+            id           SERIAL PRIMARY KEY,
+            symbol       VARCHAR(10) NOT NULL,
+            date         DATE         NOT NULL,
+            open         DOUBLE PRECISION,
+            high         DOUBLE PRECISION,
+            low          DOUBLE PRECISION,
+            close        DOUBLE PRECISION,
+            adj_close    DOUBLE PRECISION,
+            volume       BIGINT,
+            dividends    DOUBLE PRECISION,
+            stock_splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)

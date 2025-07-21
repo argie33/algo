@@ -59,11 +59,12 @@ const TIMEOUT_CONFIGS = {
 };
 
 /**
- * Create a promise that rejects after specified timeout
+ * Create a promise that rejects after specified timeout with proper cleanup
  */
 function createTimeoutPromise(timeoutMs, operation = 'operation') {
-  return new Promise((_, reject) => {
-    setTimeout(() => {
+  let timeoutId;
+  const promise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
       const error = new Error(`${operation} timeout after ${timeoutMs}ms`);
       error.code = 'TIMEOUT';
       error.timeout = timeoutMs;
@@ -71,16 +72,49 @@ function createTimeoutPromise(timeoutMs, operation = 'operation') {
       reject(error);
     }, timeoutMs);
   });
+  
+  // Add cleanup method to promise
+  promise.cleanup = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+  
+  return promise;
 }
 
 /**
- * Wrap a promise with timeout functionality
+ * Wrap a promise with timeout functionality and proper cleanup
  */
 function withTimeout(promise, timeoutMs, operation = 'operation') {
-  return Promise.race([
-    promise,
-    createTimeoutPromise(timeoutMs, operation)
+  const timeoutPromise = createTimeoutPromise(timeoutMs, operation);
+  
+  const racePromise = Promise.race([
+    promise.then(result => {
+      // Clear timeout on success
+      if (timeoutPromise.cleanup) {
+        timeoutPromise.cleanup();
+      }
+      return result;
+    }).catch(error => {
+      // Clear timeout on error
+      if (timeoutPromise.cleanup) {
+        timeoutPromise.cleanup();
+      }
+      throw error;
+    }),
+    timeoutPromise
   ]);
+  
+  // Add cleanup method to race promise
+  racePromise.cleanup = () => {
+    if (timeoutPromise.cleanup) {
+      timeoutPromise.cleanup();
+    }
+  };
+  
+  return racePromise;
 }
 
 /**
@@ -345,14 +379,17 @@ async function withAuthTimeout(operation, operationType = 'login', logger = null
 }
 
 /**
- * Create a timeout-aware fetch wrapper
+ * Create a timeout-aware fetch wrapper with proper cleanup
  */
 function createTimeoutFetch(defaultTimeout = 10000) {
-  return async (url, options = {}) => {
+  const activeFetches = new Set();
+  
+  const fetchWithTimeout = async (url, options = {}) => {
     const timeout = options.timeout || defaultTimeout;
     const controller = new AbortController();
     
     const timeoutId = setTimeout(() => controller.abort(), timeout);
+    activeFetches.add(timeoutId);
     
     try {
       const response = await fetch(url, {
@@ -361,9 +398,11 @@ function createTimeoutFetch(defaultTimeout = 10000) {
       });
       
       clearTimeout(timeoutId);
+      activeFetches.delete(timeoutId);
       return response;
     } catch (error) {
       clearTimeout(timeoutId);
+      activeFetches.delete(timeoutId);
       
       if (error.name === 'AbortError') {
         const timeoutError = new Error(`Fetch timeout after ${timeout}ms`);
@@ -375,6 +414,16 @@ function createTimeoutFetch(defaultTimeout = 10000) {
       throw error;
     }
   };
+  
+  // Add cleanup method
+  fetchWithTimeout.cleanup = () => {
+    for (const timeoutId of activeFetches) {
+      clearTimeout(timeoutId);
+    }
+    activeFetches.clear();
+  };
+  
+  return fetchWithTimeout;
 }
 
 module.exports = {

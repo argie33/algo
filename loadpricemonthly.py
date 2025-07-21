@@ -22,8 +22,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadpricemonthly.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -49,7 +49,7 @@ RETRY_DELAY         = 0.2   # seconds between download retries
 # Price-monthly columns
 # -------------------------------
 PRICE_COLUMNS = [
-    "date","open","high","low","close"
+    "date","open","high","low","close",
     "adj_close","volume","dividends","stock_splits"
 ]
 COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
@@ -61,13 +61,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host":   sec["host"]
-        "port":   int(sec.get("port", 5432))
-        "user":   sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"], 
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 # -------------------------------
 # Main loader with batched inserts
@@ -90,10 +90,10 @@ def load_prices(table_name, symbols, cur, conn):
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
                 df = yf.download(
-                    tickers=yq_batch
-                    period="max"
-                    interval="1mo"
-                    group_by="ticker"
+                    tickers=yq_batch,
+                    period="max",
+                    interval="1mo",
+                    group_by="ticker",
                     auto_adjust=True,    # preserved
                     actions=True,        # preserved
                     threads=True,        # preserved
@@ -132,15 +132,15 @@ def load_prices(table_name, symbols, cur, conn):
                 rows = []
                 for idx, row in sub.iterrows():
                     rows.append([
-                        orig_sym
-                        idx.date()
-                        None if math.isnan(row["Open"])      else float(row["Open"])
-                        None if math.isnan(row["High"])      else float(row["High"])
-                        None if math.isnan(row["Low"])       else float(row["Low"])
-                        None if math.isnan(row["Close"])     else float(row["Close"])
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"]))
-                        None if math.isnan(row["Volume"])    else int(row["Volume"])
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"])
+                        orig_sym,
+                        idx.date(),
+                        None if math.isnan(row["Open"])      else float(row["Open"]),
+                        None if math.isnan(row["High"])      else float(row["High"]),
+                        None if math.isnan(row["Low"])       else float(row["Low"]),
+                        None if math.isnan(row["Close"])     else float(row["Close"]),
+                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
+                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
+                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
                         0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
                     ])
 
@@ -173,81 +173,79 @@ if __name__ == "__main__":
         logging.info("Starting pricemonthly loader...")
 
         # Connect to DB with timeout
-        cfg  = get_db_config()
+        username, password, host, port, dbname = get_db_config()
         conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"]
-            user=cfg["user"], password=cfg["password"]
-            dbname=cfg["dbname"]
+            host=host, port=port,
+            user=username, password=password,
+            dbname=dbname,
             connect_timeout=30
-        
-            
-    )
+        )
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate tables
-    logging.info("Recreating price_monthly table…")
-    cur.execute("DROP TABLE IF EXISTS price_monthly;")
-    cur.execute("""
-        CREATE TABLE price_monthly (
-            id           SERIAL PRIMARY KEY
-            symbol       VARCHAR(10) NOT NULL
-            date         DATE         NOT NULL
-            open         DOUBLE PRECISION
-            high         DOUBLE PRECISION
-            low          DOUBLE PRECISION
-            close        DOUBLE PRECISION
-            adj_close    DOUBLE PRECISION
-            volume       BIGINT
-            dividends    DOUBLE PRECISION
-            stock_splits DOUBLE PRECISION
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+        # Recreate tables
+        logging.info("Recreating price_monthly table…")
+        cur.execute("DROP TABLE IF EXISTS price_monthly;")
+        cur.execute("""
+            CREATE TABLE price_monthly (
+                id           SERIAL PRIMARY KEY,
+                symbol       VARCHAR(10) NOT NULL,
+                date         DATE         NOT NULL,
+                open         DOUBLE PRECISION,
+                high         DOUBLE PRECISION,
+                low          DOUBLE PRECISION,
+                close        DOUBLE PRECISION,
+                adj_close    DOUBLE PRECISION,
+                volume       BIGINT,
+                dividends    DOUBLE PRECISION,
+                stock_splits DOUBLE PRECISION,
+                fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-    logging.info("Recreating etf_price_monthly table…")
-    cur.execute("DROP TABLE IF EXISTS etf_price_monthly;")
-    cur.execute("""
-        CREATE TABLE etf_price_monthly (
-            id           SERIAL PRIMARY KEY
-            symbol       VARCHAR(10) NOT NULL
-            date         DATE         NOT NULL
-            open         DOUBLE PRECISION
-            high         DOUBLE PRECISION
-            low          DOUBLE PRECISION
-            close        DOUBLE PRECISION
-            adj_close    DOUBLE PRECISION
-            volume       BIGINT
-            dividends    DOUBLE PRECISION
-            stock_splits DOUBLE PRECISION
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
+        logging.info("Recreating etf_price_monthly table…")
+        cur.execute("DROP TABLE IF EXISTS etf_price_monthly;")
+        cur.execute("""
+            CREATE TABLE etf_price_monthly (
+                id           SERIAL PRIMARY KEY,
+                symbol       VARCHAR(10) NOT NULL,
+                date         DATE         NOT NULL,
+                open         DOUBLE PRECISION,
+                high         DOUBLE PRECISION,
+                low          DOUBLE PRECISION,
+                close        DOUBLE PRECISION,
+                adj_close    DOUBLE PRECISION,
+                volume       BIGINT,
+                dividends    DOUBLE PRECISION,
+                stock_splits DOUBLE PRECISION,
+                fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
 
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
+        # Load stock symbols
+        cur.execute("SELECT symbol FROM stock_symbols;")
+        stock_syms = [r["symbol"] for r in cur.fetchall()]
+        t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
 
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, cur, conn)
+        # Load ETF symbols
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        t_e, i_e, f_e = load_prices("etf_price_monthly", etf_syms, cur, conn)
 
-    # Record last run
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
 
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
+        logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
 
         cur.close()
         conn.close()

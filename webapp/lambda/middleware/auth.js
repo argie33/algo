@@ -178,7 +178,8 @@ function validateDevToken(token) {
 const authenticateToken = async (req, res, next) => {
   const startTime = Date.now();
   const requestId = req.headers['x-request-id'] || crypto.randomUUID();
-  const clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+  const { getClientIP } = require('../utils/ipDetection');
+  const clientIp = getClientIP(req);
   const userAgent = req.headers['user-agent'] || 'unknown';
   
   try {

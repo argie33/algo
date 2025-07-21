@@ -58,7 +58,28 @@ class RealTimeDataFeed extends EventEmitter {
     this.connections.clear();
     this.subscriptions.clear();
     
+    // Clean up alpaca connections and cache
+    this.alpacaConnections.clear();
+    this.liveDataCache.clear();
+    this.streamingActive = false;
+    
     this.emit('stopped');
+  }
+
+  /**
+   * Complete cleanup of all resources
+   */
+  cleanup() {
+    this.stop();
+    
+    // Remove all listeners to prevent memory leaks
+    this.removeAllListeners();
+    
+    // Clear all references
+    this.connections.clear();
+    this.subscriptions.clear();
+    this.alpacaConnections.clear();
+    this.liveDataCache.clear();
   }
 
   addConnection(connectionId, userId, ws) {

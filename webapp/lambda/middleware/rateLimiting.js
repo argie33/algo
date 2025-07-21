@@ -47,7 +47,8 @@ class RateLimitingMiddleware {
      * Get client identifier (IP + User-Agent hash for better tracking)
      */
     getClientId(req) {
-        const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+        const { getClientIP } = require('../utils/ipDetection');
+        const ip = getClientIP(req);
         const userAgent = req.get('User-Agent') || 'unknown';
         const userId = req.user?.id || req.userId || 'anonymous';
         

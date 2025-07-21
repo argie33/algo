@@ -108,7 +108,7 @@ async function getDbConfig() {
         // Fallback to Secrets Manager if environment variables not available
         const secretArn = process.env.DB_SECRET_ARN;
         if (!secretArn) {
-            throw new Error(`Database configuration incomplete. Available: DB_HOST=${!!process.env.DB_HOST}, DB_USER=${!!process.env.DB_USER}, DB_PASSWORD=${!!process.env.DB_PASSWORD}, DB_SECRET_ARN=${!!process.env.DB_SECRET_ARN}. Need either complete env vars or DB_SECRET_ARN.`);
+            throw new Error(`Database configuration incomplete. Available: DB_HOST="${process.env.DB_HOST || 'undefined'}", DB_USER="${process.env.DB_USER || 'undefined'}", DB_PASSWORD="${process.env.DB_PASSWORD ? '[SET]' : 'undefined'}", DB_SECRET_ARN="${process.env.DB_SECRET_ARN || 'undefined'}". Need either complete env vars or DB_SECRET_ARN.`);
         }
 
         console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);
@@ -642,7 +642,7 @@ async function query(text, params = [], timeoutMs = null) {
             const operation = text.trim().split(' ')[0].toUpperCase();
             const table = extractTableName(text);
             
-            performanceMonitor.recordDatabaseOperation(operation, table, duration, true);
+            performanceMonitor.trackDbOperation(operation, table, duration, true, queryId);
         } catch (perfError) {
             // Performance monitoring is optional - don't fail the query
             console.warn(`⚠️ [${queryId}] Performance monitoring failed:`, perfError.message);
@@ -848,8 +848,10 @@ async function tablesExist(tableNames) {
 const REQUIRED_SCHEMA = {
     // Core user and authentication tables
     core: [
+        'users',
         'user_api_keys',
-        'users'
+        'user_sessions',
+        'security_events'
     ],
     
     // Portfolio and trading tables
@@ -1098,8 +1100,8 @@ async function closeDatabase() {
     if (pool) {
         console.log('🔄 Closing database connections...');
         
-        // Remove all event listeners to prevent memory leaks
-        pool.removeAllListeners();
+        // Remove all event listeners to prevent memory leaks - Pool cleanup handles this automatically
+        // pool.removeAllListeners(); // Removed - Pool doesn't have this method
         
         // Close the pool
         await pool.end();
@@ -1252,5 +1254,6 @@ module.exports = {
     resetDatabaseState,
     REQUIRED_SCHEMA,
     extractTableName,
-    calculateOptimalPoolConfig
+    calculateOptimalPoolConfig,
+    getDbConfig
 };

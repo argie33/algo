@@ -563,8 +563,8 @@ class TradingStrategyEngine {
               logger.info(`📉 Pattern SELL order placed`, {
                 symbol,
                 quantity: currentPosition.qty,
-                pattern: strongestPattern.type,
-                confidence: strongestPattern.confidence,
+                pattern: analysis.primary.type,
+                confidence: analysis.confidence,
                 orderId: order.id
               });
             }

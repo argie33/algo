@@ -20,7 +20,17 @@ const app = express();
 app.use(errorMonitoringMiddleware);
 
 // Trust proxy when running behind API Gateway/CloudFront
-app.set('trust proxy', true);
+// Configure trust proxy to properly handle AWS infrastructure
+app.set('trust proxy', (ip) => {
+  // Trust AWS internal IPs and common proxy patterns
+  return ip === '127.0.0.1' || 
+         ip.startsWith('10.') || 
+         ip.startsWith('172.') || 
+         ip.startsWith('192.168.') ||
+         ip.startsWith('169.254.') || // AWS metadata service
+         ip === '::1' || 
+         ip.startsWith('fe80:'); // IPv6 link-local
+});
 
 // CRITICAL: CORS middleware must be FIRST - based on working version
 app.use((req, res, next) => {

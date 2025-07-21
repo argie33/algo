@@ -73,12 +73,14 @@ class EnhancedAuthService {
       }
       
       // Validate credentials
-      const user = await this.validateCredentials(username, password);
-      if (!user) {
+      const validationResult = await this.validateCredentials(username, password);
+      if (!validationResult.valid) {
         await this.recordFailedAttempt(username, ipAddress);
-        await this.logSecurityEvent('failed_login', { username, ipAddress });
-        throw new Error('Invalid username or password.');
+        await this.logSecurityEvent('failed_login', { username, ipAddress, reason: validationResult.reason });
+        throw new Error(validationResult.message || 'Invalid username or password.');
       }
+      
+      const user = validationResult.user;
       
       // Check MFA if enabled
       if (user.mfaEnabled && !mfaCode) {
@@ -91,7 +93,7 @@ class EnhancedAuthService {
       }
       
       if (user.mfaEnabled && mfaCode) {
-        const mfaValid = await this.validateMfaCode(user.id, mfaCode);
+        const mfaValid = await this.validateMfaCode(user.userId, mfaCode);
         if (!mfaValid) {
           await this.recordFailedAttempt(username, ipAddress);
           await this.logSecurityEvent('failed_mfa', { username, ipAddress });
@@ -108,7 +110,7 @@ class EnhancedAuthService {
       
       // Log successful authentication
       await this.logSecurityEvent('successful_login', {
-        userId: user.id,
+        userId: user.userId,
         username,
         ipAddress,
         sessionId: session.id
@@ -208,7 +210,7 @@ class EnhancedAuthService {
     const sessionId = this.generateSessionId();
     const session = {
       id: sessionId,
-      userId: user.id,
+      userId: user.userId,
       username: user.username,
       ipAddress: clientInfo.ipAddress,
       userAgent: clientInfo.userAgent,
@@ -236,7 +238,7 @@ class EnhancedAuthService {
     const sessionId = this.generateSessionId();
     const session = {
       id: sessionId,
-      userId: user.id,
+      userId: user.userId,
       username: user.username,
       ipAddress: clientInfo.ipAddress,
       userAgent: clientInfo.userAgent,
@@ -259,10 +261,10 @@ class EnhancedAuthService {
     
     // Access token payload
     const accessPayload = {
-      sub: user.id,
+      sub: user.userId,
       username: user.username,
       email: user.email,
-      roles: user.roles || ['user'],
+      roles: user.role ? [user.role] : ['user'],
       sessionId: session.id,
       tokenType: 'access',
       iat: now,
@@ -273,7 +275,7 @@ class EnhancedAuthService {
     
     // Refresh token payload
     const refreshPayload = {
-      sub: user.id,
+      sub: user.userId,
       sessionId: session.id,
       tokenType: 'refresh',
       iat: now,
@@ -342,7 +344,7 @@ class EnhancedAuthService {
       this.blacklistedTokens.add(refreshToken);
       
       await this.logSecurityEvent('token_refreshed', {
-        userId: user.id,
+        userId: user.userId,
         sessionId: session.id,
         rotationCount: session.tokenRotationCount
       });
@@ -696,37 +698,483 @@ class EnhancedAuthService {
   /**
    * Database operations (implement based on your database structure)
    */
+  /**
+   * Validate user credentials against database
+   */
   async validateCredentials(username, password) {
-    // Implementation depends on your database schema
-    // This is a placeholder
-    return null;
+    try {
+      const { query } = require('../utils/database');
+      
+      // Get user by username or email
+      const result = await query(`
+        SELECT user_id, email, username, password_hash, is_active, cognito_user_id, role, 
+               first_name, last_name, created_at, updated_at
+        FROM users 
+        WHERE (username = $1 OR email = $1) AND is_active = true
+      `, [username]);
+
+      if (result.rows.length === 0) {
+        return { valid: false, reason: 'USER_NOT_FOUND' };
+      }
+
+      const user = result.rows[0];
+
+      // For Cognito users, we should validate through Cognito, not local password
+      if (user.cognito_user_id) {
+        return { 
+          valid: false, 
+          reason: 'COGNITO_USER',
+          message: 'Use Cognito authentication for this user',
+          user: {
+            userId: user.user_id,
+            email: user.email,
+            username: user.username,
+            cognitoUserId: user.cognito_user_id,
+            role: user.role
+          }
+        };
+      }
+
+      // Validate password hash (for local users)
+      if (!user.password_hash) {
+        return { valid: false, reason: 'NO_PASSWORD_SET' };
+      }
+
+      const bcrypt = require('bcrypt');
+      const isValid = await bcrypt.compare(password, user.password_hash);
+
+      if (!isValid) {
+        return { valid: false, reason: 'INVALID_PASSWORD' };
+      }
+
+      return { 
+        valid: true, 
+        user: {
+          userId: user.user_id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          cognitoUserId: user.cognito_user_id,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at
+        }
+      };
+    } catch (error) {
+      console.error('Failed to validate credentials:', error);
+      throw new Error(`Credential validation failed: ${error.message}`);
+    }
   }
 
+  /**
+   * Get user by ID from database
+   */
   async getUserById(userId) {
-    // Implementation depends on your database schema
-    return null;
+    try {
+      const { query } = require('../utils/database');
+      
+      const result = await query(`
+        SELECT user_id, email, username, cognito_user_id, role, 
+               first_name, last_name, is_active, created_at, updated_at
+        FROM users 
+        WHERE user_id = $1 AND is_active = true
+      `, [userId]);
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const user = result.rows[0];
+      return {
+        userId: user.user_id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        cognitoUserId: user.cognito_user_id,
+        isActive: user.is_active,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      };
+    } catch (error) {
+      console.error('Failed to get user by ID:', error);
+      throw new Error(`User lookup failed: ${error.message}`);
+    }
   }
 
+  /**
+   * Store session in database
+   */
   async storeSessionInDatabase(session) {
-    // Implementation depends on your database schema
+    try {
+      const { query } = require('../utils/database');
+      
+      // Create user_sessions table if it doesn't exist
+      await query(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          session_id VARCHAR(255) PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          cognito_user_id VARCHAR(255),
+          session_data JSONB NOT NULL,
+          ip_address INET,
+          user_agent TEXT,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_active BOOLEAN DEFAULT true,
+          FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+      `);
+
+      await query(`
+        INSERT INTO user_sessions (
+          session_id, user_id, cognito_user_id, session_data, 
+          ip_address, user_agent, expires_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (session_id) 
+        DO UPDATE SET 
+          session_data = EXCLUDED.session_data,
+          updated_at = CURRENT_TIMESTAMP,
+          expires_at = EXCLUDED.expires_at
+      `, [
+        session.id,
+        session.userId,
+        null, // cognito_user_id not stored in session object
+        JSON.stringify(session),
+        session.ipAddress || null,
+        session.userAgent || null,
+        session.expiresAt
+      ]);
+
+      console.log(`✅ Session stored in database: ${session.id}`);
+    } catch (error) {
+      console.error('Failed to store session in database:', error);
+      throw new Error(`Session storage failed: ${error.message}`);
+    }
   }
 
+  /**
+   * Update session in database
+   */
   async updateSessionInDatabase(session) {
-    // Implementation depends on your database schema
+    try {
+      const { query } = require('../utils/database');
+      
+      await query(`
+        UPDATE user_sessions 
+        SET session_data = $2, 
+            updated_at = CURRENT_TIMESTAMP,
+            expires_at = $3
+        WHERE session_id = $1
+      `, [
+        session.id,
+        JSON.stringify(session),
+        session.expiresAt
+      ]);
+
+      console.log(`✅ Session updated in database: ${session.id}`);
+    } catch (error) {
+      console.error('Failed to update session in database:', error);
+      throw new Error(`Session update failed: ${error.message}`);
+    }
   }
 
+  /**
+   * Store security event in database
+   */
   async storeSecurityEvent(event) {
-    // Implementation depends on your database schema
+    try {
+      const { query } = require('../utils/database');
+      
+      // Create security_events table if it doesn't exist
+      await query(`
+        CREATE TABLE IF NOT EXISTS security_events (
+          event_id SERIAL PRIMARY KEY,
+          user_id INTEGER,
+          event_type VARCHAR(100) NOT NULL,
+          event_data JSONB NOT NULL,
+          ip_address INET,
+          user_agent TEXT,
+          severity VARCHAR(20) DEFAULT 'INFO',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+        )
+      `);
+
+      await query(`
+        INSERT INTO security_events (
+          user_id, event_type, event_data, ip_address, user_agent, severity
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        event.data?.userId || null,
+        event.type,
+        JSON.stringify(event.data),
+        event.data?.ipAddress || null,
+        event.data?.userAgent || null,
+        event.severity || 'INFO'
+      ]);
+
+      console.log(`🔒 Security event stored: ${event.type} for user ${event.data?.userId || 'anonymous'}`);
+    } catch (error) {
+      console.error('Failed to store security event:', error);
+      // Don't throw here - security logging shouldn't break the main flow
+    }
   }
 
+  /**
+   * Retrieve session from database
+   */
+  async getSessionFromDatabase(sessionId) {
+    try {
+      const { query } = require('../utils/database');
+      
+      const result = await query(`
+        SELECT session_id, user_id, cognito_user_id, session_data, 
+               ip_address, user_agent, expires_at, created_at, updated_at, is_active
+        FROM user_sessions 
+        WHERE session_id = $1 AND is_active = true AND expires_at > NOW()
+      `, [sessionId]);
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const sessionRow = result.rows[0];
+      return {
+        id: sessionRow.session_id,
+        userId: sessionRow.user_id,
+        cognitoUserId: sessionRow.cognito_user_id,
+        ipAddress: sessionRow.ip_address,
+        userAgent: sessionRow.user_agent,
+        expiresAt: sessionRow.expires_at,
+        createdAt: sessionRow.created_at,
+        updatedAt: sessionRow.updated_at,
+        isActive: sessionRow.is_active,
+        ...JSON.parse(sessionRow.session_data)
+      };
+    } catch (error) {
+      console.error('Failed to get session from database:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Invalidate session in database
+   */
+  async invalidateSessionInDatabase(sessionId) {
+    try {
+      const { query } = require('../utils/database');
+      
+      await query(`
+        UPDATE user_sessions 
+        SET is_active = false, updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = $1
+      `, [sessionId]);
+
+      console.log(`✅ Session invalidated in database: ${sessionId}`);
+    } catch (error) {
+      console.error('Failed to invalidate session in database:', error);
+      throw new Error(`Session invalidation failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Send SMS MFA code using AWS SNS
+   */
   async sendSmsCode(phoneNumber, code) {
-    // Implementation depends on your SMS service
-    console.log(`SMS MFA code ${code} sent to ${phoneNumber}`);
+    try {
+      // Check if we're in development mode
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+        console.log(`📱 [DEV] SMS MFA code ${code} would be sent to ${phoneNumber}`);
+        return { success: true, method: 'development', messageId: `dev-sms-${Date.now()}` };
+      }
+
+      // Use AWS SNS for production SMS
+      const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+      
+      const snsClient = new SNSClient({
+        region: process.env.AWS_REGION || 'us-east-1'
+      });
+
+      const message = `Your verification code is: ${code}. Valid for 5 minutes. Don't share this code with anyone.`;
+      
+      const command = new PublishCommand({
+        PhoneNumber: phoneNumber,
+        Message: message,
+        MessageAttributes: {
+          'AWS.SNS.SMS.SMSType': {
+            DataType: 'String',
+            StringValue: 'Transactional'
+          }
+        }
+      });
+
+      const response = await snsClient.send(command);
+      
+      console.log(`📱 SMS MFA code sent successfully to ${phoneNumber}, MessageId: ${response.MessageId}`);
+      return { success: true, method: 'sns', messageId: response.MessageId };
+      
+    } catch (error) {
+      console.error('Failed to send SMS code:', error);
+      
+      // Store the failure as a security event
+      await this.storeSecurityEvent({
+        type: 'MFA_SMS_FAILURE',
+        data: { phoneNumber, error: error.message },
+        severity: 'WARNING'
+      });
+      
+      throw new Error(`SMS sending failed: ${error.message}`);
+    }
   }
 
+  /**
+   * Send Email MFA code using AWS SES
+   */
   async sendEmailCode(email, code) {
-    // Implementation depends on your email service
-    console.log(`Email MFA code ${code} sent to ${email}`);
+    try {
+      // Check if we're in development mode
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+        console.log(`📧 [DEV] Email MFA code ${code} would be sent to ${email}`);
+        return { success: true, method: 'development', messageId: `dev-email-${Date.now()}` };
+      }
+
+      // Use AWS SES for production email
+      const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+      
+      const sesClient = new SESClient({
+        region: process.env.AWS_REGION || 'us-east-1'
+      });
+
+      const htmlBody = `
+        <html>
+          <body style="font-family: Arial, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #333;">Verification Code</h2>
+              <p>Your verification code is:</p>
+              <div style="background: #f5f5f5; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 3px; border-radius: 5px;">
+                ${code}
+              </div>
+              <p style="color: #666; margin-top: 20px;">
+                This code is valid for 5 minutes. For security reasons, don't share this code with anyone.
+              </p>
+              <p style="color: #999; font-size: 12px; margin-top: 30px;">
+                If you didn't request this code, please ignore this email.
+              </p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const textBody = `Your verification code is: ${code}\n\nThis code is valid for 5 minutes. Don't share this code with anyone.\n\nIf you didn't request this code, please ignore this email.`;
+
+      const command = new SendEmailCommand({
+        Source: process.env.MFA_EMAIL_FROM || 'noreply@yourdomain.com',
+        Destination: {
+          ToAddresses: [email]
+        },
+        Message: {
+          Subject: {
+            Data: 'Your Verification Code',
+            Charset: 'UTF-8'
+          },
+          Body: {
+            Html: {
+              Data: htmlBody,
+              Charset: 'UTF-8'
+            },
+            Text: {
+              Data: textBody,
+              Charset: 'UTF-8'
+            }
+          }
+        }
+      });
+
+      const response = await sesClient.send(command);
+      
+      console.log(`📧 Email MFA code sent successfully to ${email}, MessageId: ${response.MessageId}`);
+      return { success: true, method: 'ses', messageId: response.MessageId };
+      
+    } catch (error) {
+      console.error('Failed to send email code:', error);
+      
+      // Store the failure as a security event
+      await this.storeSecurityEvent({
+        type: 'MFA_EMAIL_FAILURE',
+        data: { email, error: error.message },
+        severity: 'WARNING'
+      });
+      
+      throw new Error(`Email sending failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a user in the database (for non-Cognito users)
+   */
+  async createUser(userData) {
+    try {
+      const { query } = require('../utils/database');
+      const bcrypt = require('bcrypt');
+      
+      // Hash password if provided
+      let passwordHash = null;
+      if (userData.password) {
+        passwordHash = await bcrypt.hash(userData.password, this.config.security.passwordHashRounds);
+      }
+
+      const result = await query(`
+        INSERT INTO users (
+          email, username, password_hash, first_name, last_name, 
+          role, cognito_user_id, is_active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING user_id, email, username, first_name, last_name, 
+                  role, cognito_user_id, is_active, created_at, updated_at
+      `, [
+        userData.email,
+        userData.username,
+        passwordHash,
+        userData.firstName || null,
+        userData.lastName || null,
+        userData.role || 'user',
+        userData.cognitoUserId || null,
+        true
+      ]);
+
+      const user = result.rows[0];
+      
+      // Store security event
+      await this.storeSecurityEvent({
+        userId: user.user_id,
+        type: 'USER_CREATED',
+        data: { 
+          email: user.email, 
+          username: user.username,
+          role: user.role,
+          method: userData.cognitoUserId ? 'cognito' : 'local'
+        },
+        severity: 'INFO'
+      });
+
+      return {
+        userId: user.user_id,
+        email: user.email,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        cognitoUserId: user.cognito_user_id,
+        isActive: user.is_active,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      };
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      throw new Error(`User creation failed: ${error.message}`);
+    }
   }
 
   /**

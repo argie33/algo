@@ -1,5 +1,9 @@
 // Technical Analysis Service
 // Implements RSI, MACD, Bollinger Bands, and other technical indicators
+// Integrated with market data service for real-time analysis
+
+const logger = require('../utils/logger');
+const marketDataService = require('./marketDataService');
 
 class TechnicalAnalysisService {
   constructor() {
@@ -581,6 +585,181 @@ class TechnicalAnalysisService {
     recommendation += 'Consider risk management and position sizing.';
     
     return recommendation;
+  }
+
+  // Market Data Integration Methods
+
+  /**
+   * Analyze symbol using real market data
+   */
+  async analyzeSymbol(symbol, indicators = ['RSI', 'MACD', 'BOLLINGER_BANDS'], period = '3mo') {
+    try {
+      logger.info(`Analyzing ${symbol} with indicators: ${indicators.join(', ')}`);
+      
+      // Get historical data from market data service
+      const historicalData = await marketDataService.getHistoricalData(symbol, {
+        period,
+        interval: '1d'
+      });
+
+      if (!historicalData || historicalData.length === 0) {
+        throw new Error(`No historical data available for ${symbol}`);
+      }
+
+      // Convert to format expected by technical analysis
+      const analysisData = historicalData.map(d => ({
+        close: d.close,
+        high: d.high,
+        low: d.low,
+        open: d.open,
+        volume: d.volume,
+        date: d.date
+      }));
+
+      const analysis = this.calculateIndicators(analysisData, indicators);
+      const tradingSignal = this.generateTradingSignal(analysisData, indicators);
+
+      return {
+        symbol,
+        period,
+        dataPoints: analysisData.length,
+        analysis,
+        tradingSignal,
+        marketData: {
+          currentPrice: analysisData[analysisData.length - 1].close,
+          priceChange: analysisData[analysisData.length - 1].close - analysisData[analysisData.length - 2].close,
+          volume: analysisData[analysisData.length - 1].volume
+        },
+        analyzedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Error analyzing symbol:', {
+        symbol,
+        indicators,
+        error: error.message
+      });
+      throw new Error(`Failed to analyze ${symbol}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get technical analysis for multiple symbols
+   */
+  async analyzePortfolio(symbols, indicators = ['RSI', 'MACD']) {
+    try {
+      logger.info(`Analyzing portfolio: ${symbols.length} symbols`);
+      
+      const results = {};
+      const promises = symbols.map(async (symbol) => {
+        try {
+          results[symbol] = await this.analyzeSymbol(symbol, indicators);
+        } catch (error) {
+          logger.warn(`Failed to analyze ${symbol}:`, error.message);
+          results[symbol] = {
+            error: error.message,
+            symbol,
+            analyzedAt: new Date().toISOString()
+          };
+        }
+      });
+
+      await Promise.allSettled(promises);
+
+      const summary = {
+        totalSymbols: symbols.length,
+        successful: Object.values(results).filter(r => !r.error).length,
+        failed: Object.values(results).filter(r => r.error).length,
+        strongBuySignals: Object.values(results).filter(r => !r.error && r.tradingSignal?.signal === 'STRONG_BUY').length,
+        strongSellSignals: Object.values(results).filter(r => !r.error && r.tradingSignal?.signal === 'STRONG_SELL').length
+      };
+
+      return {
+        summary,
+        analysis: results,
+        analyzedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Error analyzing portfolio:', {
+        symbolCount: symbols.length,
+        error: error.message
+      });
+      throw new Error(`Failed to analyze portfolio: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get real-time trading signals with market data
+   */
+  async getRealtimeSignals(symbol) {
+    try {
+      logger.info(`Getting real-time signals for ${symbol}`);
+      
+      // Get both current quote and historical data
+      const [quote, analysis] = await Promise.all([
+        marketDataService.getQuote(symbol),
+        this.analyzeSymbol(symbol, ['RSI', 'MACD', 'BOLLINGER_BANDS'], '1mo')
+      ]);
+
+      // Combine real-time price with technical analysis
+      const signals = {
+        symbol,
+        currentPrice: quote.price,
+        priceChange: quote.change,
+        changePercent: quote.changePercent,
+        volume: quote.volume,
+        technicalAnalysis: analysis.tradingSignal,
+        indicators: {
+          rsi: analysis.analysis.RSI?.current || null,
+          macd: analysis.analysis.MACD?.current || null,
+          bollingerBands: analysis.analysis.BOLLINGER_BANDS?.current || null
+        },
+        recommendation: this.generateRecommendation(analysis.tradingSignal),
+        timestamp: new Date().toISOString()
+      };
+
+      logger.info(`Real-time signals for ${symbol}: ${signals.recommendation}`);
+      return signals;
+
+    } catch (error) {
+      logger.error('Error getting real-time signals:', {
+        symbol,
+        error: error.message
+      });
+      throw new Error(`Failed to get real-time signals: ${error.message}`);
+    }
+  }
+
+  /**
+   * Health check for technical analysis service
+   */
+  async healthCheck() {
+    try {
+      // Test with real market data
+      const testResult = await this.analyzeSymbol('AAPL', ['RSI'], '1mo');
+      
+      return {
+        status: 'healthy',
+        service: 'technical-analysis',
+        availableIndicators: Object.keys(this.indicators),
+        marketDataIntegration: true,
+        testAnalysis: {
+          symbol: testResult.symbol,
+          dataPoints: testResult.dataPoints,
+          hasSignals: !!testResult.tradingSignal
+        },
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        service: 'technical-analysis',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 }
 

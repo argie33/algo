@@ -13,8 +13,8 @@ export function useCustomSyncExternalStore(subscribe, getSnapshot, getServerSnap
     try {
       return getSnapshot();
     } catch (error) {
-      console.error('Error getting initial snapshot:', error);
-      return null;
+      console.warn('useSyncExternalStore: Error in initial getSnapshot:', error);
+      return undefined;
     }
   });
 
@@ -33,7 +33,7 @@ export function useCustomSyncExternalStore(subscribe, getSnapshot, getServerSnap
         setState(newSnapshot);
       }
     } catch (error) {
-      console.error('Error in store change handler:', error);
+      console.warn('useSyncExternalStore: Error in store change handler:', error);
     }
   }, [getSnapshot]);
 
@@ -57,7 +57,7 @@ export function useCustomSyncExternalStore(subscribe, getSnapshot, getServerSnap
       // Subscribe to changes
       unsubscribe = subscribe(onStoreChange);
     } catch (error) {
-      console.error('Error subscribing to store:', error);
+      console.warn('useSyncExternalStore: Error during subscription:', error);
     }
 
     return () => {
@@ -91,8 +91,8 @@ export function useCustomSyncExternalStoreWithSelector(
       const snapshot = getSnapshot();
       return selector ? selector(snapshot) : snapshot;
     } catch (error) {
-      console.error('Error getting selected snapshot:', error);
-      return null;
+      console.warn('useSyncExternalStoreWithSelector: Error in getSnapshot:', error);
+      return undefined;
     }
   }, [getSnapshot, selector]);
 
@@ -104,8 +104,8 @@ export function useCustomSyncExternalStoreWithSelector(
         const serverSnapshot = getServerSnapshot();
         return selector ? selector(serverSnapshot) : serverSnapshot;
       } catch (error) {
-        console.error('Error getting server snapshot:', error);
-        return null;
+        console.warn('useSyncExternalStoreWithSelector: Error in getServerSnapshot:', error);
+        return undefined;
       }
     } : undefined
   );

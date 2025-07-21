@@ -845,7 +845,7 @@ describe('Database Utilities Unit Tests', () => {
       const db = require('../../utils/database');
       
       // Should throw error when not initialized
-      expect(() => db.getPool()).toThrow('Database not initialized');
+      expect(() => db.getPool()).toThrow(/Database not initialized/);
       
       await db.initializeDatabase();
       

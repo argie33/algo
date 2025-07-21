@@ -48,15 +48,24 @@ class TimeoutHelper {
     const isFunction = typeof promiseOrFunction === 'function';
     
     for (let attempt = 0; attempt <= retries; attempt++) {
+      let timeoutId;
       try {
         // Get the promise for this attempt
         const promise = isFunction ? promiseOrFunction() : promiseOrFunction;
         
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`Timeout: ${service} ${operation} exceeded ${timeout}ms`)), timeout);
+        });
+        
         const result = await Promise.race([
-          promise,
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error(`Timeout: ${service} ${operation} exceeded ${timeout}ms`)), timeout)
-          )
+          promise.then(result => {
+            if (timeoutId) clearTimeout(timeoutId);
+            return result;
+          }).catch(error => {
+            if (timeoutId) clearTimeout(timeoutId);
+            throw error;
+          }),
+          timeoutPromise
         ]);
         
         // Success - reset circuit breaker
@@ -66,6 +75,7 @@ class TimeoutHelper {
         
         return result;
       } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
         lastError = error;
         
         // Record failure for circuit breaker
@@ -129,7 +139,7 @@ class TimeoutHelper {
     } = options;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    let timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const requestOptions = {
@@ -161,6 +171,7 @@ class TimeoutHelper {
       );
 
       clearTimeout(timeoutId);
+      timeoutId = null;
 
       if (validateResponse && !response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -168,7 +179,10 @@ class TimeoutHelper {
 
       return response;
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       
       if (error.name === 'AbortError') {
         throw new Error(`HTTP request timeout: ${url} exceeded ${timeout}ms`);
@@ -501,7 +515,43 @@ class TimeoutHelper {
    * Utility delay function
    */
   delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    let timeoutId;
+    const promise = new Promise(resolve => {
+      timeoutId = setTimeout(resolve, ms);
+    });
+    
+    // Add cleanup method to the promise
+    promise.cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+    
+    return promise;
+  }
+
+  /**
+   * Cleanup all circuit breakers and resources
+   */
+  cleanup() {
+    // Clear all circuit breakers
+    this.circuitBreakers.clear();
+    
+    console.log('🧹 TimeoutHelper cleanup completed');
+  }
+
+  /**
+   * Reset circuit breaker for a specific service
+   */
+  resetCircuitBreaker(serviceKey) {
+    const breaker = this.circuitBreakers.get(serviceKey);
+    if (breaker) {
+      breaker.failures = 0;
+      breaker.lastFailureTime = 0;
+      breaker.state = 'closed';
+      console.log(`🔄 Circuit breaker reset for ${serviceKey}`);
+    }
   }
 
   /**

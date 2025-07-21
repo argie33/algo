@@ -1,5 +1,9 @@
 // Portfolio Optimization Service
 // Implements automated rebalancing, tax optimization, and advanced analytics
+// Integrated with database portfolio service for real data persistence
+
+const portfolioService = require('./portfolioService');
+const logger = require('../utils/logger');
 
 class PortfolioOptimizationService {
   constructor() {
@@ -659,6 +663,196 @@ class PortfolioOptimizationService {
       'MEAN_REVERSION': 'Increases allocation to underperforming assets'
     };
     return descriptions[strategy] || 'Custom rebalancing strategy';
+  }
+
+  // Database Integration Methods
+
+  /**
+   * Optimize portfolio using real database data
+   */
+  async optimizeUserPortfolio(userId, marketData, options = {}) {
+    try {
+      logger.info(`Starting portfolio optimization for user ${userId}`);
+
+      // Get portfolio from database
+      const dbPortfolio = await portfolioService.getPortfolioForOptimization(userId);
+      
+      // Run optimization
+      const optimizationResults = await this.optimizePortfolio(dbPortfolio, marketData, options);
+      
+      // Save results to database
+      const saveResult = await portfolioService.saveOptimizationResults(userId, {
+        type: options.strategy || 'THRESHOLD',
+        parameters: options,
+        trades: optimizationResults.recommendations,
+        metrics: optimizationResults.projectedMetrics,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info(`Portfolio optimization completed for user ${userId}: ${optimizationResults.recommendations.length} trades recommended`);
+
+      return {
+        ...optimizationResults,
+        optimizationId: saveResult.optimizationId,
+        savedToDatabase: true
+      };
+
+    } catch (error) {
+      logger.error('Error optimizing user portfolio:', {
+        userId,
+        error: error.message,
+        stack: error.stack
+      });
+      throw new Error(`Failed to optimize portfolio: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get optimization results from database
+   */
+  async getOptimizationHistory(userId, limit = 10) {
+    try {
+      const results = await portfolioService.query(`
+        SELECT 
+          optimization_id,
+          optimization_type,
+          parameters,
+          status,
+          results,
+          created_at,
+          completed_at
+        FROM portfolio_optimizations 
+        WHERE user_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT $2
+      `, [userId, limit]);
+
+      return results.rows.map(row => ({
+        optimizationId: row.optimization_id,
+        type: row.optimization_type,
+        parameters: row.parameters,
+        status: row.status,
+        results: row.results,
+        createdAt: row.created_at,
+        completedAt: row.completed_at
+      }));
+
+    } catch (error) {
+      logger.error('Error getting optimization history:', {
+        userId,
+        error: error.message
+      });
+      throw new Error(`Failed to get optimization history: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get pending trade recommendations
+   */
+  async getPendingRecommendations(userId) {
+    try {
+      const results = await portfolioService.query(`
+        SELECT 
+          trade_id,
+          optimization_id,
+          symbol,
+          action,
+          quantity,
+          estimated_price,
+          rationale,
+          priority,
+          created_at
+        FROM recommended_trades 
+        WHERE user_id = $1 AND status = 'pending'
+        ORDER BY priority DESC, created_at ASC
+      `, [userId]);
+
+      return results.rows.map(row => ({
+        tradeId: row.trade_id,
+        optimizationId: row.optimization_id,
+        symbol: row.symbol,
+        action: row.action,
+        quantity: parseFloat(row.quantity),
+        estimatedPrice: parseFloat(row.estimated_price),
+        rationale: row.rationale,
+        priority: row.priority,
+        createdAt: row.created_at
+      }));
+
+    } catch (error) {
+      logger.error('Error getting pending recommendations:', {
+        userId,
+        error: error.message
+      });
+      throw new Error(`Failed to get pending recommendations: ${error.message}`);
+    }
+  }
+
+  /**
+   * Execute optimization with portfolio refresh
+   */
+  async optimizeWithRefresh(userId, brokerApiKeys, options = {}) {
+    try {
+      logger.info(`Starting optimization with portfolio refresh for user ${userId}`);
+
+      // First sync portfolio from broker
+      await portfolioService.syncPortfolioFromBroker(userId, brokerApiKeys);
+      
+      // Get updated portfolio data
+      const portfolio = await portfolioService.getPortfolioForOptimization(userId);
+      const symbols = portfolio.positions.map(pos => pos.symbol);
+      
+      // Get real market data using market data service
+      const marketDataService = require('./marketDataService');
+      const marketData = await marketDataService.getPortfolioMarketData(symbols, {
+        includeHistorical: true,
+        historicalPeriod: '1y',
+        includeVolatility: true,
+        includeBeta: true
+      });
+      
+      // Run optimization with real market data
+      const results = await this.optimizeUserPortfolio(userId, marketData, options);
+
+      return {
+        ...results,
+        portfolioRefreshed: true,
+        marketDataUpdated: true,
+        refreshedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Error optimizing with refresh:', {
+        userId,
+        error: error.message
+      });
+      throw new Error(`Failed to optimize with refresh: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get market data for optimization (standalone method)
+   */
+  async getMarketDataForOptimization(symbols) {
+    try {
+      const marketDataService = require('./marketDataService');
+      
+      const marketData = await marketDataService.getPortfolioMarketData(symbols, {
+        includeHistorical: true,
+        historicalPeriod: '1y',
+        includeVolatility: true,
+        includeBeta: true
+      });
+      
+      return marketData;
+
+    } catch (error) {
+      logger.error('Error getting market data for optimization:', {
+        symbolCount: symbols.length,
+        error: error.message
+      });
+      throw new Error(`Failed to get market data: ${error.message}`);
+    }
   }
 }
 
