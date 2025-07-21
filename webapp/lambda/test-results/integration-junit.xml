@@ -1,65 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="11" failures="2" errors="0" time="1.433">
-  <testsuite name="Portfolio Service Pure Unit Tests" errors="0" failures="2" skipped="0" timestamp="2025-07-21T14:13:57" time="1.412" tests="11">
-    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize without AlpacaService API keys" time="0.005">
+<testsuites name="jest tests" tests="30" failures="1" errors="0" time="1.435">
+  <testsuite name="Risk Manager Unit Tests" errors="0" failures="1" skipped="0" timestamp="2025-07-21T14:20:07" time="1.41" tests="30">
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation" name="calculates position size with valid parameters" time="0.008">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize AlpacaService on demand" time="0.002">
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation" name="validates input parameters" time="0.029">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should not initialize AlpacaService without API keys" time="0.002">
-      <failure>Error: expect(received).toBeNull()
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation" name="applies signal confidence adjustments correctly" time="0.003">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation" name="respects maximum position size limits" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation" name="handles missing signal gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Calculation" name="calculates base size from risk per trade" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Calculation" name="adjusts for signal confidence" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Calculation" name="adjusts for signal strength" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Calculation" name="respects maximum position size cap" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="reduces position size for high volatility assets" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="allows larger position size for low volatility assets" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="handles missing volatility data gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="applies volatility adjustment bounds" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="calculates comprehensive risk metrics" time="0.006">
+      <failure>Error: expect(received).toBeGreaterThanOrEqual(expected)
 
-Received: {&quot;getAccount&quot;: [Function mockConstructor], &quot;getPositions&quot;: [Function mockConstructor]}
-    at Object.toBeNull (/home/stocks/algo/webapp/lambda/tests/unit/portfolio-service-unit.test.js:62:29)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+Expected: &gt;= 0
+Received:    NaN
+    at Object.toBeGreaterThanOrEqual (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:311:47)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should retrieve user portfolio with mocked database" time="0.003">
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="identifies high concentration risk" time="0.003">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should update portfolio holdings with mocked database" time="0.003">
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="identifies high correlation risk" time="0.005">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should save portfolio metadata with mocked database" time="0.002">
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="applies concentration limits correctly" time="0.002">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should return health check status" time="0.002">
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="allows position when concentration is within limits" time="0.001">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should sync portfolio from broker with valid API keys" time="0.003">
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="handles new positions correctly" time="0.002">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should fail to sync portfolio without API keys" time="0.002">
-      <failure>Error: expect(received).rejects.toThrow()
-
-Received promise resolved instead of rejected
-Resolved to value: {&quot;positionsCount&quot;: 0, &quot;source&quot;: &quot;alpaca&quot;, &quot;success&quot;: true, &quot;syncedAt&quot;: &quot;2025-07-21T14:13:58.079Z&quot;, &quot;totalValue&quot;: 50000}
-    at expect (/home/stocks/algo/webapp/lambda/node_modules/expect/build/index.js:113:15)
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/portfolio-service-unit.test.js:206:13)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    <testcase classname="Risk Manager Unit Tests › Sector Limits" name="applies sector concentration limits" time="0.001">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle database errors gracefully" time="0.01">
+    <testcase classname="Risk Manager Unit Tests › Sector Limits" name="allows position in underweight sectors" time="0.002">
     </testcase>
-    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle transaction errors gracefully" time="0.005">
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="generates conservative recommendation for high risk" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="generates positive recommendation for low risk" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="provides actionable recommendations" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles database errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles invalid volatility data" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles empty portfolio composition" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="completes position sizing calculation within reasonable time" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="handles very small portfolio values" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="handles very large portfolio values" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

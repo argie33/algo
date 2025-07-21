@@ -85,8 +85,8 @@ class RiskManager {
         portfolioValue
       );
 
-      // Calculate final position metrics
-      const finalPositionSize = Math.max(0, sectorAdjustedSize);
+      // Calculate final position metrics - enforce max position size limit
+      const finalPositionSize = Math.max(0, Math.min(sectorAdjustedSize, maxPositionSize));
       const positionValue = finalPositionSize * portfolioValue;
       const riskAmount = positionValue * riskPerTrade;
 
@@ -378,7 +378,7 @@ class RiskManager {
     let message = 'Position size is within acceptable risk limits';
     let actions = [];
     
-    if (overallRiskScore > 0.8) {
+    if (overallRiskScore >= 0.8) {
       recommendation = 'reject';
       message = 'Position exceeds risk tolerance - consider reducing size or avoiding trade';
       actions = ['reduce_position_size', 'wait_for_better_entry', 'diversify_portfolio'];
@@ -521,9 +521,31 @@ class RiskManager {
   }
 
   async calculateSectorExposure(sector, portfolioComposition) {
-    // This would need to be implemented with sector data
-    // For now, return simplified calculation
-    return 0;
+    try {
+      let sectorExposure = 0;
+      const totalValue = Object.values(portfolioComposition).reduce((sum, value) => sum + value, 0);
+      
+      // For each symbol in portfolio, check if it's in the same sector
+      for (const symbol of Object.keys(portfolioComposition)) {
+        try {
+          const symbolSector = await this.getSymbolSector(symbol);
+          if (symbolSector === sector) {
+            sectorExposure += portfolioComposition[symbol];
+          }
+        } catch (error) {
+          // Skip symbols with sector lookup errors
+          continue;
+        }
+      }
+      
+      return sectorExposure;
+    } catch (error) {
+      logger.warn('⚠️ Sector exposure calculation failed', {
+        sector: sector,
+        error: error.message
+      });
+      return 0;
+    }
   }
 
   async calculatePortfolioRisk(portfolioComposition) {

@@ -40,7 +40,13 @@
         if (e.filename && e.filename.includes('use-sync-external-store-shim')) {
           console.log('🚨 DETECTED CACHED SHIM FILE - FORCING REFRESH');
           localStorage.setItem('shimErrorDetected', Date.now());
-          window.location.reload(true); // Force reload bypassing cache
+          // Nuclear option: Clear everything and reload
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+              registrations.forEach(registration => registration.unregister());
+            });
+          }
+          window.location.href = window.location.href + '?nocache=' + Date.now();
         }
       });
       
