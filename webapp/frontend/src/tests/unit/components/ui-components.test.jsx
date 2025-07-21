@@ -79,19 +79,19 @@ vi.mock('@mui/material', () => ({
   )
 }));
 
-// Import actual UI components
-import Alert from '../../../components/ui/alert';
-import Badge from '../../../components/ui/badge';
-import Button from '../../../components/ui/button';
-import Card from '../../../components/ui/card';
-import Header from '../../../components/ui/header';
-import Input from '../../../components/ui/input';
-import Layout from '../../../components/ui/layout';
-import Navigation from '../../../components/ui/navigation';
-import Progress from '../../../components/ui/progress';
-import Select from '../../../components/ui/select';
-import Slider from '../../../components/ui/slider';
-import Tabs from '../../../components/ui/tabs';
+// Import actual UI components (fixed import/export mismatches)
+import Alert from '../../../components/ui/alert'; // default export
+import { Badge } from '../../../components/ui/badge'; // named export
+import Button from '../../../components/ui/button'; // default export
+import Card from '../../../components/ui/card'; // default export
+import Header from '../../../components/ui/header'; // default export
+import Input from '../../../components/ui/input'; // default export
+import Layout from '../../../components/ui/layout'; // default export
+import Navigation from '../../../components/ui/navigation'; // default export
+import { Progress } from '../../../components/ui/progress'; // named export
+import { Select } from '../../../components/ui/select'; // named export
+import { Slider } from '../../../components/ui/slider'; // named export
+import { Tabs } from '../../../components/ui/tabs'; // named export
 
 describe('🎨 UI Components', () => {
   beforeEach(() => {

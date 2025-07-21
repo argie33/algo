@@ -77,8 +77,8 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// ENHANCED MUI Theme - proper MUI createTheme implementation
-import muiTheme from './theme/muiTheme'
+// ENHANCED Safe Theme - bypasses MUI createTheme to prevent createPalette errors  
+import { lightTheme } from './theme/safeTheme'
 
 // Enhanced components
 import './index.css'
@@ -156,7 +156,7 @@ const queryClient = new SimpleQueryClient({
 // Enhanced app wrapper with comprehensive error handling and loading states
 const AppWithProviders = () => {
   return (
-    <ThemeProvider theme={muiTheme}>
+    <ThemeProvider theme={lightTheme}>
       <CssBaseline />
       <LoadingProvider>
         <AuthProvider>

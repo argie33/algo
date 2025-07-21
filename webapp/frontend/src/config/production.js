@@ -1,6 +1,9 @@
 // Production configuration for Edgebrooke Capital Financial Dashboard
 // This file contains production-ready settings for enterprise deployment
 
+// API Base URL Configuration
+export const API_BASE = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+
 export const PRODUCTION_CONFIG = {
   // Application Information
   app: {

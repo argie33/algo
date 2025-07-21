@@ -12,18 +12,6 @@ class NewsService {
         name: 'Alpaca News',
         apiKey: process.env.REACT_APP_ALPACA_API_KEY,
         baseUrl: 'https://data.alpaca.markets/v1beta1/news'
-      },
-      finnhub: {
-        enabled: false,
-        name: 'Finnhub News',
-        apiKey: process.env.REACT_APP_FINNHUB_API_KEY,
-        baseUrl: 'https://finnhub.io/api/v1/news'
-      },
-      newsapi: {
-        enabled: false,
-        name: 'NewsAPI',
-        apiKey: process.env.REACT_APP_NEWSAPI_KEY,
-        baseUrl: 'https://newsapi.org/v2'
       }
     };
     

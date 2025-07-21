@@ -1,4 +1,5 @@
 import React from 'react';
+import { Select as MuiSelect } from '@mui/material';
 
 export const Select = React.forwardRef(({ className, children, value, onValueChange, ...props }, ref) => {
   return (

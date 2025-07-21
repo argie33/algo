@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createComponentLogger } from '../utils/errorLogger';
 import { formatCurrency, formatNumber, formatPercentage, getChangeColor } from '../utils/formatters';
 import { getAnalystRecommendations, getRecentAnalystActions } from '../services/api';
+import { API_BASE } from '../config/production';
 import {
   Box,
   Container,

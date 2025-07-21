@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tabs as MuiTabs } from '@mui/material';
 
 export const Tabs = React.forwardRef(({ className, value, onValueChange, children, ...props }, ref) => {
   return (

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Slider as MuiSlider } from '@mui/material';
 
 export const Slider = React.forwardRef(({ className, value, onValueChange, ...props }, ref) => {
   return (
