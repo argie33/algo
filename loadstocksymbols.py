@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 2025-07-18 - PHASE 4: Testing database pg_hba.conf authentication fix - Core symbols loading v49
+# Trigger rebuild: 2025-07-21 - PHASE 5: Testing ETF separation fix and workflow deployment - Core symbols loading v50
 # Updated database schema to match webapp portfolio table requirements v44 - test ECR race
 import os
 import re

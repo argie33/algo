@@ -17,13 +17,17 @@ console.log('✅ useSyncExternalStore shim loaded - using React 18 built-in impl
 // Export React's built-in useSyncExternalStore directly
 export const useSyncExternalStore = React.useSyncExternalStore;
 
-// Export default for libraries that import the whole module
-export default {
-  useSyncExternalStore: React.useSyncExternalStore
+// Create a simple selector wrapper for libraries that expect with-selector
+export const useSyncExternalStoreWithSelector = (store, selector, getServerSnapshot, isEqual) => {
+  const state = React.useSyncExternalStore(store, () => selector(store.getSnapshot()), getServerSnapshot);
+  return state;
 };
 
-// Also export named exports for compatibility
-export { useSyncExternalStore as default };
+// Export default for libraries that import the whole module
+export default {
+  useSyncExternalStore: React.useSyncExternalStore,
+  useSyncExternalStoreWithSelector
+};
 
 // Log successful shim activation
 console.log('🔄 All use-sync-external-store imports now redirected to React 18 built-in hook');

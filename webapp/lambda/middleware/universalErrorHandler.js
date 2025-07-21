@@ -31,7 +31,7 @@ function asyncHandler(fn) {
       const promise = fn(req, res, next);
       
       if (promise && typeof promise.catch === 'function') {
-        promise.catch((error) => {
+        return promise.catch((error) => {
           // Enhance error with request context
           error.requestContext = {
             method: req.method,
@@ -45,6 +45,8 @@ function asyncHandler(fn) {
           };
           
           next(error);
+          // Return resolved promise to prevent further rejection
+          return Promise.resolve();
         });
       }
       

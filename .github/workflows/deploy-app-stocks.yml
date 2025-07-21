@@ -388,16 +388,19 @@ jobs:
           echo "🛑 Checking for existing ${{ matrix.loader }} loader tasks to stop..."
           
           # List any running or pending tasks for this loader's task definition
+          # Extract family name from task definition ARN or use the container name
+          TASK_FAMILY="${{ steps.infra.outputs.container-name }}"
+          
           RUNNING_TASKS=$(aws ecs list-tasks \
             --cluster "${{ steps.infra.outputs.cluster }}" \
-            --family "${{ steps.infra.outputs.task-def }}" \
+            --family "$TASK_FAMILY" \
             --desired-status RUNNING \
             --query 'taskArns[]' \
             --output text)
           
           PENDING_TASKS=$(aws ecs list-tasks \
             --cluster "${{ steps.infra.outputs.cluster }}" \
-            --family "${{ steps.infra.outputs.task-def }}" \
+            --family "$TASK_FAMILY" \
             --desired-status PENDING \
             --query 'taskArns[]' \
             --output text)

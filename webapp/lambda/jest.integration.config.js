@@ -1,108 +1,102 @@
 /**
- * Jest Configuration for CI/CD Integration Tests
- * Handles real-world CI/CD environment constraints
+ * Jest Configuration for Integration Tests
+ * Industry Standard: Separate config for integration tests with real AWS services
  */
 
 module.exports = {
+  // Test environment
   testEnvironment: 'node',
   
-  // Test discovery
+  // Test pattern matching
   testMatch: [
-    '**/tests/integration/ci-cd-real-integration.test.js',
-    '**/tests/integration/infrastructure-validation.test.js'
+    '**/tests/integration/**/*.test.js'
+  ],
+  
+  // Ignore unit tests
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/tests/unit/',
+    '/tests/utils/',
+    '/tests/setup/'
   ],
   
   // Setup files
-  setupFilesAfterEnv: ['<rootDir>/tests/ci-cd-setup.js'],
-  
-  // Coverage configuration
-  collectCoverageFrom: [
-    'utils/**/*.js',
-    'routes/**/*.js',
-    'middleware/**/*.js',
-    '!**/node_modules/**',
-    '!**/tests/**'
+  setupFilesAfterEnv: [
+    '<rootDir>/tests/setup/integration-setup.js'
   ],
   
-  // Coverage directory and reporters
-  coverageDirectory: 'coverage-integration',
-  coverageReporters: ['text', 'lcov', 'html', 'json'],
-  
-  // Test timeout - longer for CI/CD environments
-  testTimeout: 30000,
-  
-  // Simple reporters for GitHub Actions
-  reporters: [
-    'default',
-    ['jest-junit', {
-      outputDirectory: './test-results',
-      outputName: 'integration-junit.xml'
-    }]
-  ],
-  
-  // Module handling for CI/CD environments
-  moduleNameMapper: {
-    // Handle potential module resolution issues
-    '^@/(.*)$': '<rootDir>/$1'
-  },
-  
-  // Transform configuration
-  transform: {
-    '^.+\\.js$': 'babel-jest'
-  },
-  
-  // Ignore patterns
-  transformIgnorePatterns: [
-    'node_modules/(?!(supertest|@aws-sdk)/)'
-  ],
-  
-  // Clear mocks between tests
-  clearMocks: true,
-  
-  // Collect coverage
-  collectCoverage: true,
-  
-  // Exit on test completion
+  // Test execution (runInBand should be passed as CLI option)
+  detectOpenHandles: true,
   forceExit: true,
   
-  // Detect open handles
-  detectOpenHandles: true,
+  // Timeouts for AWS operations
+  testTimeout: 120000, // 2 minutes per test
+  
+  // Coverage (optional for integration tests)
+  collectCoverage: false, // Integration tests focus on real service interactions
+  
+  // Reporters
+  reporters: [
+    'default',
+    [
+      'jest-junit',
+      {
+        outputDirectory: 'test-results',
+        outputName: 'integration-junit.xml',
+        suiteName: 'Integration Tests',
+        classNameTemplate: 'Integration.{classname}',
+        titleTemplate: '{title}',
+        ancestorSeparator: ' › ',
+        usePathForSuiteName: true
+      }
+    ]
+  ],
+  
+  // Module configuration
+  moduleDirectories: ['node_modules', '<rootDir>'],
+  
+  // Clear mocks between tests (important for integration tests)
+  clearMocks: true,
+  restoreMocks: true,
+  
+  // Error handling
+  errorOnDeprecated: false, // AWS SDK may have deprecation warnings
   
   // Verbose output for CI/CD debugging
   verbose: true,
   
-  // Note: runInBand should be passed as CLI option, not config
+  // Environment variables for tests
+  setupFiles: ['<rootDir>/tests/setup/integration-env.js'],
   
-  // Global setup and teardown
-  globalSetup: undefined,
-  globalTeardown: undefined,
+  // Global test setup/teardown
+  globalSetup: '<rootDir>/tests/setup/global-integration-setup.js',
+  globalTeardown: '<rootDir>/tests/setup/global-integration-teardown.js',
   
-  // Error handling
-  errorOnDeprecated: false,
+  // Transform configuration (if needed)
+  transform: {},
   
-  // Handle large test outputs
-  maxWorkers: 1,
+  // Module name mapping (if needed for AWS SDK or other modules)
+  moduleNameMapper: {},
   
-  // Cache directory
-  cacheDirectory: '<rootDir>/.jest-cache',
+  // Test result processor
+  testResultsProcessor: undefined,
   
-  // Mock configuration
-  automock: false,
+  // Watch plugins (not used in CI)
+  watchPlugins: [],
   
-  // Module directories
-  moduleDirectories: ['node_modules', '<rootDir>'],
+  // Snapshot serializers
+  snapshotSerializers: [],
   
-  // Test path ignore patterns
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    '/coverage/',
-    '/test-results/'
-  ],
+  // Test sequence and bail options
+  bail: 1, // Stop on first failure for faster feedback
+  maxWorkers: 1, // Single worker to prevent AWS resource conflicts
   
-  // Watch ignore patterns
-  watchPathIgnorePatterns: [
-    '/node_modules/',
-    '/coverage/',
-    '/test-results/'
-  ]
+  // Cache configuration
+  cache: false, // Disable cache for integration tests to ensure fresh runs
+  
+  // Extensions
+  moduleFileExtensions: ['js', 'json'],
+  
+  // Test name pattern (can be overridden via CLI)
+  testNamePattern: undefined
 };

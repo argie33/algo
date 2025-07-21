@@ -113,9 +113,7 @@ export default defineConfig(({ mode }) => {
         // Force React to be resolved from node_modules to prevent duplicates
         'react': resolve(__dirname, 'node_modules/react'),
         'react-dom': resolve(__dirname, 'node_modules/react-dom'),
-        // CRITICAL: Force use-sync-external-store to use React 18's built-in implementation
-        'use-sync-external-store': resolve(__dirname, 'src/utils/useSyncExternalStoreShim.js'),
-        'use-sync-external-store/shim': resolve(__dirname, 'src/utils/useSyncExternalStoreShim.js')
+        // use-sync-external-store now properly overridden in node_modules
       },
       dedupe: ['react', 'react-dom', 'use-sync-external-store']
     }

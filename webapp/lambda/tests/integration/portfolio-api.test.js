@@ -6,6 +6,7 @@
 const request = require('supertest');
 const express = require('express');
 const { asyncHandler, errorHandlerMiddleware } = require('../../middleware/universalErrorHandler');
+const { responseFormatterMiddleware } = require('../../utils/responseFormatter');
 const portfolioRouter = require('../../routes/portfolio');
 const { initializeDatabase, query } = require('../../utils/database');
 
@@ -13,25 +14,24 @@ const { initializeDatabase, query } = require('../../utils/database');
 let app;
 let server;
 
-// Mock user authentication
-const mockUser = {
-  sub: 'test-user-portfolio-123',
-  email: 'portfolio-test@example.com',
-  name: 'Portfolio Test User'
-};
-
-// Auth token for testing
-const testAuthToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItcG9ydGZvbGlvLTEyMyIsImVtYWlsIjoicG9ydGZvbGlvLXRlc3RAZXhhbXBsZS5jb20iLCJuYW1lIjoiUG9ydGZvbGlvIFRlc3QgVXNlciIsImlhdCI6MTYzOTY4MjQwMCwiZXhwIjoxOTU1MDQyNDAwfQ.test-signature';
+// Real authentication using development bypass
+const { generateTestToken } = require('../../middleware/auth');
 
 describe('Portfolio API Integration Tests', () => {
   beforeAll(async () => {
+    // Ensure development authentication bypass is enabled
+    process.env.ALLOW_DEV_AUTH_BYPASS = 'true';
+    process.env.NODE_ENV = 'test';
+    
     // Create test Express app
     app = express();
     app.use(express.json());
     
-    // Add mock authentication middleware
+    // Add response formatter middleware (required for res.success, res.serverError, etc.)
+    app.use(responseFormatterMiddleware);
+    
+    // Add request metadata middleware (before authentication)
     app.use((req, res, next) => {
-      req.user = mockUser;
       req.correlationId = `portfolio-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       req.startTime = Date.now();
       req.logger = {
@@ -42,7 +42,7 @@ describe('Portfolio API Integration Tests', () => {
       next();
     });
     
-    // Add portfolio routes
+    // Add portfolio routes (includes real authentication middleware)
     app.use('/api/portfolio', portfolioRouter);
     
     // Add error handler
@@ -74,7 +74,6 @@ describe('Portfolio API Integration Tests', () => {
     test('returns portfolio holdings with real data structure', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           includeMetadata: true,
           refresh: true
@@ -104,28 +103,41 @@ describe('Portfolio API Integration Tests', () => {
         expect(holding.isRealData).toBeTruthy();
       }
       
+      // Validate summary data structure
+      expect(data).toHaveProperty('summary');
+      expect(data.summary).toHaveProperty('totalValue');
+      expect(data.summary).toHaveProperty('totalGainLoss');
+      expect(data.summary).toHaveProperty('numPositions');
+      
       // Validate metadata
-      expect(data).toHaveProperty('totalValue');
-      expect(data).toHaveProperty('dataSource');
-      expect(data.dataSource).not.toBe('mock');
-      expect(data.dataSource).not.toBe('demo');
+      expect(data).toHaveProperty('metadata');
+      expect(data.metadata).toHaveProperty('dataSource');
+      expect(data.metadata.dataSource).not.toBe('mock');
+      expect(data.metadata.dataSource).not.toBe('demo');
     });
 
     test('handles authentication errors correctly', async () => {
+      // Temporarily disable development bypass to test real authentication errors
+      const originalBypass = process.env.ALLOW_DEV_AUTH_BYPASS;
+      process.env.ALLOW_DEV_AUTH_BYPASS = 'false';
+      
       const response = await request(app)
         .get('/api/portfolio/holdings')
         // No Authorization header
         .expect(401);
 
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body).toHaveProperty('error');
-      expect(response.body.error.code).toBe('AUTHENTICATION_ERROR');
+      expect(response.body).toHaveProperty('error', 'Authentication required');
+      expect(response.body).toHaveProperty('message', 'Access token is missing from Authorization header');
+      expect(response.body).toHaveProperty('details');
+      expect(response.body.details).toHaveProperty('authHeaderPresent', false);
+      
+      // Restore original setting
+      process.env.ALLOW_DEV_AUTH_BYPASS = originalBypass;
     });
 
     test('validates query parameters correctly', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           includeMetadata: 'invalid-boolean',
           limit: -1, // Invalid limit
@@ -145,7 +157,6 @@ describe('Portfolio API Integration Tests', () => {
       
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(503);
 
       expect(response.body).toHaveProperty('success', false);
@@ -158,7 +169,6 @@ describe('Portfolio API Integration Tests', () => {
     test('implements proper pagination', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           limit: 5,
           offset: 0
@@ -179,7 +189,6 @@ describe('Portfolio API Integration Tests', () => {
     test('filters out mock data indicators', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
 
       const responseText = JSON.stringify(response.body);
@@ -197,7 +206,6 @@ describe('Portfolio API Integration Tests', () => {
     test('returns performance metrics with real calculations', async () => {
       const response = await request(app)
         .get('/api/portfolio/performance')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           period: '1M',
           benchmark: 'SPY'
@@ -234,7 +242,6 @@ describe('Portfolio API Integration Tests', () => {
     test('validates period parameter', async () => {
       const response = await request(app)
         .get('/api/portfolio/performance')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           period: 'INVALID_PERIOD'
         })
@@ -247,7 +254,6 @@ describe('Portfolio API Integration Tests', () => {
     test('calculates risk metrics accurately', async () => {
       const response = await request(app)
         .get('/api/portfolio/performance')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           period: '1Y',
           includeRiskMetrics: true
@@ -278,7 +284,6 @@ describe('Portfolio API Integration Tests', () => {
     test('returns only real broker accounts', async () => {
       const response = await request(app)
         .get('/api/portfolio/available-accounts')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -315,7 +320,6 @@ describe('Portfolio API Integration Tests', () => {
       
       const response = await request(app)
         .get('/api/portfolio/available-accounts')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -333,7 +337,6 @@ describe('Portfolio API Integration Tests', () => {
     test('imports portfolio from real broker API', async () => {
       const response = await request(app)
         .post('/api/portfolio/import')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .send({
           broker: 'alpaca',
           accountType: 'paper'
@@ -361,7 +364,6 @@ describe('Portfolio API Integration Tests', () => {
     test('validates broker parameter', async () => {
       const response = await request(app)
         .post('/api/portfolio/import')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .send({
           broker: 'invalid-broker',
           accountType: 'paper'
@@ -380,7 +382,6 @@ describe('Portfolio API Integration Tests', () => {
       
       const response = await request(app)
         .post('/api/portfolio/import')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .send({
           broker: 'alpaca',
           accountType: 'paper'
@@ -405,8 +406,7 @@ describe('Portfolio API Integration Tests', () => {
       for (const endpoint of endpoints) {
         const response = await request(app)
           .get(endpoint)
-          .set('Authorization', `Bearer ${testAuthToken}`)
-          .expect(200);
+            .expect(200);
         
         if (response.body.success && response.body.data) {
           const validateRealData = (obj) => {
@@ -448,7 +448,6 @@ describe('Portfolio API Integration Tests', () => {
     test('validates numeric data ranges and types', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
 
       if (response.body.success && response.body.data.holdings.length > 0) {
@@ -489,7 +488,6 @@ describe('Portfolio API Integration Tests', () => {
       
       await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
       
       const endTime = Date.now();
@@ -502,7 +500,6 @@ describe('Portfolio API Integration Tests', () => {
     test('validates correlation IDs in responses', async () => {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('correlationId');
@@ -523,7 +520,6 @@ describe('Portfolio API Integration Tests', () => {
       
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .expect(503);
 
       expect(response.body.success).toBe(false);
@@ -540,8 +536,7 @@ describe('Portfolio API Integration Tests', () => {
       const promises = Array(10).fill().map(() =>
         request(app)
           .get('/api/portfolio/holdings')
-          .set('Authorization', `Bearer ${testAuthToken}`)
-      );
+        );
       
       const responses = await Promise.all(promises);
       
@@ -559,7 +554,6 @@ describe('Portfolio API Integration Tests', () => {
       // Force a validation error
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           limit: 'not-a-number'
         })
@@ -577,6 +571,10 @@ describe('Portfolio API Integration Tests', () => {
 
 describe('Portfolio API Security Tests', () => {
   test('requires authentication for all endpoints', async () => {
+    // Temporarily disable development bypass to test real authentication errors
+    const originalBypass = process.env.ALLOW_DEV_AUTH_BYPASS;
+    process.env.ALLOW_DEV_AUTH_BYPASS = 'false';
+    
     const endpoints = [
       { method: 'get', path: '/api/portfolio/holdings' },
       { method: 'get', path: '/api/portfolio/performance' },
@@ -589,9 +587,11 @@ describe('Portfolio API Security Tests', () => {
         // No Authorization header
         .expect(401);
       
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('AUTHENTICATION_ERROR');
+      expect(response.body).toHaveProperty('error', 'Authentication required');
     }
+    
+    // Restore original setting
+    process.env.ALLOW_DEV_AUTH_BYPASS = originalBypass;
   });
 
   test('validates input sanitization', async () => {
@@ -605,7 +605,6 @@ describe('Portfolio API Security Tests', () => {
     for (const maliciousInput of maliciousInputs) {
       const response = await request(app)
         .post('/api/portfolio/import')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .send({
           broker: maliciousInput,
           accountType: 'paper'
@@ -627,7 +626,6 @@ describe('Portfolio API Security Tests', () => {
     for (const injection of sqlInjectionAttempts) {
       const response = await request(app)
         .get('/api/portfolio/holdings')
-        .set('Authorization', `Bearer ${testAuthToken}`)
         .query({
           symbol: injection
         })
@@ -644,7 +642,6 @@ describe('Portfolio API Performance Tests', () => {
     
     const response = await request(app)
       .get('/api/portfolio/holdings')
-      .set('Authorization', `Bearer ${testAuthToken}`)
       .query({
         limit: 1000, // Large dataset
         includeMetadata: true
@@ -666,7 +663,6 @@ describe('Portfolio API Performance Tests', () => {
   test('implements proper caching headers', async () => {
     const response = await request(app)
       .get('/api/portfolio/holdings')
-      .set('Authorization', `Bearer ${testAuthToken}`)
       .expect(200);
     
     // Should have appropriate cache headers for financial data

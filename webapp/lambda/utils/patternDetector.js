@@ -25,6 +25,12 @@ class PatternDetector {
   }
 
   async startRealTimeMonitoring(intervalMinutes = 15) {
+    // Skip pattern detection in test environments
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_PATTERN_DETECTION === 'true') {
+      console.log('Pattern detection disabled in test environment');
+      return;
+    }
+
     if (this.isMonitoring) {
       console.log('Pattern monitoring already running');
       return;

@@ -21,11 +21,22 @@ let verifierPromise = null;
 
 // Development authentication settings - check dynamically for tests
 function isDevelopment() {
-  return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
+  return process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 }
 
 function allowDevBypass() {
-  return process.env.ALLOW_DEV_AUTH_BYPASS === 'true' || isDevelopment();
+  // Only allow dev bypass if explicitly enabled OR in actual development mode
+  // Note: NODE_ENV === 'test' should respect ALLOW_DEV_AUTH_BYPASS setting
+  if (process.env.ALLOW_DEV_AUTH_BYPASS === 'true') {
+    return true;
+  }
+  
+  if (process.env.ALLOW_DEV_AUTH_BYPASS === 'false') {
+    return false;
+  }
+  
+  // If ALLOW_DEV_AUTH_BYPASS is not set, only allow bypass in development mode
+  return isDevelopment();
 }
 
 /**
@@ -248,7 +259,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Try Cognito JWT verification
     console.log(`🔍 [${requestId}] Attempting Cognito JWT verification...`);
-    const jwtVerifier = await getVerifier();
+    const jwtVerifier = await module.exports.getVerifier();
 
     if (!jwtVerifier) {
       // No Cognito verifier available

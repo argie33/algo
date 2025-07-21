@@ -1,0 +1,289 @@
+name: Integration Tests with AWS Infrastructure
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'webapp/lambda/**'
+      - 'cloudformation/**'
+      - '.github/workflows/integration-tests.yml'
+  push:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_cleanup:
+        description: 'Skip infrastructure cleanup (for debugging)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME_PREFIX: integration-test
+  TEST_TIMEOUT_MINUTES: 30
+
+jobs:
+  integration-tests:
+    name: Integration Tests with Real AWS Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read
+      pull-requests: write  # For posting test results
+
+    strategy:
+      matrix:
+        test-suite: ['database', 'auth', 'portfolio']
+      fail-fast: false
+      max-parallel: 2  # Limit concurrent infrastructure deployments
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INTEGRATION_TEST_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-IntegrationTest-${{ github.run_id }}
+
+      - name: Generate unique stack name
+        id: stack-name
+        run: |
+          # Create unique stack name for isolation
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          GITHUB_SHA_SHORT=$(echo ${{ github.sha }} | cut -c1-7)
+          STACK_NAME="${{ env.STACK_NAME_PREFIX }}-${{ matrix.test-suite }}-${TIMESTAMP}-${GITHUB_SHA_SHORT}"
+          echo "stack_name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "test_suite_id=${TIMESTAMP}-${GITHUB_SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "🏗️ Stack name: ${STACK_NAME}"
+
+      - name: Deploy test infrastructure
+        id: deploy-infra
+        run: |
+          echo "🚀 Deploying test infrastructure..."
+          
+          aws cloudformation deploy \
+            --template-file cloudformation/test-infrastructure.yml \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --parameter-overrides \
+              EnvironmentName=integration-test \
+              TestSuiteId=${{ steps.stack-name.outputs.test_suite_id }} \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset \
+            --tags \
+              Environment=integration-test \
+              TestSuite=${{ matrix.test-suite }} \
+              GitHubRun=${{ github.run_id }} \
+              AutoDelete=true
+          
+          echo "✅ Infrastructure deployment completed"
+
+      - name: Wait for RDS to be ready
+        run: |
+          echo "⏳ Waiting for RDS instance to be available..."
+          
+          # Get RDS instance identifier from stack outputs
+          DB_INSTANCE_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`TestDatabaseEndpoint`].OutputValue' \
+            --output text | cut -d'.' -f1)
+          
+          # Wait for RDS to be available (max 15 minutes)
+          aws rds wait db-instance-available \
+            --db-instance-identifier integration-test-${{ steps.stack-name.outputs.test_suite_id }}-db \
+            --cli-read-timeout 900 \
+            --cli-connect-timeout 60
+          
+          echo "✅ RDS instance is ready"
+
+      - name: Export test environment variables
+        id: export-env
+        run: |
+          echo "📋 Exporting test environment variables..."
+          
+          # Get stack outputs
+          STACK_OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --query 'Stacks[0].Outputs')
+          
+          # Extract values
+          DB_SECRET_ARN=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="TestDatabaseSecretArn") | .OutputValue')
+          USER_POOL_ID=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="TestUserPoolId") | .OutputValue')
+          USER_POOL_CLIENT_ID=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="TestUserPoolClientId") | .OutputValue')
+          
+          # Export for tests
+          echo "TEST_DB_SECRET_ARN=${DB_SECRET_ARN}" >> $GITHUB_ENV
+          echo "TEST_USER_POOL_ID=${USER_POOL_ID}" >> $GITHUB_ENV
+          echo "TEST_USER_POOL_CLIENT_ID=${USER_POOL_CLIENT_ID}" >> $GITHUB_ENV
+          echo "TEST_STACK_NAME=${{ steps.stack-name.outputs.stack_name }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          
+          echo "✅ Environment variables exported"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+
+      - name: Install dependencies
+        working-directory: webapp/lambda
+        run: |
+          echo "📦 Installing dependencies..."
+          npm ci
+          echo "✅ Dependencies installed"
+
+      - name: Run integration tests
+        working-directory: webapp/lambda
+        timeout-minutes: 25
+        run: |
+          echo "🧪 Running integration tests for ${{ matrix.test-suite }}..."
+          
+          # Set test configuration
+          export NODE_ENV=test
+          export USE_REAL_AWS=true
+          export TEST_SUITE=${{ matrix.test-suite }}
+          
+          # Run specific test suite
+          case "${{ matrix.test-suite }}" in
+            "database")
+              npm run test:integration:ci -- --testPathPattern="database-integration"
+              ;;
+            "auth")
+              npm run test:integration:ci -- --testPathPattern="auth-integration"
+              ;;
+            "portfolio")
+              npm run test:integration:ci -- --testPathPattern="portfolio-integration"
+              ;;
+            *)
+              echo "❌ Unknown test suite: ${{ matrix.test-suite }}"
+              exit 1
+              ;;
+          esac
+          
+          echo "✅ Integration tests completed successfully"
+
+      - name: Collect test artifacts
+        if: always()
+        working-directory: webapp/lambda
+        run: |
+          echo "📊 Collecting test artifacts..."
+          
+          # Create artifacts directory
+          mkdir -p test-artifacts
+          
+          # Copy test results
+          if [ -f test-results/integration-junit.xml ]; then
+            cp test-results/integration-junit.xml test-artifacts/
+          fi
+          
+          if [ -f test-results/integration-coverage.json ]; then
+            cp test-results/integration-coverage.json test-artifacts/
+          fi
+          
+          # Generate infrastructure summary
+          aws cloudformation describe-stacks \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+            --output json > test-artifacts/infrastructure-summary.json || true
+          
+          echo "✅ Test artifacts collected"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ matrix.test-suite }}-${{ github.run_id }}
+          path: webapp/lambda/test-artifacts/
+          retention-days: 30
+
+      - name: Post test results to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Integration Tests (${{ matrix.test-suite }})
+          path: webapp/lambda/test-results/integration-junit.xml
+          reporter: jest-junit
+          fail-on-error: true
+
+      - name: Clean up test infrastructure
+        if: always() && (github.event.inputs.skip_cleanup != 'true')
+        run: |
+          echo "🧹 Cleaning up test infrastructure..."
+          
+          # Delete the CloudFormation stack
+          aws cloudformation delete-stack \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }}
+          
+          # Wait for deletion to complete (with timeout)
+          echo "⏳ Waiting for stack deletion..."
+          
+          timeout 1200 aws cloudformation wait stack-delete-complete \
+            --stack-name ${{ steps.stack-name.outputs.stack_name }} || {
+              echo "⚠️ Stack deletion timeout, but continuing..."
+              
+              # Force cleanup of remaining resources if needed
+              aws cloudformation describe-stack-events \
+                --stack-name ${{ steps.stack-name.outputs.stack_name }} \
+                --max-items 10 || true
+          }
+          
+          echo "✅ Infrastructure cleanup completed"
+
+      - name: Report cleanup status
+        if: always()
+        run: |
+          if [ "${{ github.event.inputs.skip_cleanup }}" = "true" ]; then
+            echo "⚠️ Cleanup skipped - Manual cleanup required for stack: ${{ steps.stack-name.outputs.stack_name }}"
+            echo "Run: aws cloudformation delete-stack --stack-name ${{ steps.stack-name.outputs.stack_name }}"
+          else
+            echo "✅ Automated cleanup completed"
+          fi
+
+  integration-summary:
+    name: Integration Test Summary
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results
+
+      - name: Generate test summary
+        run: |
+          echo "# Integration Test Summary 🧪" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Check results for each test suite
+          for suite in database auth portfolio; do
+            if [ "${{ needs.integration-tests.result }}" = "success" ]; then
+              echo "| $suite | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $suite | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Infrastructure:** AWS CloudFormation with ephemeral test environment" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Type:** Real AWS services integration (RDS, Secrets Manager, Cognito)" >> $GITHUB_STEP_SUMMARY
+          echo "**Cleanup:** Automated infrastructure teardown" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if any integration tests failed
+        if: needs.integration-tests.result != 'success'
+        run: |
+          echo "❌ One or more integration test suites failed"
+          exit 1

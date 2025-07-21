@@ -21,9 +21,11 @@ class TimeoutHelper {
   }
 
   /**
-   * Execute a promise with timeout and optional circuit breaker
+   * Execute a promise or function with timeout and optional circuit breaker
    */
-  async withTimeout(promise, options = {}) {
+  async withTimeout(promiseOrFunction, options = {}) {
+    // Handle null options gracefully
+    const opts = options || {};
     const {
       timeout = this.defaultTimeouts.external,
       service = 'unknown',
@@ -31,7 +33,7 @@ class TimeoutHelper {
       useCircuitBreaker = false,
       retries = 0,
       retryDelay = 1000
-    } = options;
+    } = opts;
 
     const serviceKey = `${service}-${operation}`;
     
@@ -42,8 +44,14 @@ class TimeoutHelper {
 
     let lastError;
     
+    // Determine if we have a function or a promise
+    const isFunction = typeof promiseOrFunction === 'function';
+    
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        // Get the promise for this attempt
+        const promise = isFunction ? promiseOrFunction() : promiseOrFunction;
+        
         const result = await Promise.race([
           promise,
           new Promise((_, reject) => 
@@ -174,13 +182,15 @@ class TimeoutHelper {
    * Database query with timeout
    */
   async databaseQuery(queryFn, options = {}) {
+    // Handle null options gracefully
+    const opts = options || {};
     const {
       timeout = this.defaultTimeouts.database,
       operation = 'query',
       retries = 1
-    } = options;
+    } = opts;
 
-    return this.withTimeout(queryFn(), {
+    return this.withTimeout(queryFn, {
       timeout,
       service: 'database',
       operation,
@@ -199,7 +209,7 @@ class TimeoutHelper {
       retries = 2
     } = options;
 
-    return this.withTimeout(apiCall(), {
+    return this.withTimeout(apiCall, {
       timeout,
       service: 'alpaca',
       operation,
@@ -219,7 +229,7 @@ class TimeoutHelper {
       retries = 1
     } = options;
 
-    return this.withTimeout(apiCall(), {
+    return this.withTimeout(apiCall, {
       timeout,
       service: 'news',
       operation,

@@ -133,8 +133,10 @@ router.use(authenticateToken);
 const patternDetector = new PatternDetector();
 const watchlistAlerts = new WatchlistAlerts();
 
-// Start real-time pattern monitoring
-patternDetector.startRealTimeMonitoring();
+// Start real-time pattern monitoring (skip in test environment)
+if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_PATTERN_DETECTION !== 'true') {
+  patternDetector.startRealTimeMonitoring();
+}
 
 /**
  * GET /api/patterns/scan
