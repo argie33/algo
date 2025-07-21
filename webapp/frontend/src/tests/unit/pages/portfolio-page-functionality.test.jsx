@@ -330,11 +330,13 @@ const MockPortfolioPage = () => {
             <h2>Add New Holding</h2>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const form = e.target;
+              const symbolInput = document.querySelector('[name="symbol"]');
+              const sharesInput = document.querySelector('[name="shares"]');
+              const priceInput = document.querySelector('[name="price"]');
               handleAddHolding({
-                symbol: form.symbol.value,
-                shares: parseInt(form.shares.value),
-                currentPrice: parseFloat(form.price.value)
+                symbol: symbolInput?.value || '',
+                shares: parseInt(sharesInput?.value || '0'),
+                currentPrice: parseFloat(priceInput?.value || '0')
               });
             }}>
               <input 

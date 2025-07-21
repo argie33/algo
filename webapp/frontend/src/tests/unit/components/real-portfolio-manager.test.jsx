@@ -68,37 +68,40 @@ describe('💼 Real PortfolioManager Component', () => {
       {
         id: 'holding_1',
         symbol: 'AAPL',
-        name: 'Apple Inc.',
+        companyName: 'Apple Inc.',
         quantity: 100,
         averagePrice: 175.25,
         currentPrice: 185.50,
-        marketValue: 18550,
-        unrealizedGain: 1025,
-        unrealizedGainPercent: 5.85,
+        currentValue: 18550,
+        costBasis: 17525, // 175.25 * 100
+        gainLoss: 1025,
+        gainLossPercent: 5.85,
         weight: 24.7
       },
       {
         id: 'holding_2', 
         symbol: 'GOOGL',
-        name: 'Alphabet Inc.',
+        companyName: 'Alphabet Inc.',
         quantity: 25,
         averagePrice: 2800.00,
         currentPrice: 2850.00,
-        marketValue: 71250,
-        unrealizedGain: 1250,
-        unrealizedGainPercent: 1.79,
+        currentValue: 71250,
+        costBasis: 70000, // 2800 * 25
+        gainLoss: 1250,
+        gainLossPercent: 1.79,
         weight: 60.2
       },
       {
         id: 'holding_3',
         symbol: 'MSFT',
-        name: 'Microsoft Corp.',
+        companyName: 'Microsoft Corp.',
         quantity: 50,
         averagePrice: 340.00,
         currentPrice: 375.00,
-        marketValue: 18750,
-        unrealizedGain: 1750,
-        unrealizedGainPercent: 10.29,
+        currentValue: 18750,
+        costBasis: 17000, // 340 * 50
+        gainLoss: 1750,
+        gainLossPercent: 10.29,
         weight: 15.1
       }
     ],

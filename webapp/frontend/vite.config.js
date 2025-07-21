@@ -35,12 +35,9 @@ export default defineConfig(({ mode }) => {
                 return 'react-router';
               }
               
-              // UI libraries
-              if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
+              // UI libraries - keep Emotion with MUI for proper initialization order
+              if (id.includes('@mui/material') || id.includes('@mui/icons-material') || id.includes('@emotion')) {
                 return 'mui';
-              }
-              if (id.includes('@emotion')) {
-                return 'emotion';
               }
               
               // Chart libraries
@@ -143,7 +140,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': resolve(__dirname, 'src')
       },
-      dedupe: ['react', 'react-dom', 'use-sync-external-store']
+      dedupe: ['react', 'react-dom', 'use-sync-external-store', '@emotion/react', '@emotion/styled']
     }
   }
 })
