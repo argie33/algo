@@ -129,7 +129,8 @@ export default defineConfig(({ mode }) => {
       include: [
         'recharts',
         'framer-motion',
-        'react-beautiful-dnd',
+        '@dnd-kit/core',
+        '@dnd-kit/sortable',
         'react',
         'react-dom',
         'react/jsx-runtime'
