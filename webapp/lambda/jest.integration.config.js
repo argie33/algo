@@ -7,9 +7,9 @@ module.exports = {
   // Test environment
   testEnvironment: 'node',
   
-  // Test pattern matching
+  // Test pattern matching - REAL integration tests only
   testMatch: [
-    '**/tests/integration/**/*.test.js'
+    '**/tests/integration/REAL-*.test.js'
   ],
   
   // Ignore unit tests
