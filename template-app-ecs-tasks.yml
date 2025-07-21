@@ -748,8 +748,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: technicalsdaily-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -775,6 +775,18 @@ Resources:
               Value: !ImportValue StocksApp-DBUsername
             - Name: DB_SSL
               Value: 'false'
+            - Name: MEMORY_THRESHOLD_MB
+              Value: '1600'
+            - Name: ECS_MEMORY_MB
+              Value: '2048'
+            - Name: ULTRA_LOW_MEMORY
+              Value: 'false'
+            - Name: MAX_WORKERS
+              Value: '2'
+            - Name: BATCH_SIZE
+              Value: '50'
+            - Name: DB_POOL_MAX
+              Value: '4'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1361,8 +1373,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: technicalsweekly-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1380,6 +1392,18 @@ Resources:
               Value: !ImportValue StocksApp-SecretArn
             - Name: DB_SSL
               Value: 'false'
+            - Name: MEMORY_THRESHOLD_MB
+              Value: '1600'
+            - Name: ECS_MEMORY_MB
+              Value: '2048'
+            - Name: ULTRA_LOW_MEMORY
+              Value: 'false'
+            - Name: MAX_WORKERS
+              Value: '2'
+            - Name: BATCH_SIZE
+              Value: '50'
+            - Name: DB_POOL_MAX
+              Value: '4'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1412,8 +1436,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: technicalsmonthly-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -1431,6 +1455,18 @@ Resources:
               Value: !ImportValue StocksApp-SecretArn
             - Name: DB_SSL
               Value: 'false'
+            - Name: MEMORY_THRESHOLD_MB
+              Value: '1600'
+            - Name: ECS_MEMORY_MB
+              Value: '2048'
+            - Name: ULTRA_LOW_MEMORY
+              Value: 'false'
+            - Name: MAX_WORKERS
+              Value: '2'
+            - Name: BATCH_SIZE
+              Value: '50'
+            - Name: DB_POOL_MAX
+              Value: '4'
           LogConfiguration:
             LogDriver: awslogs
             Options:

@@ -36,11 +36,11 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# Optimized for ECS - reduced workers to prevent memory issues
-MAX_WORKERS = min(os.cpu_count() or 1, 2)  # Reduced from 4 to 2
-BATCH_SIZE = 50  # Reduced from 100 to 50 for better memory management
+# Optimized for ECS - configurable resource usage
+MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '2'))  # Configurable workers
+BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))  # Configurable batch size  
 DB_POOL_MIN = 1
-DB_POOL_MAX = 5  # Reduced from 10 to 5
+DB_POOL_MAX = int(os.environ.get('DB_POOL_MAX', '4'))  # Configurable pool size
 
 def get_db_config():
     """
