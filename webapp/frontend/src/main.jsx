@@ -1,5 +1,11 @@
+// CRITICAL: Initialize React state FIRST to prevent use-sync-external-store errors
+import './utils/reactStateInitializer.js'
+
 // CRITICAL: Load React module preloader FIRST to prevent use-sync-external-store errors
 import './utils/reactModulePreloader.js'
+
+// CRITICAL: Apply React hooks patch IMMEDIATELY after React is preloaded
+import './utils/reactHooksPatch.js'
 
 // ENHANCED ERROR TRACING: Load debugger to capture the exact error
 import './utils/reactHooksDebugger.js'
