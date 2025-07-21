@@ -105,7 +105,7 @@ jobs:
             echo "📝 Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
             # Force all or infrastructure changed - ALL WORKING LOADERS INCLUDING PRICE LOADERS
-            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily calendar pricedaily priceweekly pricemonthly"
+            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily technicalsweekly technicalsmonthly calendar pricedaily priceweekly pricemonthly scores"
             echo "🔄 Running all working loaders (force_all or infrastructure changed)"
           else
             # Auto-detect based on file changes - ONLY WORKING LOADERS
@@ -117,7 +117,7 @@ jobs:
               LOADERS_TO_RUN=""
               for loader in $CHANGED_LOADERS; do
                 case $loader in
-                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|calendar|pricedaily|priceweekly|pricemonthly)
+                  stocksymbols|aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate|quarterlyincomestatement|ttmincomestatement|quarterlycashflow|ttmcashflow|quarterlybalancesheet|revenueestimate|earningsmetrics|feargreed|technicalsdaily|technicalsweekly|technicalsmonthly|calendar|pricedaily|priceweekly|pricemonthly|scores)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
                     echo "✅ Including working loader: $loader"
                     ;;
@@ -368,6 +368,18 @@ jobs:
               ;;
             pricemonthly)
               TASK_DEF_NAME="pricemonthly-loader"
+              ;;
+            technicalsdaily)
+              TASK_DEF_NAME="technicalsdaily-loader"
+              ;;
+            technicalsweekly)
+              TASK_DEF_NAME="technicalsweekly-loader"
+              ;;
+            technicalsmonthly)
+              TASK_DEF_NAME="technicalsmonthly-loader"
+              ;;
+            scores)
+              TASK_DEF_NAME="scores-loader"
               ;;
             *)
               TASK_DEF_NAME="${{ matrix.loader }}-loader"

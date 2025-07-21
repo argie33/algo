@@ -539,40 +539,40 @@ def process_symbol(symbol, conn_pool):
                 date_val = pd.Timestamp(date_val).to_pydatetime()
             
             data.append((
-                symbol
-                date_val
-                sanitize_value(row.get('rsi'))
-                sanitize_value(row.get('macd'))
-                sanitize_value(row.get('macd_signal'))
-                sanitize_value(row.get('macd_hist'))
-                sanitize_value(row.get('mom'))
-                sanitize_value(row.get('roc'))
-                sanitize_value(row.get('adx'))
-                sanitize_value(row.get('plus_di'))
-                sanitize_value(row.get('minus_di'))
-                sanitize_value(row.get('atr'))
-                sanitize_value(row.get('ad'))
-                sanitize_value(row.get('cmf'))
-                sanitize_value(row.get('mfi'))
-                sanitize_value(row.get('td_sequential'))
-                sanitize_value(row.get('td_combo'))
-                sanitize_value(row.get('marketwatch'))
-                sanitize_value(row.get('dm'))
-                sanitize_value(row.get('sma_10'))
-                sanitize_value(row.get('sma_20'))
-                sanitize_value(row.get('sma_50'))
-                sanitize_value(row.get('sma_150'))
-                sanitize_value(row.get('sma_200'))
-                sanitize_value(row.get('ema_4'))
-                sanitize_value(row.get('ema_9'))
-                sanitize_value(row.get('ema_21'))
-                sanitize_value(row.get('bbands_lower'))
-                sanitize_value(row.get('bbands_middle'))
-                sanitize_value(row.get('bbands_upper'))
-                sanitize_value(row.get('pivot_high'))
-                sanitize_value(row.get('pivot_low'))
-                sanitize_value(row.get('pivot_high_triggered'))
-                sanitize_value(row.get('pivot_low_triggered'))
+                symbol,
+                date_val,
+                sanitize_value(row.get('rsi')),
+                sanitize_value(row.get('macd')),
+                sanitize_value(row.get('macd_signal')),
+                sanitize_value(row.get('macd_hist')),
+                sanitize_value(row.get('mom')),
+                sanitize_value(row.get('roc')),
+                sanitize_value(row.get('adx')),
+                sanitize_value(row.get('plus_di')),
+                sanitize_value(row.get('minus_di')),
+                sanitize_value(row.get('atr')),
+                sanitize_value(row.get('ad')),
+                sanitize_value(row.get('cmf')),
+                sanitize_value(row.get('mfi')),
+                sanitize_value(row.get('td_sequential')),
+                sanitize_value(row.get('td_combo')),
+                sanitize_value(row.get('marketwatch')),
+                sanitize_value(row.get('dm')),
+                sanitize_value(row.get('sma_10')),
+                sanitize_value(row.get('sma_20')),
+                sanitize_value(row.get('sma_50')),
+                sanitize_value(row.get('sma_150')),
+                sanitize_value(row.get('sma_200')),
+                sanitize_value(row.get('ema_4')),
+                sanitize_value(row.get('ema_9')),
+                sanitize_value(row.get('ema_21')),
+                sanitize_value(row.get('bbands_lower')),
+                sanitize_value(row.get('bbands_middle')),
+                sanitize_value(row.get('bbands_upper')),
+                sanitize_value(row.get('pivot_high')),
+                sanitize_value(row.get('pivot_low')),
+                sanitize_value(row.get('pivot_high_triggered')),
+                sanitize_value(row.get('pivot_low_triggered')),
                 datetime.now()
             ))
             

@@ -54,8 +54,8 @@ except ImportError:
 
 # Configure logging for ECS environment
 logging.basicConfig(
-    level=logging.INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),  # ECS captures stdout
         logging.FileHandler('/tmp/pattern_recognition.log', mode='w')
@@ -146,14 +146,14 @@ class PatternRecognitionLoader:
             # Pattern types table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pattern_types (
-                    id SERIAL PRIMARY KEY
-                    name VARCHAR(100) NOT NULL UNIQUE
-                    category VARCHAR(50) NOT NULL
-                    description TEXT
-                    min_bars INTEGER NOT NULL DEFAULT 5
-                    max_bars INTEGER NOT NULL DEFAULT 100
-                    reliability_score DECIMAL(3,2) DEFAULT 0.75
-                    is_active BOOLEAN DEFAULT true
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL UNIQUE,
+                    category VARCHAR(50) NOT NULL,
+                    description TEXT,
+                    min_bars INTEGER NOT NULL DEFAULT 5,
+                    max_bars INTEGER NOT NULL DEFAULT 100,
+                    reliability_score DECIMAL(3,2) DEFAULT 0.75,
+                    is_active BOOLEAN DEFAULT true,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
