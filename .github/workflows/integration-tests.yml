@@ -1,19 +1,6 @@
 name: Integration Tests with AWS Infrastructure
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'webapp/lambda/**'
-      - 'cloudformation/**'
-      - '.github/workflows/integration-tests.yml'
-  push:
-    branches:
-      - main
-      - develop
-  schedule:
-    # Run nightly at 2 AM UTC
-    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       skip_cleanup:
