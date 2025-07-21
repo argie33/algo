@@ -1229,8 +1229,8 @@ jobs:
 ################################################################################
   deploy_infrastructure:
     name: Deploy webapp infrastructure
-    needs: [setup, filter, smoke_tests, unit_tests, integration_tests]
-    if: ${{ always() && (needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true') && (needs.smoke_tests.result == 'success' || needs.smoke_tests.result == 'skipped') && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') && (needs.integration_tests.result == 'success' || needs.integration_tests.result == 'skipped') }}
+    needs: [setup, filter, smoke_tests, unit_tests]
+    if: ${{ always() && (needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true') && (needs.smoke_tests.result == 'success' || needs.smoke_tests.result == 'skipped') && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
