@@ -1,6 +1,23 @@
 // CRITICAL: Load React module preloader FIRST to prevent use-sync-external-store errors
 import './utils/reactModulePreloader.js'
 
+// ENHANCED ERROR TRACING: Load debugger to capture the exact error
+import './utils/reactHooksDebugger.js'
+
+// COMPREHENSIVE PACKAGE ANALYSIS: Track dependencies and conflicts
+import './utils/packageInspector.js'
+
+// EMERGENCY FALLBACK: Last resort error handling and recovery
+import './utils/emergencyFallback.js'
+
+// CRITICAL LOGGING: Track import order and React state
+console.log('🔍 MAIN.JSX LOADING - React state check:', {
+  timestamp: Date.now(),
+  reactAvailable: typeof React !== 'undefined',
+  windowReact: typeof window?.React !== 'undefined',
+  globalReact: typeof global?.React !== 'undefined'
+});
+
 // Initialize essential utilities AFTER React is properly preloaded
 import './utils/browserCompatibility.js'
 import asyncErrorHandler from './utils/asyncErrorHandler.js'
@@ -16,15 +33,46 @@ import ReactDOM from 'react-dom/client'
 console.log('✅ React imported after preloader - hooks available:', {
   useState: !!React.useState,
   useEffect: !!React.useEffect,
-  useSyncExternalStore: !!React.useSyncExternalStore
+  useSyncExternalStore: !!React.useSyncExternalStore,
+  reactType: typeof React,
+  reactKeys: Object.keys(React || {}),
+  reactVersion: React?.version || 'unknown'
 });
+
+// COMPREHENSIVE MODULE DEPENDENCY TRACING
+console.log('🔍 DEPENDENCY ANALYSIS - Before other imports:', {
+  timestamp: Date.now(),
+  moduleCache: typeof require !== 'undefined' ? Object.keys(require.cache || {}).filter(k => k.includes('react')) : 'require unavailable',
+  webpackModules: typeof __webpack_require__ !== 'undefined' ? 'webpack detected' : 'no webpack',
+  viteModules: typeof __vite__ !== 'undefined' ? 'vite detected' : 'no vite',
+  nodeModules: typeof process !== 'undefined' ? 'node env' : 'browser env'
+});
+
+// CRITICAL: Track React state before potentially problematic imports
+console.log('🔍 PRE-IMPORT React state check - React Query about to load:', {
+  reactUseState: typeof React?.useState,
+  reactUseSyncExternalStore: typeof React?.useSyncExternalStore,
+  reactOnWindow: typeof window?.React,
+  timestamp: Date.now()
+});
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// CRITICAL: Track React state after React Query import
+console.log('🔍 POST-IMPORT React state check - After React Query loaded:', {
+  reactUseState: typeof React?.useState,
+  reactUseSyncExternalStore: typeof React?.useSyncExternalStore,
+  reactOnWindow: typeof window?.React,
+  timestamp: Date.now(),
+  QueryClient: typeof QueryClient,
+  QueryClientProvider: typeof QueryClientProvider
+});
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// ENHANCED MUI Theme - production optimized safe theme
-import { lightTheme } from './theme/safeTheme'
+// ENHANCED MUI Theme - proper MUI createTheme implementation
+import muiTheme from './theme/muiTheme'
 
 // Enhanced components
 import './index.css'
@@ -102,7 +150,7 @@ const queryClient = new QueryClient({
 // Enhanced app wrapper with comprehensive error handling and loading states
 const AppWithProviders = () => {
   return (
-    <ThemeProvider theme={lightTheme}>
+    <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <LoadingProvider>
         <AuthProvider>

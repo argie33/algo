@@ -1,7 +1,61 @@
 /**
- * React Hooks Debugger - Specialized for use-sync-external-store issues
- * Provides detailed diagnostics and fixes for React hooks problems
+ * React Hooks Debugger - COMPREHENSIVE DIAGNOSIS FOR PERSISTENT useState ERROR
+ * Specialized for use-sync-external-store issues - Leave no stone unturned
+ * Provides detailed diagnostics and real-time tracing for React hooks problems
  */
+
+// CRITICAL: Enhanced error detection and stack trace capture
+const ERROR_MONITOR = {
+  errors: [],
+  setupErrorCapture() {
+    const originalError = console.error;
+    console.error = (...args) => {
+      const errorMessage = args.join(' ');
+      
+      // Capture the exact useState error
+      if (errorMessage.includes('useState') && errorMessage.includes('undefined')) {
+        const errorData = {
+          timestamp: Date.now(),
+          message: errorMessage,
+          args: args,
+          stack: new Error().stack,
+          location: window.location.href,
+          userAgent: navigator.userAgent
+        };
+        
+        this.errors.push(errorData);
+        console.log('🎯 CAPTURED EXACT useState ERROR:', errorData);
+        
+        // Try to identify the source
+        this.analyzeErrorSource(errorData);
+      }
+      
+      // Call original
+      originalError.apply(console, args);
+    };
+  },
+  
+  analyzeErrorSource(errorData) {
+    const stackLines = errorData.stack.split('\n');
+    const suspiciousLines = stackLines.filter(line => 
+      line.includes('use-sync-external-store') || 
+      line.includes('useSyncExternalStore') ||
+      line.includes('react-query') ||
+      line.includes('tanstack')
+    );
+    
+    if (suspiciousLines.length > 0) {
+      console.log('🔍 ERROR SOURCE ANALYSIS:', {
+        suspiciousLines,
+        likelySource: suspiciousLines[0],
+        fullStack: stackLines
+      });
+    }
+  }
+};
+
+// Initialize error monitoring immediately
+ERROR_MONITOR.setupErrorCapture();
 
 class ReactHooksDebugger {
   constructor() {
