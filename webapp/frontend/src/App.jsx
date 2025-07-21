@@ -269,4 +269,4 @@ function App() {
   )
 }
 
-export default App
+export default App// Trigger frontend deployment - useState error fixed
