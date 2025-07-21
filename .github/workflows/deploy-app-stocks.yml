@@ -98,23 +98,23 @@ jobs:
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
             echo "Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
-            # Force all or infrastructure changed - ONLY GROUP 1 WORKING LOADERS
-            LOADERS_TO_RUN="aaiidata annualbalancesheet analystupgradedowngrade annualcashflow"
-            echo "Running ONLY Group 1 working loaders"
+            # Force all or infrastructure changed - GROUP 1 + GROUP 2 FUNDAMENTALS (NO PRICE LOADERS)
+            LOADERS_TO_RUN="aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate"
+            echo "Running Groups 1 & 2 fundamentals loaders (NO price loaders)"
           else
             # Auto-detect based on file changes - ONLY GROUP 1 WORKING LOADERS
             CHANGED_LOADERS=$(git diff --name-only HEAD~1 HEAD | grep '^load.*\.py$' | sed 's/load//' | sed 's/\.py$//' | sort || true)
             if [[ -n "$CHANGED_LOADERS" ]]; then
-              # Filter to ONLY Group 1 working loaders
+              # Filter to Groups 1 & 2 fundamentals loaders (NO price loaders)
               LOADERS_TO_RUN=""
               for loader in $CHANGED_LOADERS; do
                 case $loader in
-                  aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow)
+                  aaiidata|annualbalancesheet|analystupgradedowngrade|annualcashflow|annualincomestatement|earningshistory|earningsestimate)
                     LOADERS_TO_RUN="$LOADERS_TO_RUN $loader"
                     ;;
                 esac
               done
-              echo "Auto-detected Group 1 working loaders: $LOADERS_TO_RUN"
+              echo "Auto-detected Groups 1 & 2 fundamentals loaders: $LOADERS_TO_RUN"
             else
               LOADERS_TO_RUN=""
               echo "No loader changes detected"
@@ -383,6 +383,44 @@ jobs:
           echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
           echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
 
+      - name: Stop existing loader tasks
+        run: |
+          echo "🛑 Checking for existing ${{ matrix.loader }} loader tasks to stop..."
+          
+          # List any running or pending tasks for this loader's task definition
+          RUNNING_TASKS=$(aws ecs list-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --family "${{ steps.infra.outputs.task-def }}" \
+            --desired-status RUNNING \
+            --query 'taskArns[]' \
+            --output text)
+          
+          PENDING_TASKS=$(aws ecs list-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --family "${{ steps.infra.outputs.task-def }}" \
+            --desired-status PENDING \
+            --query 'taskArns[]' \
+            --output text)
+          
+          ALL_TASKS="$RUNNING_TASKS $PENDING_TASKS"
+          
+          if [[ -n "$ALL_TASKS" && "$ALL_TASKS" != " " ]]; then
+            echo "Found existing tasks for ${{ matrix.loader }}-loader, stopping them..."
+            for task in $ALL_TASKS; do
+              if [[ -n "$task" ]]; then
+                echo "Stopping task: $task"
+                aws ecs stop-task \
+                  --cluster "${{ steps.infra.outputs.cluster }}" \
+                  --task "$task" \
+                  --reason "Stopped by new deployment"
+              fi
+            done
+            echo "✅ Stopped existing tasks, waiting 10 seconds for cleanup..."
+            sleep 10
+          else
+            echo "✅ No existing tasks found for ${{ matrix.loader }}-loader"
+          fi
+
       - name: Execute loader task
         id: task
         run: |
@@ -402,34 +440,46 @@ jobs:
           echo "Started task: $TASK_ARN"
 
       - name: Wait for task completion
+        timeout-minutes: 120
         run: |
-          echo "⏳ Waiting for ${{ matrix.loader }} task to complete..."
+          echo "⏳ Waiting for ${{ matrix.loader }} task to complete (max 120 minutes)..."
           
-          # Wait for task to stop
+          # Wait for task to stop with timeout protection
           aws ecs wait tasks-stopped \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --tasks "${{ steps.task.outputs.task-arn }}"
 
       - name: Check task result
+        continue-on-error: true
+        id: task-result
         run: |
           # Get task details
           TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --tasks "${{ steps.task.outputs.task-arn }}")
           
-          # Extract exit code
+          # Extract exit code and details
           EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
           STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "Unknown"')
+          TASK_STATUS=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].lastStatus // "Unknown"')
           
-          echo "Task stopped with exit code: $EXIT_CODE"
-          echo "Stop reason: $STOP_REASON"
+          echo "Task Status: $TASK_STATUS"
+          echo "Exit Code: $EXIT_CODE"
+          echo "Stop Reason: $STOP_REASON"
+          
+          # Set outputs for summary
+          echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "stop-reason=$STOP_REASON" >> $GITHUB_OUTPUT
+          echo "task-status=$TASK_STATUS" >> $GITHUB_OUTPUT
           
           if [[ "$EXIT_CODE" != "0" ]]; then
             echo "❌ ${{ matrix.loader }} loader failed with exit code $EXIT_CODE"
             echo "Stop reason: $STOP_REASON"
+            echo "success=false" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "✅ ${{ matrix.loader }} loader completed successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
           fi
 
   # 5. Summary and notifications

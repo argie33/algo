@@ -21,8 +21,8 @@ import yfinance as yf
 # -------------------------------
 SCRIPT_NAME = "loadearningsestimate.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -51,13 +51,13 @@ def get_db_config():
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host": sec["host"]
-        "port": int(sec.get("port", 5432))
-        "user": sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"],
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 def create_tables(cur):
     logging.info("Recreating earnings estimates table...")
@@ -68,15 +68,15 @@ def create_tables(cur):
     # Create earnings_estimates table
     cur.execute("""
         CREATE TABLE earnings_estimates (
-            symbol VARCHAR(20) NOT NULL
-            period VARCHAR(3) NOT NULL
-            avg_estimate NUMERIC
-            low_estimate NUMERIC
-            high_estimate NUMERIC
-            year_ago_eps NUMERIC
-            number_of_analysts INTEGER
-            growth NUMERIC
-            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            symbol VARCHAR(20) NOT NULL,
+            period VARCHAR(3) NOT NULL,
+            avg_estimate NUMERIC,
+            low_estimate NUMERIC,
+            high_estimate NUMERIC,
+            year_ago_eps NUMERIC,
+            number_of_analysts INTEGER,
+            growth NUMERIC,
+            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, period)
         );
     """)
@@ -122,29 +122,29 @@ def load_earnings_data(symbols, cur, conn):
                         return val
                     for period, row in earnings_est.iterrows():
                         earnings_data.append((
-                            orig_sym, str(period)
-                            pyval(row.get('avg'))
-                            pyval(row.get('low'))
-                            pyval(row.get('high'))
-                            pyval(row.get('yearAgoEps'))
-                            pyval(row.get('numberOfAnalysts'))
+                            orig_sym, str(period),
+                            pyval(row.get('avg')),
+                            pyval(row.get('low')),
+                            pyval(row.get('high')),
+                            pyval(row.get('yearAgoEps')),
+                            pyval(row.get('numberOfAnalysts')),
                             pyval(row.get('growth'))
                         ))
                     
                     if earnings_data:
                         execute_values(cur, """
                             INSERT INTO earnings_estimates (
-                                symbol, period, avg_estimate, low_estimate
-                                high_estimate, year_ago_eps, number_of_analysts
+                                symbol, period, avg_estimate, low_estimate,
+                                high_estimate, year_ago_eps, number_of_analysts,
                                 growth
                             ) VALUES %s
                             ON CONFLICT (symbol, period) DO UPDATE SET
-                                avg_estimate = EXCLUDED.avg_estimate
-                                low_estimate = EXCLUDED.low_estimate
-                                high_estimate = EXCLUDED.high_estimate
-                                year_ago_eps = EXCLUDED.year_ago_eps
-                                number_of_analysts = EXCLUDED.number_of_analysts
-                                growth = EXCLUDED.growth
+                                avg_estimate = EXCLUDED.avg_estimate,
+                                low_estimate = EXCLUDED.low_estimate,
+                                high_estimate = EXCLUDED.high_estimate,
+                                year_ago_eps = EXCLUDED.year_ago_eps,
+                                number_of_analysts = EXCLUDED.number_of_analysts,
+                                growth = EXCLUDED.growth,
                                 fetched_at = CURRENT_TIMESTAMP
                         """, earnings_data)
                         processed += 1
@@ -162,12 +162,13 @@ def load_earnings_data(symbols, cur, conn):
 
 def lambda_handler(event, context):
     log_mem("startup")
-    cfg = get_db_config()
+    user, pwd, host, port, dbname = get_db_config()
     
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
+        host=host, port=port,
+        user=user, password=pwd,
+        dbname=dbname,
+        cursor_factory=RealDictCursor
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -195,9 +196,9 @@ def lambda_handler(event, context):
     conn.close()
     logging.info("All done.")
     return {
-        "total": t
-        "processed": p
-        "failed": f
+        "total": t,
+        "processed": p,
+        "failed": f,
         "peak_rss_mb": peak
     }
 

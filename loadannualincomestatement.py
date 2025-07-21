@@ -82,7 +82,7 @@ def get_income_statement_data(symbol: str) -> Optional[pd.DataFrame]:
         
         # Try multiple methods in order of preference
         methods_to_try = [
-            ('income_stmt', 'annual income statement (new method)')
+            ('income_stmt', 'annual income statement (new method)'),
             ('financials', 'annual income statement (legacy method)')
         ]
         
@@ -152,9 +152,9 @@ def process_income_statement_data(symbol: str, income_statement: pd.DataFrame) -
             if safe_value is not None:
                 valid_values += 1
                 processed_data.append((
-                    symbol
-                    safe_date
-                    str(item_name)
+                    symbol,
+                    safe_date,
+                    str(item_name),
                     safe_value
                 ))
     
@@ -195,7 +195,7 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
                             INSERT INTO annual_income_statement (symbol, date, item_name, value)
                             VALUES %s
                             ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                                value = EXCLUDED.value
+                                value = EXCLUDED.value,
                                 updated_at = NOW()
                         """, income_statement_data)
                         conn.commit()
@@ -230,12 +230,12 @@ def create_table(cur, conn):
     
     create_table_sql = """
         CREATE TABLE annual_income_statement (
-            symbol VARCHAR(20) NOT NULL
-            date DATE NOT NULL
-            item_name TEXT NOT NULL
-            value DOUBLE PRECISION NOT NULL
-            created_at TIMESTAMP DEFAULT NOW()
-            updated_at TIMESTAMP DEFAULT NOW()
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY(symbol, date, item_name)
         );
         
