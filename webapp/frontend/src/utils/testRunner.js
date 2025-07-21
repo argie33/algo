@@ -29,6 +29,12 @@ class TestRunner {
   }
 
   async runAllTests() {
+    // Prevent execution during Vitest runs to avoid conflicts
+    if (typeof global !== 'undefined' && global.__vitest_runner__) {
+      console.log('⚠️ Skipping custom test runner during Vitest execution');
+      return { skipped: true, reason: 'Vitest execution detected' };
+    }
+
     console.log('🧪 Starting Comprehensive Test Run...');
     const startTime = Date.now();
     
@@ -532,6 +538,12 @@ class TestRunner {
 
   // Run specific test suite by name
   async runTestSuiteByName(suiteName) {
+    // Prevent execution during Vitest runs to avoid conflicts
+    if (typeof global !== 'undefined' && global.__vitest_runner__) {
+      console.log('⚠️ Skipping custom test runner during Vitest execution');
+      return { skipped: true, reason: 'Vitest execution detected' };
+    }
+
     const suite = this.testSuites.get(suiteName);
     if (!suite) {
       throw new Error(`Test suite '${suiteName}' not found`);
@@ -594,14 +606,27 @@ class TestRunner {
   }
 }
 
-// Create global instance
-const testRunner = new TestRunner();
+// Create global instance only when not in test environment
+let testRunner;
+if (typeof global === 'undefined' || !global.__vitest_runner__) {
+  testRunner = new TestRunner();
+  
+  // Add to window for debugging (only in browser environment)
+  if (typeof window !== 'undefined') {
+    window.testRunner = testRunner;
+  }
+} else {
+  // Create a stub for test environment
+  testRunner = {
+    runAllTests: () => Promise.resolve({ skipped: true, reason: 'Test environment' }),
+    runTestSuiteByName: () => Promise.resolve({ skipped: true, reason: 'Test environment' }),
+    diagnoseReactError: () => Promise.resolve({ skipped: true, reason: 'Test environment' }),
+    exportTestResults: () => ({ skipped: true, reason: 'Test environment' })
+  };
+}
 
 // Export for use
 export default testRunner;
-
-// Add to window for debugging
-window.testRunner = testRunner;
 
 // Export utility functions
 export const runAllTests = () => testRunner.runAllTests();

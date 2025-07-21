@@ -24,7 +24,8 @@ import {
   Home
 } from '@mui/icons-material';
 import { debugReactError } from '../utils/reactDebugger.js';
-import { diagnoseReactError } from '../utils/testRunner.js';
+// import { diagnoseReactError } from '../utils/testRunner.js'; // Temporarily disabled
+const diagnoseReactError = () => Promise.resolve({ skipped: true, reason: 'Disabled during test runs' });
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

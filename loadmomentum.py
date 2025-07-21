@@ -38,8 +38,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Script configuration
 SCRIPT_NAME = "loadmomentum.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 

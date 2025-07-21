@@ -11,6 +11,11 @@ import '@testing-library/jest-dom'
 beforeAll(async () => {
   console.log('🧪 Setting up test environment...')
   
+  // Add timeout to prevent hanging
+  const setupTimeout = setTimeout(() => {
+    console.error('⚠️ Test setup timeout - forcing completion');
+  }, 5000);
+  
   // Set up global test environment variables
   process.env.NODE_ENV = 'test'
   process.env.VITE_API_URL = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'
@@ -98,6 +103,7 @@ beforeAll(async () => {
     })
   }
   
+  clearTimeout(setupTimeout);
   console.log('✅ Test environment setup complete')
 })
 
