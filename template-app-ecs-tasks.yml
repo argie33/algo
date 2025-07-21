@@ -2623,8 +2623,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: buyselldaily-loader
-      Cpu: "256"
-      Memory: "512"
+      Cpu: "1024"
+      Memory: "2048"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -2650,6 +2650,12 @@ Resources:
               Value: !ImportValue StocksApp-DBUsername
             - Name: DB_SSL
               Value: 'false'
+            - Name: MEMORY_THRESHOLD_MB
+              Value: '1600'
+            - Name: ECS_MEMORY_MB
+              Value: '2048'
+            - Name: BATCH_SIZE
+              Value: '50'
           Secrets:
             - Name: IBKR_USERNAME
               ValueFrom: !Ref IBKRUsernameSecret

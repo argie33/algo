@@ -19,8 +19,8 @@ from importlib import import_module
 # -------------------------------
 SCRIPT_NAME = "loadbuyselldaily.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -53,14 +53,14 @@ def get_db_connection():
             
             # Simple, consistent database configuration
             db_config = {
-                'host': DB_HOST
-                'port': DB_PORT
-                'user': DB_USER
-                'password': DB_PASSWORD
-                'dbname': DB_NAME
-                'sslmode': 'disable'
-                'connect_timeout': 10
-                'application_name': 'buy-sell-daily-loader'
+                'host': DB_HOST,
+                'port': DB_PORT,
+                'user': DB_USER,
+                'password': DB_PASSWORD,
+                'dbname': DB_NAME,
+                'sslmode': 'require',
+                'connect_timeout': 10,
+                'application_name': 'buy-sell-daily-loader',
                 'options': '-c statement_timeout=30000'
             }
             
@@ -108,42 +108,42 @@ def create_buy_sell_table(cur):
     cur.execute("DROP TABLE IF EXISTS buy_sell_daily;")
     cur.execute("""
       CREATE TABLE buy_sell_daily (
-        id           SERIAL PRIMARY KEY
-        symbol       VARCHAR(20)    NOT NULL
-        timeframe    VARCHAR(10)    NOT NULL
-        date         DATE           NOT NULL
-        open         REAL
-        high         REAL
-        low          REAL
-        close        REAL
-        volume       BIGINT
-        signal       VARCHAR(10)
-        buylevel     REAL
-        stoplevel    REAL
-        inposition   BOOLEAN
-        strength     REAL
+        id           SERIAL PRIMARY KEY,
+        symbol       VARCHAR(20)    NOT NULL,
+        timeframe    VARCHAR(10)    NOT NULL,
+        date         DATE           NOT NULL,
+        open         REAL,
+        high         REAL,
+        low          REAL,
+        close        REAL,
+        volume       BIGINT,
+        signal       VARCHAR(10),
+        buylevel     REAL,
+        stoplevel    REAL,
+        inposition   BOOLEAN,
+        strength     REAL,
         -- O'Neill methodology columns
-        signal_type  VARCHAR(50)
-        pivot_price  REAL
-        buy_zone_start REAL
-        buy_zone_end REAL
+        signal_type  VARCHAR(50),
+        pivot_price  REAL,
+        buy_zone_start REAL,
+        buy_zone_end REAL,
         exit_trigger_1_price REAL,     -- 20% profit target
         exit_trigger_2_price REAL,     -- 25% profit target
         exit_trigger_3_condition VARCHAR(50), -- '50_SMA_BREACH_WITH_VOLUME'
         exit_trigger_3_price REAL,     -- Current 50-day SMA level
         exit_trigger_4_condition VARCHAR(50), -- 'STOP_LOSS_HIT'
         exit_trigger_4_price REAL,     -- Stop loss price
-        initial_stop REAL
-        trailing_stop REAL
-        base_type    VARCHAR(50)
-        base_length_days INTEGER
-        avg_volume_50d BIGINT
-        volume_surge_pct REAL
-        rs_rating    INTEGER
-        breakout_quality VARCHAR(20)
-        risk_reward_ratio REAL
-        current_gain_pct REAL
-        days_in_position INTEGER
+        initial_stop REAL,
+        trailing_stop REAL,
+        base_type    VARCHAR(50),
+        base_length_days INTEGER,
+        avg_volume_50d BIGINT,
+        volume_surge_pct REAL,
+        rs_rating    INTEGER,
+        breakout_quality VARCHAR(20),
+        risk_reward_ratio REAL,
+        current_gain_pct REAL,
+        days_in_position INTEGER,
         UNIQUE(symbol, timeframe, date)
       );
     """)
@@ -151,52 +151,52 @@ def create_buy_sell_table(cur):
 def insert_symbol_results(cur, symbol, timeframe, df):
     insert_q = """
       INSERT INTO buy_sell_daily (
-        symbol, timeframe, date
-        open, high, low, close, volume
-        signal, buylevel, stoplevel, inposition, strength
-        signal_type, pivot_price, buy_zone_start, buy_zone_end
-        exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price
-        exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop
-        base_type, base_length_days, avg_volume_50d, volume_surge_pct
+        symbol, timeframe, date,
+        open, high, low, close, volume,
+        signal, buylevel, stoplevel, inposition, strength,
+        signal_type, pivot_price, buy_zone_start, buy_zone_end,
+        exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
+        exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
+        base_type, base_length_days, avg_volume_50d, volume_surge_pct,
         rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position
       ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
-        open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low
-        close = EXCLUDED.close, volume = EXCLUDED.volume
-        signal = EXCLUDED.signal, buylevel = EXCLUDED.buylevel
-        stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition
-        strength = EXCLUDED.strength, signal_type = EXCLUDED.signal_type
-        pivot_price = EXCLUDED.pivot_price, buy_zone_start = EXCLUDED.buy_zone_start
-        buy_zone_end = EXCLUDED.buy_zone_end, exit_trigger_1_price = EXCLUDED.exit_trigger_1_price
-        exit_trigger_2_price = EXCLUDED.exit_trigger_2_price, exit_trigger_3_condition = EXCLUDED.exit_trigger_3_condition
-        exit_trigger_3_price = EXCLUDED.exit_trigger_3_price, exit_trigger_4_condition = EXCLUDED.exit_trigger_4_condition
-        exit_trigger_4_price = EXCLUDED.exit_trigger_4_price, initial_stop = EXCLUDED.initial_stop
-        trailing_stop = EXCLUDED.trailing_stop, base_type = EXCLUDED.base_type
-        base_length_days = EXCLUDED.base_length_days, avg_volume_50d = EXCLUDED.avg_volume_50d
-        volume_surge_pct = EXCLUDED.volume_surge_pct, rs_rating = EXCLUDED.rs_rating
-        breakout_quality = EXCLUDED.breakout_quality, risk_reward_ratio = EXCLUDED.risk_reward_ratio
+        open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
+        close = EXCLUDED.close, volume = EXCLUDED.volume,
+        signal = EXCLUDED.signal, buylevel = EXCLUDED.buylevel,
+        stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition,
+        strength = EXCLUDED.strength, signal_type = EXCLUDED.signal_type,
+        pivot_price = EXCLUDED.pivot_price, buy_zone_start = EXCLUDED.buy_zone_start,
+        buy_zone_end = EXCLUDED.buy_zone_end, exit_trigger_1_price = EXCLUDED.exit_trigger_1_price,
+        exit_trigger_2_price = EXCLUDED.exit_trigger_2_price, exit_trigger_3_condition = EXCLUDED.exit_trigger_3_condition,
+        exit_trigger_3_price = EXCLUDED.exit_trigger_3_price, exit_trigger_4_condition = EXCLUDED.exit_trigger_4_condition,
+        exit_trigger_4_price = EXCLUDED.exit_trigger_4_price, initial_stop = EXCLUDED.initial_stop,
+        trailing_stop = EXCLUDED.trailing_stop, base_type = EXCLUDED.base_type,
+        base_length_days = EXCLUDED.base_length_days, avg_volume_50d = EXCLUDED.avg_volume_50d,
+        volume_surge_pct = EXCLUDED.volume_surge_pct, rs_rating = EXCLUDED.rs_rating,
+        breakout_quality = EXCLUDED.breakout_quality, risk_reward_ratio = EXCLUDED.risk_reward_ratio,
         current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position;
     """
     inserted = 0
     for idx, row in df.iterrows():
         try:
             # Check for NaNs or missing values in core fields
-            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume')
+            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
                     row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
             if any(pd.isnull(v) for v in vals[:10]):  # Only check core fields
                 logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
                 continue
             cur.execute(insert_q, (
-                symbol, timeframe, row['date'].date()
-                float(row['open']), float(row['high']), float(row['low'])
-                float(row['close']), int(row['volume'])
-                row['Signal'], float(row['buyLevel'])
-                float(row['stopLevel']), bool(row['inPosition']), float(row['strength'])
+                symbol, timeframe, row['date'].date(),
+                float(row['open']), float(row['high']), float(row['low']),
+                float(row['close']), int(row['volume']),
+                row['Signal'], float(row['buyLevel']),
+                float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
                 # O'Neill methodology fields
-                row.get('signal_type'), row.get('pivot_price'), row.get('buy_zone_start'), row.get('buy_zone_end')
-                row.get('exit_trigger_1_price'), row.get('exit_trigger_2_price'), row.get('exit_trigger_3_condition'), row.get('exit_trigger_3_price')
-                row.get('exit_trigger_4_condition'), row.get('exit_trigger_4_price'), row.get('initial_stop'), row.get('trailing_stop')
-                row.get('base_type'), row.get('base_length_days'), row.get('avg_volume_50d'), row.get('volume_surge_pct')
+                row.get('signal_type'), row.get('pivot_price'), row.get('buy_zone_start'), row.get('buy_zone_end'),
+                row.get('exit_trigger_1_price'), row.get('exit_trigger_2_price'), row.get('exit_trigger_3_condition'), row.get('exit_trigger_3_price'),
+                row.get('exit_trigger_4_condition'), row.get('exit_trigger_4_price'), row.get('initial_stop'), row.get('trailing_stop'),
+                row.get('base_type'), row.get('base_length_days'), row.get('avg_volume_50d'), row.get('volume_surge_pct'),
                 row.get('rs_rating'), row.get('breakout_quality'), row.get('risk_reward_ratio'), row.get('current_gain_pct'), row.get('days_in_position')
             ))
             inserted += 1
@@ -224,13 +224,13 @@ def fetch_symbol_from_db(symbol, timeframe):
     tf = timeframe.lower()
     # Table name mapping for consistency with loader scripts
     price_table_map = {
-        "daily": "price_daily"
-        "weekly": "price_weekly"
+        "daily": "price_daily",
+        "weekly": "price_weekly",
         "monthly": "price_monthly"
     }
     tech_table_map = {
-        "daily": "technical_data_daily"
-        "weekly": "technical_data_weekly"
+        "daily": "technical_data_daily",
+        "weekly": "technical_data_weekly",
         "monthly": "technical_data_monthly"
     }
     if tf not in price_table_map or tf not in tech_table_map:
@@ -242,10 +242,10 @@ def fetch_symbol_from_db(symbol, timeframe):
     try:
         sql = f"""
           SELECT
-            p.date, p.open, p.high, p.low, p.close, p.volume
-            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di
-            t.sma_50
-            t.pivot_high
+            p.date, p.open, p.high, p.low, p.close, p.volume,
+            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
+            t.sma_50,
+            t.pivot_high,
             t.pivot_low
           FROM {price_table} p
           JOIN {tech_table}  t
@@ -269,8 +269,8 @@ def fetch_symbol_from_db(symbol, timeframe):
 
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
-    num_cols = ['open','high','low','close','volume'
-                'rsi','atr','adx','plus_di','minus_di'
+    num_cols = ['open','high','low','close','volume',
+                'rsi','atr','adx','plus_di','minus_di',
                 'sma_50','pivot_high','pivot_low']
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -843,10 +843,10 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
     avg    = np.mean(rets) if n else 0.0
     std    = np.std(rets, ddof=1) if n>1 else 0.0
     return {
-      'num_trades':     n
-      'win_rate':       len(wins)/n
-      'avg_return':     avg
-      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf')
+      'num_trades':     n,
+      'win_rate':       len(wins)/n,
+      'avg_return':     avg,
+      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
       'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
     }
 
@@ -932,7 +932,7 @@ def main():
     logging.info("=========================")
     for tf in results:
         analyze_trade_returns_fixed_capital(
-            results[tf]['rets'], results[tf]['durs']
+            results[tf]['rets'], results[tf]['durs'],
             f"[{tf} (Overall)]", annual_rfr
         )
 
