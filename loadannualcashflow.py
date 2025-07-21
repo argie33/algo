@@ -301,15 +301,8 @@ if __name__ == "__main__":
         t_s, p_s, f_s = load_annual_cash_flow(stock_syms, cur, conn)
         logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
 
-    # Load ETF symbols (if available)
-    try:
-        cur.execute("SELECT symbol FROM etf_symbols;")
-        etf_syms = [r["symbol"] for r in cur.fetchall()]
-        if etf_syms:
-            t_e, p_e, f_e = load_annual_cash_flow(etf_syms, cur, conn)
-            logging.info(f"ETFs — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
-    except Exception as e:
-        logging.info(f"No ETF symbols table or error: {e}")
+    # NOTE: ETFs don't have traditional cash flow statements - STOCKS ONLY
+    logging.info("Skipping ETFs - no traditional financial statements for funds")
 
     # Record last run
     cur.execute("""
