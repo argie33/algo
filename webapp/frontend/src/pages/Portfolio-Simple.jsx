@@ -366,7 +366,7 @@ function Portfolio() {
 
       {/* Holdings Grid */}
       <div className="space-y-4">
-        {portfolio.holdings.map((holding) => (
+        {Array.isArray(portfolio?.holdings) ? portfolio.holdings.map((holding) => (
           <div 
             key={holding.id} 
             className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer group"
@@ -489,7 +489,11 @@ function Portfolio() {
               </div>
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500">No holdings available</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -498,9 +502,9 @@ function Portfolio() {
   const TabNavigation = () => {
     const tabs = [
       { id: 'overview', label: 'Overview', icon: ChartBarIcon, count: null },
-      { id: 'holdings', label: 'Holdings', icon: DocumentChartBarIcon, count: portfolio.holdings.length },
+      { id: 'holdings', label: 'Holdings', icon: DocumentChartBarIcon, count: Array.isArray(portfolio?.holdings) ? portfolio.holdings.length : 0 },
       { id: 'performance', label: 'Performance', icon: ArrowTrendingUpIcon, count: null },
-      { id: 'risk', label: 'Risk Management', icon: ExclamationTriangleIcon, count: portfolio.alerts.length },
+      { id: 'risk', label: 'Risk Management', icon: ExclamationTriangleIcon, count: Array.isArray(portfolio?.alerts) ? portfolio.alerts.length : 0 },
       { id: 'factors', label: 'Factor Analysis', icon: ScaleIcon, count: null },
       { id: 'ai', label: 'AI Insights', icon: SparklesIcon, count: null },
       { id: 'optimization', label: 'Optimization', icon: AdjustmentsHorizontalIcon, count: null },

@@ -35,7 +35,8 @@ const HoldingsTable = ({
 
   // Advanced filtering
   const filteredHoldings = useMemo(() => {
-    let filtered = holdings.filter(holding => {
+    const safeHoldings = Array.isArray(holdings) ? holdings : [];
+    let filtered = safeHoldings.filter(holding => {
       const matchesText = filterText === '' || 
         holding.symbol.toLowerCase().includes(filterText.toLowerCase()) ||
         holding.name.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -174,9 +175,12 @@ const HoldingsTable = ({
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Sectors</option>
-                {[...new Set(holdings.map(h => h.sector))].map(sector => (
-                  <option key={sector} value={sector}>{sector}</option>
-                ))}
+                {Array.isArray(holdings) 
+                  ? [...new Set(holdings.map(h => h.sector))].map(sector => (
+                      <option key={sector} value={sector}>{sector}</option>
+                    ))
+                  : null
+                }
               </select>
             </div>
             

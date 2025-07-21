@@ -35,10 +35,11 @@ export default defineConfig(({ mode }) => {
                 return 'react-router';
               }
               
-              // UI libraries - keep Emotion with MUI for proper initialization order
-              if (id.includes('@mui/material') || id.includes('@mui/icons-material') || id.includes('@emotion')) {
+              // UI libraries - MUI only (keep Emotion in main bundle for proper initialization)
+              if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
                 return 'mui';
               }
+              // Keep Emotion in main bundle to ensure proper initialization order
               
               // Chart libraries
               if (id.includes('recharts')) {

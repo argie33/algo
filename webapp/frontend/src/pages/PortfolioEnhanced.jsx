@@ -189,7 +189,7 @@ const PortfolioEnhanced = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {portfolio.holdings.map((holding) => (
+                      {Array.isArray(portfolio?.holdings) ? portfolio.holdings.map((holding) => (
                         <tr key={holding.id || holding.symbol}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="font-medium text-gray-900">{holding.symbol}</div>
@@ -219,7 +219,13 @@ const PortfolioEnhanced = () => {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                      )) : (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center">
+                            <p className="text-gray-500">No holdings available</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

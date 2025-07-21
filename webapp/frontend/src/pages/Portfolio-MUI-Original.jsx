@@ -262,12 +262,14 @@ const generatePerformanceHistory = (holdings, historicalData) => {
   
   try {
     const performanceData = [];
-    const totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+    const totalValue = Array.isArray(holdings) 
+      ? holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0) 
+      : 0;
     
     // Get minimum data length across all holdings
-    const minDataLength = Math.min(
-      ...holdings.map(h => historicalData[h.symbol]?.length || 0)
-    );
+    const minDataLength = Array.isArray(holdings) && holdings.length > 0 
+      ? Math.min(...holdings.map(h => historicalData[h.symbol]?.length || 0))
+      : 0;
     
     if (minDataLength < 30) {
       console.warn('⚠️ Insufficient historical data for performance history');
@@ -744,7 +746,9 @@ const Portfolio = () => {
           
           // Try to load historical data for VaR calculation
           try {
-            const symbols = portfolioResponse.holdings.map(h => h.symbol);
+            const symbols = Array.isArray(portfolioResponse?.holdings) 
+              ? portfolioResponse.holdings.map(h => h.symbol) 
+              : [];
             const historicalData = {};
             
             // Load historical data for each symbol
