@@ -1,8 +1,8 @@
 import React from 'react';
-import { TailwindNavigation } from './navigation';
-import { TailwindHeader } from './header';
+import TailwindNavigation from './navigation';
+import TailwindHeader from './header';
 
-export function AppLayout({ 
+const AppLayout = ({ 
   children,
   headerTitle = "Financial Dashboard",
   user = null,
@@ -11,7 +11,7 @@ export function AppLayout({
   onProfileClick,
   showSearch = true,
   headerChildren
-}) {
+}) => {
   return (
     <div className="h-screen flex overflow-hidden bg-gray-50">
       <TailwindNavigation>
@@ -34,16 +34,16 @@ export function AppLayout({
       </TailwindNavigation>
     </div>
   );
-}
+};
 
-export function PageLayout({ 
+const PageLayout = ({ 
   children,
   title,
   subtitle,
   action,
   breadcrumbs = [],
   className = "max-w-7xl mx-auto py-6 sm:px-6 lg:px-8"
-}) {
+}) => {
   return (
     <div className="min-h-full">
       {(title || subtitle || action || breadcrumbs.length > 0) && (
@@ -104,16 +104,16 @@ export function PageLayout({
       </div>
     </div>
   );
-}
+};
 
-export function CardLayout({ 
+const CardLayout = ({ 
   children, 
   title, 
   subtitle, 
   action,
   className = "",
   padding = "p-6"
-}) {
+}) => {
   return (
     <div className={`bg-white shadow rounded-lg ${className}`}>
       {(title || subtitle || action) && (
@@ -144,14 +144,14 @@ export function CardLayout({
       </div>
     </div>
   );
-}
+};
 
-export function GridLayout({ 
+const GridLayout = ({ 
   children, 
   cols = 1, 
   gap = 6,
   className = ""
-}) {
+}) => {
   const gridCols = {
     1: 'grid-cols-1',
     2: 'grid-cols-1 md:grid-cols-2',
@@ -167,9 +167,9 @@ export function GridLayout({
       {children}
     </div>
   );
-}
+};
 
-export function FlexLayout({ 
+const FlexLayout = ({ 
   children, 
   direction = 'row', 
   align = 'start', 
@@ -177,7 +177,7 @@ export function FlexLayout({
   gap = 4,
   wrap = false,
   className = ""
-}) {
+}) => {
   const flexDirection = direction === 'col' ? 'flex-col' : 'flex-row';
   const alignItems = `items-${align}`;
   const justifyContent = `justify-${justify}`;
@@ -189,6 +189,7 @@ export function FlexLayout({
       {children}
     </div>
   );
-}
+};
 
 export default AppLayout;
+export { PageLayout, CardLayout, GridLayout, FlexLayout };

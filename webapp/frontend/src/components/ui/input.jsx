@@ -1,8 +1,9 @@
 import React from 'react';
+import { TextField } from '@mui/material';
 
-export const Input = React.forwardRef(({ className, type = "text", ...props }, ref) => {
+const Input = React.forwardRef(({ className, type = "text", ...props }, ref) => {
   return (
-    <input className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+    <TextField 
       ref={ref} 
       className={className} 
       type={type}
@@ -13,3 +14,5 @@ export const Input = React.forwardRef(({ className, type = "text", ...props }, r
   );
 });
 Input.displayName = "Input";
+
+export default Input;

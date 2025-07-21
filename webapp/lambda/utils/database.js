@@ -271,27 +271,32 @@ async function initializeDatabase() {
         const poolConfig = {
             ...config,
             ...dynamicPoolConfig,
-            idleTimeoutMillis: 30000, // Longer timeout for Lambda
-            connectionTimeoutMillis: 15000, // Longer timeout for cold starts
-            acquireTimeoutMillis: 10000, // Longer acquire timeout for cold starts
-            createTimeoutMillis: 15000, // Longer create timeout for cold starts
-            destroyTimeoutMillis: 5000, // Keep destroy timeout short
-            createRetryIntervalMillis: 1000, // Slower retry for stability
-            reapIntervalMillis: 5000, // Less frequent cleanup for Lambda
-            keepAlive: true, // Keep connections alive
+            // Connection timeouts optimized for Lambda cold starts
+            idleTimeoutMillis: 900000, // 15 minutes (Lambda max execution time)
+            connectionTimeoutMillis: 15000, // 15 seconds for initial connection
+            acquireTimeoutMillis: dynamicPoolConfig.acquireTimeoutMillis || 8000, // Use dynamic config or default
+            createTimeoutMillis: 15000, // 15 seconds for creating new connections
+            destroyTimeoutMillis: 5000, // Quick cleanup
+            createRetryIntervalMillis: 1000, // 1 second retry interval
+            
+            // Pool management optimized for serverless
+            allowExitOnIdle: false, // Keep pool alive during Lambda execution
+            propagateCreateError: false, // Handle connection errors gracefully
+            lazy: true, // Create connections on demand
+            
+            // Connection health checks
+            testOnBorrow: true, // Validate connections before use
+            testOnReturn: false, // Skip validation on return for performance
+            testWhileIdle: true, // Validate idle connections
+            
+            // Connection keep-alive for Lambda
+            keepAlive: true,
             keepAliveInitialDelayMillis: 10000,
-            // Advanced pool management
-            allowExitOnIdle: false, // Don't exit when idle
-            acquireTimeoutMillis: 8000, // Reasonable timeout for acquiring connections
-            propagateCreateError: false, // Don't propagate connection creation errors immediately
-            // Lazy initialization and connection optimization
-            lazy: true, // Enable lazy connection creation
-            evictionRunIntervalMillis: 30000, // Run eviction every 30 seconds
-            numTestsPerEvictionRun: 3, // Test 3 connections per eviction run
-            softIdleTimeoutMillis: 60000, // Soft idle timeout (1 minute)
-            testOnBorrow: true, // Test connections when borrowing
-            testOnReturn: false, // Don't test on return for performance
-            testWhileIdle: true // Test idle connections
+            
+            // Eviction and cleanup (less aggressive for Lambda)
+            evictionRunIntervalMillis: 30000, // Check every 30 seconds
+            numTestsPerEvictionRun: 3, // Test up to 3 connections per run
+            softIdleTimeoutMillis: 60000 // Soft idle threshold (1 minute)
         };
         
         console.log(`🏊 Creating pool with config:`, {

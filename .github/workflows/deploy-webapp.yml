@@ -741,14 +741,37 @@ jobs:
     needs: [setup, filter, unit_tests]
     if: ${{ always() && needs.unit_tests.result == 'success' }}
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: stocks_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     env:
       ENVIRONMENT_NAME: ${{ needs.setup.outputs.environment }}
       NODE_ENV: test
       TEST_API_URL: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
-      TEST_DB_HOST: ${{ secrets.TEST_DB_HOST }}
-      TEST_DB_USER: ${{ secrets.TEST_DB_USER }}
-      TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
-      TEST_DB_NAME: ${{ secrets.TEST_DB_NAME }}
+      # Use PostgreSQL service instead of external secrets for integration tests
+      TEST_DB_HOST: localhost
+      TEST_DB_USER: testuser
+      TEST_DB_PASSWORD: testpassword
+      TEST_DB_NAME: stocks_test
+      TEST_DB_PORT: 5432
+      # Database configuration for integration tests
+      DB_HOST: localhost
+      DB_USER: testuser
+      DB_PASSWORD: testpassword
+      DB_NAME: stocks_test
+      DB_PORT: 5432
+      DB_SSL: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v3

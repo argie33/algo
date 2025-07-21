@@ -39,7 +39,7 @@ async function setupTestDatabase() {
   try {
     // Always try to connect to real database
     dbUtils = new DatabaseTestUtils();
-    await dbUtils.initialize(realDatabaseConfig);
+    await dbUtils.initialize(); // No config parameter needed - uses environment variables
     console.log('✅ Real test database connection established');
     return dbUtils;
   } catch (error) {

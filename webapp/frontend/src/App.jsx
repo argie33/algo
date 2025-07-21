@@ -2,7 +2,7 @@
 // Enhanced with comprehensive unit test integration for CI/CD pipeline - Fixed unit test failures
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
-import { AppLayout } from './components/ui/layout'
+import AppLayout from './components/ui/layout'
 import { GlobalErrorBoundary, ErrorToastContainer } from './error'
 
 // All real page imports

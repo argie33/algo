@@ -1,7 +1,7 @@
 import React from 'react';
 import { BellIcon, UserCircleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
-export function TailwindHeader({ 
+const TailwindHeader = ({ 
   title = "Financial Dashboard", 
   user = null,
   notifications = 0,
@@ -9,7 +9,7 @@ export function TailwindHeader({
   onProfileClick,
   showSearch = true,
   children 
-}) {
+}) => {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -74,15 +74,15 @@ export function TailwindHeader({
       </div>
     </header>
   );
-}
+};
 
-export function PageHeader({ 
+const PageHeader = ({ 
   title, 
   subtitle, 
   action, 
   breadcrumbs = [],
   className = "" 
-}) {
+}) => {
   return (
     <div className={`bg-white px-4 py-5 border-b border-gray-200 sm:px-6 ${className}`}>
       {/* Breadcrumbs */}
@@ -132,6 +132,7 @@ export function PageHeader({
       </div>
     </div>
   );
-}
+};
 
 export default TailwindHeader;
+export { PageHeader };

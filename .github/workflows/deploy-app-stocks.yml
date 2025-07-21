@@ -99,7 +99,7 @@ jobs:
             echo "Manual loader selection: $LOADERS_TO_RUN"
           elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
             # Force all or infrastructure changed - SYMBOLS + FUNDAMENTALS + ANALYTICS (NO PRICE LOADERS)
-            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement technicalsdaily calendar"
+            LOADERS_TO_RUN="stocksymbols aaiidata annualbalancesheet analystupgradedowngrade annualcashflow annualincomestatement earningshistory earningsestimate quarterlyincomestatement ttmincomestatement quarterlycashflow ttmcashflow quarterlybalancesheet revenueestimate earningsmetrics feargreed technicalsdaily calendar"
             echo "Running symbols + fundamentals + analytics loaders (NO price loaders)"
           else
             # Auto-detect based on file changes - ONLY GROUP 1 WORKING LOADERS

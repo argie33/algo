@@ -550,8 +550,8 @@ app.get('/api/health', async (req, res) => {
       environment_vars: {
         NODE_ENV: process.env.NODE_ENV,
         AWS_REGION: process.env.AWS_REGION,
-        DB_SECRET_ARN: !!process.env.DB_SECRET_ARN ? 'SET' : 'MISSING',
-        API_KEY_ENCRYPTION_SECRET_ARN: !!process.env.API_KEY_ENCRYPTION_SECRET_ARN ? 'SET' : 'MISSING'
+        DB_SECRET_ARN: process.env.DB_SECRET_ARN ? 'SET' : 'MISSING',
+        API_KEY_ENCRYPTION_SECRET_ARN: process.env.API_KEY_ENCRYPTION_SECRET_ARN ? 'SET' : 'MISSING'
       },
       correlation_id: req.correlationId
     });

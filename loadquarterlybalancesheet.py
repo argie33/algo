@@ -19,8 +19,8 @@ import pandas as pd
 # Enhanced quarterly balance sheet data loader with improved error handling and performance monitoring
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -38,16 +38,15 @@ MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 1.0
 
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-        .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+    secret_str = boto3.client("secretsmanager").get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)
-    return {
-        "host": sec["host"]
-        "port": int(sec.get("port", 5432))
-        "user": sec["username"]
-        "password": sec["password"]
-        "dbname": sec["dbname"]
-    }
+    return (
+        sec["username"],
+        sec["password"], 
+        sec["host"],
+        int(sec.get("port", 5432)),
+        sec["dbname"]
+    )
 
 def safe_convert_to_float(value) -> Optional[float]:
     """Safely convert value to float with enhanced validation and error handling"""
@@ -154,9 +153,9 @@ def process_balance_sheet_data(symbol: str, balance_sheet: pd.DataFrame) -> List
             if safe_value is not None:
                 valid_values += 1
                 processed_data.append((
-                    symbol
-                    safe_date
-                    str(item_name)
+                    symbol,
+                    safe_date,
+                    str(item_name),
                     safe_value
                 ))
     
@@ -196,7 +195,7 @@ def load_quarterly_balance_sheet(symbols, cur, conn):
                             INSERT INTO quarterly_balance_sheet (symbol, date, item_name, value)
                             VALUES %s
                             ON CONFLICT (symbol, date, item_name) DO UPDATE SET
-                                value = EXCLUDED.value
+                                value = EXCLUDED.value,
                                 updated_at = NOW()
                         """, balance_sheet_data)
                         conn.commit()
@@ -232,13 +231,13 @@ if __name__ == "__main__":
     log_mem("startup")
 
     # Connect to DB
-    cfg = get_db_config()
+    username, password, host, port, dbname = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
-    
-            
+        host=host,
+        port=port,
+        user=username,
+        password=password,
+        dbname=dbname
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -251,12 +250,12 @@ if __name__ == "__main__":
 
     create_table_sql = """
         CREATE TABLE quarterly_balance_sheet (
-            symbol VARCHAR(20) NOT NULL
-            date DATE NOT NULL
-            item_name TEXT NOT NULL
-            value DOUBLE PRECISION NOT NULL
-            created_at TIMESTAMP DEFAULT NOW()
-            updated_at TIMESTAMP DEFAULT NOW()
+            symbol VARCHAR(20) NOT NULL,
+            date DATE NOT NULL,
+            item_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
             PRIMARY KEY(symbol, date, item_name)
         );
         
@@ -273,17 +272,9 @@ if __name__ == "__main__":
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_quarterly_balance_sheet(stock_syms, cur, conn)
 
-    # Load ETF symbols (if available)
-    try:
-        cur.execute("SELECT symbol FROM etf_symbols;")
-        etf_syms = [r["symbol"] for r in cur.fetchall()]
-        if etf_syms:
-            t_e, p_e, f_e = load_quarterly_balance_sheet(etf_syms, cur, conn)
-        else:
-            t_e, p_e, f_e = 0, 0, []
-    except Exception as e:
-        logging.info(f"No ETF symbols table or error: {e}")
-        t_e, p_e, f_e = 0, 0, []
+    # NOTE: ETFs don't have traditional quarterly balance sheets - STOCKS ONLY
+    logging.info("Skipping ETFs - no traditional quarterly financial statements for funds")
+    t_e, p_e, f_e = 0, 0, []
 
     # Record last run
     cur.execute("""
@@ -297,7 +288,6 @@ if __name__ == "__main__":
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
