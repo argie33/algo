@@ -1087,29 +1087,42 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Test connection on startup (only in browser context)
+// Test connection on startup (browser and test environments)
 if (typeof window !== 'undefined') {
+  const testTimeout = process.env.NODE_ENV === 'test' ? 100 : 1000; // Faster in tests
+  
   setTimeout(async () => {
-  try {
-    console.log('🔍 [API STARTUP] Testing connection...');
-    const testResponse = await initializeApi().get('/health', { timeout: 5000 });
-    console.log('✅ [API STARTUP] Connection test successful:', testResponse.status);
-  } catch (error) {
-    console.warn('⚠️ [API STARTUP] Connection test failed:', error.message);
-    console.log('🔧 [API STARTUP] Trying alternative health endpoints...');
-    
-    const altEndpoints = ['/api/health', '/api', '/'];
-    for (const endpoint of altEndpoints) {
-      try {
-        const response = await initializeApi().get(endpoint, { timeout: 3000 });
-        console.log(`✅ [API STARTUP] Alternative endpoint ${endpoint} successful:`, response.status);
-        break;
-      } catch (err) {
-        console.log(`❌ [API STARTUP] Alternative endpoint ${endpoint} failed:`, err.message);
+    try {
+      console.log('🔍 [API STARTUP] Testing connection...');
+      const api = initializeApi();
+      const testResponse = await api.get('/health', { 
+        timeout: process.env.NODE_ENV === 'test' ? 1000 : 5000 
+      });
+      console.log('✅ [API STARTUP] Connection test successful:', testResponse.status);
+    } catch (error) {
+      console.warn('⚠️ [API STARTUP] Connection test failed:', error.message);
+      
+      // In test environment, connection failures are expected with mocked APIs
+      if (process.env.NODE_ENV === 'test') {
+        console.log('🧪 [API STARTUP] Connection test completed (test environment)');
+        return;
+      }
+      
+      console.log('🔧 [API STARTUP] Trying alternative health endpoints...');
+      const altEndpoints = ['/api/health', '/api', '/'];
+      
+      for (const endpoint of altEndpoints) {
+        try {
+          const api = initializeApi();
+          const response = await api.get(endpoint, { timeout: 3000 });
+          console.log(`✅ [API STARTUP] Alternative endpoint ${endpoint} successful:`, response.status);
+          break;
+        } catch (err) {
+          console.log(`❌ [API STARTUP] Alternative endpoint ${endpoint} failed:`, err.message);
+        }
       }
     }
-  }
-  }, 1000);
+  }, testTimeout);
 }
 
 // --- PATCH: Wrap all API methods with normalizeApiResponse ---

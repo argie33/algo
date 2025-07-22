@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { MoreVert, TrendingUp, TrendingDown } from '@mui/icons-material';
 import StockChart from './StockChart';
-import simpleAlpacaWebSocket from '../services/simpleAlpacaWebSocket';
+import alpacaWebSocketService from '../services/alpacaWebSocketService';
 import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import axios from 'axios';
 
@@ -79,8 +79,8 @@ const DashboardStockChart = ({
 
     const handleConnected = () => {
       setIsConnected(true);
-      simpleAlpacaWebSocket.subscribeToQuotes([symbol]);
-      simpleAlpacaWebSocket.subscribeToTrades([symbol]);
+      alpacaWebSocketService.subscribeToQuotes([symbol]);
+      alpacaWebSocketService.subscribeToTrades([symbol]);
     };
 
     const handleDisconnected = () => {
@@ -105,22 +105,22 @@ const DashboardStockChart = ({
       }
     };
 
-    simpleAlpacaWebSocket.on('connected', handleConnected);
-    simpleAlpacaWebSocket.on('disconnected', handleDisconnected);
-    simpleAlpacaWebSocket.on('data', handleData);
+    alpacaWebSocketService.on('connected', handleConnected);
+    alpacaWebSocketService.on('disconnected', handleDisconnected);
+    alpacaWebSocketService.on('data', handleData);
 
     // Connect if not already connected (silently handle auth failures)
-    if (!simpleAlpacaWebSocket.isConnected) {
-      simpleAlpacaWebSocket.connect().catch(error => {
+    if (!alpacaWebSocketService.isConnected) {
+      alpacaWebSocketService.connect().catch(error => {
         console.warn('Alpaca WebSocket connection not available:', error.message);
         // Don't spam the console with errors for normal auth failures
       });
     }
 
     return () => {
-      simpleAlpacaWebSocket.off('connected', handleConnected);
-      simpleAlpacaWebSocket.off('disconnected', handleDisconnected);
-      simpleAlpacaWebSocket.off('data', handleData);
+      alpacaWebSocketService.off('connected', handleConnected);
+      alpacaWebSocketService.off('disconnected', handleDisconnected);
+      alpacaWebSocketService.off('data', handleData);
     };
   }, [symbol, showRealTime, chartData]);
 

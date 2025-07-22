@@ -168,8 +168,13 @@ class ApiHealthService {
     const startTime = Date.now();
     
     try {
+      // Use global fetch (which gets mocked in test environment)
+      const fetchFn = global.fetch || fetch;
+      const baseUrl = this.getBaseUrl();
+      const fullUrl = `${baseUrl}${endpoint.path}`;
+      
       // Make lightweight health check request
-      const response = await fetch(`${this.getBaseUrl()}${endpoint.path}`, {
+      const response = await fetchFn(fullUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
@@ -359,15 +364,23 @@ class ApiHealthService {
    * Force immediate health check
    */
   async forceHealthCheck() {
-    // Skip health checks in test environment
-    if (process.env.NODE_ENV === 'test') {
-      console.log('🔄 Skipping health check in test environment');
+    console.log('🔄 Force triggering health check...');
+    
+    try {
+      await this.performHealthCheck();
+      return this.getHealthStatus();
+    } catch (error) {
+      console.error('❌ Health check failed:', error.message);
+      // Update health status to reflect the failure
+      this.updateHealthStatus([{
+        name: 'api-health-check',
+        healthy: false,
+        status: 'error',
+        responseTime: null,
+        error: error.message
+      }]);
       return this.getHealthStatus();
     }
-    
-    console.log('🔄 Force triggering health check...');
-    await this.performHealthCheck();
-    return this.getHealthStatus();
   }
 
   /**

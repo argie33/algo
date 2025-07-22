@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/tests/setup-minimal.js'],
+    setupFiles: ['./src/tests/setup.js'],
     pool: 'threads',
     env: {
       VITE_API_URL: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
