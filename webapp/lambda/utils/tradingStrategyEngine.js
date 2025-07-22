@@ -815,19 +815,154 @@ class TradingStrategyEngine {
     };
   }
 
-  // Pattern detection (placeholder - should integrate with pattern recognition service)
-  async detectPatterns(priceData, patternTypes) {
-    // This would integrate with pattern recognition algorithms
-    // For now, return sample pattern data
-    return [
-      {
+  // Pattern detection using real technical analysis
+  async detectPatterns(priceData, patternTypes = ['double_bottom', 'head_shoulders', 'triangle']) {
+    try {
+      if (!priceData || priceData.length < 20) {
+        logger.warn('Insufficient price data for pattern detection', { dataLength: priceData?.length });
+        return [];
+      }
+
+      const patterns = [];
+      const prices = priceData.map(d => d.close || d.price);
+      
+      // Simple moving averages for trend analysis
+      const sma20 = this.calculateSMA(prices, 20);
+      const sma50 = this.calculateSMA(prices, 50);
+      
+      // Detect basic patterns based on price action and MA crossovers
+      if (patternTypes.includes('double_bottom')) {
+        const doubleBottom = this.detectDoubleBottom(prices);
+        if (doubleBottom) patterns.push(doubleBottom);
+      }
+      
+      if (patternTypes.includes('breakout')) {
+        const breakout = this.detectBreakout(prices, sma20);
+        if (breakout) patterns.push(breakout);
+      }
+      
+      if (patternTypes.includes('ma_crossover')) {
+        const crossover = this.detectMACrossover(sma20, sma50);
+        if (crossover) patterns.push(crossover);
+      }
+
+      logger.info('Pattern detection completed', { 
+        patternsFound: patterns.length,
+        patternTypes: patterns.map(p => p.type)
+      });
+      
+      return patterns;
+    } catch (error) {
+      logger.error('Pattern detection failed', { error: error.message });
+      return [];
+    }
+  }
+
+  // Helper method to calculate Simple Moving Average
+  calculateSMA(prices, period) {
+    if (prices.length < period) return [];
+    
+    const sma = [];
+    for (let i = period - 1; i < prices.length; i++) {
+      const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      sma.push(sum / period);
+    }
+    return sma;
+  }
+
+  // Detect double bottom pattern
+  detectDoubleBottom(prices) {
+    if (prices.length < 20) return null;
+    
+    const recent = prices.slice(-20);
+    const min1 = Math.min(...recent.slice(0, 10));
+    const min2 = Math.min(...recent.slice(-10));
+    const maxBetween = Math.max(...recent.slice(5, 15));
+    
+    // Basic double bottom criteria
+    if (Math.abs(min1 - min2) / min1 < 0.02 && maxBetween > min1 * 1.05) {
+      return {
         type: 'double_bottom',
+        signal: 'bullish',
+        confidence: 0.7,
+        timeframe: '1D',
+        detected_at: new Date().toISOString(),
+        levels: { support: Math.min(min1, min2), resistance: maxBetween }
+      };
+    }
+    return null;
+  }
+
+  // Detect breakout pattern
+  detectBreakout(prices, sma20) {
+    if (prices.length < 5 || sma20.length < 5) return null;
+    
+    const currentPrice = prices[prices.length - 1];
+    const avgSMA = sma20[sma20.length - 1];
+    const volatility = this.calculateVolatility(prices.slice(-20));
+    
+    if (currentPrice > avgSMA * 1.02 && volatility > 0.02) {
+      return {
+        type: 'breakout',
+        signal: 'bullish',
+        confidence: 0.6,
+        timeframe: '1D',
+        detected_at: new Date().toISOString(),
+        breakoutLevel: avgSMA
+      };
+    }
+    return null;
+  }
+
+  // Detect moving average crossover
+  detectMACrossover(sma20, sma50) {
+    if (sma20.length < 2 || sma50.length < 2) return null;
+    
+    const current20 = sma20[sma20.length - 1];
+    const prev20 = sma20[sma20.length - 2];
+    const current50 = sma50[sma50.length - 1];
+    const prev50 = sma50[sma50.length - 2];
+    
+    // Golden cross (bullish)
+    if (prev20 <= prev50 && current20 > current50) {
+      return {
+        type: 'ma_crossover',
         signal: 'bullish',
         confidence: 0.8,
         timeframe: '1D',
-        detected_at: new Date().toISOString()
-      }
-    ];
+        detected_at: new Date().toISOString(),
+        crossoverType: 'golden_cross'
+      };
+    }
+    
+    // Death cross (bearish)
+    if (prev20 >= prev50 && current20 < current50) {
+      return {
+        type: 'ma_crossover',
+        signal: 'bearish',
+        confidence: 0.8,
+        timeframe: '1D',
+        detected_at: new Date().toISOString(),
+        crossoverType: 'death_cross'
+      };
+    }
+    
+    return null;
+  }
+
+  // Calculate price volatility
+  calculateVolatility(prices) {
+    if (prices.length < 2) return 0;
+    
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+    }
+    
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length;
+    
+    return Math.sqrt(variance);
   }
 
   // Validate strategy configuration

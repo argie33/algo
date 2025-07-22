@@ -54,7 +54,6 @@ import {
 
 // All real page imports
 import Dashboard from './pages/Dashboard'
-import AdvancedTradingDashboard from './components/AdvancedTradingDashboard'
 import MarketOverview from './pages/MarketOverview'
 import StockExplorer from './pages/StockExplorer'
 import StockDetail from './pages/StockDetail'

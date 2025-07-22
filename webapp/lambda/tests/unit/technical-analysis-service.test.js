@@ -256,7 +256,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('requires sufficient data', () => {
-      const insufficientData = getSamplePriceData(10); // Less than default period + 1
+      const insufficientData = generateDeterministicPriceData(10); // Less than default period + 1
       
       expect(() => {
         technicalAnalysis.calculateRSI(insufficientData);
@@ -279,7 +279,7 @@ describe('Technical Analysis Service Unit Tests', () => {
 
   describe('MACD (Moving Average Convergence Divergence)', () => {
     test('calculates MACD with default parameters', () => {
-      const data = getSamplePriceData(50);
+      const data = generateDeterministicPriceData(50);
       const macd = technicalAnalysis.calculateMACD(data);
       
       expect(macd).toHaveProperty('values');
@@ -297,7 +297,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('calculates MACD with custom parameters', () => {
-      const data = getSamplePriceData(50);
+      const data = generateDeterministicPriceData(50);
       const macd = technicalAnalysis.calculateMACD(data, 8, 17, 9);
       
       expect(macd.values.length).toBeGreaterThan(0);
@@ -331,7 +331,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('requires sufficient data for MACD', () => {
-      const insufficientData = getSamplePriceData(20);
+      const insufficientData = generateDeterministicPriceData(20);
       
       expect(() => {
         technicalAnalysis.calculateMACD(insufficientData);
@@ -341,7 +341,7 @@ describe('Technical Analysis Service Unit Tests', () => {
 
   describe('Bollinger Bands', () => {
     test('calculates Bollinger Bands with default parameters', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const bb = technicalAnalysis.calculateBollingerBands(data);
       
       expect(bb).toHaveProperty('values');
@@ -359,7 +359,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('validates band relationships', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const bb = technicalAnalysis.calculateBollingerBands(data);
       
       // Check that upper > middle > lower for each point
@@ -390,7 +390,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('calculates with custom standard deviation', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const bb1 = technicalAnalysis.calculateBollingerBands(data, 20, 1);
       const bb2 = technicalAnalysis.calculateBollingerBands(data, 20, 2);
       
@@ -430,7 +430,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('handles period larger than data length', () => {
-      const data = getSamplePriceData(5);
+      const data = generateDeterministicPriceData(5);
       
       expect(() => {
         technicalAnalysis.calculateSMA(data, 10);
@@ -438,7 +438,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('calculates SMA with timestamps', () => {
-      const data = getSamplePriceData(10);
+      const data = generateDeterministicPriceData(10);
       const sma = technicalAnalysis.calculateSMA(data, 5);
       
       sma.values.forEach(point => {
@@ -451,7 +451,7 @@ describe('Technical Analysis Service Unit Tests', () => {
 
   describe('Exponential Moving Average (EMA)', () => {
     test('calculates EMA correctly', () => {
-      const data = getSamplePriceData(20);
+      const data = generateDeterministicPriceData(20);
       const ema = technicalAnalysis.calculateEMA(data, 10);
       
       expect(ema).toHaveProperty('values');
@@ -487,7 +487,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('requires sufficient data', () => {
-      const insufficientData = getSamplePriceData(5);
+      const insufficientData = generateDeterministicPriceData(5);
       
       expect(() => {
         technicalAnalysis.calculateEMA(insufficientData, 10);
@@ -497,7 +497,7 @@ describe('Technical Analysis Service Unit Tests', () => {
 
   describe('Stochastic Oscillator', () => {
     test('calculates Stochastic with default parameters', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const stoch = technicalAnalysis.calculateStochastic(data);
       
       expect(stoch).toHaveProperty('values');
@@ -515,7 +515,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('validates Stochastic value ranges', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const stoch = technicalAnalysis.calculateStochastic(data);
       
       stoch.values.forEach(point => {
@@ -549,7 +549,7 @@ describe('Technical Analysis Service Unit Tests', () => {
 
   describe('Williams %R', () => {
     test('calculates Williams %R correctly', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const williamsR = technicalAnalysis.calculateWilliamsR(data);
       
       expect(williamsR).toHaveProperty('values');
@@ -566,7 +566,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('generates Williams %R signals', () => {
-      const data = getSamplePriceData(30);
+      const data = generateDeterministicPriceData(30);
       const williamsR = technicalAnalysis.calculateWilliamsR(data);
       
       williamsR.values.forEach(point => {
@@ -575,7 +575,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('requires sufficient data', () => {
-      const insufficientData = getSamplePriceData(10);
+      const insufficientData = generateDeterministicPriceData(10);
       
       expect(() => {
         technicalAnalysis.calculateWilliamsR(insufficientData, 15);
@@ -621,7 +621,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('handles very large datasets efficiently', () => {
-      const largeDataset = getSamplePriceData(1000);
+      const largeDataset = generateDeterministicPriceData(1000);
       const startTime = Date.now();
       
       const results = technicalAnalysis.calculateIndicators(largeDataset, ['RSI', 'SMA', 'EMA']);
@@ -661,7 +661,7 @@ describe('Technical Analysis Service Unit Tests', () => {
     });
 
     test('signal timestamps match data timestamps', () => {
-      const data = getSamplePriceData(20);
+      const data = generateDeterministicPriceData(20);
       const rsi = technicalAnalysis.calculateRSI(data);
       
       rsi.values.forEach((point) => {
