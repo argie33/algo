@@ -10,7 +10,7 @@ export default defineConfig({
     setupFiles: ['./src/tests/setup-minimal.js'],
     pool: 'threads',
     env: {
-      VITE_API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+      VITE_API_URL: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
       NODE_ENV: 'test'
     },
     coverage: {

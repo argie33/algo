@@ -97,6 +97,10 @@ export const createSafeTheme = (mode = 'light') => {
       fontWeightRegular: 400,
       fontWeightMedium: 500,
       fontWeightBold: 700,
+      htmlFontSize: 16,
+      fontSize: 14,
+      // Critical MUI function - converts px to rem
+      pxToRem: (size) => `${size / 16}rem`,
       h1: {
         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
         fontWeight: 300,
@@ -306,6 +310,18 @@ export const createSafeTheme = (mode = 'light') => {
         styleOverrides: {
           root: {
             boxShadow: '0px 2px 4px -1px rgba(0,0,0,0.2), 0px 4px 5px 0px rgba(0,0,0,0.14), 0px 1px 10px 0px rgba(0,0,0,0.12)'
+          }
+        }
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontSize: '0.8125rem',
+            height: '32px'
+          },
+          sizeSmall: {
+            fontSize: '0.75rem',
+            height: '24px'
           }
         }
       }
