@@ -4,8 +4,11 @@
  */
 
 import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+// import { cleanup } from '@testing-library/react' // Disabled to prevent React issues
 import '@testing-library/jest-dom'
+
+// Disable automatic cleanup from RTL
+process.env.RTL_SKIP_AUTO_CLEANUP = 'true'
 
 // Global test setup
 beforeAll(async () => {
@@ -19,6 +22,20 @@ beforeAll(async () => {
   // Set up global test environment variables
   process.env.NODE_ENV = 'test'
   process.env.VITE_API_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
+  
+  // Mock import.meta.env globally using vitest
+  const mockImportMeta = {
+    env: {
+      MODE: 'test',
+      DEV: true,
+      PROD: false,
+      BASE_URL: '/',
+      VITE_API_URL: 'https://test-api.example.com/dev'
+    }
+  };
+  
+  // Use vitest's stubGlobal to properly mock import.meta
+  vi.stubGlobal('import', { meta: mockImportMeta });
   
   // Mock console methods to reduce noise in tests
   global.console = {
@@ -77,30 +94,63 @@ beforeAll(async () => {
   }
   
   if (typeof document === 'undefined') {
-    global.document = {
-      body: {},
-      head: {},
-      documentElement: {},
-      createElement: vi.fn(() => ({
-        style: {},
-        setAttribute: vi.fn(),
-        getAttribute: vi.fn(),
-        appendChild: vi.fn(),
-        removeChild: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        querySelector: vi.fn(),
-        querySelectorAll: vi.fn(() => []),
-      })),
-      getElementById: vi.fn(),
-      querySelector: vi.fn(),
+    const mockElement = {
+      style: {},
+      setAttribute: vi.fn(),
+      getAttribute: vi.fn(() => null),
+      appendChild: vi.fn(),
+      removeChild: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      querySelector: vi.fn(() => null),
       querySelectorAll: vi.fn(() => []),
+      textContent: '',
+      innerHTML: '',
+      children: [],
+      parentNode: null,
+      nextSibling: null,
+      previousSibling: null,
+      nodeName: 'DIV',
+      nodeType: 1,
+      ownerDocument: null,
+      getBoundingClientRect: () => ({ x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 }),
+      scrollIntoView: vi.fn(),
+      focus: vi.fn(),
+      blur: vi.fn(),
+      click: vi.fn(),
+    };
+
+    global.document = {
+      body: { ...mockElement, tagName: 'BODY' },
+      head: { ...mockElement, tagName: 'HEAD' },
+      documentElement: { ...mockElement, tagName: 'HTML' },
+      createElement: vi.fn(() => ({ ...mockElement })),
+      createTextNode: vi.fn(text => ({
+        ...mockElement,
+        textContent: text,
+        nodeType: 3,
+        nodeName: '#text'
+      })),
+      getElementById: vi.fn(() => mockElement),
+      querySelector: vi.fn(() => mockElement),
+      querySelectorAll: vi.fn(() => [mockElement]),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       createEvent: vi.fn(() => ({
         initEvent: vi.fn(),
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
       })),
-    }
+      createDocumentFragment: vi.fn(() => mockElement),
+      defaultView: global.window,
+      readyState: 'complete',
+    };
+    
+    // Set ownerDocument for created elements
+    global.document.createElement = vi.fn(() => ({
+      ...mockElement,
+      ownerDocument: global.document,
+    }));
   }
   
   // Additional browser API mocks
@@ -184,10 +234,17 @@ beforeAll(async () => {
   console.log('✅ Test environment setup complete')
 })
 
-// Cleanup after each test
+// Cleanup after each test - disabled to prevent React concurrent issues
 afterEach(() => {
-  cleanup()
+  // cleanup() // Disabled - causing React concurrent work conflicts
   vi.clearAllMocks()
+  
+  // Manual cleanup approach
+  try {
+    document.body.innerHTML = '';
+  } catch (e) {
+    // Ignore cleanup errors
+  }
 })
 
 // Global teardown

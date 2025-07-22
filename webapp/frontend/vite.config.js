@@ -27,6 +27,18 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['src/tests/setup.js'],
       globals: true,
       css: false, // Disable CSS processing in tests for better performance
+      environmentOptions: {
+        jsdom: {
+          resources: 'usable',
+        },
+      },
+      // Add React-specific test configuration
+      pool: 'forks',
+      poolOptions: {
+        forks: {
+          singleFork: true,
+        },
+      },
     },
     build: {
       outDir: 'dist',

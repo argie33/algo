@@ -82,10 +82,6 @@ import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import SectorAnalysis from './pages/SectorAnalysis'
-import TestApiPage from './pages/TestApiPage'
-import PortfolioPerformanceSimple from './pages/PortfolioPerformanceSimple'
-import PortfolioPerformanceDebug from './pages/PortfolioPerformanceDebug'
-import AuthTest from './pages/AuthTest'
 import SocialMediaSentiment from './pages/SocialMediaSentiment'
 import NewsSentiment from './pages/NewsSentiment'
 import Watchlist from './pages/Watchlist'
@@ -495,10 +491,6 @@ function App() {
             <Route path="/financial-data" element={<FinancialData />} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/test-api" element={<TestApiPage />} />
-            <Route path="/portfolio/performance-simple" element={<PortfolioPerformanceSimple />} />
-            <Route path="/portfolio/performance-debug" element={<PortfolioPerformanceDebug />} />
-            <Route path="/auth-test" element={<AuthTest />} />
             <Route path="/technical-history/:symbol" element={<TechnicalHistory />} />
             
             {/* Sector Analysis */}

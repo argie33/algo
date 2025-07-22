@@ -4,14 +4,14 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 
-// Import theme
-import { lightTheme } from './theme/safeTheme'
+// Import theme - COMPLEX IMPLEMENTATION
+import muiTheme from './theme/muiTheme'
 
 // Import core components
 import './index.css'
 import './mobile-responsive.css'
 import App from './App'
-import SimpleErrorBoundary from './components/SimpleErrorBoundary'
+import EnhancedAsyncErrorBoundary from './components/EnhancedAsyncErrorBoundary'
 import { LoadingProvider } from './components/LoadingStateManager'
 import { AuthProvider } from './contexts/AuthContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
@@ -39,10 +39,10 @@ const queryClient = new SimpleQueryClient({
   },
 })
 
-// Main app component
+// Main app component - COMPLEX IMPLEMENTATION
 const AppWithProviders = () => {
   return (
-    <ThemeProvider theme={lightTheme}>
+    <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <LoadingProvider>
         <AuthProvider>
@@ -55,10 +55,10 @@ const AppWithProviders = () => {
   );
 };
 
-// Render application
+// Render application - COMPLEX ERROR BOUNDARY
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <SimpleErrorBoundary>
+  <EnhancedAsyncErrorBoundary>
     <BrowserRouter
       future={{
         v7_startTransition: true,
@@ -69,5 +69,5 @@ root.render(
         <AppWithProviders />
       </SimpleQueryProvider>
     </BrowserRouter>
-  </SimpleErrorBoundary>
+  </EnhancedAsyncErrorBoundary>
 );

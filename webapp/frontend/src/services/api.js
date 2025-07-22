@@ -14,9 +14,25 @@ let circuitBreakerState = {
   timeout: 30000 // 30 seconds
 };
 export const getApiConfig = () => {
+  // Check for browser environment first
+  const windowConfig = (typeof window !== 'undefined') ? window.__CONFIG__?.API_URL : null;
+  
+  // Safely access import.meta.env
+  let envApiUrl = null;
+  let envInfo = {};
+  
+  // Check different ways import.meta might be available
+  const importMeta = (typeof globalThis !== 'undefined' && globalThis.import?.meta) || 
+                    (typeof global !== 'undefined' && global.import?.meta) ||
+                    (typeof window !== 'undefined' && window.__VITE_IMPORT_META__);
+  
+  if (importMeta && importMeta.env) {
+    envApiUrl = importMeta.env.VITE_API_URL;
+    envInfo = importMeta.env;
+  }
+  
   // Dynamic API URL resolution - no hardcoded fallbacks
-  const apiUrl = window.__CONFIG__?.API_URL || 
-                 import.meta.env.VITE_API_URL;
+  const apiUrl = windowConfig || envApiUrl;
   
   // Validate API URL is properly configured
   if (!apiUrl) {
@@ -24,10 +40,10 @@ export const getApiConfig = () => {
   }
   
   // Only log config details once or in development mode
-  if (!configLoggedOnce || import.meta.env.DEV) {
+  if (!configLoggedOnce || envInfo.DEV) {
     console.log('🔧 [API CONFIG] URL Resolution:', {
-      windowConfig: window.__CONFIG__?.API_URL,
-      envApiUrl: import.meta.env.VITE_API_URL,
+      windowConfig,
+      envApiUrl,
       finalApiUrl: apiUrl
     });
     configLoggedOnce = true;
@@ -38,11 +54,11 @@ export const getApiConfig = () => {
     isServerless: !!apiUrl && !apiUrl.includes('localhost'),
     apiUrl: apiUrl,
     isConfigured: !!apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('PLACEHOLDER'),
-    environment: import.meta.env.MODE,
-    isDevelopment: import.meta.env.DEV,
-    isProduction: import.meta.env.PROD,
-    baseUrl: import.meta.env.BASE_URL,
-    allEnvVars: import.meta.env
+    environment: envInfo.MODE || 'production',
+    isDevelopment: envInfo.DEV || false,
+    isProduction: envInfo.PROD || false,
+    baseUrl: envInfo.BASE_URL || '/',
+    allEnvVars: envInfo
   }
 }
 

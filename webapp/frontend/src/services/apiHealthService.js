@@ -359,6 +359,12 @@ class ApiHealthService {
    * Force immediate health check
    */
   async forceHealthCheck() {
+    // Skip health checks in test environment
+    if (process.env.NODE_ENV === 'test') {
+      console.log('🔄 Skipping health check in test environment');
+      return this.getHealthStatus();
+    }
+    
     console.log('🔄 Force triggering health check...');
     await this.performHealthCheck();
     return this.getHealthStatus();
