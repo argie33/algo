@@ -1,5 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import './AdvancedTradingDashboard.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box, Grid, Card, CardContent, Typography, Tabs, Tab, Button, Chip,
+  Alert, LinearProgress, CircularProgress, IconButton, Tooltip,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, Accordion, AccordionSummary, AccordionDetails, Divider,
+  List, ListItem, ListItemIcon, ListItemText, Badge, Slider,
+  ToggleButton, ToggleButtonGroup, Fab, SpeedDial, SpeedDialAction
+} from '@mui/material';
+import {
+  TrendingUp, TrendingDown, PlayArrow, Stop, Settings, Refresh,
+  Timeline, Assessment, Speed, Security, Warning, CheckCircle,
+  ShowChart, AccountBalance, BarChart, PieChart, DonutLarge,
+  CandlestickChart, AutoGraph, Analytics, Psychology, Science,
+  SmartToy, Memory, Storage, CloudQueue, Notifications,
+  ExpandMore, Add, Edit, Delete, Save, Cancel, More
+} from '@mui/icons-material';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  ResponsiveContainer, AreaChart, Area, BarChart as RechartsBarChart,
+  Bar, PieChart as RechartsPieChart, Cell, ComposedChart,
+  CandlestickChart as RechartsCandlestickChart, ScatterChart, Scatter
+} from 'recharts';
+import { useApiKeys } from './ApiKeyProvider';
+import { getApiConfig } from '../services/api';
+
+const { apiUrl: API_BASE } = getApiConfig();
 
 const AdvancedTradingDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);

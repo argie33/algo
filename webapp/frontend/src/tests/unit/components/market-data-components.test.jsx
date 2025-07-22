@@ -322,6 +322,8 @@ const MarketScreener = ({ stocks, filters, onFilterChange, onStockSelect, loadin
 };
 
 const EconomicCalendar = ({ events, selectedDate, onDateChange, filterImportance }) => {
+  const [currentFilter, setCurrentFilter] = React.useState('all');
+  
   return (
     <div data-testid="economic-calendar" className="calendar-container">
       <header className="calendar-header">
@@ -335,8 +337,11 @@ const EconomicCalendar = ({ events, selectedDate, onDateChange, filterImportance
           />
           <select 
             data-testid="importance-filter"
-            value={filterImportance || 'all'}
-            onChange={(e) => filterImportance(e.target.value)}
+            value={currentFilter}
+            onChange={(e) => {
+              setCurrentFilter(e.target.value);
+              filterImportance(e.target.value);
+            }}
           >
             <option value="all">All Events</option>
             <option value="high">High Impact</option>

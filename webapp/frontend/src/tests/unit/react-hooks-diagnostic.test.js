@@ -31,16 +31,17 @@ describe('🔬 React Hooks Diagnostic Tests', () => {
   });
 
   describe('use-sync-external-store-shim Package', () => {
-    it('should import use-sync-external-store/shim without error', async () => {
-      let importError = null;
-      try {
-        const { useSyncExternalStore } = await import('use-sync-external-store/shim');
-        expect(useSyncExternalStore).toBeDefined();
-        expect(typeof useSyncExternalStore).toBe('function');
-      } catch (error) {
-        importError = error;
+    it('should use React native useSyncExternalStore or custom implementation', async () => {
+      // Try React native implementation first (React 18+)
+      if (React.useSyncExternalStore) {
+        expect(React.useSyncExternalStore).toBeDefined();
+        expect(typeof React.useSyncExternalStore).toBe('function');
+      } else {
+        // Fall back to custom implementation
+        const { useCustomSyncExternalStore } = await import('../../hooks/useCustomSyncExternalStore');
+        expect(useCustomSyncExternalStore).toBeDefined();
+        expect(typeof useCustomSyncExternalStore).toBe('function');
       }
-      expect(importError).toBe(null);
     });
 
     it('should have compatible React version for useSyncExternalStore', () => {
@@ -120,19 +121,19 @@ describe('🔬 React Hooks Diagnostic Tests', () => {
   });
 
   describe('Dependency Resolution', () => {
-    it('should have consistent React and use-sync-external-store versions', async () => {
+    it('should have consistent React version for useSyncExternalStore', async () => {
       const reactVersion = React.version;
       
-      try {
-        // Try to import the shim
-        await import('use-sync-external-store/shim');
-        
-        // If we get here, the shim is available and should work
-        expect(true).toBe(true);
-      } catch (error) {
-        // Log the specific import error for debugging
-        console.error('use-sync-external-store import error:', error);
-        throw error;
+      // Check if React version supports useSyncExternalStore natively
+      const majorVersion = parseInt(reactVersion.split('.')[0]);
+      
+      if (majorVersion >= 18) {
+        // React 18+ should have native useSyncExternalStore
+        expect(React.useSyncExternalStore).toBeDefined();
+      } else {
+        // Older versions should use our custom implementation
+        const { useCustomSyncExternalStore } = await import('../../hooks/useCustomSyncExternalStore');
+        expect(useCustomSyncExternalStore).toBeDefined();
       }
     });
   });

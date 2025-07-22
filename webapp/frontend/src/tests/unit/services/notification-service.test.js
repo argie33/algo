@@ -6,24 +6,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Real Notification Service - Import actual production service
-import { NotificationService } from '../../../services/NotificationService';
-import { apiClient } from '../../../services/api';
-import { webSocketService } from '../../../services/webSocket';
-import { storageService } from '../../../services/storage';
-import { pushNotificationService } from '../../../services/pushNotifications';
+import NotificationService from '../../../services/notificationService';
+import api from '../../../services/api';
 
 // Mock external dependencies but use real service
 vi.mock('../../../services/api');
-vi.mock('../../../services/webSocket');
-vi.mock('../../../services/storage');
-vi.mock('../../../services/pushNotifications');
 
 describe('🔔 Notification Service', () => {
   let notificationService;
   let mockApi;
-  let mockWebSocket;
-  let mockStorage;
-  let mockPushService;
 
   const mockNotification = {
     id: 'notif_123',
@@ -86,32 +77,8 @@ describe('🔔 Notification Service', () => {
       delete: vi.fn()
     };
 
-    mockWebSocket = {
-      on: vi.fn(),
-      emit: vi.fn(),
-      disconnect: vi.fn(),
-      isConnected: vi.fn().mockReturnValue(true)
-    };
-
-    mockStorage = {
-      get: vi.fn(),
-      set: vi.fn(),
-      remove: vi.fn(),
-      clear: vi.fn()
-    };
-
-    mockPushService = {
-      requestPermission: vi.fn(),
-      subscribe: vi.fn(),
-      unsubscribe: vi.fn(),
-      sendNotification: vi.fn()
-    };
-
-    // Mock the imports
-    apiClient.mockReturnValue(mockApi);
-    webSocketService.mockReturnValue(mockWebSocket);
-    storageService.mockReturnValue(mockStorage);
-    pushNotificationService.mockReturnValue(mockPushService);
+    // Mock the api import
+    vi.mocked(api).mockReturnValue(mockApi);
 
     notificationService = new NotificationService();
   });

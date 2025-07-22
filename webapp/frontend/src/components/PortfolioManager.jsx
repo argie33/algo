@@ -109,8 +109,91 @@ const PortfolioManager = () => {
     }
   }, []);
 
+  // Calculate real risk metrics from actual portfolio data
+  const calculateRealRiskMetrics = async (holdings) => {
+    if (!holdings || holdings.length === 0) {
+      return { beta: 0, sharpeRatio: 0, volatility: 0 };
+    }
+
+    try {
+      // Get real risk metrics from backend service
+      const response = await fetch('/api/portfolio/risk-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holdings })
+      });
+      
+      if (response.ok) {
+        const riskData = await response.json();
+        return riskData.riskMetrics || { beta: 0, sharpeRatio: 0, volatility: 0 };
+      }
+      
+      // Fallback calculation if API fails
+      return calculateBasicRiskMetrics(holdings);
+    } catch (error) {
+      console.error('Error calculating risk metrics:', error);
+      return calculateBasicRiskMetrics(holdings);
+    }
+  };
+
+  // Basic risk calculation as fallback
+  const calculateBasicRiskMetrics = (holdings) => {
+    const totalValue = holdings.reduce((sum, h) => sum + (h.currentValue || 0), 0);
+    let weightedBeta = 0;
+    let volatility = 0;
+
+    holdings.forEach(holding => {
+      const weight = (holding.currentValue || 0) / totalValue;
+      // Use sector-based beta estimates as proxy
+      const sectorBeta = getSectorBeta(holding.sector);
+      weightedBeta += weight * sectorBeta;
+      
+      // Calculate price volatility from day changes
+      const priceVol = Math.abs(holding.dayChangePercent || 0);
+      volatility += weight * priceVol;
+    });
+
+    const sharpeRatio = calculateSharpeRatio(holdings);
+    
+    return {
+      beta: Math.round(weightedBeta * 100) / 100,
+      sharpeRatio: Math.round(sharpeRatio * 100) / 100,
+      volatility: Math.round(volatility * 100) / 100
+    };
+  };
+
+  // Get beta estimate by sector
+  const getSectorBeta = (sector) => {
+    const sectorBetas = {
+      'Technology': 1.2,
+      'Healthcare': 0.9,
+      'Financials': 1.1,
+      'Consumer Discretionary': 1.3,
+      'Consumer Staples': 0.6,
+      'Energy': 1.4,
+      'Utilities': 0.5,
+      'Real Estate': 0.8,
+      'Materials': 1.1,
+      'Industrials': 1.0,
+      'Communication': 1.1
+    };
+    return sectorBetas[sector] || 1.0;
+  };
+
+  // Calculate Sharpe ratio approximation
+  const calculateSharpeRatio = (holdings) => {
+    const returns = holdings.map(h => h.gainLossPercent || 0);
+    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const riskFreeRate = 2.5; // Approximate risk-free rate
+    
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const standardDeviation = Math.sqrt(variance);
+    
+    return standardDeviation > 0 ? (avgReturn - riskFreeRate) / standardDeviation : 0;
+  };
+
   // Calculate portfolio summary metrics
-  const calculatePortfolioSummary = (data) => {
+  const calculatePortfolioSummary = async (data) => {
     if (!data || data.length === 0) {
       setPortfolioSummary({
         totalValue: 0,
@@ -153,11 +236,7 @@ const PortfolioManager = () => {
       topGainer: gainers[0] || null,
       topLoser: losers[0] || null,
       sectorAllocation,
-      riskMetrics: {
-        beta: 1.0, // Would calculate from real data
-        sharpeRatio: 0.8,
-        volatility: 15.2
-      }
+      riskMetrics: await calculateRealRiskMetrics(data)
     });
   };
 

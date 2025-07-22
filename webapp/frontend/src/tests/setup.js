@@ -90,6 +90,60 @@ beforeAll(async () => {
   global.FileReader = vi.fn()
   global.FormData = vi.fn()
   
+  // Chart component mocks for Recharts
+  global.SVGElement = class SVGElement extends Element {
+    getBBox() {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+    createSVGMatrix() {
+      return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+    }
+  }
+  
+  global.Element = class Element {
+    getBBox() { return { x: 0, y: 0, width: 100, height: 100 }; }
+    getBoundingClientRect() { 
+      return { x: 0, y: 0, width: 100, height: 100, top: 0, left: 0, bottom: 100, right: 100 }; 
+    }
+  }
+  
+  // Mock HTMLCanvasElement for chart rendering
+  global.HTMLCanvasElement = class HTMLCanvasElement {
+    constructor() {
+      this.width = 300;
+      this.height = 150;
+    }
+    getContext() {
+      return {
+        fillRect: vi.fn(),
+        clearRect: vi.fn(),
+        getImageData: vi.fn(() => ({ data: new Array(4) })),
+        putImageData: vi.fn(),
+        createImageData: vi.fn(() => ({ data: new Array(4) })),
+        setTransform: vi.fn(),
+        drawImage: vi.fn(),
+        save: vi.fn(),
+        fillText: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        closePath: vi.fn(),
+        stroke: vi.fn(),
+        translate: vi.fn(),
+        scale: vi.fn(),
+        rotate: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        measureText: vi.fn(() => ({ width: 0 })),
+        transform: vi.fn(),
+        rect: vi.fn(),
+        clip: vi.fn()
+      };
+    }
+    toDataURL() { return 'data:image/png;base64,'; }
+  }
+  
   // Mock common React hooks that might be used
   global.React = global.React || {}
   

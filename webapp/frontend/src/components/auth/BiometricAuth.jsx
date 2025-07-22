@@ -419,7 +419,7 @@ function BiometricAuth({
         
         <DialogContent>
           <Typography variant="body1" gutterBottom>
-            {getBiometricLabel()} provides secure and convenient authentication using your device's built-in biometric sensors.
+            {getBiometricLabel()} provides secure and convenient authentication using your device&apos;s built-in biometric sensors.
           </Typography>
           
           <Alert severity="info" sx={{ mt: 2 }}>

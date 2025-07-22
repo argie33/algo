@@ -3704,8 +3704,8 @@ export const getDashboardTechnicalSignals = async () => {
   }
 };
 
-// Export all methods as a default object for easier importing
-export default {
+// Export all methods as named exports
+const apiMethods = {
   healthCheck,
   getMarketOverview,
   getMarketSentimentHistory,
@@ -3832,10 +3832,10 @@ export default {
   getStockHistory,
   searchStocks,
   getHealth
-}
+};
 
-// Stock Scoring API Functions
-export const getStockScores = async (symbol) => {
+// Add these methods to the api object
+api.getStockScores = async (symbol) => {
   console.log(`📊 [API] Fetching stock scores for ${symbol}...`);
   
   try {
@@ -3872,7 +3872,7 @@ export const getStockScores = async (symbol) => {
   }
 };
 
-export const getPeerComparison = async (symbol) => {
+api.getPeerComparison = async (symbol) => {
   console.log(`📊 [API] Fetching peer comparison for ${symbol}...`);
   
   try {
@@ -3909,7 +3909,7 @@ export const getPeerComparison = async (symbol) => {
   }
 };
 
-export const getHistoricalScores = async (symbol, period = '3M') => {
+api.getHistoricalScores = async (symbol, period = '3M') => {
   console.log(`📊 [API] Fetching historical scores for ${symbol}, period: ${period}...`);
   
   try {
@@ -3949,7 +3949,7 @@ export const getHistoricalScores = async (symbol, period = '3M') => {
   }
 };
 
-export const getStockOptions = async () => {
+api.getStockOptions = async () => {
   console.log('📊 [API] Fetching stock options...');
   
   try {
@@ -3997,7 +3997,7 @@ export const getStockOptions = async () => {
 };
 
 // Sector analysis functions
-export const getSectorAnalysis = async (timeframe = 'daily') => {
+api.getSectorAnalysis = async (timeframe = 'daily') => {
   try {
     const response = await api.get(`/api/sectors/analysis?timeframe=${timeframe}`)
     return response.data;
@@ -4008,7 +4008,7 @@ export const getSectorAnalysis = async (timeframe = 'daily') => {
   }
 };
 
-export const getSectorDetails = async (sector) => {
+api.getSectorDetails = async (sector) => {
   try {
     const response = await api.get(`/api/sectors/${encodeURIComponent(sector)}/details`)
     return response.data;
@@ -4020,7 +4020,7 @@ export const getSectorDetails = async (sector) => {
 };
 
 // Earnings Calendar functions
-export const getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) => {
+api.getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) => {
   try {
     const params = new URLSearchParams({
       type: timeFilter,
@@ -4040,7 +4040,7 @@ export const getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit
 
 
 
-export const getAaiiData = async () => {
+api.getAaiiData = async () => {
   console.log('📈 [API] Fetching AAII sentiment data...');
   
   try {
@@ -4067,7 +4067,7 @@ export const getAaiiData = async () => {
   }
 };
 
-export const getDataLoaderStatus = async () => {
+api.getDataLoaderStatus = async () => {
   console.log('⚙️ [API] Fetching data loader status...');
   
   try {
@@ -4094,7 +4094,7 @@ export const getDataLoaderStatus = async () => {
   }
 };
 
-export const triggerDataLoader = async (loaderName) => {
+api.triggerDataLoader = async (loaderName) => {
   console.log(`🚀 [API] Triggering data loader: ${loaderName}`);
   
   try {
@@ -4118,5 +4118,18 @@ export const triggerDataLoader = async (loaderName) => {
   }
 };
 
-// Note: Default export is already defined above as the main API object
+// Export named functions for direct imports
+export const getStockScores = api.getStockScores;
+export const getPeerComparison = api.getPeerComparison;
+export const getHistoricalScores = api.getHistoricalScores;
+export const getStockOptions = api.getStockOptions;
+export const getSectorAnalysis = api.getSectorAnalysis;
+export const getSectorDetails = api.getSectorDetails;
+export const getCalendarEvents = api.getCalendarEvents;
+export const getAaiiData = api.getAaiiData;
+export const getDataLoaderStatus = api.getDataLoaderStatus;
+export const triggerDataLoader = api.triggerDataLoader;
+
+// Export the main API object as default
+export default api;
 

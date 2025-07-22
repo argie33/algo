@@ -59,7 +59,12 @@ const AppWithProviders = () => {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <SimpleErrorBoundary>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <SimpleQueryProvider client={queryClient}>
         <AppWithProviders />
       </SimpleQueryProvider>

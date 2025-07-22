@@ -8,7 +8,7 @@
 import '../../../utils/reactModulePreloader.js';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
@@ -462,12 +462,16 @@ describe('📊 Portfolio Page Functionality Tests', () => {
       expect(screen.queryByTestId('holdings-tab')).not.toBeInTheDocument();
 
       // Click Holdings tab
-      await user.click(screen.getByTestId('tab-holdings'));
+      await act(async () => {
+        await user.click(screen.getByTestId('tab-holdings'));
+      });
       expect(screen.getByTestId('holdings-tab')).toBeInTheDocument();
       expect(screen.queryByTestId('overview-tab')).not.toBeInTheDocument();
 
       // Click Performance tab
-      await user.click(screen.getByTestId('tab-performance'));
+      await act(async () => {
+        await user.click(screen.getByTestId('tab-performance'));
+      });
       expect(screen.getByTestId('performance-tab')).toBeInTheDocument();
       expect(screen.queryByTestId('holdings-tab')).not.toBeInTheDocument();
     });
@@ -482,7 +486,9 @@ describe('📊 Portfolio Page Functionality Tests', () => {
       );
 
       // Navigate to Holdings tab
-      fireEvent.click(screen.getByTestId('tab-holdings'));
+      act(() => {
+        fireEvent.click(screen.getByTestId('tab-holdings'));
+      });
 
       expect(screen.getByTestId('holding-AAPL')).toBeInTheDocument();
       expect(screen.getByTestId('holding-symbol-AAPL')).toHaveTextContent('AAPL');
@@ -501,8 +507,12 @@ describe('📊 Portfolio Page Functionality Tests', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByTestId('tab-holdings'));
-      await user.click(screen.getByTestId('add-holding-button'));
+      act(() => {
+        fireEvent.click(screen.getByTestId('tab-holdings'));
+      });
+      await act(async () => {
+        await user.click(screen.getByTestId('add-holding-button'));
+      });
 
       expect(screen.getByTestId('add-holding-modal')).toBeInTheDocument();
       expect(screen.getByTestId('add-holding-form')).toBeInTheDocument();
@@ -518,16 +528,24 @@ describe('📊 Portfolio Page Functionality Tests', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByTestId('tab-holdings'));
-      await user.click(screen.getByTestId('add-holding-button'));
+      act(() => {
+        fireEvent.click(screen.getByTestId('tab-holdings'));
+      });
+      await act(async () => {
+        await user.click(screen.getByTestId('add-holding-button'));
+      });
 
-      // Fill out the form
-      await user.type(screen.getByTestId('symbol-input'), 'GOOGL');
-      await user.type(screen.getByTestId('shares-input'), '25');
-      await user.type(screen.getByTestId('price-input'), '2750.00');
+      await act(async () => {
+        // Fill out the form
+        await user.type(screen.getByTestId('symbol-input'), 'GOOGL');
+        await user.type(screen.getByTestId('shares-input'), '25');
+        await user.type(screen.getByTestId('price-input'), '2750.00');
+      });
 
-      // Submit the form
-      await user.click(screen.getByTestId('save-holding-button'));
+      await act(async () => {
+        // Submit the form
+        await user.click(screen.getByTestId('save-holding-button'));
+      });
 
       await waitFor(() => {
         expect(mockApiService.addHolding).toHaveBeenCalledWith({

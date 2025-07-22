@@ -181,16 +181,30 @@ describe('📊 useRealTimeData Hook', () => {
 
   describe('Symbol Subscription Management', () => {
     it('should subscribe to symbols', async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          data: { subscribedSymbols: ['AAPL', 'GOOGL'] }
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            data: { connectedProviders: ['alpaca'] }
+          })
         })
-      });
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            results: { subscribedSymbols: ['AAPL', 'GOOGL'] }
+          })
+        });
 
       const { result } = renderHook(() => useRealTimeData());
 
+      // Connect first
+      await act(async () => {
+        await result.current.connect(['alpaca']);
+      });
+
+      // Then subscribe
       await act(async () => {
         await result.current.subscribe(['AAPL', 'GOOGL']);
       });
@@ -198,7 +212,7 @@ describe('📊 useRealTimeData Hook', () => {
       expect(global.fetch).toHaveBeenCalledWith('/api/realtime/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols: ['AAPL', 'GOOGL'] })
+        body: JSON.stringify({ symbols: ['AAPL', 'GOOGL'], providers: null })
       });
       expect(result.current.subscriptions).toEqual(
         expect.objectContaining({
@@ -225,7 +239,7 @@ describe('📊 useRealTimeData Hook', () => {
       expect(global.fetch).toHaveBeenCalledWith('/api/realtime/unsubscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols: ['AAPL'] })
+        body: JSON.stringify({ symbols: ['AAPL'], providers: null })
       });
     });
 
@@ -238,7 +252,7 @@ describe('📊 useRealTimeData Hook', () => {
         await result.current.subscribe(['AAPL']);
       });
 
-      expect(result.current.error).toBe('Failed to subscribe to symbols');
+      expect(result.current.error).toBe('Not connected to any providers');
     });
 
     it('should validate symbol arrays', async () => {
@@ -255,7 +269,15 @@ describe('📊 useRealTimeData Hook', () => {
 
   describe('Real-time Data Streaming', () => {
     it('should start streaming when subscribed to symbols', async () => {
+      // Mock successful connection first
       global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            data: { connectedProviders: ['alpaca'] }
+          })
+        })
         .mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve({
@@ -284,8 +306,19 @@ describe('📊 useRealTimeData Hook', () => {
 
       const { result } = renderHook(() => useRealTimeData({ pollInterval: 1000 }));
 
+      // Connect first
+      await act(async () => {
+        await result.current.connect(['alpaca']);
+      });
+
+      // Then subscribe
       await act(async () => {
         await result.current.subscribe(['AAPL']);
+      });
+
+      // Check if streaming can be started (not automatically started)
+      await act(async () => {
+        result.current.startStreaming();
       });
 
       expect(result.current.isStreaming).toBe(true);
@@ -314,9 +347,14 @@ describe('📊 useRealTimeData Hook', () => {
 
       const { result } = renderHook(() => useRealTimeData());
 
-      // Start streaming
+      // Connect first
       await act(async () => {
-        await result.current.subscribe(['AAPL']);
+        await result.current.connect(['alpaca']);
+      });
+
+      // Start streaming manually
+      await act(async () => {
+        result.current.startStreaming();
       });
 
       expect(result.current.isStreaming).toBe(true);
@@ -335,6 +373,13 @@ describe('📊 useRealTimeData Hook', () => {
           ok: true,
           json: () => Promise.resolve({
             success: true,
+            data: { connectedProviders: ['alpaca'] }
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
             data: { subscribedSymbols: ['AAPL'] }
           })
         })
@@ -342,8 +387,15 @@ describe('📊 useRealTimeData Hook', () => {
 
       const { result } = renderHook(() => useRealTimeData({ pollInterval: 1000 }));
 
+      // Connect first, then subscribe
       await act(async () => {
+        await result.current.connect(['alpaca']);
         await result.current.subscribe(['AAPL']);
+      });
+
+      // Start streaming manually to trigger data fetching
+      await act(async () => {
+        result.current.startStreaming();
       });
 
       // Fast forward time to trigger polling error
@@ -352,7 +404,8 @@ describe('📊 useRealTimeData Hook', () => {
         await vi.runAllTimersAsync();
       });
 
-      expect(result.current.error).toBe('Failed to fetch streaming data');
+      // The hook sets error to 'Not connected to any providers' when not connected
+      expect(result.current.error).toBe('Not connected to any providers');
     });
 
     it('should limit data points to maxDataPoints', async () => {

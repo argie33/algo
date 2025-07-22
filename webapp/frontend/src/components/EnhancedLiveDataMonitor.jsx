@@ -797,6 +797,7 @@ const EnhancedLiveDataMonitor = () => {
                   renderTags={(value, getTagProps) =>
                     value.map((option, index) => (
                       <Chip
+                        key={index}
                         variant="outlined"
                         label={option}
                         size="small"

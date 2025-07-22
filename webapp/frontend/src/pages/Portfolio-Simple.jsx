@@ -51,101 +51,38 @@ function Portfolio() {
   });
 
   useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => {
-      setPortfolio({
-        totalValue: 387542.75,
-        totalGain: 67234.50,
-        totalGainPercent: 21.02,
-        dayChange: 2847.25,
-        dayChangePercent: 0.74,
-        holdings: [
-          {
-            id: 1,
-            symbol: 'AAPL',
-            name: 'Apple Inc.',
-            shares: 300,
-            currentPrice: 175.43,
-            avgCost: 145.20,
-            totalValue: 52629.00,
-            gain: 9069.00,
-            gainPercent: 20.82,
-            dayChange: 1.25,
-            dayChangePercent: 0.72,
-            sector: 'Technology',
-            allocation: 13.6,
-            risk: 'Moderate',
-            trending: 'up'
-          },
-          {
-            id: 2,
-            symbol: 'GOOGL', 
-            name: 'Alphabet Inc.',
-            shares: 50,
-            currentPrice: 2431.20,
-            avgCost: 2180.50,
-            totalValue: 121560.00,
-            gain: 12535.00,
-            gainPercent: 11.49,
-            dayChange: 15.30,
-            dayChangePercent: 0.63,
-            sector: 'Technology',
-            allocation: 31.4,
-            risk: 'Moderate',
-            trending: 'up'
-          },
-          {
-            id: 3,
-            symbol: 'MSFT',
-            name: 'Microsoft Corporation',
-            shares: 200,
-            currentPrice: 295.37,
-            avgCost: 268.90,
-            totalValue: 59074.00,
-            gain: 5294.00,
-            gainPercent: 9.84,
-            dayChange: -2.15,
-            dayChangePercent: -0.72,
-            sector: 'Technology',
-            allocation: 15.2,
-            risk: 'Low',
-            trending: 'down'
-          },
-          {
-            id: 4,
-            symbol: 'TSLA',
-            name: 'Tesla Inc.',
-            shares: 100,
-            currentPrice: 245.67,
-            avgCost: 198.30,
-            totalValue: 24567.00,
-            gain: 4737.00,
-            gainPercent: 23.90,
-            dayChange: -8.92,
-            dayChangePercent: -3.51,
-            sector: 'Consumer Discretionary',
-            allocation: 6.3,
-            risk: 'High',
-            trending: 'down'
-          },
-          {
-            id: 5,
-            symbol: 'NVDA',
-            name: 'NVIDIA Corporation',
-            shares: 150,
-            currentPrice: 875.25,
-            avgCost: 420.80,
-            totalValue: 131287.50,
-            gain: 68167.50,
-            gainPercent: 108.12,
-            dayChange: 25.40,
-            dayChangePercent: 2.99,
-            sector: 'Technology',
-            allocation: 33.9,
-            risk: 'High',
-            trending: 'up'
+    // Fetch real portfolio data from API
+    const fetchPortfolioData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get real portfolio holdings from backend
+        const response = await fetch('/api/portfolio/holdings', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
           }
-        ],
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const portfolioData = data.holdings || data.data || data;
+          
+          // Calculate real-time portfolio metrics
+          const totalValue = portfolioData.reduce((sum, holding) => sum + (holding.currentValue || 0), 0);
+          const totalCost = portfolioData.reduce((sum, holding) => sum + (holding.costBasis || 0), 0);
+          const totalGain = totalValue - totalCost;
+          const totalGainPercent = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+          const dayChange = portfolioData.reduce((sum, holding) => sum + (holding.dayChange || 0), 0);
+          const dayChangePercent = totalValue > 0 ? (dayChange / (totalValue - dayChange)) * 100 : 0;
+          
+          setPortfolio({
+            totalValue,
+            totalGain,
+            totalGainPercent,
+            dayChange,
+            dayChangePercent,
+            holdings: portfolioData,
         performance: {
           oneDay: 0.74,
           oneWeek: 2.45,

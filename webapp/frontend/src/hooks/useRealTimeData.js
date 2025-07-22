@@ -30,7 +30,7 @@ export const useRealTimeData = (options = {}) => {
   // Check connection status
   const checkConnectionStatus = useCallback(async () => {
     try {
-      const response = await fetch('/realtime/status');
+      const response = await fetch('/api/realtime/status');
       const result = await response.json();
       
       if (result.success) {
@@ -52,7 +52,7 @@ export const useRealTimeData = (options = {}) => {
     setError(null);
     
     try {
-      const response = await fetch('/realtime/connect', {
+      const response = await fetch('/api/realtime/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export const useRealTimeData = (options = {}) => {
       const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
       const upperSymbols = symbolsArray.map(s => s.toUpperCase());
       
-      const response = await fetch('/realtime/subscribe', {
+      const response = await fetch('/api/realtime/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ export const useRealTimeData = (options = {}) => {
 
     try {
       const promises = Array.from(subscribedSymbols.current).map(async (symbol) => {
-        const response = await fetch(`/realtime/data/${symbol}?count=10`);
+        const response = await fetch(`/api/realtime/data/${symbol}?count=10`);
         const result = await response.json();
         
         if (result.success && result.data) {

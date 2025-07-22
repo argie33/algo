@@ -500,7 +500,7 @@ class EnhancedAsyncErrorBoundary extends Component {
               </Button>
             }
           >
-            You're currently offline. Some features may be limited.
+            You&apos;re currently offline. Some features may be limited.
           </Alert>
           {this.props.children}
         </Box>

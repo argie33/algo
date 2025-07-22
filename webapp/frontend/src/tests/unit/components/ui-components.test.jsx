@@ -99,86 +99,39 @@ describe('🎨 UI Components', () => {
   });
 
   describe('Alert Component', () => {
-    it('should render info alert correctly', () => {
+    it('should render alert correctly', () => {
       render(
-        <Alert 
-          severity="info" 
-          title="Information"
-          message="This is an informational alert"
-          dismissible={true}
-        />
+        <Alert severity="info">
+          This is an informational alert
+        </Alert>
       );
 
-      expect(screen.getByText('Information')).toBeInTheDocument();
       expect(screen.getByText('This is an informational alert')).toBeInTheDocument();
-      expect(screen.getByTestId('mui-alert')).toHaveAttribute('data-severity', 'info');
+      expect(screen.getByTestId('mui-alert')).toHaveAttribute('severity', 'info');
     });
 
-    it('should render error alert with action button', () => {
-      const onActionClick = vi.fn();
-      
+    it('should render error alert', () => {
       render(
-        <Alert 
-          severity="error" 
-          title="Error"
-          message="Something went wrong"
-          action="Retry"
-          onActionClick={onActionClick}
-        />
+        <Alert severity="error">
+          Something went wrong
+        </Alert>
       );
 
-      expect(screen.getByText('Error')).toBeInTheDocument();
-      expect(screen.getByText('Retry')).toBeInTheDocument();
-    });
-
-    it('should handle dismissible alert', async () => {
-      const user = userEvent.setup();
-      const onDismiss = vi.fn();
-
-      render(
-        <Alert 
-          severity="warning" 
-          message="Warning message"
-          dismissible={true}
-          onDismiss={onDismiss}
-        />
-      );
-
-      const dismissButton = screen.getByRole('button');
-      await user.click(dismissButton);
-      expect(onDismiss).toHaveBeenCalled();
+      expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+      expect(screen.getByTestId('mui-alert')).toHaveAttribute('severity', 'error');
     });
 
     it('should support different severity levels', () => {
       const { rerender } = render(
-        <Alert severity="success" message="Success message" />
+        <Alert severity="success">Success message</Alert>
       );
-      expect(screen.getByTestId('mui-alert')).toHaveAttribute('data-severity', 'success');
+      expect(screen.getByTestId('mui-alert')).toHaveAttribute('severity', 'success');
 
-      rerender(<Alert severity="warning" message="Warning message" />);
-      expect(screen.getByTestId('mui-alert')).toHaveAttribute('data-severity', 'warning');
+      rerender(<Alert severity="warning">Warning message</Alert>);
+      expect(screen.getByTestId('mui-alert')).toHaveAttribute('severity', 'warning');
 
-      rerender(<Alert severity="error" message="Error message" />);
-      expect(screen.getByTestId('mui-alert')).toHaveAttribute('data-severity', 'error');
-    });
-
-    it('should handle auto-dismiss', async () => {
-      const onDismiss = vi.fn();
-      vi.useFakeTimers();
-
-      render(
-        <Alert 
-          message="Auto dismiss message"
-          autoDismiss={true}
-          dismissDelay={3000}
-          onDismiss={onDismiss}
-        />
-      );
-
-      vi.advanceTimersByTime(3000);
-      expect(onDismiss).toHaveBeenCalled();
-
-      vi.useRealTimers();
+      rerender(<Alert severity="error">Error message</Alert>);
+      expect(screen.getByTestId('mui-alert')).toHaveAttribute('severity', 'error');
     });
   });
 

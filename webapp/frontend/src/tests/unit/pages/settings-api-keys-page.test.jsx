@@ -8,7 +8,7 @@
 import '../../../utils/reactModulePreloader.js';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
@@ -452,7 +452,9 @@ describe('⚙️ Settings API Keys Page Tests', () => {
         </TestWrapper>
       );
 
-      await user.click(screen.getByTestId('add-api-key-button'));
+      await act(async () => {
+        await user.click(screen.getByTestId('add-api-key-button'));
+      });
 
       expect(screen.getByTestId('add-api-key-modal')).toBeInTheDocument();
       expect(screen.getByTestId('add-api-key-form')).toBeInTheDocument();
@@ -468,17 +470,23 @@ describe('⚙️ Settings API Keys Page Tests', () => {
         </TestWrapper>
       );
 
-      // Open add form
-      await user.click(screen.getByTestId('add-api-key-button'));
+      await act(async () => {
+        // Open add form
+        await user.click(screen.getByTestId('add-api-key-button'));
+      });
 
-      // Fill out form
-      await user.selectOptions(screen.getByTestId('provider-select'), 'alpaca');
-      await user.type(screen.getByTestId('name-input'), 'Test API Key');
-      await user.type(screen.getByTestId('api-key-input'), 'test-api-key-123');
-      await user.type(screen.getByTestId('api-secret-input'), 'test-secret-456');
+      await act(async () => {
+        // Fill out form
+        await user.selectOptions(screen.getByTestId('provider-select'), 'alpaca');
+        await user.type(screen.getByTestId('name-input'), 'Test API Key');
+        await user.type(screen.getByTestId('api-key-input'), 'test-api-key-123');
+        await user.type(screen.getByTestId('api-secret-input'), 'test-secret-456');
+      });
 
-      // Submit form
-      await user.click(screen.getByTestId('save-api-key-button'));
+      await act(async () => {
+        // Submit form
+        await user.click(screen.getByTestId('save-api-key-button'));
+      });
 
       await waitFor(() => {
         expect(mockApiKeyContext.addApiKey).toHaveBeenCalledWith({

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import api from '../../../services/api';
+import axios from 'axios';
 
 const API_CONFIG = {
   baseURL: process.env.API_BASE_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
@@ -50,7 +50,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
   describe('🏥 Health Check Endpoints', () => {
     it('should connect to main health endpoint', async () => {
       const response = await retryRequest(async () => {
-        return await api.get('/health');
+        return await axios.get(`${API_CONFIG.baseURL}/health`);
       });
       
       expect(response).toBeDefined();
@@ -61,7 +61,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should get detailed health status', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/health/detailed');
+          return await axios.get(`${API_CONFIG.baseURL}/health/detailed`);
         });
         
         expect(response.data).toBeDefined();
@@ -78,7 +78,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should handle health check with specific services', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/health?services=database,redis');
+          return await axios.get(`${API_CONFIG.baseURL}/health?services=database,redis`);
         });
         
         expect(response).toBeDefined();
@@ -93,7 +93,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should fetch market overview data', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/market/overview');
+          return await axios.get(`${API_CONFIG.baseURL}/market/overview`);
         });
         
         expect(response).toBeDefined();
@@ -118,7 +118,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
       for (const symbol of testSymbols) {
         try {
           const response = await retryRequest(async () => {
-            return await api.get(`/market/quote/${symbol}`);
+            return await axios.get(`${API_CONFIG.baseURL}/market/quote/${symbol}`);
           });
           
           expect(response).toBeDefined();
@@ -138,7 +138,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should fetch market news', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/market/news');
+          return await axios.get(`${API_CONFIG.baseURL}/market/news`);
         });
         
         expect(response).toBeDefined();
@@ -157,7 +157,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should handle portfolio data requests', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/portfolio/holdings');
+          return await axios.get(`${API_CONFIG.baseURL}/portfolio/holdings`);
         });
         
         expect(response).toBeDefined();
@@ -177,7 +177,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should handle portfolio performance requests', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/portfolio/performance');
+          return await axios.get(`${API_CONFIG.baseURL}/portfolio/performance`);
         });
         
         expect(response).toBeDefined();
@@ -196,7 +196,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should handle authentication status check', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/auth/status');
+          return await axios.get(`${API_CONFIG.baseURL}/auth/status`);
         });
         
         expect(response).toBeDefined();
@@ -214,7 +214,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
       try {
         // Test POST to login endpoint (will fail but shows endpoint exists)
         const response = await retryRequest(async () => {
-          return await api.post('/auth/login', {
+          return await axios.post(`${API_CONFIG.baseURL}/auth/login`, {
             email: 'test@example.com',
             password: 'test'
           });
@@ -238,7 +238,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should fetch application configuration', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/config');
+          return await axios.get(`${API_CONFIG.baseURL}/config`);
         });
         
         expect(response).toBeDefined();
@@ -254,7 +254,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should fetch API version info', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/version');
+          return await axios.get(`${API_CONFIG.baseURL}/version`);
         });
         
         expect(response).toBeDefined();
@@ -272,7 +272,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
     it('should get WebSocket connection details', async () => {
       try {
         const response = await retryRequest(async () => {
-          return await api.get('/websocket/info');
+          return await axios.get(`${API_CONFIG.baseURL}/websocket/info`);
         });
         
         expect(response).toBeDefined();
@@ -289,7 +289,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
   describe('🔍 Error Handling and Edge Cases', () => {
     it('should handle 404 endpoints gracefully', async () => {
       try {
-        const response = await api.get('/nonexistent-endpoint-test-12345');
+        const response = await axios.get(`${API_CONFIG.baseURL}/nonexistent-endpoint-test-12345`);
         console.log('⚠️ Non-existent endpoint unexpectedly returned data');
       } catch (error) {
         expect(error.response?.status).toBe(404);
@@ -299,7 +299,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
 
     it('should handle malformed requests', async () => {
       try {
-        const response = await api.post('/health', 'invalid-json-data');
+        const response = await axios.post(`${API_CONFIG.baseURL}/health`, 'invalid-json-data');
         console.log('⚠️ Malformed request unexpectedly succeeded');
       } catch (error) {
         expect(error.response?.status).toBeGreaterThanOrEqual(400);
@@ -309,7 +309,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
 
     it('should handle timeout scenarios', async () => {
       try {
-        const response = await api.get('/health', { timeout: 1 }); // 1ms timeout
+        const response = await axios.get(`${API_CONFIG.baseURL}/health`, { timeout: 1 }); // 1ms timeout
         console.log('⚠️ Request completed faster than expected');
       } catch (error) {
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
@@ -327,7 +327,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
       
       try {
         await retryRequest(async () => {
-          return await api.get('/health');
+          return await axios.get(`${API_CONFIG.baseURL}/health`);
         });
         
         const endTime = performance.now();
@@ -346,7 +346,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
       
       for (let i = 0; i < concurrentRequests; i++) {
         requests.push(
-          api.get('/health').catch(error => ({ error: error.message }))
+          axios.get(`${API_CONFIG.baseURL}/health`).catch(error => ({ error: error.message }))
         );
       }
       
@@ -363,7 +363,7 @@ describe('🌐 Real API Endpoints Integration Tests', () => {
       
       for (let i = 0; i < requestCount; i++) {
         try {
-          await api.get('/health');
+          await axios.get(`${API_CONFIG.baseURL}/health`);
           successCount++;
         } catch (error) {
           console.log(`Request ${i + 1} failed:`, error.message);
