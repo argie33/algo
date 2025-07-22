@@ -4118,6 +4118,5 @@ export const triggerDataLoader = async (loaderName) => {
   }
 };
 
-// Default export the axios instance for direct HTTP calls in tests
-export default api;
+// Note: Default export is already defined above as the main API object
 
