@@ -1226,8 +1226,8 @@ class AITradingSignalsEngine {
   }
 
   calculateExpectedShortfall(data, confidence) {
-    const var = this.calculateVaR(data, confidence);
-    return var * 1.5; // Simplified ES calculation
+    const valueAtRisk = this.calculateVaR(data, confidence);
+    return valueAtRisk * 1.5; // Simplified ES calculation
   }
 
   async calculateCorrelationRisk(symbol) {

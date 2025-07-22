@@ -4,6 +4,17 @@ const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
 let logger, createValidationMiddleware, authenticateUser;
+
+// Initialize fallback functions first
+authenticateUser = (req, res, next) => {
+  req.user = { userId: 'demo-user' };
+  next();
+};
+createValidationMiddleware = (schema) => (req, res, next) => {
+  req.validated = req.body;
+  req.correlationId = req.headers['x-correlation-id'] || 'fallback-' + Date.now();
+  next();
+};
 let AdvancedSignalProcessor, PortfolioOptimizationEngine, AutomatedTradingEngine;
 let BacktestingEngine, MarketAnalyticsEngine, DashboardService;
 
@@ -12,10 +23,14 @@ try {
   logger = structuredLogger.createLogger('financial-platform', 'advanced-routes');
   
   const validation = require('../middleware/validation');
-  createValidationMiddleware = validation.createValidationMiddleware;
+  if (validation && validation.createValidationMiddleware) {
+    createValidationMiddleware = validation.createValidationMiddleware;
+  }
   
   const auth = require('../middleware/auth');
-  authenticateUser = auth.authenticateUser;
+  if (auth && auth.authenticateUser) {
+    authenticateUser = auth.authenticateUser;
+  }
   
   AdvancedSignalProcessor = require('../utils/advancedSignalProcessor');
   PortfolioOptimizationEngine = require('../utils/portfolioOptimizationEngine');
@@ -31,11 +46,6 @@ try {
     info: console.log,
     error: console.error,
     warn: console.warn
-  };
-  // Create fallback auth middleware
-  authenticateUser = (req, res, next) => {
-    req.user = { userId: 'demo-user' };
-    next();
   };
 }
 

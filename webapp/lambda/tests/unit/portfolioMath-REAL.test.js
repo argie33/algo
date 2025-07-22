@@ -247,10 +247,14 @@ describe('PortfolioMath REAL Financial Calculations', () => {
         [0.01, 0.015, 0.02]
       ]);
       
+      // Create mock benchmark returns for beta calculation
+      const benchmarkReturns = [0.08, 0.09, 0.07, 0.10]; // Mock market returns
+      
       const riskMetrics = PortfolioMath.calculateRiskMetrics(
         weights,
         expectedReturns,
-        covMatrix
+        covMatrix,
+        benchmarkReturns
       );
       
       // Test real risk metrics

@@ -703,8 +703,10 @@ describe('Optimization Engine Unit Tests', () => {
     });
 
     test('falls back to demo optimization on error', async () => {
-      // Mock database to throw error
-      mockQuery.mockRejectedValue(new Error('Database connection failed'));
+      // Directly spy on the getCurrentPortfolio method to throw an error
+      jest.spyOn(optimizationEngine, 'getCurrentPortfolio').mockImplementation(async () => {
+        throw new Error('Database connection failed');
+      });
 
       const result = await optimizationEngine.runOptimization({
         userId: 123,

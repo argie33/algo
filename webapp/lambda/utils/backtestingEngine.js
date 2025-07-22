@@ -727,8 +727,8 @@ class BacktestingEngine {
   }
 
   calculateExpectedShortfall(portfolioHistory, confidence) {
-    const var = this.calculateVaR(portfolioHistory, confidence);
-    const returns = portfolioHistory.map(day => day.dailyReturn).filter(r => r !== undefined && r <= var);
+    const valueAtRisk = this.calculateVaR(portfolioHistory, confidence);
+    const returns = portfolioHistory.map(day => day.dailyReturn).filter(r => r !== undefined && r <= valueAtRisk);
     return returns.length > 0 ? returns.reduce((sum, r) => sum + r, 0) / returns.length : 0;
   }
 

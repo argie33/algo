@@ -12,30 +12,41 @@
  * - Performance under load
  */
 
-const { dbTestUtils } = require('../utils/database-test-utils');
-const { query, healthCheck, transaction, initializeDatabase } = require('../../utils/database');
+// REAL INTEGRATION TEST - NO MOCKS
+const { query, healthCheck, transaction, initializeDatabase, closeDatabase, getPool } = require('../../utils/database');
+const { Pool } = require('pg');
 
 describe('Database Real Integration Tests', () => {
   let isDatabaseAvailable = false;
   let testUser = null;
 
   beforeAll(async () => {
-    console.log('🔗 Testing database connectivity...');
+    console.log('🔗 Testing REAL database connectivity (no mocks)...');
     
     try {
-      await dbTestUtils.initialize();
-      isDatabaseAvailable = true;
-      console.log('✅ Database connection successful - running full integration tests');
+      // Try to initialize real database connection
+      const dbResult = await initializeDatabase();
       
-      // Create test user for database operations
-      testUser = await dbTestUtils.createTestUser({
-        email: 'db-integration@example.com',
-        username: 'dbintegration',
-        cognito_user_id: 'test-db-integration-123'
-      });
+      if (dbResult.success) {
+        isDatabaseAvailable = true;
+        console.log('✅ REAL database connection successful - running full integration tests');
+        console.log(`   Pool size: ${dbResult.poolSize}, Status: ${dbResult.connectionStatus}`);
+        
+        // Create test user directly in real database
+        const userResult = await query(
+          'INSERT INTO users (email, first_name, last_name, is_active) VALUES ($1, $2, $3, $4) RETURNING id, email',
+          ['db-integration@example.com', 'DB', 'Integration', true]
+        );
+        
+        testUser = userResult.rows[0];
+        console.log(`   Test user created: ${testUser.email} (ID: ${testUser.id})`);
+        
+      } else {
+        throw new Error(dbResult.error || 'Database initialization failed');
+      }
       
     } catch (error) {
-      console.log('⚠️ Database not available:', error.message);
+      console.log('⚠️ REAL database not available:', error.message);
       console.log('   Running database failure scenario tests instead');
       isDatabaseAvailable = false;
     }
@@ -43,7 +54,19 @@ describe('Database Real Integration Tests', () => {
 
   afterAll(async () => {
     if (isDatabaseAvailable) {
-      await dbTestUtils.cleanup();
+      try {
+        // Clean up test user from real database
+        if (testUser) {
+          await query('DELETE FROM users WHERE id = $1', [testUser.id]);
+          console.log('🧹 Test user cleaned up from real database');
+        }
+        
+        // Close real database connections
+        await closeDatabase();
+        console.log('✅ Real database connections closed');
+      } catch (error) {
+        console.warn('⚠️ Database cleanup warning:', error.message);
+      }
     }
   });
 

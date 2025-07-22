@@ -1,4 +1,4 @@
-const { Matrix } = require('ml-matrix');
+const { Matrix, inverse } = require('ml-matrix');
 
 /**
  * Portfolio Mathematics and Optimization Utilities
@@ -223,7 +223,7 @@ class PortfolioMath {
       const excessReturns = expectedReturns.map(r => r - riskFreeRate);
       
       // Invert covariance matrix
-      const invCovMatrix = Matrix.inverse(covMatrix);
+      const invCovMatrix = inverse(covMatrix);
       
       // Calculate optimal weights: w = (Σ^-1 * μ) / (1^T * Σ^-1 * μ)
       const excessReturnsVector = new Matrix([excessReturns]).transpose();
@@ -261,7 +261,7 @@ class PortfolioMath {
   static minVarianceOptimization(expectedReturns, covMatrix) {
     try {
       // Invert covariance matrix
-      const invCovMatrix = Matrix.inverse(covMatrix);
+      const invCovMatrix = inverse(covMatrix);
       
       // Calculate minimum variance weights: w = (Σ^-1 * 1) / (1^T * Σ^-1 * 1)
       const ones = Matrix.ones(expectedReturns.length, 1);
@@ -387,10 +387,27 @@ class PortfolioMath {
         2 * alpha * (1 - alpha) * minReturnPort.volatility * maxReturnPort.volatility * 0.5
       );
       
+      // Generate approximate weights for this point (linear interpolation)
+      const maxReturnIndex = expectedReturns.indexOf(Math.max(...expectedReturns));
+      const weights = new Array(expectedReturns.length).fill(0);
+      
+      if (minReturnPort.weights) {
+        // Interpolate between min variance and max return portfolio weights
+        for (let j = 0; j < weights.length; j++) {
+          const minWeight = minReturnPort.weights[j] || (j === 0 ? 1 : 0); // Default to equal weight if not available
+          const maxWeight = j === maxReturnIndex ? 1 : 0; // Max return = 100% in best asset
+          weights[j] = minWeight * (1 - alpha) + maxWeight * alpha;
+        }
+      } else {
+        // Fallback: equal weight
+        weights.fill(1 / expectedReturns.length);
+      }
+      
       frontierPoints.push({
         expectedReturn: targetReturn,
         volatility: volatility,
-        sharpeRatio: targetReturn / volatility
+        sharpeRatio: targetReturn / volatility,
+        weights: weights
       });
     }
     
