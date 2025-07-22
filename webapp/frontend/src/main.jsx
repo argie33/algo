@@ -10,7 +10,7 @@ import { lightTheme } from './theme/safeTheme'
 // Import core components
 import './index.css'
 import App from './App'
-import ErrorBoundary from './components/ErrorBoundaryTailwind'
+import SimpleErrorBoundary from './components/SimpleErrorBoundary'
 import { LoadingProvider } from './components/LoadingStateManager'
 import { AuthProvider } from './contexts/AuthContext'
 import ApiKeyProvider from './components/ApiKeyProvider'
@@ -57,11 +57,11 @@ const AppWithProviders = () => {
 // Render application
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <ErrorBoundary>
+  <SimpleErrorBoundary>
     <BrowserRouter>
       <SimpleQueryProvider client={queryClient}>
         <AppWithProviders />
       </SimpleQueryProvider>
     </BrowserRouter>
-  </ErrorBoundary>
+  </SimpleErrorBoundary>
 );
