@@ -101,6 +101,7 @@
     "validate-quick": "node scripts/quick-validation.js",
     "validate-full": "node scripts/local-dev-validation.js",
     "validate-comprehensive": "node scripts/comprehensive-validation.js",
+    "test-deploy": "node scripts/pre-deploy-validation.js",
     "test:ci": "npm run test:ci-validation && npm run test:deployment && npm run test:unit && npm run test:integration && npm run test:performance && npm run test:security && npm run test:e2e",
     "test:headless": "npm run test:automated && npm run test:e2e",
     "setup-dev": "node scripts/setup-dev.js",

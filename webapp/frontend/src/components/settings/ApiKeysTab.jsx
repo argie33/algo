@@ -138,7 +138,7 @@ const ApiKeysTab = ({
                   <Button
                     variant="outlined"
                     onClick={() => testConnection('alpaca')}
-                    disabled={testingConnection || !settings?.apiKeys?.alpaca?.id}
+                    disabled={testingConnection === 'alpaca' || !settings?.apiKeys?.alpaca?.keyId}
                   >
                     Test Connection
                   </Button>
@@ -161,7 +161,7 @@ const ApiKeysTab = ({
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Assessment sx={{ mr: 1 }} />
-              <Typography variant="h6">Polygon Market Data</Typography>
+              <Typography variant="h6">Polygon.io</Typography>
               <Chip 
                 label={settings?.apiKeys?.polygon?.enabled ? 'Connected' : 'Disconnected'} 
                 color={settings?.apiKeys?.polygon?.enabled ? 'success' : 'default'}
@@ -222,7 +222,7 @@ const ApiKeysTab = ({
                   <Button
                     variant="outlined"
                     onClick={() => testConnection('polygon')}
-                    disabled={testingConnection || !settings?.apiKeys?.polygon?.id}
+                    disabled={testingConnection === 'polygon' || !settings?.apiKeys?.polygon?.apiKey}
                   >
                     Test Connection
                   </Button>

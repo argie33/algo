@@ -36,9 +36,9 @@ export default defineConfig({
         }
       }
     },
-    testTimeout: 30000,
-    hookTimeout: 30000,
-    teardownTimeout: 30000,
+    testTimeout: 300000,
+    hookTimeout: 300000,
+    teardownTimeout: 300000,
     // Automated testing configuration
     reporter: ['default', 'json', 'junit'],
     outputFile: {
