@@ -247,6 +247,27 @@ export const createSafeTheme = (mode = 'light') => {
           .join(',');
       }
     },
+    mixins: {
+      toolbar: {
+        minHeight: '56px',
+        '@media (min-width:0px) and (orientation: landscape)': {
+          minHeight: '48px'
+        },
+        '@media (min-width:600px)': {
+          minHeight: '64px'
+        }
+      }
+    },
+    zIndex: {
+      mobileStepper: 1000,
+      fab: 1050,
+      speedDial: 1050,
+      appBar: 1100,
+      drawer: 1200,
+      modal: 1300,
+      snackbar: 1400,
+      tooltip: 1500
+    },
     components: {
       MuiCssBaseline: {
         styleOverrides: {
@@ -355,6 +376,26 @@ export const createSafeTheme = (mode = 'light') => {
           }
         }
       },
+      MuiDrawer: {
+        styleOverrides: {
+          paper: {
+            backgroundImage: 'none'
+          }
+        }
+      },
+      MuiToolbar: {
+        styleOverrides: {
+          root: {
+            minHeight: '64px',
+            '@media (min-width:0px) and (orientation: landscape)': {
+              minHeight: '48px'
+            },
+            '@media (min-width:600px)': {
+              minHeight: '64px'
+            }
+          }
+        }
+      },
       MuiChip: {
         styleOverrides: {
           root: {
@@ -416,6 +457,8 @@ export const validateTheme = (theme) => {
     'breakpoints',
     'shape',
     'transitions',
+    'mixins',
+    'zIndex',
     'components',
     'shadows'
   ];
