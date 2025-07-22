@@ -53,6 +53,7 @@ import {
 } from '@mui/icons-material'
 
 // All real page imports
+import Dashboard from './pages/Dashboard'
 import AdvancedTradingDashboard from './components/AdvancedTradingDashboard'
 import MarketOverview from './pages/MarketOverview'
 import StockExplorer from './pages/StockExplorer'
@@ -462,7 +463,7 @@ function App() {
         <Toolbar />
         <Container maxWidth="xl">
           <Routes>
-            <Route path="/" element={<AdvancedTradingDashboard />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/portfolio/trade-history" element={<TradeHistory />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
