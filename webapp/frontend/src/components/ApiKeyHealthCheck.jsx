@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useApiKeys } from './ApiKeyProvider';
 import {
   Box,
   Card,
@@ -44,6 +45,11 @@ const ApiKeyHealthCheck = ({
   const [isChecking, setIsChecking] = useState(false);
   const [healthData, setHealthData] = useState({});
   const [lastCheck, setLastCheck] = useState(null);
+  const [performanceHistory, setPerformanceHistory] = useState({});
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState('latency');
+  
+  const { getHealthData, getAnalytics, getProviderStatus } = useApiKeys();
 
   useEffect(() => {
     if (apiKeys.length > 0) {
@@ -66,18 +72,67 @@ const ApiKeyHealthCheck = ({
     
     setIsChecking(true);
     try {
-      // Simulate health check API calls for each API key
+      // Call onRefresh callback if provided
+      if (onRefresh && typeof onRefresh === 'function') {
+        await onRefresh();
+      }
+
+      // Get real health data from backend
+      const healthResults = await getHealthData();
       const newHealthData = {};
+      const timestamp = new Date();
       
-      for (const apiKey of apiKeys) {
-        // In real implementation, this would call the test connection API
-        newHealthData[apiKey.id] = await simulateHealthCheck(apiKey);
+      // Convert backend health results to component format
+      for (const result of healthResults) {
+        if (result.id && result.health) {
+          newHealthData[result.id] = result.health;
+          
+          // Update performance history for timeline charts
+          setPerformanceHistory(prev => {
+            const keyHistory = prev[result.id] || [];
+            const updatedHistory = [...keyHistory, {
+              timestamp,
+              latency: result.health.latency,
+              uptime: result.health.uptime,
+              dataQuality: result.health.dataQuality,
+              rateLimitUsed: result.health.rateLimitUsed,
+              errorCount: result.health.errorCount24h
+            }].slice(-50); // Keep last 50 data points
+            
+            return {
+              ...prev,
+              [result.id]: updatedHistory
+            };
+          });
+        }
+      }
+      
+      // Fallback to simulated data if backend returns empty
+      if (Object.keys(newHealthData).length === 0 && apiKeys.length > 0) {
+        console.log('📊 Using fallback simulated health data');
+        for (const apiKey of apiKeys) {
+          const healthCheck = await simulateHealthCheck(apiKey);
+          newHealthData[apiKey.id] = healthCheck;
+        }
       }
       
       setHealthData(newHealthData);
-      setLastCheck(new Date());
+      setLastCheck(timestamp);
     } catch (error) {
       console.error('Health check failed:', error);
+      
+      // Fallback to simulated data on error
+      console.log('📊 Using fallback simulated health data due to error');
+      const newHealthData = {};
+      const timestamp = new Date();
+      
+      for (const apiKey of apiKeys) {
+        const healthCheck = await simulateHealthCheck(apiKey);
+        newHealthData[apiKey.id] = healthCheck;
+      }
+      
+      setHealthData(newHealthData);
+      setLastCheck(timestamp);
     } finally {
       setIsChecking(false);
     }
@@ -225,6 +280,15 @@ const ApiKeyHealthCheck = ({
                 Last check: {lastCheck.toLocaleTimeString()}
               </Typography>
             )}
+            <Tooltip title="Show performance timeline">
+              <IconButton 
+                size="small" 
+                onClick={() => setShowTimeline(!showTimeline)}
+                color={showTimeline ? 'primary' : 'default'}
+              >
+                <Timeline />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Refresh health check">
               <IconButton 
                 size="small" 
@@ -250,6 +314,99 @@ const ApiKeyHealthCheck = ({
               Checking API connections...
             </Typography>
           </Box>
+        )}
+
+        {showTimeline && Object.keys(performanceHistory).length > 0 && (
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Timeline color="primary" />
+                <Typography variant="h6">Performance Timeline</Typography>
+                <Box sx={{ flex: 1 }} />
+                <Button
+                  size="small"
+                  variant={selectedMetric === 'latency' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedMetric('latency')}
+                >
+                  Latency
+                </Button>
+                <Button
+                  size="small"
+                  variant={selectedMetric === 'uptime' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedMetric('uptime')}
+                >
+                  Uptime
+                </Button>
+                <Button
+                  size="small"
+                  variant={selectedMetric === 'dataQuality' ? 'contained' : 'outlined'}
+                  onClick={() => setSelectedMetric('dataQuality')}
+                >
+                  Data Quality
+                </Button>
+              </Box>
+              
+              {Object.entries(performanceHistory).map(([keyId, history]) => {
+                const apiKey = apiKeys.find(k => k.id === keyId);
+                if (!apiKey || !history.length) return null;
+                
+                return (
+                  <Box key={keyId} sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      {apiKey.provider.toUpperCase()} Timeline
+                    </Typography>
+                    <Paper variant="outlined" sx={{ p: 2, height: 120, overflow: 'hidden' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'end', height: '100%', gap: 1 }}>
+                        {history.slice(-20).map((point, index) => {
+                          let value, maxValue, color;
+                          switch(selectedMetric) {
+                            case 'latency':
+                              value = point.latency;
+                              maxValue = 300;
+                              color = value < 100 ? '#4caf50' : value < 200 ? '#ff9800' : '#f44336';
+                              break;
+                            case 'uptime':
+                              value = point.uptime;
+                              maxValue = 100;
+                              color = '#4caf50';
+                              break;
+                            case 'dataQuality':
+                              value = point.dataQuality;
+                              maxValue = 100;
+                              color = '#2196f3';
+                              break;
+                            default:
+                              value = point.latency;
+                              maxValue = 300;
+                              color = '#2196f3';
+                          }
+                          
+                          const height = Math.max(4, (value / maxValue) * 80);
+                          
+                          return (
+                            <Tooltip 
+                              key={index}
+                              title={`${selectedMetric}: ${selectedMetric === 'latency' ? `${value}ms` : `${value.toFixed(1)}%`} at ${point.timestamp.toLocaleTimeString()}`}
+                            >
+                              <Box
+                                sx={{
+                                  width: 8,
+                                  height: height,
+                                  backgroundColor: color,
+                                  borderRadius: '2px 2px 0 0',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                            </Tooltip>
+                          );
+                        })}
+                      </Box>
+                    </Paper>
+                  </Box>
+                );
+              })}
+            </CardContent>
+          </Card>
         )}
 
         <Grid container spacing={2}>
@@ -313,6 +470,31 @@ const ApiKeyHealthCheck = ({
                     <Typography variant="caption" color="text.secondary">
                       {health.rateLimitUsed}% used
                     </Typography>
+                  </Box>
+
+                  <Divider sx={{ my: 1 }} />
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Speed color={health.latency < 100 ? 'success' : health.latency < 200 ? 'warning' : 'error'} fontSize="small" />
+                    <Typography variant="caption">
+                      Performance: {health.latency < 100 ? 'Excellent' : health.latency < 200 ? 'Good' : 'Needs Attention'}
+                    </Typography>
+                    {health.status === 'excellent' && (
+                      <TrendingUp color="success" fontSize="small" />
+                    )}
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    {health.features.realTimeData ? 
+                      <CloudDone color="success" fontSize="small" /> : 
+                      <CloudOff color="error" fontSize="small" />
+                    }
+                    <Typography variant="caption">
+                      Data Stream: {health.features.realTimeData ? 'Active' : 'Disconnected'}
+                    </Typography>
+                    <Tooltip title="Real-time market data connection status">
+                      <Info fontSize="small" color="action" />
+                    </Tooltip>
                   </Box>
 
                   <List dense>

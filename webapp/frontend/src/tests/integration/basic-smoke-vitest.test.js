@@ -32,7 +32,7 @@ describe('Basic Integration Smoke Test', () => {
   });
 
   test('API base URL is reachable', async () => {
-    const apiUrl = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+    const apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
     
     try {
       const response = await fetch(`${apiUrl}/health`, {

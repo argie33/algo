@@ -18,7 +18,7 @@ beforeAll(async () => {
   
   // Set up global test environment variables
   process.env.NODE_ENV = 'test'
-  process.env.VITE_API_URL = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'
+  process.env.VITE_API_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
   
   // Mock console methods to reduce noise in tests
   global.console = {

@@ -1,0 +1,307 @@
+name: Setup AWS Services for Integration Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy_services:
+        description: 'Services to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - secrets-only
+          - redis-only
+          - s3-only
+          - ses-only
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  setup-aws-services:
+    name: Setup AWS Services
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ADMIN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-SetupAWSServices-${{ github.run_id }}
+
+      - name: Get VPC and Subnet information
+        id: vpc-info
+        run: |
+          echo "🔍 Getting VPC and subnet information..."
+          
+          # Get default VPC
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=isDefault,Values=true" \
+            --query 'Vpcs[0].VpcId' \
+            --output text)
+          
+          if [ "$VPC_ID" = "None" ]; then
+            echo "❌ Default VPC not found"
+            exit 1
+          fi
+          
+          # Get subnets in the VPC
+          SUBNET_IDS=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query 'Subnets[*].SubnetId' \
+            --output text | tr '\t' ',')
+          
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+          echo "subnet_ids=$SUBNET_IDS" >> $GITHUB_OUTPUT
+          
+          echo "✅ VPC ID: $VPC_ID"
+          echo "✅ Subnet IDs: $SUBNET_IDS"
+
+      - name: Deploy AWS Services Stack
+        run: |
+          echo "🚀 Deploying AWS services stack..."
+          
+          STACK_NAME="stocks-aws-services-${{ inputs.environment }}"
+          
+          aws cloudformation deploy \
+            --template-file webapp/lambda/cloudformation/aws-services-stack.yml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              EnvironmentName=${{ inputs.environment }} \
+              VpcId=${{ steps.vpc-info.outputs.vpc_id }} \
+              SubnetIds="${{ steps.vpc-info.outputs.subnet_ids }}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --tags \
+              Environment=${{ inputs.environment }} \
+              Service=stocks-webapp \
+              ManagedBy=github-actions
+
+          echo "✅ AWS services stack deployed successfully"
+
+      - name: Wait for ElastiCache to be ready
+        run: |
+          echo "⏳ Waiting for ElastiCache cluster to be available..."
+          
+          CLUSTER_ID="${{ inputs.environment }}-redis-cluster"
+          
+          # Wait for cluster to be available (max 10 minutes)
+          timeout 600 bash -c '
+            while true; do
+              STATUS=$(aws elasticache describe-cache-clusters \
+                --cache-cluster-id "'$CLUSTER_ID'" \
+                --query "CacheClusters[0].CacheClusterStatus" \
+                --output text 2>/dev/null || echo "creating")
+              
+              echo "Cluster status: $STATUS"
+              
+              if [ "$STATUS" = "available" ]; then
+                echo "✅ ElastiCache cluster is ready"
+                break
+              elif [ "$STATUS" = "failed" ]; then
+                echo "❌ ElastiCache cluster failed to create"
+                exit 1
+              fi
+              
+              sleep 30
+            done
+          '
+
+      - name: Get stack outputs and validate services
+        id: stack-outputs
+        run: |
+          echo "📋 Getting stack outputs and validating services..."
+          
+          STACK_NAME="stocks-aws-services-${{ inputs.environment }}"
+          
+          # Get all stack outputs
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+            --output text)
+          
+          echo "Stack outputs:"
+          echo "$OUTPUTS"
+          
+          # Extract specific outputs
+          REDIS_ENDPOINT=$(echo "$OUTPUTS" | grep "RedisEndpoint" | cut -f2)
+          S3_BUCKET=$(echo "$OUTPUTS" | grep "StorageBucketName" | cut -f2)
+          API_KEY_SECRET_ARN=$(echo "$OUTPUTS" | grep "ApiKeyEncryptionSecretArn" | cut -f2)
+          
+          echo "redis_endpoint=$REDIS_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
+          echo "api_key_secret_arn=$API_KEY_SECRET_ARN" >> $GITHUB_OUTPUT
+          
+          echo "✅ Key service endpoints:"
+          echo "  Redis: $REDIS_ENDPOINT:6379"
+          echo "  S3 Bucket: $S3_BUCKET"
+          echo "  API Key Secret: ${API_KEY_SECRET_ARN:0:50}..."
+
+      - name: Test service connectivity
+        run: |
+          echo "🧪 Testing service connectivity..."
+          
+          # Test S3 bucket access
+          echo "Testing S3 bucket access..."
+          if aws s3 ls "s3://${{ steps.stack-outputs.outputs.s3_bucket }}/" > /dev/null 2>&1; then
+            echo "✅ S3 bucket accessible"
+          else
+            echo "❌ S3 bucket not accessible"
+            exit 1
+          fi
+          
+          # Test Secrets Manager access
+          echo "Testing Secrets Manager access..."
+          if aws secretsmanager get-secret-value \
+            --secret-id "${{ steps.stack-outputs.outputs.api_key_secret_arn }}" \
+            --query 'SecretString' --output text > /dev/null 2>&1; then
+            echo "✅ Secrets Manager accessible"
+          else
+            echo "❌ Secrets Manager not accessible"
+            exit 1
+          fi
+          
+          # Test Redis connectivity (basic)
+          echo "Testing Redis cluster status..."
+          REDIS_STATUS=$(aws elasticache describe-cache-clusters \
+            --cache-cluster-id "${{ inputs.environment }}-redis-cluster" \
+            --query "CacheClusters[0].CacheClusterStatus" \
+            --output text)
+          
+          if [ "$REDIS_STATUS" = "available" ]; then
+            echo "✅ Redis cluster available"
+          else
+            echo "❌ Redis cluster not available: $REDIS_STATUS"
+            exit 1
+          fi
+
+      - name: Generate environment configuration
+        run: |
+          echo "📝 Generating environment configuration for integration tests..."
+          
+          STACK_NAME="stocks-aws-services-${{ inputs.environment }}"
+          
+          # Get all outputs in JSON format for easy parsing
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' \
+            --output json > stack-outputs.json
+          
+          # Create environment file
+          cat > "aws-integration-${{ inputs.environment }}.env" << EOF
+          # AWS Integration Environment - Generated $(date)
+          # Environment: ${{ inputs.environment }}
+          # Stack: $STACK_NAME
+          
+          NODE_ENV=integration
+          AWS_REGION=${{ env.AWS_REGION }}
+          ENVIRONMENT_NAME=${{ inputs.environment }}
+          
+          # Database (existing)
+          DB_SECRET_ARN=arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-credentials-${{ inputs.environment }}
+          
+          # Secrets Manager ARNs
+          API_KEY_ENCRYPTION_SECRET_ARN=$(jq -r '.[] | select(.OutputKey=="ApiKeyEncryptionSecretArn") | .OutputValue' stack-outputs.json)
+          JWT_SECRET_ARN=$(jq -r '.[] | select(.OutputKey=="JwtSecretKeyArn") | .OutputValue' stack-outputs.json)
+          ALPACA_SECRET_ARN=$(jq -r '.[] | select(.OutputKey=="AlpacaApiCredentialsArn") | .OutputValue' stack-outputs.json)
+          EXTERNAL_API_KEYS_ARN=$(jq -r '.[] | select(.OutputKey=="ExternalApiKeysArn") | .OutputValue' stack-outputs.json)
+          SESSION_SECRET_ARN=$(jq -r '.[] | select(.OutputKey=="SessionEncryptionArn") | .OutputValue' stack-outputs.json)
+          
+          # ElastiCache Redis
+          REDIS_ENDPOINT=$(jq -r '.[] | select(.OutputKey=="RedisEndpoint") | .OutputValue' stack-outputs.json)
+          REDIS_PORT=$(jq -r '.[] | select(.OutputKey=="RedisPort") | .OutputValue' stack-outputs.json)
+          
+          # S3 Storage
+          S3_BUCKET_NAME=$(jq -r '.[] | select(.OutputKey=="StorageBucketName") | .OutputValue' stack-outputs.json)
+          S3_REGION=${{ env.AWS_REGION }}
+          
+          # SES Email
+          SES_CONFIGURATION_SET=$(jq -r '.[] | select(.OutputKey=="SESConfigurationSetName") | .OutputValue' stack-outputs.json)
+          SES_FROM_EMAIL=noreply@stocksapp-${{ inputs.environment }}.example.com
+          SES_REGION=${{ env.AWS_REGION }}
+          
+          # Security Groups (for Lambda VPC configuration)
+          REDIS_CLIENT_SECURITY_GROUP=$(jq -r '.[] | select(.OutputKey=="RedisClientSecurityGroupId") | .OutputValue' stack-outputs.json)
+          
+          # Integration Testing
+          INTEGRATION_TEST=true
+          REAL_AWS_TEST=true
+          ENABLE_REDIS_CACHE=true
+          ENABLE_SES_EMAIL=true
+          ENABLE_S3_STORAGE=true
+          
+          # Performance & Monitoring
+          ENABLE_PERFORMANCE_MONITORING=true
+          LOG_LEVEL=INFO
+          CIRCUIT_BREAKER_ENABLED=true
+          EOF
+          
+          echo "✅ Environment configuration generated: aws-integration-${{ inputs.environment }}.env"
+
+      - name: Upload environment configuration as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-integration-config-${{ inputs.environment }}
+          path: |
+            aws-integration-${{ inputs.environment }}.env
+            stack-outputs.json
+          retention-days: 30
+
+      - name: Create GitHub Environment Secret
+        run: |
+          echo "🔐 Environment configuration is ready!"
+          echo ""
+          echo "📁 Configuration file: aws-integration-${{ inputs.environment }}.env"
+          echo "📊 Stack outputs: stack-outputs.json"
+          echo ""
+          echo "🚀 Next steps:"
+          echo "1. Download the configuration artifact from this workflow run"
+          echo "2. Set up GitHub environment variables for integration tests"
+          echo "3. Run integration tests with: npm run test:integration"
+          echo ""
+          echo "💡 Manual secret updates required:"
+          echo "- Update Alpaca API credentials with real values"
+          echo "- Update external API keys (HuggingFace, Finnhub, Alpha Vantage)"
+          echo "- Verify SES email address for sending notifications"
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          echo "🧹 Cleaning up failed deployment..."
+          
+          STACK_NAME="stocks-aws-services-${{ inputs.environment }}"
+          
+          # Check if stack exists and is in a failed state
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          
+          echo "Stack status: $STACK_STATUS"
+          
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" || "$STACK_STATUS" == "CREATE_FAILED" ]]; then
+            echo "Deleting failed stack..."
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            echo "Stack deletion initiated"
+          else
+            echo "Stack is not in a failed state, skipping cleanup"
+          fi

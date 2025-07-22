@@ -537,7 +537,7 @@ describe('🏥 Real API Health Service', () => {
       
       const baseUrl = apiHealthService.getBaseUrl();
       
-      expect(baseUrl).toBe('https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev');
+      expect(baseUrl).toBe('https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev');
     });
   });
 

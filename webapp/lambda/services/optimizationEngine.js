@@ -1,5 +1,6 @@
 const PortfolioMath = require('../utils/portfolioMath');
 const { query } = require('../utils/database');
+const logger = require('../utils/logger');
 
 /**
  * Portfolio Optimization Engine
@@ -28,7 +29,13 @@ class OptimizationEngine {
     } = params;
 
     try {
-      console.log(`Starting optimization for user ${userId} with objective: ${objective}`);
+      logger.info(`Starting optimization for user ${userId} with objective: ${objective}`, {
+        userId,
+        objective,
+        constraints,
+        lookbackDays,
+        rebalanceFreq
+      });
 
       // Step 1: Get current portfolio
       const currentPortfolio = await this.getCurrentPortfolio(userId);
@@ -121,7 +128,13 @@ class OptimizationEngine {
       };
 
     } catch (error) {
-      console.error('Optimization failed:', error);
+      logger.error('Portfolio optimization failed', {
+        error,
+        userId,
+        objective,
+        message: error.message,
+        stack: error.stack
+      });
       
       // Return fallback optimization using mock data
       return this.generateFallbackOptimization(userId, objective);
@@ -169,7 +182,12 @@ class OptimizationEngine {
       };
 
     } catch (error) {
-      console.error('Error getting current portfolio:', error);
+      logger.error('Failed to retrieve current portfolio', {
+        error,
+        userId,
+        message: error.message,
+        fallback: 'Using demo portfolio'
+      });
       return this.getDemoPortfolio();
     }
   }

@@ -3,13 +3,14 @@
  * Tests database connectivity, data integrity, and CRUD operations
  */
 
+import { describe, test, expect, afterAll } from 'vitest';
 const https = require('https');
 const http = require('http');
 
 // Test configuration
 const testConfig = {
   baseURL: process.env.E2E_BASE_URL || 'https://d1zb7knau41vl9.cloudfront.net',
-  apiURL: process.env.E2E_API_URL || 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+  apiURL: process.env.E2E_API_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
   dbTestEndpoint: process.env.DB_TEST_URL || 'https://httpbin.org/json', // Mock endpoint for testing
   timeout: 30000
 };

@@ -63,6 +63,8 @@ const ApiKeySetupWizard = ({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [availableProviders, setAvailableProviders] = useState([]);
+  const [providerSelectionMode, setProviderSelectionMode] = useState('cards'); // 'cards' or 'dropdown'
 
   const steps = [
     'Choose Provider',
@@ -83,7 +85,8 @@ const ApiKeySetupWizard = ({
       color: '#FFD700',
       docsUrl: 'https://alpaca.markets/docs/api-documentation/',
       signupUrl: 'https://alpaca.markets/',
-      recommended: true
+      recommended: true,
+      status: 'active'
     },
     {
       id: 'td_ameritrade',
@@ -96,9 +99,44 @@ const ApiKeySetupWizard = ({
       color: '#00C851',
       docsUrl: 'https://developer.tdameritrade.com/',
       signupUrl: 'https://www.tdameritrade.com/',
-      recommended: false
+      recommended: false,
+      status: 'migrating'
+    },
+    {
+      id: 'schwab',
+      name: 'Charles Schwab',
+      description: 'Professional trading with TD Ameritrade integration',
+      features: ['Advanced Orders', 'Options Trading', 'Research', 'Portfolio Tools'],
+      difficulty: 'Medium',
+      setupTime: '15 minutes',
+      icon: <Security />,
+      color: '#0033A0',
+      docsUrl: 'https://developer.schwab.com/',
+      signupUrl: 'https://www.schwab.com/',
+      recommended: false,
+      status: 'coming_soon'
+    },
+    {
+      id: 'interactive_brokers',
+      name: 'Interactive Brokers',
+      description: 'Global trading with advanced tools and low costs',
+      features: ['Global Markets', 'Options Trading', 'Futures', 'Advanced Analytics'],
+      difficulty: 'Hard',
+      setupTime: '30 minutes',
+      icon: <Speed />,
+      color: '#1E88E5',
+      docsUrl: 'https://interactivebrokers.github.io/',
+      signupUrl: 'https://www.interactivebrokers.com/',
+      recommended: false,
+      status: 'beta'
     }
   ];
+
+  // Load available providers on mount
+  useEffect(() => {
+    // In real implementation, this would fetch from backend
+    setAvailableProviders(providers.filter(p => p.status === 'active' || p.status === 'beta'));
+  }, []);
 
   const validateStep = (step) => {
     const newErrors = {};
@@ -165,87 +203,156 @@ const ApiKeySetupWizard = ({
       case 0:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
-              Choose Your Broker
-            </Typography>
-            <Typography color="text.secondary" sx={{ mb: 3 }}>
-              Select your broker to connect your trading account and access live market data.
-            </Typography>
-            
-            <Grid container spacing={2}>
-              {providers.map((provider) => (
-                <Grid item xs={12} key={provider.id}>
-                  <Card
-                    sx={{
-                      cursor: 'pointer',
-                      border: formData.provider === provider.id ? 2 : 1,
-                      borderColor: formData.provider === provider.id ? 'primary.main' : 'divider',
-                      position: 'relative',
-                      '&:hover': {
-                        boxShadow: 2
-                      }
-                    }}
-                    onClick={() => setFormData({ ...formData, provider: provider.id })}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Choose Your Broker
+                </Typography>
+                <Typography color="text.secondary">
+                  Select your broker to connect your trading account and access live market data.
+                </Typography>
+              </Box>
+              <Box>
+                <Button
+                  size="small"
+                  variant={providerSelectionMode === 'cards' ? 'contained' : 'outlined'}
+                  onClick={() => setProviderSelectionMode('cards')}
+                  sx={{ mr: 1 }}
+                >
+                  Cards
+                </Button>
+                <Button
+                  size="small"
+                  variant={providerSelectionMode === 'dropdown' ? 'contained' : 'outlined'}
+                  onClick={() => setProviderSelectionMode('dropdown')}
+                >
+                  List
+                </Button>
+              </Box>
+            </Box>
+
+            {providerSelectionMode === 'dropdown' && (
+              <Box sx={{ mb: 3 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Select Provider</InputLabel>
+                  <Select
+                    value={formData.provider}
+                    label="Select Provider"
+                    onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
                   >
-                    {provider.recommended && (
-                      <Chip
-                        label="Recommended"
-                        color="primary"
-                        size="small"
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          zIndex: 1
-                        }}
-                      />
-                    )}
-                    
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                        <Box sx={{ color: provider.color, mt: 0.5 }}>
-                          {provider.icon}
-                        </Box>
-                        
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" gutterBottom>
-                            {provider.name}
-                          </Typography>
-                          
-                          <Typography color="text.secondary" sx={{ mb: 2 }}>
-                            {provider.description}
-                          </Typography>
-                          
-                          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                            {provider.features.map((feature) => (
+                    {availableProviders.map((provider) => (
+                      <MenuItem key={provider.id} value={provider.id}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ color: provider.color }}>
+                            {provider.icon}
+                          </Box>
+                          <Box>
+                            <Typography variant="body1">
+                              {provider.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {provider.description}
+                            </Typography>
+                            {provider.recommended && (
                               <Chip 
-                                key={feature} 
-                                label={feature} 
+                                label="Recommended" 
                                 size="small" 
-                                variant="outlined" 
+                                color="primary" 
+                                sx={{ ml: 1 }} 
                               />
-                            ))}
-                          </Box>
-                          
-                          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                            <Chip 
-                              label={`Setup: ${provider.setupTime}`} 
-                              size="small" 
-                              color="info" 
-                            />
-                            <Chip 
-                              label={provider.difficulty} 
-                              size="small" 
-                              color={provider.difficulty === 'Easy' ? 'success' : 'warning'} 
-                            />
+                            )}
                           </Box>
                         </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
+            
+            {providerSelectionMode === 'cards' && (
+              <Grid container spacing={2}>
+                {availableProviders.map((provider) => (
+                  <Grid item xs={12} key={provider.id}>
+                    <Card
+                      sx={{
+                        cursor: 'pointer',
+                        border: formData.provider === provider.id ? 2 : 1,
+                        borderColor: formData.provider === provider.id ? 'primary.main' : 'divider',
+                        position: 'relative',
+                        '&:hover': {
+                          boxShadow: 2
+                        }
+                      }}
+                      onClick={() => setFormData({ ...formData, provider: provider.id })}
+                    >
+                      {provider.recommended && (
+                        <Chip
+                          label="Recommended"
+                          color="primary"
+                          size="small"
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            zIndex: 1
+                          }}
+                        />
+                      )}
+                      
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                          <Box sx={{ color: provider.color, mt: 0.5 }}>
+                            {provider.icon}
+                          </Box>
+                          
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="h6" gutterBottom>
+                              {provider.name}
+                            </Typography>
+                            
+                            <Typography color="text.secondary" sx={{ mb: 2 }}>
+                              {provider.description}
+                            </Typography>
+                            
+                            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                              {provider.features.map((feature) => (
+                                <Chip 
+                                  key={feature} 
+                                  label={feature} 
+                                  size="small" 
+                                  variant="outlined" 
+                                />
+                              ))}
+                            </Box>
+                            
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                              <Chip 
+                                label={`Setup: ${provider.setupTime}`} 
+                                size="small" 
+                                color="info" 
+                              />
+                              <Chip 
+                                label={provider.difficulty} 
+                                size="small" 
+                                color={provider.difficulty === 'Easy' ? 'success' : 'warning'} 
+                              />
+                              {provider.status === 'beta' && (
+                                <Chip 
+                                  label="Beta" 
+                                  size="small" 
+                                  color="secondary" 
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
             
             {errors.provider && (
               <Alert severity="error" sx={{ mt: 2 }}>

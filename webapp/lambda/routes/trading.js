@@ -25,6 +25,8 @@ const { query } = require('../utils/database');
 const { getEnhancedSignals, getActivePositions, getMarketTiming } = require('./trading_enhanced');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
+const { createAdvancedSecurityMiddleware } = require('../middleware/advancedSecurityEnhancements');
+const { createEnhancedFinancialValidation } = require('../middleware/financialValidationEnhanced');
 const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const RiskCalculator = require('../utils/riskCalculator');
@@ -1336,8 +1338,19 @@ router.get('/market-timing', async (req, res) => {
   }
 });
 
-// Place order
-router.post('/orders', async (req, res) => {
+// Place order - Enhanced with comprehensive security and financial validation
+router.post('/orders', 
+  createAdvancedSecurityMiddleware({
+    enableThreatDetection: true,
+    riskThreshold: 40, // Lower threshold for trading endpoints
+    enableFinancialValidation: true,
+    blockHighRisk: true
+  }),
+  createEnhancedFinancialValidation({
+    validateOrders: true,
+    strictMode: false // Allow high-risk orders with warnings
+  }),
+  async (req, res) => {
   try {
     const userId = req.user?.sub;
     if (!userId) {
@@ -2131,8 +2144,15 @@ router.get('/quotes/:symbol', async (req, res) => {
   }
 });
 
-// Generate trading signals
-router.post('/signals/generate', async (req, res) => {
+// Generate trading signals - Enhanced with advanced security validation
+router.post('/signals/generate',
+  createAdvancedSecurityMiddleware({
+    enableThreatDetection: true,
+    riskThreshold: 45,
+    enableFinancialValidation: true,
+    logAllRequests: true // Log all signal generation requests
+  }),
+  async (req, res) => {
   try {
     const userId = req.user?.sub;
     if (!userId) {
@@ -2184,8 +2204,19 @@ router.post('/signals/generate', async (req, res) => {
   }
 });
 
-// Calculate position sizing
-router.post('/position-sizing', async (req, res) => {
+// Calculate position sizing - Enhanced with comprehensive validation
+router.post('/position-sizing',
+  createAdvancedSecurityMiddleware({
+    enableThreatDetection: true,
+    riskThreshold: 35, // Strictest for position sizing calculations
+    enableFinancialValidation: true,
+    blockHighRisk: true
+  }),
+  createEnhancedFinancialValidation({
+    validateOrders: true,
+    strictMode: true // Strict mode for position sizing
+  }),
+  async (req, res) => {
   try {
     const userId = req.user?.sub;
     if (!userId) {

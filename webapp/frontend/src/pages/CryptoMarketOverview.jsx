@@ -77,16 +77,7 @@ const CryptoMarketOverview = () => {
   const [favorites, setFavorites] = useState(new Set(['BTC', 'ETH', 'BNB']))
   const [lastUpdated, setLastUpdated] = useState(null)
 
-  useEffect(() => {
-    fetchCryptoData()
-    // Set up auto-refresh every 30 seconds if enabled
-    const interval = autoRefresh ? setInterval(fetchCryptoData, 30 * 1000) : null
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [autoRefresh])
-
-  const fetchCryptoData = async () => {
+  const fetchCryptoData = React.useCallback(async () => {
     try {
       setLoading(true)
       const [marketResponse, fearGreedResponse, moversResponse, trendingResponse] = await Promise.all([
@@ -118,7 +109,16 @@ const CryptoMarketOverview = () => {
       setError('Failed to fetch crypto market data')
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchCryptoData()
+    // Set up auto-refresh every 30 seconds if enabled
+    const interval = autoRefresh ? setInterval(fetchCryptoData, 30 * 1000) : null
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [autoRefresh, fetchCryptoData])
 
   const generateChartData = () => {
     // Generate sample historical data for charts
@@ -311,16 +311,16 @@ const CryptoMarketOverview = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {marketCapData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {marketCapData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <RechartsTooltip formatter={(value) => `${value}%`} />
               </PieChart>
             </ResponsiveContainer>
             <Box mt={2}>
-              {marketCapData.map((entry, index) => (
-                <Box key={index} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+              {marketCapData.map((entry) => (
+                <Box key={entry.name} display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                   <Box display="flex" alignItems="center">
                     <Box 
                       sx={{ 

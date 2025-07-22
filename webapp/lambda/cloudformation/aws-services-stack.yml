@@ -1,0 +1,423 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Complete AWS services stack for financial trading platform integration testing'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: 'dev'
+    Description: Environment name (dev/prod)
+  
+  VpcId:
+    Type: String
+    Description: VPC ID for ElastiCache and RDS security groups
+
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: Subnet IDs for ElastiCache
+
+Resources:
+  #############################################################################
+  # AWS Secrets Manager - All Required Secrets
+  #############################################################################
+  
+  ApiKeyEncryptionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'api-key-encryption-${EnvironmentName}'
+      Description: 'Encryption key for API key storage'
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: 'key'
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 32
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  JwtSecretKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'jwt-secret-key-${EnvironmentName}'
+      Description: 'JWT signing secret for authentication'
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: 'secret'
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 64
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  AlpacaApiCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'alpaca-api-credentials-${EnvironmentName}'
+      Description: 'Alpaca trading API credentials'
+      SecretString: !Sub |
+        {
+          "api_key": "PLACEHOLDER_KEY_REPLACE_MANUALLY",
+          "secret_key": "PLACEHOLDER_SECRET_REPLACE_MANUALLY", 
+          "paper_trading": true
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  ExternalApiKeys:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'external-api-keys-${EnvironmentName}'
+      Description: 'External API service keys'
+      SecretString: !Sub |
+        {
+          "huggingface_api_key": "PLACEHOLDER_HF_KEY_REPLACE_MANUALLY",
+          "finnhub_api_key": "PLACEHOLDER_FINNHUB_KEY_REPLACE_MANUALLY",
+          "alpha_vantage_api_key": "PLACEHOLDER_AV_KEY_REPLACE_MANUALLY"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  SessionEncryption:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'session-encryption-${EnvironmentName}'
+      Description: 'Session encryption keys'
+      GenerateSecretString:
+        SecretStringTemplate: '{"session_secret":"", "cookie_secret":""}'
+        GenerateStringKey: 'session_secret'
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 32
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  #############################################################################
+  # ElastiCache Redis Cluster
+  #############################################################################
+  
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for ElastiCache Redis'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref RedisClientSecurityGroup
+          Description: 'Redis access from Lambda functions'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-redis-sg'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  RedisClientSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for Redis clients (Lambda functions)'
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-redis-client-sg'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: 'Subnet group for Redis cluster'
+      SubnetIds: !Ref SubnetIds
+      CacheSubnetGroupName: !Sub '${EnvironmentName}-redis-subnet-group'
+
+  RedisParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: 'redis7.x'
+      Description: 'Redis parameters for stocks webapp'
+      CacheParameterGroupName: !Sub '${EnvironmentName}-redis-params'
+
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: 'cache.t3.micro'
+      Engine: 'redis'
+      EngineVersion: '7.0'
+      NumCacheNodes: 1
+      Port: 6379
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      CacheParameterGroupName: !Ref RedisParameterGroup
+      ClusterName: !Sub '${EnvironmentName}-redis-cluster'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  #############################################################################
+  # S3 Bucket for File Storage
+  #############################################################################
+  
+  StorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'stocks-webapp-storage-${EnvironmentName}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: TestResultsCleanup
+            Status: Enabled
+            Prefix: 'test-results/'
+            ExpirationInDays: 30
+          - Id: LogsCleanup
+            Status: Enabled
+            Prefix: 'logs/'
+            ExpirationInDays: 90
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ProcessFileUploadsFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: uploads/
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  StorageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StorageBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: LambdaAccess
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${StorageBucket}/*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+
+  #############################################################################
+  # Amazon SES Configuration
+  #############################################################################
+  
+  SESConfigurationSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Sub '${EnvironmentName}-stocks-webapp-emails'
+      TrackingOptions:
+        CustomRedirectDomain: !Sub '${EnvironmentName}.stocksapp.example.com'
+      DeliveryOptions:
+        TlsPolicy: Require
+      ReputationTrackingEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  #############################################################################
+  # Lambda Functions for File Processing
+  #############################################################################
+  
+  ProcessFileUploadsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${EnvironmentName}-process-file-uploads'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Processing file upload:', JSON.stringify(event, null, 2));
+            return { statusCode: 200, body: 'File processed successfully' };
+          };
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref EnvironmentName
+          S3_BUCKET: !Ref StorageBucket
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+
+  ProcessFileUploadsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ProcessFileUploadsFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub '${StorageBucket}/*'
+
+  #############################################################################
+  # IAM Roles for Lambda Functions
+  #############################################################################
+  
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${EnvironmentName}-lambda-storage-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${StorageBucket}/*'
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref ApiKeyEncryptionSecret
+                  - !Ref JwtSecretKey
+                  - !Ref AlpacaApiCredentials
+                  - !Ref ExternalApiKeys
+                  - !Ref SessionEncryption
+        - PolicyName: ElastiCacheAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticache:Describe*
+                Resource: '*'
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+
+Outputs:
+  #############################################################################
+  # Secret ARNs for Lambda Environment Variables
+  #############################################################################
+  
+  ApiKeyEncryptionSecretArn:
+    Description: 'ARN of the API key encryption secret'
+    Value: !Ref ApiKeyEncryptionSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKeyEncryptionSecretArn'
+
+  JwtSecretKeyArn:
+    Description: 'ARN of the JWT secret key'
+    Value: !Ref JwtSecretKey
+    Export:
+      Name: !Sub '${AWS::StackName}-JwtSecretKeyArn'
+
+  AlpacaApiCredentialsArn:
+    Description: 'ARN of Alpaca API credentials'
+    Value: !Ref AlpacaApiCredentials
+    Export:
+      Name: !Sub '${AWS::StackName}-AlpacaApiCredentialsArn'
+
+  ExternalApiKeysArn:
+    Description: 'ARN of external API keys'
+    Value: !Ref ExternalApiKeys
+    Export:
+      Name: !Sub '${AWS::StackName}-ExternalApiKeysArn'
+
+  SessionEncryptionArn:
+    Description: 'ARN of session encryption keys'
+    Value: !Ref SessionEncryption
+    Export:
+      Name: !Sub '${AWS::StackName}-SessionEncryptionArn'
+
+  #############################################################################
+  # Service Endpoints
+  #############################################################################
+  
+  RedisEndpoint:
+    Description: 'ElastiCache Redis endpoint'
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpoint'
+
+  RedisPort:
+    Description: 'ElastiCache Redis port'
+    Value: !GetAtt RedisCluster.RedisEndpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPort'
+
+  StorageBucketName:
+    Description: 'S3 storage bucket name'
+    Value: !Ref StorageBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-StorageBucketName'
+
+  SESConfigurationSetName:
+    Description: 'SES configuration set name'
+    Value: !Ref SESConfigurationSet
+    Export:
+      Name: !Sub '${AWS::StackName}-SESConfigurationSetName'
+
+  #############################################################################
+  # Security Groups for Lambda Functions
+  #############################################################################
+  
+  RedisClientSecurityGroupId:
+    Description: 'Security group ID for Redis clients'
+    Value: !Ref RedisClientSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisClientSecurityGroupId'
+
+  LambdaExecutionRoleArn:
+    Description: 'ARN of Lambda execution role with full service access'
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaExecutionRoleArn'

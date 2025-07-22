@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { getTimeout, withTradingTimeout } = require('./timeoutManager');
+const logger = require('./logger');
 
 /**
  * Alpaca Integration Service
@@ -163,9 +164,18 @@ class AlpacaService {
     
     if (this.circuitBreaker.failures >= this.circuitBreaker.threshold) {
       this.circuitBreaker.isOpen = true;
-      console.error(`🔴 Alpaca circuit breaker OPENED after ${this.circuitBreaker.failures} failures`);
+      logger.error('Alpaca circuit breaker opened', {
+        failures: this.circuitBreaker.failures,
+        threshold: this.circuitBreaker.threshold,
+        consecutiveFailures: this.adaptiveRateLimit.consecutiveFailures,
+        action: 'CIRCUIT_BREAKER_OPEN'
+      });
     } else {
-      console.warn(`⚠️ Alpaca failure ${this.circuitBreaker.failures}/${this.circuitBreaker.threshold}`);
+      logger.warn('Alpaca service failure recorded', {
+        currentFailures: this.circuitBreaker.failures,
+        threshold: this.circuitBreaker.threshold,
+        remainingAttempts: this.circuitBreaker.threshold - this.circuitBreaker.failures
+      });
     }
   }
 
@@ -190,16 +200,19 @@ class AlpacaService {
       this.recordFailure();
       
       // Enhanced error logging with timeout information
-      console.error(`❌ Alpaca ${operationName} failed:`, {
+      logger.error('Alpaca API operation failed', {
+        operation: operationName,
+        operationType,
+        error,
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
-        data: error.response?.data,
-        operationType,
+        responseData: error.response?.data,
         isTimeout: error.code === 'TIMEOUT',
         timeout: error.timeout,
         circuitBreakerState: this.circuitBreaker.isOpen ? 'OPEN' : 'CLOSED',
-        failures: this.circuitBreaker.failures
+        failures: this.circuitBreaker.failures,
+        consecutiveFailures: this.adaptiveRateLimit.consecutiveFailures
       });
       
       throw error;
@@ -485,7 +498,13 @@ class AlpacaService {
         };
       }, 'credential validation');
     } catch (error) {
-      console.error('Alpaca credential validation error:', error.message);
+      logger.error('Alpaca credential validation failed', {
+        error,
+        message: error.message,
+        environment: this.isPaper ? 'paper' : 'live',
+        apiKeyPresent: !!this.apiKey,
+        apiSecretPresent: !!this.apiSecret
+      });
       
       return {
         valid: false,

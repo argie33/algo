@@ -29,7 +29,7 @@ export default async function globalSetup() {
   }
   
   if (!process.env.E2E_API_URL) {
-    process.env.E2E_API_URL = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+    process.env.E2E_API_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }
   
   if (!process.env.E2E_TEST_EMAIL) {

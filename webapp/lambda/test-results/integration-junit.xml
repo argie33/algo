@@ -1,19 +1,1582 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="7" failures="0" errors="0" time="2.16">
-  <testsuite name="Embedded Real Integration Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T12:42:14" time="2.139" tests="7">
-    <testcase classname="Embedded Real Integration Tests › Embedded Real Database Operations" name="Real database CRUD operations work" time="0.011">
+<testsuites name="jest tests" tests="411" failures="39" errors="0" time="13.765">
+  <testsuite name="Portfolio Service Pure Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.614" tests="11">
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize without AlpacaService API keys" time="0.023">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real Database Operations" name="Real database transactions and rollbacks" time="0.003">
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should initialize AlpacaService on demand" time="0.004">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real Cache Operations" name="Redis-compatible cache operations work" time="0.003">
+    <testcase classname="Portfolio Service Pure Unit Tests › Service Initialization" name="should not initialize AlpacaService without API keys" time="0.003">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real Email Operations" name="SMTP email sending works" time="0.002">
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should retrieve user portfolio with mocked database" time="0.006">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real API Integration" name="Real API endpoints with embedded services" time="0.158">
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should update portfolio holdings with mocked database" time="0.005">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real API Integration" name="Real authentication flow with embedded database" time="0.004">
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should save portfolio metadata with mocked database" time="0.004">
     </testcase>
-    <testcase classname="Embedded Real Integration Tests › Embedded Real Integration Summary" name="Complete embedded real integration test summary" time="0.008">
+    <testcase classname="Portfolio Service Pure Unit Tests › Database Operations (Mocked)" name="should return health check status" time="0.004">
+    </testcase>
+    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should sync portfolio from broker with valid API keys" time="0.005">
+    </testcase>
+    <testcase classname="Portfolio Service Pure Unit Tests › AlpacaService Integration" name="should fail to sync portfolio without API keys" time="0.025">
+    </testcase>
+    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle database errors gracefully" time="0.008">
+    </testcase>
+    <testcase classname="Portfolio Service Pure Unit Tests › Error Handling" name="should handle transaction errors gracefully" time="0.006">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests (Industry Standard)" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.631" tests="9">
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from simple SELECT queries" time="0.027">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from INSERT queries" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="extracts table names from CTE queries" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Table Name Extraction" name="returns &quot;unknown&quot; for malformed queries" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Connection Pool Configuration" name="calculates optimal pool size for Lambda environment" time="0.02">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Connection Pool Configuration" name="uses production configuration for non-Lambda environment" time="0.01">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Connection Pool Configuration" name="uses development configuration by default" time="0.004">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Function Exports" name="exports all required database functions" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests (Industry Standard) › Database Exports" name="exports core database functions" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Utilities Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.635" tests="17">
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="handles missing database configuration gracefully" time="0.042">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Database Configuration Management" name="validates SSL configuration settings" time="0.005">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Pool Management" name="handles pool warming for Lambda optimization" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="extracts table names from SQL queries correctly" time="0.007">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="handles safe queries with table existence validation" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Query Execution and Management" name="rejects safe queries when required tables are missing" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Transaction Management" name="rolls back transactions on errors" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="checks multiple table existence efficiently" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Schema Validation and Table Management" name="provides database schema functions" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="performs comprehensive health checks" time="0.002">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="handles circuit breaker open state in health checks" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Health Checks and Monitoring" name="reports unhealthy state for database connection failures" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Lambda Optimization Features" name="calculates appropriate pool sizes for Lambda concurrency" time="0.008">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Connection Cleanup and Resource Management" name="handles connection cleanup errors gracefully" time="0.003">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles malformed SQL queries gracefully" time="0.004">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="validates environment variable data types" time="0.007">
+    </testcase>
+    <testcase classname="Database Utilities Unit Tests › Edge Cases and Error Scenarios" name="handles missing optional configuration gracefully" time="0.007">
+    </testcase>
+  </testsuite>
+  <testsuite name="AdvancedPerformanceAnalytics" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.647" tests="11">
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="calculates basic performance metrics correctly" time="0.118">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateBaseMetrics" name="handles empty portfolio history" time="0.002">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateRiskMetrics" name="calculates risk metrics correctly" time="0.003">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateMaxDrawdown" name="calculates maximum drawdown correctly" time="0.003">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateAttributionAnalysis" name="calculates attribution analysis correctly" time="0.003">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateSectorAnalysis" name="calculates sector analysis correctly" time="0.007">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDiversificationScore" name="calculates diversification score correctly" time="0.005">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › generatePerformanceReport" name="generates comprehensive performance report" time="0.029">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › getPerformanceGrade" name="assigns correct performance grades" time="0.004">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › assessRiskProfile" name="assesses risk profile correctly" time="0.002">
+    </testcase>
+    <testcase classname="AdvancedPerformanceAnalytics › calculateDaysInPeriod" name="calculates days in period correctly" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="PortfolioMath REAL Financial Calculations" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.714" tests="10">
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Covariance Matrix Calculations" name="calculates covariance matrix from real return data" time="0.136">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Covariance Matrix Calculations" name="handles edge cases in real covariance calculation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Covariance Matrix Calculations" name="throws real error for invalid input" time="0.048">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Expected Returns Calculations" name="calculates simple average expected returns from real data" time="0.006">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Expected Returns Calculations" name="calculates EWMA expected returns with real decay" time="0.006">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Correlation Matrix Calculations" name="calculates real correlation from covariance matrix" time="0.004">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Mean Variance Optimization" name="performs real portfolio optimization with actual constraints" time="0.007">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Mean Variance Optimization" name="handles different optimization objectives" time="0.005">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Risk Metrics Calculations" name="calculates real portfolio risk metrics" time="0.006">
+    </testcase>
+    <testcase classname="PortfolioMath REAL Financial Calculations › Real Efficient Frontier Generation" name="generates real efficient frontier points" time="0.023">
+    </testcase>
+  </testsuite>
+  <testsuite name="OptimizationEngine REAL Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.735" tests="8">
+    <testcase classname="OptimizationEngine REAL Tests › Real Portfolio Math Integration" name="generates realistic mock price data with proper format" time="0.06">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Portfolio Math Integration" name="calculates returns matrix from real price data" time="0.015">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Portfolio Math Integration" name="REAL covariance matrix calculation with actual data" time="0.007">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Rebalancing Calculations" name="calculates real rebalancing with actual portfolio data" time="0.008">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Portfolio Insights Generation" name="generates real insights from actual optimization data" time="0.001">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Demo Portfolio Logic" name="demo portfolio has realistic financial data structure" time="0.004">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Data Quality Assessment" name="assesses actual price data quality correctly" time="0.003">
+    </testcase>
+    <testcase classname="OptimizationEngine REAL Tests › Real Error Handling" name="handles missing portfolio data gracefully with real fallback" time="0.058">
+    </testcase>
+  </testsuite>
+  <testsuite name="BacktestingService REAL Implementation Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.752" tests="25">
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Service Initialization" name="initializes with YOUR actual strategy mappings" time="0.026">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Service Initialization" name="has real TechnicalAnalysisService instance" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Service Initialization" name="returns available strategies matching YOUR implementation" time="0.006">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy generates BUY signal when RSI &lt; 30 using YOUR implementation" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy generates SELL signal when RSI &gt; 70 using YOUR implementation" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy returns null when RSI is neutral (30-70 range)" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real MACD Strategy Implementation" name="MACD strategy detects bullish crossover using YOUR implementation" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real MACD Strategy Implementation" name="MACD strategy handles insufficient data gracefully" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Bollinger Bands Strategy Implementation" name="Bollinger strategy generates BUY when price below lower band" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Mean Reversion Strategy Implementation" name="Mean reversion strategy detects oversold conditions" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Mean Reversion Strategy Implementation" name="Mean reversion strategy detects overbought conditions" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Momentum Strategy Implementation" name="Momentum strategy detects bullish momentum (SMA10 &gt; SMA20)" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="runs complete backtest with YOUR actual implementation" time="0.056">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="validates input parameters according to YOUR implementation" time="0.052">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="processes trade execution with YOUR actual logic" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Portfolio History Tracking" name="tracks portfolio value changes through YOUR implementation" time="0.012">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Filter Data by Date" name="filters data by date range using YOUR implementation" time="0.007">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Strategy Descriptions" name="provides accurate strategy descriptions matching YOUR implementation" time="0.001">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Multi-Indicator Strategy Implementation" name="Multi-indicator strategy combines YOUR real technical analysis" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Trade Execution Logic" name="executeEntry creates positions according to YOUR implementation" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Trade Execution Logic" name="executeExit closes positions and records trades per YOUR implementation" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Exit Conditions Logic" name="checkExitConditions triggers stop loss per YOUR implementation" time="0.002">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Exit Conditions Logic" name="checkExitConditions triggers take profit per YOUR implementation" time="0.001">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Portfolio Value Calculation" name="calculatePortfolioValue computes correctly per YOUR implementation" time="0.002">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Portfolio Value Calculation" name="calculatePortfolioValue handles short positions per YOUR implementation" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="PortfolioService REAL Implementation Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.757" tests="14">
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="getUserPortfolio returns correct structure for YOUR implementation" time="0.013">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="updatePortfolioHoldings performs real UPSERT operations per YOUR implementation" time="0.005">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="real portfolio calculations match YOUR mathematical implementation" time="0.005">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Performance Calculations" name="getPortfolioPerformance calculates real financial metrics per YOUR implementation" time="0.005">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Performance Calculations" name="real volatility and Sharpe ratio calculations match financial formulas" time="0.004">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Optimization Integration" name="getPortfolioForOptimization formats data correctly for YOUR optimization algorithms" time="0.004">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Optimization Integration" name="saveOptimizationResults stores real optimization data per YOUR implementation" time="0.004">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="getAlpacaService initializes correctly with YOUR implementation" time="0.015">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="syncPortfolioFromBroker handles broker data transformation per YOUR implementation" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="syncPortfolioFromBroker handles broker API errors per YOUR error handling" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio History and Analysis" name="getPortfolioHistory returns real database historical data per YOUR implementation" time="0.001">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Error Handling and Edge Cases" name="handles invalid user ID gracefully per YOUR implementation" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Error Handling and Edge Cases" name="validates required portfolio fields per YOUR validation logic" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Health Check Implementation" name="healthCheck returns correct status per YOUR implementation" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="Database Circuit Breaker Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.75" tests="29">
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="initializes with correct default state" time="0.116">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Circuit Breaker Initialization" name="sets production-ready configuration values" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="executes operations successfully when circuit is closed" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="records failure but stays closed below threshold" time="0.025">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="decrements failure count on successful operations" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Closed State Operations" name="opens circuit when failure threshold is reached" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="rejects operations immediately when circuit is open" time="0.008">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="includes remaining time in error message" time="0.006">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Open State Operations" name="transitions to half-open after recovery timeout" time="0.008">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="allows limited operations in half-open state" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="closes circuit after sufficient successes" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="reopens circuit on failure in half-open state" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Half-Open State Operations" name="tracks success count correctly in half-open state" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="tracks comprehensive metrics" time="0.004">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="maintains request history with limited size" time="0.003">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records operation duration in history" time="0.054">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Metrics and History Tracking" name="records error details in failure history" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports healthy when failures are below 50% of threshold" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when failures are above 50% of threshold" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="reports unhealthy when circuit is not closed" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Health Assessment" name="calculates time to recovery correctly" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="resets circuit breaker to clean state" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Force Reset Functionality" name="allows operations after force reset" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles concurrent operations safely" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Concurrent Operations" name="handles mixed concurrent success and failure operations" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that throw non-Error objects" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return undefined" time="0.001">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="maintains state consistency during rapid state transitions" time="0.002">
+    </testcase>
+    <testcase classname="Database Circuit Breaker Unit Tests › Edge Cases and Error Scenarios" name="handles timestamp edge cases" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="BacktestingService REAL Implementation Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.759" tests="13">
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Service Initialization" name="initializes with correct strategy mappings from YOUR implementation" time="0.04">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Service Initialization" name="has real TechnicalAnalysisService instance" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy generates BUY signal when RSI &lt; 30 (YOUR implementation)" time="0.009">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy generates SELL signal when RSI &gt; 70 (YOUR implementation)" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real RSI Strategy Implementation" name="RSI strategy returns null when RSI is neutral (30-70 range)" time="0.003">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real MACD Strategy Implementation" name="MACD strategy detects bullish crossover (YOUR implementation)" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real MACD Strategy Implementation" name="MACD strategy handles insufficient data gracefully" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Bollinger Bands Strategy Implementation" name="Bollinger strategy generates BUY when price below lower band" time="0.004">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="runs complete backtest with YOUR actual implementation" time="0.038">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="validates input parameters according to YOUR implementation" time="0.039">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Backtest Execution" name="processes trade execution with YOUR actual logic" time="0.005">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Portfolio History Tracking" name="tracks portfolio value changes through YOUR implementation" time="0.01">
+    </testcase>
+    <testcase classname="BacktestingService REAL Implementation Tests › Real Filter Data by Date" name="filters data by date range using YOUR implementation" time="0.006">
+    </testcase>
+  </testsuite>
+  <testsuite name="Authentication Middleware Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.82" tests="33">
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="allows access without token in development mode" time="0.166">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="validates development JWT tokens correctly" time="0.014">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="generates valid development tokens" time="0.006">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Development Mode Authentication" name="falls back to development mode when Cognito is unavailable" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="requires authentication token in production mode" time="0.005">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="rejects invalid tokens in production mode" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Production Mode Authentication" name="handles malformed authorization headers" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles expired JWT tokens" time="0.005">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="validates JWT token structure and claims" time="0.004">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › JWT Token Validation" name="handles malformed JWT tokens gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user has required role" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="allows access when user is in required group" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user lacks required role" time="0.008">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="denies access when user is not authenticated" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Role-Based Authorization" name="handles multiple role requirements" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues without authentication when no token provided" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="authenticates when valid token is provided" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Optional Authentication" name="continues silently when authentication fails" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="enriches user object with request context" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="generates request ID when not provided" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Request Context Enhancement" name="handles missing client IP gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="loads configuration from environment variables" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="handles missing Cognito configuration gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Cognito Configuration Management" name="uses default region when not specified" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="returns comprehensive authentication status" time="0.001">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Authentication Status Endpoint" name="handles status check errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles network errors during token verification" time="0.023">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles concurrent authentication requests safely" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="preserves original user data when authentication fails in development" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Error Handling and Edge Cases" name="handles missing authorization header gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates tokens with correct expiration" time="0.002">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="generates unique tokens for different users" time="0.003">
+    </testcase>
+    <testcase classname="Authentication Middleware Unit Tests › Token Generation and Validation" name="uses custom JWT secret when provided" time="0.025">
+    </testcase>
+  </testsuite>
+  <testsuite name="PortfolioService REAL Implementation Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.8" tests="14">
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="getUserPortfolio returns correct structure for YOUR implementation" time="0.008">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="updatePortfolioHoldings performs real UPSERT operations per YOUR implementation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Database Portfolio Operations" name="real portfolio calculations match YOUR mathematical implementation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Performance Calculations" name="getPortfolioPerformance calculates real financial metrics per YOUR implementation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Performance Calculations" name="real volatility and Sharpe ratio calculations match financial formulas" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Optimization Integration" name="getPortfolioForOptimization formats data correctly for YOUR optimization algorithms" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio Optimization Integration" name="saveOptimizationResults stores real optimization data per YOUR implementation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="getAlpacaService initializes correctly with YOUR implementation" time="0.019">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="syncPortfolioFromBroker handles broker data transformation per YOUR implementation" time="0.003">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real AlpacaService Integration Logic" name="syncPortfolioFromBroker handles broker API errors per YOUR error handling" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Portfolio History and Analysis" name="getPortfolioHistory returns real database historical data per YOUR implementation" time="0.001">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Error Handling and Edge Cases" name="handles invalid user ID gracefully per YOUR implementation" time="0.001">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Error Handling and Edge Cases" name="validates required portfolio fields per YOUR validation logic" time="0.002">
+    </testcase>
+    <testcase classname="PortfolioService REAL Implementation Tests › Real Health Check Implementation" name="healthCheck returns correct status per YOUR implementation" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="Circuit Breaker Utilities Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.829" tests="19">
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should initialize with production-ready thresholds" time="0.143">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should track failure counts correctly" time="0.009">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should transition states correctly (closed -&gt; open -&gt; half-open -&gt; closed)" time="0.026">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should record event history correctly" time="0.011">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate metrics correctly" time="0.01">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should handle recent activity tracking" time="0.004">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › TimeoutHelper Circuit Breaker" name="should calculate risk levels accurately" time="0.011">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should initialize with correct production configuration" time="0.006">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should execute operations and track results" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should handle operation failures correctly" time="0.005">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should open circuit after threshold failures" time="0.019">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should provide detailed status information" time="0.005">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › DatabaseCircuitBreaker Class" name="should force reset correctly" time="0.044">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset all circuit breakers" time="0.018">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should reset specific circuit breaker" time="0.007">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should get comprehensive circuit breaker status" time="0.006">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Circuit Breaker Reset Utilities" name="should handle non-existent circuit breaker reset gracefully" time="0.006">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should limit history size to prevent memory leaks" time="0.003">
+    </testcase>
+    <testcase classname="Circuit Breaker Utilities Unit Tests › Performance and Memory Management" name="should handle rapid state changes efficiently" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="Technical Analysis Service Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="1.884" tests="39">
+    <testcase classname="Technical Analysis Service Unit Tests › Service Initialization" name="initializes with correct indicators" time="0.171">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Service Initialization" name="indicators are callable functions" time="0.008">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Multiple Indicators Calculation" name="calculates multiple indicators successfully" time="0.01">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Multiple Indicators Calculation" name="handles invalid data input" time="0.053">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Multiple Indicators Calculation" name="handles unknown indicators gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Multiple Indicators Calculation" name="continues calculation when one indicator fails" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › RSI (Relative Strength Index)" name="calculates RSI with default period" time="0.01">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › RSI (Relative Strength Index)" name="calculates RSI with custom period" time="0.005">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › RSI (Relative Strength Index)" name="generates correct RSI signals" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › RSI (Relative Strength Index)" name="requires sufficient data" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › RSI (Relative Strength Index)" name="handles flat price data" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › MACD (Moving Average Convergence Divergence)" name="calculates MACD with default parameters" time="0.003">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › MACD (Moving Average Convergence Divergence)" name="calculates MACD with custom parameters" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › MACD (Moving Average Convergence Divergence)" name="generates MACD buy/sell signals" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › MACD (Moving Average Convergence Divergence)" name="requires sufficient data for MACD" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Bollinger Bands" name="calculates Bollinger Bands with default parameters" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Bollinger Bands" name="validates band relationships" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Bollinger Bands" name="generates Bollinger Band signals" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Bollinger Bands" name="calculates with custom standard deviation" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Simple Moving Average (SMA)" name="calculates SMA correctly" time="0.002">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Simple Moving Average (SMA)" name="handles period larger than data length" time="0.003">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Simple Moving Average (SMA)" name="calculates SMA with timestamps" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Exponential Moving Average (EMA)" name="calculates EMA correctly" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Exponential Moving Average (EMA)" name="EMA responds faster than SMA to price changes" time="0.002">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Exponential Moving Average (EMA)" name="requires sufficient data" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Stochastic Oscillator" name="calculates Stochastic with default parameters" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Stochastic Oscillator" name="validates Stochastic value ranges" time="0.004">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Stochastic Oscillator" name="generates overbought/oversold signals" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Williams %R" name="calculates Williams %R correctly" time="0.003">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Williams %R" name="generates Williams %R signals" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Williams %R" name="requires sufficient data" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Edge Cases and Error Handling" name="handles missing price data fields" time="0">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Edge Cases and Error Handling" name="handles zero and negative prices" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Edge Cases and Error Handling" name="handles single data point" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Edge Cases and Error Handling" name="handles very large datasets efficiently" time="0.003">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Signal Generation" name="generates consistent signals across indicators" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Signal Generation" name="signal timestamps match data timestamps" time="0.001">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Mathematical Accuracy" name="SMA calculation matches manual calculation" time="0">
+    </testcase>
+    <testcase classname="Technical Analysis Service Unit Tests › Mathematical Accuracy" name="RSI boundary conditions" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Optimization Engine Unit Tests" errors="0" failures="28" skipped="0" timestamp="2025-07-22T13:59:24" time="2.009" tests="36">
+    <testcase classname="Optimization Engine Unit Tests › Service Initialization" name="initializes with default risk-free rate" time="0.023">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Service Initialization" name="has all required methods" time="0.002">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Current Portfolio Retrieval" name="retrieves portfolio from database successfully" time="0.051">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Current Portfolio Retrieval" name="returns demo portfolio when database query fails" time="0.012">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Current Portfolio Retrieval" name="returns demo portfolio when no holdings found" time="0.008">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Current Portfolio Retrieval" name="calculates portfolio weights correctly" time="0.007">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Demo Portfolio" name="generates consistent demo portfolio" time="0.001">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Demo Portfolio" name="demo portfolio weights sum to 1" time="0">
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Universe" name="creates universe from current holdings" time="0.003">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:102:39)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Universe" name="includes additional assets for diversification" time="0.001">
+      <failure>Error: expect(received).toBeGreaterThan(expected)
+
+Matcher error: received value must be a number or bigint
+
+Received has value: undefined
+    at Object.toBeGreaterThan (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:116:31)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Universe" name="respects include and exclude assets" time="0.002">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected value:  &quot;MSFT&quot;
+Received object: {}
+    at toContain (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:132:26)
+    at Array.forEach (&lt;anonymous&gt;)
+    at Object.forEach (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:131:21)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Universe" name="limits universe size to 20 assets" time="0.001">
+      <failure>Error: expect(received).toBeLessThanOrEqual(expected)
+
+Matcher error: received value must be a number or bigint
+
+Received has value: undefined
+    at Object.toBeLessThanOrEqual (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:149:31)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Historical Price Data" name="generates mock price data for symbols" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 252
+Received: 0
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:159:32)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Historical Price Data" name="generates realistic price movements" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;AAPL&apos;)
+    at Object.AAPL (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:171:41)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Returns Matrix Calculation" name="calculates returns matrix from price data" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:190:38)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Returns Matrix Calculation" name="handles empty price data" time="0.002">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:201:38)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Returns Matrix Calculation" name="handles single price point" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 0
+Received: undefined
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:208:30)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Rebalancing Calculations" name="calculates rebalancing trades correctly" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:226:37)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Rebalancing Calculations" name="ignores small weight differences" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 0
+Received: undefined
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:249:29)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Rebalancing Calculations" name="sorts trades by priority and value" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;symbol&apos;)
+    at Object.symbol (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:267:24)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Insights" name="generates risk warning for high volatility" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;volatility&apos;)
+    at OptimizationEngine.volatility [as generateOptimizationInsights] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:386:21)
+    at Object.generateOptimizationInsights (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:280:43)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Insights" name="generates diversification insight for small portfolios" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;volatility&apos;)
+    at OptimizationEngine.volatility [as generateOptimizationInsights] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:386:21)
+    at Object.generateOptimizationInsights (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:294:43)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Insights" name="generates positive insight for high Sharpe ratio" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;volatility&apos;)
+    at OptimizationEngine.volatility [as generateOptimizationInsights] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:386:21)
+    at Object.generateOptimizationInsights (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:306:43)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Optimization Insights" name="generates concentration warning for large positions" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;volatility&apos;)
+    at OptimizationEngine.volatility [as generateOptimizationInsights] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:386:21)
+    at Object.generateOptimizationInsights (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:315:43)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Formatting Functions" name="formats weights correctly" time="0.001">
+      <failure>TypeError: universe.map is not a function
+    at OptimizationEngine.map [as formatWeights] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:446:21)
+    at Object.formatWeights (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:324:44)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Formatting Functions" name="formats portfolio summary correctly" time="0.001">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;slice&apos;)
+    at OptimizationEngine.slice [as formatPortfolioSummary] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:460:39)
+    at Object.formatPortfolioSummary (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:337:42)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Formatting Functions" name="formats correlation matrix correctly" time="0.001">
+      <failure>TypeError: corrMatrix.get is not a function
+    at OptimizationEngine.get [as formatCorrelationMatrix] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:478:40)
+    at Object.formatCorrelationMatrix (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:348:44)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Data Quality Assessment" name="assesses high-quality data correctly" time="0.001">
+      <failure>TypeError: prices.forEach is not a function
+    at forEach (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:506:14)
+    at Array.forEach (&lt;anonymous&gt;)
+    at OptimizationEngine.forEach [as assessDataQuality] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:501:13)
+    at Object.assessDataQuality (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:364:45)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Data Quality Assessment" name="identifies missing data points" time="0">
+      <failure>TypeError: prices.forEach is not a function
+    at forEach (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:506:14)
+    at Array.forEach (&lt;anonymous&gt;)
+    at OptimizationEngine.forEach [as assessDataQuality] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:501:13)
+    at Object.assessDataQuality (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:377:45)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Fallback Optimization" name="generates fallback optimization with demo data" time="0.002">
+      <failure>Error: expect(received).toHaveProperty(path)
+
+Expected path: &quot;weights&quot;
+Received path: []
+
+Received value: {&quot;correlationMatrix&quot;: [], &quot;currentPortfolio&quot;: {&quot;numPositions&quot;: 4, &quot;topHoldings&quot;: [{&quot;marketValue&quot;: 17500, &quot;pnl&quot;: 2500, &quot;pnlPercent&quot;: 16.7, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;weight&quot;: 35}, {&quot;marketValue&quot;: 15000, &quot;pnl&quot;: 1500, &quot;pnlPercent&quot;: 11.1, &quot;symbol&quot;: &quot;MSFT&quot;, &quot;weight&quot;: 30}, {&quot;marketValue&quot;: 10000, &quot;pnl&quot;: 500, &quot;pnlPercent&quot;: 5.3, &quot;symbol&quot;: &quot;GOOGL&quot;, &quot;weight&quot;: 20}, {&quot;marketValue&quot;: 7500, &quot;pnl&quot;: 500, &quot;pnlPercent&quot;: 7.1, &quot;symbol&quot;: &quot;AMZN&quot;, &quot;weight&quot;: 15}], &quot;totalValue&quot;: 50000}, &quot;efficientFrontier&quot;: [{&quot;expectedReturn&quot;: 0.05, &quot;sharpeRatio&quot;: 0.5, &quot;volatility&quot;: 0.1}, {&quot;expectedReturn&quot;: 0.05526315789473685, &quot;sharpeRatio&quot;: 0.48837209302325585, &quot;volatility&quot;: 0.11315789473684211}, {&quot;expectedReturn&quot;: 0.060526315789473685, &quot;sharpeRatio&quot;: 0.4791666666666667, &quot;volatility&quot;: 0.12631578947368421}, {&quot;expectedReturn&quot;: 0.06578947368421052, &quot;sharpeRatio&quot;: 0.4716981132075472, &quot;volatility&quot;: 0.1394736842105263}, {&quot;expectedReturn&quot;: 0.07105263157894737, &quot;sharpeRatio&quot;: 0.46551724137931033, &quot;volatility&quot;: 0.15263157894736842}, {&quot;expectedReturn&quot;: 0.07631578947368423, &quot;sharpeRatio&quot;: 0.46031746031746035, &quot;volatility&quot;: 0.16578947368421054}, {&quot;expectedReturn&quot;: 0.08157894736842106, &quot;sharpeRatio&quot;: 0.4558823529411765, &quot;volatility&quot;: 0.17894736842105263}, {&quot;expectedReturn&quot;: 0.08684210526315789, &quot;sharpeRatio&quot;: 0.4520547945205479, &quot;volatility&quot;: 0.19210526315789472}, {&quot;expectedReturn&quot;: 0.09210526315789475, &quot;sharpeRatio&quot;: 0.44871794871794873, &quot;volatility&quot;: 0.20526315789473684}, {&quot;expectedReturn&quot;: 0.09736842105263159, &quot;sharpeRatio&quot;: 0.44578313253012053, &quot;volatility&quot;: 0.21842105263157896}, …], &quot;insights&quot;: [{&quot;category&quot;: &quot;Data&quot;, &quot;message&quot;: &quot;Optimization results based on simulated portfolio data.&quot;, &quot;recommendation&quot;: &quot;Connect real portfolio data for accurate optimization&quot;, &quot;title&quot;: &quot;Using Demo Data&quot;, &quot;type&quot;: &quot;info&quot;}], &quot;metadata&quot;: {&quot;dataQuality&quot;: {&quot;assessment&quot;: &quot;Demo Data&quot;, &quot;score&quot;: 100}, &quot;lookbackDays&quot;: 252, &quot;optimizationDate&quot;: &quot;2025-07-22T13:59:25.298Z&quot;, &quot;universeSize&quot;: 5}, &quot;optimization&quot;: {&quot;expectedReturn&quot;: 0.12, &quot;objective&quot;: undefined, &quot;sharpeRatio&quot;: 0.89, &quot;volatility&quot;: 0.18, &quot;weights&quot;: [{&quot;allocation&quot;: 0.3, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;weight&quot;: 30}, {&quot;allocation&quot;: 0.25, &quot;symbol&quot;: &quot;MSFT&quot;, &quot;weight&quot;: 25}, {&quot;allocation&quot;: 0.2, &quot;symbol&quot;: &quot;GOOGL&quot;, &quot;weight&quot;: 20}, {&quot;allocation&quot;: 0.15, &quot;symbol&quot;: &quot;AMZN&quot;, &quot;weight&quot;: 15}, {&quot;allocation&quot;: 0.1, &quot;symbol&quot;: &quot;TSLA&quot;, &quot;weight&quot;: 10}]}, &quot;rebalancing&quot;: [{&quot;action&quot;: &quot;SELL&quot;, &quot;currentWeight&quot;: 35, &quot;priority&quot;: &quot;Medium&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;targetWeight&quot;: 30, &quot;tradeValue&quot;: -2500}], &quot;riskMetrics&quot;: {&quot;beta&quot;: 1.05, &quot;expectedReturn&quot;: 0.12, &quot;sharpeRatio&quot;: 0.67, &quot;volatility&quot;: 0.18}, &quot;success&quot;: true}
+    at Object.toHaveProperty (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:388:22)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Fallback Optimization" name="uses equal weights for equalWeight objective" time="0.001">
+      <failure>TypeError: Cannot convert undefined or null to object
+    at Function.values (&lt;anonymous&gt;)
+    at Object.values (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:398:30)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Fallback Optimization" name="generates mock efficient frontier" time="0.001">
+      <failure>Error: expect(received).toHaveProperty(path)
+
+Expected path: &quot;risk&quot;
+Received path: []
+
+Received value: {&quot;expectedReturn&quot;: 0.05, &quot;sharpeRatio&quot;: 0.5, &quot;volatility&quot;: 0.1}
+    at toHaveProperty (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:413:23)
+    at Array.forEach (&lt;anonymous&gt;)
+    at Object.forEach (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:412:16)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Full Optimization Integration" name="runs complete optimization successfully" time="0.024">
+      <failure>Error: expect(received).toHaveProperty(path)
+
+Expected path: &quot;weights&quot;
+Received path: []
+
+Received value: {&quot;correlationMatrix&quot;: [], &quot;currentPortfolio&quot;: {&quot;numPositions&quot;: 4, &quot;topHoldings&quot;: [{&quot;marketValue&quot;: 17500, &quot;pnl&quot;: 2500, &quot;pnlPercent&quot;: 16.7, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;weight&quot;: 35}, {&quot;marketValue&quot;: 15000, &quot;pnl&quot;: 1500, &quot;pnlPercent&quot;: 11.1, &quot;symbol&quot;: &quot;MSFT&quot;, &quot;weight&quot;: 30}, {&quot;marketValue&quot;: 10000, &quot;pnl&quot;: 500, &quot;pnlPercent&quot;: 5.3, &quot;symbol&quot;: &quot;GOOGL&quot;, &quot;weight&quot;: 20}, {&quot;marketValue&quot;: 7500, &quot;pnl&quot;: 500, &quot;pnlPercent&quot;: 7.1, &quot;symbol&quot;: &quot;AMZN&quot;, &quot;weight&quot;: 15}], &quot;totalValue&quot;: 50000}, &quot;efficientFrontier&quot;: [{&quot;expectedReturn&quot;: 0.027340556667442402, &quot;sharpeRatio&quot;: 4.697098362601078, &quot;volatility&quot;: 0.0058207332605873345, &quot;weights&quot;: [0.09550122755114411, 0.07908239348898463, 0.06358716396633149, 0.0449041654638766, 0.20703485019710843, 0.16226515036935302, 0.20732770957134208, 0.0421954308415148, 0.0469720728073336, 0.05112983574301119]}, {&quot;expectedReturn&quot;: 0.030043432090455114, &quot;sharpeRatio&quot;: 4.8447000909341655, &quot;volatility&quot;: 0.006201298641101657, &quot;weights&quot;: [0.09047484715371547, 0.07492016225272227, 0.06024047112599825, 0.09517236728156733, 0.19613827913410273, 0.1537248792972818, 0.1964157248570609, 0.03997461869196139, 0.04449985844905288, 0.04843879175653692]}, {&quot;expectedReturn&quot;: 0.032746307513467826, &quot;sharpeRatio&quot;: 4.862191635464741, &quot;volatility&quot;: 0.006734886234145283, &quot;weights&quot;: [0.08544846675628683, 0.07075793101645993, 0.05689377828566501, 0.14544056909925807, 0.185241708071097, 0.14518460822521057, 0.18550374014277973, 0.037753806542407974, 0.042027644090772164, 0.045747747770062644]}, {&quot;expectedReturn&quot;: 0.035449182936480535, &quot;sharpeRatio&quot;: 4.79794049953814, &quot;volatility&quot;: 0.007388416538281987, &quot;weights&quot;: [0.0804220863588582, 0.06659569978019758, 0.05354708544533178, 0.19570877091694872, 0.1743451370080913, 0.13664433715313937, 0.17459175542849859, 0.03553299439285457, 0.03955542973249145, 0.04305670378358837]}, {&quot;expectedReturn&quot;: 0.03815205835949324, &quot;sharpeRatio&quot;: 4.691003680814867, &quot;volatility&quot;: 0.0081330267370129, &quot;weights&quot;: [0.07539570596142957, 0.062433468543935236, 0.05020039260499855, 0.24597697273463937, 0.1634485659450856, 0.12810406608106817, 0.16367977071421744, 0.03331218224330116, 0.037083215374210735, 0.0403656597971141]}, {&quot;expectedReturn&quot;: 0.04085493378250596, &quot;sharpeRatio&quot;: 4.5668366470467054, &quot;volatility&quot;: 0.008946002876832948, &quot;weights&quot;: [0.07036932556400093, 0.058271237307672884, 0.0468536997646653, 0.2962451745523302, 0.15255199488207988, 0.11956379500899696, 0.15276778599993626, 0.031091370093747746, 0.03461100101593002, 0.03767461581063982]}, {&quot;expectedReturn&quot;: 0.04355780920551867, &quot;sharpeRatio&quot;: 4.439979185162354, &quot;volatility&quot;: 0.009810363379873798, &quot;weights&quot;: [0.06534294516657228, 0.05410900607141053, 0.04350700692433206, 0.3465133763700209, 0.14165542381907417, 0.11102352393692573, 0.1418558012856551, 0.028870557944194335, 0.0321387866576493, 0.034983571824165546]}, {&quot;expectedReturn&quot;: 0.046260684628531376, &quot;sharpeRatio&quot;: 4.317908544568574, &quot;volatility&quot;: 0.010713678659711755, &quot;weights&quot;: [0.06031656476914365, 0.049946774835148186, 0.04016031408399883, 0.39678157818771154, 0.13075885275606847, 0.10248325286485453, 0.13094381657137394, 0.026649745794640925, 0.029666572299368588, 0.03229252783769128]}, {&quot;expectedReturn&quot;: 0.04896356005154409, &quot;sharpeRatio&quot;: 4.204003532683699, &quot;volatility&quot;: 0.011646888417405146, &quot;weights&quot;: [0.055290184371715005, 0.045784543598885834, 0.03681362124366559, 0.4470497800054023, 0.11986228169306276, 0.0939429817927833, 0.12003183185709276, 0.024428933645087515, 0.02719435794108787, 0.029601483851217]}, {&quot;expectedReturn&quot;: 0.05166643547455679, &quot;sharpeRatio&quot;: 4.0994195803855025, &quot;volatility&quot;: 0.01260335383129974, &quot;weights&quot;: [0.05026380397428638, 0.041622312362623495, 0.03346692840333237, 0.49731798182309284, 0.10896571063005708, 0.08540271072071212, 0.10911984714281164, 0.02220812149553411, 0.024722143582807162, 0.026910439864742737]}, …], &quot;insights&quot;: [{&quot;category&quot;: &quot;Performance&quot;, &quot;message&quot;: &quot;Sharpe ratio of 5.86 indicates strong risk-adjusted performance.&quot;, &quot;recommendation&quot;: &quot;Current optimization looks strong, monitor regularly&quot;, &quot;title&quot;: &quot;Excellent Risk-Adjusted Returns&quot;, &quot;type&quot;: &quot;success&quot;}, {&quot;category&quot;: &quot;Concentration&quot;, &quot;message&quot;: &quot;Largest position represents 127.8% of portfolio.&quot;, &quot;recommendation&quot;: &quot;Consider reducing concentration in top holdings&quot;, &quot;title&quot;: &quot;High Concentration Risk&quot;, &quot;type&quot;: &quot;warning&quot;}], &quot;metadata&quot;: {&quot;dataQuality&quot;: {&quot;assessment&quot;: &quot;Excellent&quot;, &quot;missingDataPoints&quot;: 0, &quot;score&quot;: 100, &quot;symbols&quot;: 10, &quot;totalDataPoints&quot;: 2520}, &quot;lookbackDays&quot;: 252, &quot;optimizationDate&quot;: &quot;2025-07-22T13:59:25.325Z&quot;, &quot;universeSize&quot;: 10}, &quot;optimization&quot;: {&quot;expectedReturn&quot;: 0.17857886131622566, &quot;objective&quot;: &quot;maxSharpe&quot;, &quot;sharpeRatio&quot;: 5.861509152921925, &quot;volatility&quot;: 0.027054271720649815, &quot;weights&quot;: [{&quot;allocation&quot;: 0.23092564684307942, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;weight&quot;: 23.09}, {&quot;allocation&quot;: 0.3727068778370395, &quot;symbol&quot;: &quot;MSFT&quot;, &quot;weight&quot;: 37.27}, {&quot;allocation&quot;: -0.09724123244632586, &quot;symbol&quot;: &quot;GOOGL&quot;, &quot;weight&quot;: -9.72}, {&quot;allocation&quot;: 0.4511749240178494, &quot;symbol&quot;: &quot;AMZN&quot;, &quot;weight&quot;: 45.12}, {&quot;allocation&quot;: 1.2775123727326747, &quot;symbol&quot;: &quot;SPY&quot;, &quot;weight&quot;: 127.75}, {&quot;allocation&quot;: -0.6639977476212414, &quot;symbol&quot;: &quot;QQQ&quot;, &quot;weight&quot;: -66.4}, {&quot;allocation&quot;: -0.04208790306729152, &quot;symbol&quot;: &quot;VTI&quot;, &quot;weight&quot;: -4.21}, {&quot;allocation&quot;: 0.041959933796069375, &quot;symbol&quot;: &quot;TSLA&quot;, &quot;weight&quot;: 4.2}, {&quot;allocation&quot;: -0.37012910906841756, &quot;symbol&quot;: &quot;NVDA&quot;, &quot;weight&quot;: -37.01}, {&quot;allocation&quot;: -0.20082376302343574, &quot;symbol&quot;: &quot;META&quot;, &quot;weight&quot;: -20.08}]}, &quot;rebalancing&quot;: [{&quot;action&quot;: &quot;BUY&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;SPY&quot;, &quot;targetValue&quot;: 63876, &quot;targetWeight&quot;: 127.75, &quot;tradeValue&quot;: 63876}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;QQQ&quot;, &quot;targetValue&quot;: -33200, &quot;targetWeight&quot;: -66.4, &quot;tradeValue&quot;: -33200}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;NVDA&quot;, &quot;targetValue&quot;: -18506, &quot;targetWeight&quot;: -37.01, &quot;tradeValue&quot;: -18506}, {&quot;action&quot;: &quot;BUY&quot;, &quot;currentValue&quot;: 7500, &quot;currentWeight&quot;: 15, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;AMZN&quot;, &quot;targetValue&quot;: 22559, &quot;targetWeight&quot;: 45.12, &quot;tradeValue&quot;: 15059}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 10000, &quot;currentWeight&quot;: 20, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;GOOGL&quot;, &quot;targetValue&quot;: -4862, &quot;targetWeight&quot;: -9.72, &quot;tradeValue&quot;: -14862}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;META&quot;, &quot;targetValue&quot;: -10041, &quot;targetWeight&quot;: -20.08, &quot;tradeValue&quot;: -10041}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 17500, &quot;currentWeight&quot;: 35, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;targetValue&quot;: 11546, &quot;targetWeight&quot;: 23.09, &quot;tradeValue&quot;: -5954}, {&quot;action&quot;: &quot;BUY&quot;, &quot;currentValue&quot;: 15000, &quot;currentWeight&quot;: 30, &quot;priority&quot;: &quot;High&quot;, &quot;symbol&quot;: &quot;MSFT&quot;, &quot;targetValue&quot;: 18635, &quot;targetWeight&quot;: 37.27, &quot;tradeValue&quot;: 3635}, {&quot;action&quot;: &quot;SELL&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;Medium&quot;, &quot;symbol&quot;: &quot;VTI&quot;, &quot;targetValue&quot;: -2104, &quot;targetWeight&quot;: -4.21, &quot;tradeValue&quot;: -2104}, {&quot;action&quot;: &quot;BUY&quot;, &quot;currentValue&quot;: 0, &quot;currentWeight&quot;: 0, &quot;priority&quot;: &quot;Medium&quot;, &quot;symbol&quot;: &quot;TSLA&quot;, &quot;targetValue&quot;: 2098, &quot;targetWeight&quot;: 4.2, &quot;tradeValue&quot;: 2098}], &quot;riskMetrics&quot;: {&quot;expectedReturn&quot;: 0.17857886131622566, &quot;sharpeRatio&quot;: 6.6007639444206925, &quot;variance&quot;: 0.0007319336183347524, &quot;volatility&quot;: 0.027054271720649815}, &quot;success&quot;: true}
+    at Object.toHaveProperty (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:426:22)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Full Optimization Integration" name="falls back to demo optimization on error" time="0.001">
+      <failure>TypeError: Cannot destructure property &apos;userId&apos; of &apos;params&apos; as it is null.
+    at OptimizationEngine.userId [as runOptimization] (/home/stocks/algo/webapp/lambda/services/optimizationEngine.js:22:7)
+    at Object.runOptimization (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:435:47)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Mock Price Data Generation" name="generates price data with correct structure" time="0.001">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 10
+Received: 0
+    at Object.toBe (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:448:32)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Optimization Engine Unit Tests › Mock Price Data Generation" name="applies different volatility for different assets" time="0">
+      <failure>Error: expect(received).toBeGreaterThan(expected)
+
+Expected: &gt; 0
+Received:   NaN
+    at Object.toBeGreaterThan (/home/stocks/algo/webapp/lambda/tests/unit/optimization-engine.test.js:475:32)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Risk Manager Unit Tests" errors="0" failures="11" skipped="0" timestamp="2025-07-22T13:59:24" time="2.674" tests="34">
+    <testcase classname="Risk Manager Unit Tests › Service Initialization" name="initializes risk manager correctly" time="0.028">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Service Initialization" name="has default risk parameters" time="0.002">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="handles database connection failures gracefully" time="0.096">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="validates input parameters thoroughly" time="0.269">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="calculates signal-based adjustments correctly" time="0.066">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="calculates real position size mathematics" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="respects maximum position size limits" time="0.034">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="applies position size bounds correctly" time="0">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Position Size Calculation Logic" name="handles missing signal data gracefully" time="0.222">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Mathematics" name="calculates position size from risk parameters" time="0">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Mathematics" name="applies confidence-based adjustments" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Mathematics" name="applies strength-based adjustments" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Base Position Size Mathematics" name="enforces maximum position size bounds" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="reduces position size for high volatility assets" time="0">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:303:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="allows larger position size for low volatility assets" time="0">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:315:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="handles missing volatility data gracefully" time="0">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:327:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Volatility Adjustment" name="applies volatility adjustment bounds" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:344:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="calculates comprehensive risk metrics" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:370:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="identifies high concentration risk" time="0.013">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Portfolio Risk Assessment" name="identifies high correlation risk" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:423:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="applies concentration limits correctly" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="allows position when concentration is within limits" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Concentration Limits" name="handles new positions correctly" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Sector Limits" name="applies sector concentration limits" time="0">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:499:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusHook (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:281:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:246:5)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Sector Limits" name="allows position in underweight sectors" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:499:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusHook (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:281:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:246:5)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="generates conservative recommendation for high risk" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="generates positive recommendation for low risk" time="0.001">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Risk Recommendation Generation" name="provides actionable recommendations" time="0">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles database errors gracefully" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:606:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles invalid volatility data" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:627:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Error Handling" name="handles empty portfolio composition" time="0.001">
+      <failure>ReferenceError: mockQuery is not defined
+    at Object.mockQuery (/home/stocks/algo/webapp/lambda/tests/unit/risk-manager.test.js:637:7)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+    at Object.worker (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/testWorker.js:106:12)</failure>
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="completes position sizing calculation within reasonable time" time="0.033">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="handles very small portfolio values" time="0.042">
+    </testcase>
+    <testcase classname="Risk Manager Unit Tests › Performance and Edge Cases" name="handles very large portfolio values" time="0.034">
+    </testcase>
+  </testsuite>
+  <testsuite name="Universal Error Handler Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="2.733" tests="48">
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes circuit breaker errors correctly" time="0.11">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes database errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes timeout errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authentication errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes authorization errors correctly" time="0.005">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes validation errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes external service errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes rate limit errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes business logic errors correctly" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="categorizes server errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Categorization" name="returns UNKNOWN_ERROR for unrecognized errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns CRITICAL severity to database and server errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns HIGH severity to external service and circuit breaker errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns MEDIUM severity to auth and timeout errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="assigns LOW severity to validation and rate limit errors" time="0.005">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Severity Determination" name="returns UNKNOWN for unrecognized error types" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies recoverable errors correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Recoverability Assessment" name="identifies non-recoverable errors correctly" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="generates appropriate user messages for each category" time="0.004">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="uses custom message for business logic errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › User Message Generation" name="falls back to default message for unknown categories" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="enriches error with comprehensive context" time="0.036">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="handles missing user context gracefully" time="0.011">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Context Enrichment" name="calculates performance metrics correctly" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="formats error response with correct structure" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes development details when NODE_ENV is development" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="excludes development details in production" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="includes retry information for recoverable errors" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Response Formatting" name="maps status codes correctly by category" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="catches async errors and passes them to next" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles non-promise functions gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Async Handler Wrapper" name="handles functions that return non-promise values" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="processes error and sends formatted response" time="0.003">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Handler Middleware" name="handles errors without correlation ID gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="executes fallback function when provided" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when fallback fails" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Database Error Handler" name="throws original error when no fallback provided" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws retry error for retryable errors within retry limit" time="1.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error when retry limit exceeded" time="0.002">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="throws original error for non-retryable errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › External Service Error Handler" name="applies exponential backoff with maximum delay" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="logs errors with appropriate severity levels" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="triggers critical error alert for critical errors" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Error Logging" name="uses fallback logger when request logger not available" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with undefined message" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles errors with null properties" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles request objects with missing properties gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Universal Error Handler Unit Tests › Edge Cases and Error Handling" name="handles circular reference in error objects" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Timeout Helper Unit Tests" errors="0" failures="0" skipped="0" timestamp="2025-07-22T13:59:24" time="13.422" tests="41">
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="has correct default timeout values" time="0.165">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Default Configuration" name="initializes with empty circuit breakers map" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="executes operation successfully within timeout" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="throws timeout error when operation exceeds timeout" time="0.074">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="propagates operation errors correctly" time="0.009">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Basic Timeout Functionality" name="uses default timeout when not specified" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="retries failed operations according to retry count" time="0.034">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="succeeds on retry after initial failure" time="0.013">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="applies exponential backoff for retry delays" time="0.154">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Retry Logic" name="does not retry without explicit retry count" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records success and resets circuit breaker" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="records failure and updates circuit breaker" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="opens circuit after threshold failures" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="rejects operations when circuit is open" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Integration" name="transitions to half-open after timeout period" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="makes successful HTTP request with default options" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles POST requests with JSON body" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="throws error for non-OK HTTP responses" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › HTTP Request Functionality" name="handles request timeout with AbortController" time="3.154">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="executes database query with circuit breaker" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="applies database-specific timeout" time="1.103">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Database Query Functionality" name="retries failed database queries" time="1.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="executes Alpaca API call with service-specific settings" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Alpaca API Integration" name="uses Alpaca-specific timeout and retry settings" time="6.007">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › News API Integration" name="executes news API call without circuit breaker" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="processes items in batches with concurrency limit" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="handles errors in batch processing" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Batch Processing" name="stops on first error when continueOnError is false" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.all with timeout and fail-fast" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="handles Promise.allSettled for partial success" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Multiple Promise Handling" name="times out batch operations" time="0.101">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides comprehensive circuit breaker status" time="0.004">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides detailed metrics with performance data" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="calculates recent activity correctly" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides risk level assessment" time="0.002">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Circuit Breaker Metrics and Monitoring" name="provides recovery predictions" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Delay Utility" name="provides accurate delay functionality" time="0.053">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles operations that return null or undefined" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles concurrent access to circuit breakers safely" time="0.001">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="maintains circuit breaker history size limit" time="0.003">
+    </testcase>
+    <testcase classname="Timeout Helper Unit Tests › Edge Cases and Error Scenarios" name="handles malformed options gracefully" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

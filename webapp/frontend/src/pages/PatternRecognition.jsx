@@ -75,6 +75,7 @@ import {
   Speed,
   Memory,
   Settings,
+  Star,
   Download as DownloadIcon,
   Save as SaveIcon,
   Notifications,

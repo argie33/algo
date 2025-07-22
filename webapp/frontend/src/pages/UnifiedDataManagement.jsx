@@ -108,71 +108,74 @@ const UnifiedDataManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  // Mock data for demonstration
-  const mockDataStreams = [
-    {
-      id: 1,
-      name: 'Real-time Stock Prices',
-      provider: 'Alpaca',
-      status: 'active',
-      symbols: 4567,
-      latency: 45,
-      throughput: '1.2K/s',
-      cost: '$89.50',
-      quality: 98.5
-    },
-    {
-      id: 2,
-      name: 'Options Data',
-      provider: 'Yahoo Finance',
-      status: 'active',
-      symbols: 1234,
-      latency: 120,
-      throughput: '456/s',
-      cost: '$34.20',
-      quality: 96.8
-    },
-    {
-      id: 3,
-      name: 'Economic Data',
-      provider: 'FRED',
-      status: 'active',
-      symbols: 89,
-      latency: 5000,
-      throughput: '2/s',
-      cost: '$0.00',
-      quality: 99.9
-    },
-    {
-      id: 4,
-      name: 'Crypto Data',
-      provider: 'Binance',
-      status: 'warning',
-      symbols: 567,
-      latency: 89,
-      throughput: '890/s',
-      cost: '$45.67',
-      quality: 94.2
+  // Load real data from API
+  const loadDataStreams = async () => {
+    try {
+      const response = await fetch('/api/data-management/streams', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDataStreams(data.streams || []);
+      } else {
+        console.error('Failed to load data streams:', response.statusText);
+        setDataStreams([]);
+      }
+    } catch (error) {
+      console.error('Error loading data streams:', error);
+      setDataStreams([]);
     }
-  ];
+  };
 
-  const mockApiKeys = [
-    { id: 1, provider: 'Alpaca', status: 'active', lastUsed: '2 mins ago', usage: '78%' },
-    { id: 2, provider: 'Yahoo Finance', status: 'active', lastUsed: '5 mins ago', usage: '23%' },
-    { id: 3, provider: 'FRED', status: 'active', lastUsed: '1 hour ago', usage: '5%' },
-    { id: 4, provider: 'Binance', status: 'warning', lastUsed: '10 mins ago', usage: '89%' }
-  ];
+  const loadApiKeyStats = async () => {
+    try {
+      const response = await fetch('/api/data-management/api-keys', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setApiKeys(data.apiKeys || []);
+      } else {
+        console.error('Failed to load API key stats:', response.statusText);
+        setApiKeys([]);
+      }
+    } catch (error) {
+      console.error('Error loading API key stats:', error);
+      setApiKeys([]);
+    }
+  };
 
-  const mockAlerts = [
-    { id: 1, type: 'warning', message: 'Binance API usage approaching limit', timestamp: '2 mins ago' },
-    { id: 2, type: 'info', message: 'Data quality check completed successfully', timestamp: '15 mins ago' },
-    { id: 3, type: 'error', message: 'WebSocket connection interrupted briefly', timestamp: '1 hour ago' }
-  ];
+  const loadSystemAlerts = async () => {
+    try {
+      const response = await fetch('/api/data-management/alerts', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAlerts(data.alerts || []);
+      } else {
+        console.error('Failed to load system alerts:', response.statusText);
+        setAlerts([]);
+      }
+    } catch (error) {
+      console.error('Error loading system alerts:', error);
+      setAlerts([]);
+    }
+  };
 
   useEffect(() => {
-    setDataStreams(mockDataStreams);
-    setApiKeys(mockApiKeys);
-    setAlerts(mockAlerts);
+    loadDataStreams();
+    loadApiKeyStats();
+    loadSystemAlerts();
   }, []);
 
   const handleTabChange = (event, newValue) => {

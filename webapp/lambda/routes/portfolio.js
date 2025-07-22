@@ -2,6 +2,7 @@ const express = require('express');
 const { query, healthCheck, initializeDatabase, tablesExist, safeQuery, transaction } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
+const { createAdvancedSecurityMiddleware } = require('../middleware/advancedSecurityEnhancements');
 const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
@@ -1797,7 +1798,14 @@ router.post('/trigger-data-refresh', async (req, res) => {
 });
 
 // Portfolio performance endpoint - WITH DETAILED DIAGNOSTIC LOGGING
-router.get('/performance', createValidationMiddleware(portfolioValidationSchemas.performance), async (req, res) => {
+router.get('/performance', 
+  createAdvancedSecurityMiddleware({
+    enableThreatDetection: true,
+    riskThreshold: 50,
+    enableFinancialValidation: true
+  }),
+  createValidationMiddleware(portfolioValidationSchemas.performance), 
+  async (req, res) => {
   const requestId = res.locals.requestId || 'unknown';
   const startTime = Date.now();
   

@@ -1,9 +1,8 @@
 /**
- * Error Handling System - Main Export File
- * Comprehensive error handling solution for React applications
+ * Error Handling System - Components Export
+ * React components and hooks only for proper React Refresh HMR
  */
 
-import ErrorManager from './ErrorManager';
 import GlobalErrorBoundary from './GlobalErrorBoundary';
 import ErrorToastContainer from './ErrorToast';
 import useErrorHandler, { 
@@ -12,21 +11,8 @@ import useErrorHandler, {
   useAuthErrorHandler,
   useValidationErrorHandler 
 } from './useErrorHandler';
-import apiErrorHandler, { 
-  enhancedFetch, 
-  get, 
-  post, 
-  put, 
-  del 
-} from './apiErrorHandler';
-
-// Initialize error manager
-ErrorManager.initialize();
 
 export {
-  // Core error management
-  ErrorManager,
-  
   // React components
   GlobalErrorBoundary,
   ErrorToastContainer,
@@ -36,15 +22,7 @@ export {
   useApiErrorHandler,
   useNetworkErrorHandler,
   useAuthErrorHandler,
-  useValidationErrorHandler,
-  
-  // API utilities
-  apiErrorHandler,
-  enhancedFetch,
-  get,
-  post,
-  put,
-  del
+  useValidationErrorHandler
 };
 
-export default ErrorManager;
+export default GlobalErrorBoundary;

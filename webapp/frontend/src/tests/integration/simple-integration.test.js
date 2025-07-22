@@ -21,7 +21,7 @@ describe('Simple Integration Tests', () => {
 
   test('API base URLs are configured', () => {
     const expectedUrls = [
-      'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+      'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
       'https://d1zb7knau41vl9.cloudfront.net'
     ]
     
@@ -61,7 +61,7 @@ describe('Simple Integration Tests', () => {
 describe('Real API Integration Tests', () => {
   
   test('API URL connectivity test', async () => {
-    const apiUrl = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'
+    const apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
     
     try {
       const response = await fetch(`${apiUrl}/health`)

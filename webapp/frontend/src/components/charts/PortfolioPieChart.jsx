@@ -15,8 +15,8 @@ export const PortfolioPieChart = ({ data = [], width = '100%', height = 300, ...
           fill="#8884d8"
           dataKey="value"
         >
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
+          {data.map((entry) => (
+            <Cell key={entry.symbol || entry.name || entry.id} fill={entry.color || '#8884d8'} />
           ))}
         </Pie>
         <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Value']} />

@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 
-const API_BASE_URL = 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+const API_BASE_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
 
 describe('Frontend-API Integration Tests', () => {
   

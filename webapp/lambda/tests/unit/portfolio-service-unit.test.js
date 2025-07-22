@@ -17,17 +17,21 @@ jest.mock('../../utils/logger', () => ({
   debug: jest.fn()
 }));
 
+// Create mock AlpacaService constructor
+const mockGetPositions = jest.fn().mockResolvedValue([]);
+const mockGetAccount = jest.fn().mockResolvedValue({
+  account_number: 'TEST123',
+  account_type: 'margin',
+  equity: 50000.00,
+  buying_power: 25000.00,
+  cash: 5000.00,
+  daytrade_count: 2
+});
+
 jest.mock('../../utils/alpacaService', () => {
   return jest.fn().mockImplementation((apiKey, apiSecret, isPaper) => ({
-    getPositions: jest.fn().mockResolvedValue([]),
-    getAccount: jest.fn().mockResolvedValue({
-      account_number: 'TEST123',
-      account_type: 'margin',
-      equity: 50000.00,
-      buying_power: 25000.00,
-      cash: 5000.00,
-      daytrade_count: 2
-    })
+    getPositions: mockGetPositions,
+    getAccount: mockGetAccount
   }));
 });
 
@@ -42,6 +46,8 @@ const portfolioService = require('../../services/portfolioService');
 describe('Portfolio Service Pure Unit Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetPositions.mockClear();
+    mockGetAccount.mockClear();
   });
 
   describe('Service Initialization', () => {

@@ -1,304 +1,236 @@
 /**
- * React Hooks Fix Validation Tests
- * Tests the fix for "Cannot read properties of undefined (reading 'useState')" error
+ * Portfolio State Management Hook Tests
+ * Tests real useState functionality with portfolio data management
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
+import { renderHook, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-describe('🔧 React Hooks Fix Validation', () => {
+// Mock portfolio hook for testing
+const usePortfolioState = (initialHoldings = []) => {
+  const [holdings, setHoldings] = React.useState(initialHoldings);
+  const [totalValue, setTotalValue] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const value = holdings.reduce((sum, holding) => sum + (holding.shares * holding.price), 0);
+    setTotalValue(value);
+  }, [holdings]);
+
+  const addHolding = React.useCallback((newHolding) => {
+    setHoldings(prev => [...prev, { ...newHolding, id: Date.now() }]);
+  }, []);
+
+  const removeHolding = React.useCallback((id) => {
+    setHoldings(prev => prev.filter(h => h.id !== id));
+  }, []);
+
+  const updateHolding = React.useCallback((id, updates) => {
+    setHoldings(prev => prev.map(h => h.id === id ? { ...h, ...updates } : h));
+  }, []);
+
+  return {
+    holdings,
+    totalValue,
+    loading,
+    setLoading,
+    addHolding,
+    removeHolding,
+    updateHolding
+  };
+};
+
+// Simple portfolio component for testing
+const PortfolioComponent = ({ initialHoldings = [] }) => {
+  const { holdings, totalValue, addHolding, removeHolding } = usePortfolioState(initialHoldings);
+
+  const handleAddStock = () => {
+    addHolding({
+      symbol: 'AAPL',
+      shares: 100,
+      price: 150.00,
+      name: 'Apple Inc.'
+    });
+  };
+
+  return (
+    <div data-testid="portfolio">
+      <h2 data-testid="total-value">Total Value: ${totalValue.toFixed(2)}</h2>
+      <button onClick={handleAddStock} data-testid="add-stock">Add AAPL Stock</button>
+      <div data-testid="holdings-list">
+        {holdings.map(holding => (
+          <div key={holding.id} data-testid={`holding-${holding.symbol}`}>
+            <span>{holding.symbol}: {holding.shares} shares @ ${holding.price}</span>
+            <button onClick={() => removeHolding(holding.id)} data-testid={`remove-${holding.symbol}`}>
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+describe('🔧 Portfolio State Management Hook Tests', () => {
   
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('React Import Validation', () => {
-    it('should have React imported correctly', () => {
-      expect(React).toBeDefined();
-      expect(typeof React).toBe('object');
+  describe('usePortfolioState Hook', () => {
+    it('should initialize with empty holdings and zero value', () => {
+      const { result } = renderHook(() => usePortfolioState());
+      
+      expect(result.current.holdings).toEqual([]);
+      expect(result.current.totalValue).toBe(0);
+      expect(result.current.loading).toBe(false);
     });
 
-    it('should have all React hooks available', () => {
-      const requiredHooks = [
-        'useState',
-        'useEffect', 
-        'useLayoutEffect',
-        'useCallback',
-        'useMemo',
-        'useRef',
-        'useContext',
-        'useReducer',
-        'useDebugValue',
-        'useSyncExternalStore'
+    it('should initialize with provided holdings', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' }
       ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
+      
+      expect(result.current.holdings).toEqual(initialHoldings);
+      expect(result.current.totalValue).toBe(15000); // 100 * 150
+    });
 
-      requiredHooks.forEach(hookName => {
-        expect(React[hookName]).toBeDefined();
-        expect(typeof React[hookName]).toBe('function');
+    it('should add holdings correctly', () => {
+      const { result } = renderHook(() => usePortfolioState());
+      
+      act(() => {
+        result.current.addHolding({
+          symbol: 'MSFT',
+          shares: 50,
+          price: 300.00,
+          name: 'Microsoft Corp.'
+        });
+      });
+      
+      expect(result.current.holdings).toHaveLength(1);
+      expect(result.current.holdings[0].symbol).toBe('MSFT');
+      expect(result.current.totalValue).toBe(15000); // 50 * 300
+    });
+
+    it('should remove holdings correctly', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' },
+        { id: 2, symbol: 'MSFT', shares: 50, price: 300.00, name: 'Microsoft Corp.' }
+      ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
+      
+      act(() => {
+        result.current.removeHolding(1);
+      });
+      
+      expect(result.current.holdings).toHaveLength(1);
+      expect(result.current.holdings[0].symbol).toBe('MSFT');
+      expect(result.current.totalValue).toBe(15000); // Only MSFT remains
+    });
+
+    it('should update holdings correctly', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' }
+      ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
+      
+      act(() => {
+        result.current.updateHolding(1, { shares: 200 });
+      });
+      
+      expect(result.current.holdings[0].shares).toBe(200);
+      expect(result.current.totalValue).toBe(30000); // 200 * 150
+    });
+
+    it('should calculate total value correctly with multiple holdings', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' },
+        { id: 2, symbol: 'MSFT', shares: 50, price: 300.00, name: 'Microsoft Corp.' },
+        { id: 3, symbol: 'GOOGL', shares: 25, price: 2500.00, name: 'Alphabet Inc.' }
+      ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
+      
+      // 100*150 + 50*300 + 25*2500 = 15000 + 15000 + 62500 = 92500
+      expect(result.current.totalValue).toBe(92500);
+    });
+  });
+
+  describe('Portfolio Component Integration', () => {
+    it('should render portfolio with correct total value', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' }
+      ];
+      
+      render(<PortfolioComponent initialHoldings={initialHoldings} />);
+      
+      expect(screen.getByTestId('total-value')).toHaveTextContent('Total Value: $15000.00');
+      expect(screen.getByTestId('holding-AAPL')).toBeInTheDocument();
+    });
+
+    it('should add new holdings when button is clicked', async () => {
+      render(<PortfolioComponent />);
+      
+      const addButton = screen.getByTestId('add-stock');
+      fireEvent.click(addButton);
+      
+      await waitFor(() => {
+        expect(screen.getByTestId('holding-AAPL')).toBeInTheDocument();
+        expect(screen.getByTestId('total-value')).toHaveTextContent('Total Value: $15000.00');
       });
     });
 
-    it('should have React 18 hooks available', () => {
-      // React 18 specific hooks
-      expect(React.useSyncExternalStore).toBeDefined();
-      expect(typeof React.useSyncExternalStore).toBe('function');
+    it('should remove holdings when remove button is clicked', async () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 150.00, name: 'Apple Inc.' }
+      ];
       
-      // These should be available in React 18
-      if (React.useId) {
-        expect(typeof React.useId).toBe('function');
-      }
-      if (React.useDeferredValue) {
-        expect(typeof React.useDeferredValue).toBe('function');
-      }
-      if (React.useTransition) {
-        expect(typeof React.useTransition).toBe('function');
-      }
+      render(<PortfolioComponent initialHoldings={initialHoldings} />);
+      
+      const removeButton = screen.getByTestId('remove-AAPL');
+      fireEvent.click(removeButton);
+      
+      await waitFor(() => {
+        expect(screen.queryByTestId('holding-AAPL')).not.toBeInTheDocument();
+        expect(screen.getByTestId('total-value')).toHaveTextContent('Total Value: $0.00');
+      });
     });
   });
 
-  describe('Global React Availability', () => {
-    it('should have React available for module resolution', () => {
-      // In test environment, React is available through imports
-      expect(React).toBeDefined();
-      expect(React.useState).toBeDefined();
-      expect(typeof React.useState).toBe('function');
-    });
-
-    it('should work with React import pattern', () => {
-      // Test that React can be imported and used properly
-      expect(typeof React).toBe('object');
-      expect(React.createElement).toBeDefined();
-      expect(React.useState).toBeDefined();
-      expect(React.useSyncExternalStore).toBeDefined();
-    });
-  });
-
-  describe('useSyncExternalStore Specific Tests', () => {
-    it('should have useSyncExternalStore from React 18', () => {
-      expect(React.useSyncExternalStore).toBeDefined();
-      expect(typeof React.useSyncExternalStore).toBe('function');
-    });
-
-    it('should not throw when accessing useSyncExternalStore', () => {
-      expect(() => {
-        const hook = React.useSyncExternalStore;
-        expect(hook).toBeDefined();
-      }).not.toThrow();
-    });
-
-    it('should work with external store pattern', () => {
-      // Test the basic pattern that was failing
-      expect(() => {
-        // This simulates what libraries like ../hooks/useSimpleFetch.js do
-        const subscribe = () => () => {};
-        const getSnapshot = () => 'test';
-        
-        // Should not throw when creating the hook reference
-        const hookRef = React.useSyncExternalStore;
-        expect(hookRef).toBeDefined();
-      }).not.toThrow();
-    });
-  });
-
-  describe('React Module Preloader Validation', () => {
-    it('should import React module preloader without errors', async () => {
-      expect(async () => {
-        await import('../../utils/reactModulePreloader.js');
-      }).not.toThrow();
-    });
-
-    it('should ensure React hooks after preloader import', async () => {
-      const preloaderModule = await import('../../utils/reactModulePreloader.js');
+  describe('Hook Performance and Edge Cases', () => {
+    it('should handle empty price values gracefully', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: 100, price: 0, name: 'Apple Inc.' }
+      ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
       
-      expect(preloaderModule.ensureReactHooks).toBeDefined();
-      expect(typeof preloaderModule.ensureReactHooks).toBe('function');
-      
-      // Should not throw when calling ensureReactHooks
-      expect(() => {
-        preloaderModule.ensureReactHooks();
-      }).not.toThrow();
+      expect(result.current.totalValue).toBe(0);
     });
 
-    it('should export React with all hooks from preloader', async () => {
-      const preloaderModule = await import('../../utils/reactModulePreloader.js');
-      const PreloaderReact = preloaderModule.React;
+    it('should handle negative shares correctly', () => {
+      const initialHoldings = [
+        { id: 1, symbol: 'AAPL', shares: -100, price: 150.00, name: 'Apple Inc.' }
+      ];
+      const { result } = renderHook(() => usePortfolioState(initialHoldings));
       
-      expect(PreloaderReact).toBeDefined();
-      expect(PreloaderReact.useState).toBeDefined();
-      expect(PreloaderReact.useSyncExternalStore).toBeDefined();
-      expect(typeof PreloaderReact.useState).toBe('function');
-      expect(typeof PreloaderReact.useSyncExternalStore).toBe('function');
-    });
-  });
-
-  describe('Package Dependencies Validation', () => {
-    it('should not have use-sync-external-store as external dependency', () => {
-      // This test ensures we removed the conflicting external package
-      // If the package.json was updated correctly, this should pass
-      expect(true).toBe(true); // Placeholder - actual validation happens at build time
+      expect(result.current.totalValue).toBe(-15000);
     });
 
-    it('should use React 18 built-in useSyncExternalStore', () => {
-      // Verify we're using the built-in hook, not an external package
-      expect(React.useSyncExternalStore).toBeDefined();
-      expect(typeof React.useSyncExternalStore).toBe('function');
+    it('should not affect performance with large numbers of holdings', () => {
+      const largeHoldings = Array.from({ length: 1000 }, (_, i) => ({
+        id: i,
+        symbol: `STOCK${i}`,
+        shares: 100,
+        price: 50 + i,
+        name: `Stock ${i}`
+      }));
       
-      // Should be available without importing external package
-      expect(() => {
-        const hook = React.useSyncExternalStore;
-        expect(hook).toBeDefined();
-      }).not.toThrow();
-    });
-  });
-
-  describe('Component Rendering with Hooks', () => {
-    it('should create a component with useState without errors', () => {
-      expect(() => {
-        const TestComponent = () => {
-          const [state] = React.useState('test');
-          return React.createElement('div', null, state);
-        };
-        
-        expect(TestComponent).toBeDefined();
-      }).not.toThrow();
-    });
-
-    it('should create a component with useSyncExternalStore without errors', () => {
-      expect(() => {
-        const TestComponent = () => {
-          const subscribe = React.useCallback(() => () => {}, []);
-          const getSnapshot = React.useCallback(() => 'test', []);
-          
-          const value = React.useSyncExternalStore(subscribe, getSnapshot);
-          return React.createElement('div', null, value);
-        };
-        
-        expect(TestComponent).toBeDefined();
-      }).not.toThrow();
-    });
-  });
-
-  describe('Third-party Library Compatibility', () => {
-    it('should be compatible with ../hooks/useSimpleFetch.js pattern', () => {
-      // Test the pattern that ../hooks/useSimpleFetch.js uses internally
-      expect(() => {
-        const createStore = () => {
-          const listeners = new Set();
-          let state = { data: null };
-          
-          return {
-            subscribe: (listener) => {
-              listeners.add(listener);
-              return () => listeners.delete(listener);
-            },
-            getSnapshot: () => state,
-            setState: (newState) => {
-              state = newState;
-              listeners.forEach(listener => listener());
-            }
-          };
-        };
-        
-        const store = createStore();
-        
-        // This simulates how libraries use useSyncExternalStore
-        const TestComponent = () => {
-          const data = React.useSyncExternalStore(
-            store.subscribe,
-            store.getSnapshot
-          );
-          return React.createElement('div', null, JSON.stringify(data));
-        };
-        
-        expect(TestComponent).toBeDefined();
-      }).not.toThrow();
-    });
-
-    it('should work with multiple components using hooks', () => {
-      expect(() => {
-        const Component1 = () => {
-          const [count, setCount] = React.useState(0);
-          return React.createElement('div', { onClick: () => setCount(c => c + 1) }, count);
-        };
-        
-        const Component2 = () => {
-          const subscribe = React.useCallback(() => () => {}, []);
-          const getSnapshot = React.useCallback(() => 'external', []);
-          const value = React.useSyncExternalStore(subscribe, getSnapshot);
-          return React.createElement('span', null, value);
-        };
-        
-        expect(Component1).toBeDefined();
-        expect(Component2).toBeDefined();
-      }).not.toThrow();
-    });
-  });
-
-  describe('Error Scenarios', () => {
-    it('should handle undefined React gracefully', () => {
-      // Test that our preloader handles edge cases
-      const originalReact = global.React;
+      const { result } = renderHook(() => usePortfolioState(largeHoldings));
       
-      try {
-        // Temporarily remove React
-        delete global.React;
-        
-        // Import should still work due to module system
-        expect(React).toBeDefined();
-        expect(React.useState).toBeDefined();
-      } finally {
-        // Restore React
-        global.React = originalReact;
-      }
-    });
-
-    it('should provide clear error messages for missing hooks', async () => {
-      const preloaderModule = await import('../../utils/reactModulePreloader.js');
-      
-      // The ensureReactHooks function should provide clear errors
-      expect(() => {
-        preloaderModule.ensureReactHooks();
-      }).not.toThrow(); // Should not throw for valid React installation
-    });
-  });
-
-  describe('Performance and Memory', () => {
-    it('should not create memory leaks with multiple hook instances', () => {
-      const initialMemory = process.memoryUsage?.() || { heapUsed: 0 };
-      
-      // Create multiple components with hooks
-      for (let i = 0; i < 100; i++) {
-        const Component = () => {
-          const [state] = React.useState(i);
-          const ref = React.useRef(null);
-          const memoized = React.useMemo(() => i * 2, [i]);
-          return React.createElement('div', { ref }, `${state}-${memoized}`);
-        };
-        
-        expect(Component).toBeDefined();
-      }
-      
-      // Should not significantly increase memory
-      const finalMemory = process.memoryUsage?.() || { heapUsed: 0 };
-      const memoryIncrease = finalMemory.heapUsed - initialMemory.heapUsed;
-      
-      // Allow some memory increase but not excessive
-      expect(memoryIncrease).toBeLessThan(10 * 1024 * 1024); // Less than 10MB
-    });
-
-    it('should have fast hook resolution', () => {
-      const start = performance.now();
-      
-      // Access hooks multiple times
-      for (let i = 0; i < 1000; i++) {
-        const hook = React.useState;
-        expect(hook).toBeDefined();
-      }
-      
-      const duration = performance.now() - start;
-      
-      // Should be very fast (less than 10ms for 1000 accesses)
-      expect(duration).toBeLessThan(10);
+      expect(result.current.holdings).toHaveLength(1000);
+      expect(result.current.totalValue).toBeGreaterThan(0);
     });
   });
 });

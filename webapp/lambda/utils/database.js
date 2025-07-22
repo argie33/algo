@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { getTimeout, withDatabaseTimeout } = require('./timeoutManager');
 const ConnectionRetry = require('./connectionRetry');
+const logger = require('./logger');
 
 // Legacy global state (for backward compatibility)
 let pool = null;
@@ -132,8 +133,11 @@ async function getDbConfig() {
         const missingFields = requiredFields.filter(field => !secret[field]);
         
         if (missingFields.length > 0) {
-            console.error('❌ Missing required database fields:', missingFields);
-            console.error('❌ Available fields:', Object.keys(secret));
+            logger.error('Missing required database configuration fields', {
+                missingFields,
+                availableFields: Object.keys(secret),
+                source: 'SecretsManager'
+            });
             throw new Error(`Missing required database configuration fields: ${missingFields.join(', ')}`);
         }
 
@@ -158,21 +162,19 @@ async function getDbConfig() {
 
         return dbConfig;
     } catch (error) {
-        console.error('❌ Failed to get database config:', error.message);
-        console.error('❌ Error details:', {
+        logger.error('Failed to get database configuration', {
+            error,
+            message: error.message,
             code: error.code,
-            stack: error.stack?.split('\n').slice(0, 3).join('\n')
-        });
-        
-        // Provide helpful troubleshooting info
-        console.error('❌ Database configuration troubleshooting:');
-        console.error('   Set DB_HOST, DB_USER, DB_PASSWORD environment variables');
-        console.error('   Current environment variables:', {
-            DB_HOST: !!process.env.DB_HOST,
-            DB_USER: !!process.env.DB_USER,
-            DB_PASSWORD: !!process.env.DB_PASSWORD,
-            DB_SECRET_ARN: !!process.env.DB_SECRET_ARN,
-            DB_ENDPOINT: !!process.env.DB_ENDPOINT
+            stack: error.stack,
+            environmentVariables: {
+                DB_HOST: !!process.env.DB_HOST,
+                DB_USER: !!process.env.DB_USER,
+                DB_PASSWORD: !!process.env.DB_PASSWORD,
+                DB_SECRET_ARN: !!process.env.DB_SECRET_ARN,
+                DB_ENDPOINT: !!process.env.DB_ENDPOINT
+            },
+            troubleshooting: 'Set DB_HOST, DB_USER, DB_PASSWORD environment variables or configure AWS Secrets Manager'
         });
         
         throw error;

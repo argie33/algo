@@ -1,17 +1,8 @@
-// Responsive utilities for mobile optimization
+// Responsive React hooks for mobile optimization
 // Handles viewport detection, touch events, and mobile-specific UI adaptations
 // UPDATED: No MUI imports to avoid createPalette errors
 
 import { useState, useEffect } from 'react';
-
-// Breakpoint utilities
-export const breakpoints = {
-  xs: 0,
-  sm: 600,
-  md: 900,
-  lg: 1200,
-  xl: 1536
-};
 
 // Custom hook for responsive design - NO MUI DEPENDENCIES
 export const useResponsive = () => {
@@ -35,6 +26,14 @@ export const useResponsive = () => {
   const width = windowSize.width;
   
   // Manual breakpoint detection
+  const breakpoints = {
+    xs: 0,
+    sm: 600,
+    md: 900,
+    lg: 1200,
+    xl: 1536
+  };
+  
   const isXs = width >= breakpoints.xs && width < breakpoints.sm;
   const isSm = width >= breakpoints.sm && width < breakpoints.md;
   const isMd = width >= breakpoints.md && width < breakpoints.lg;
@@ -130,117 +129,7 @@ export const useTouchEvents = () => {
   };
 };
 
-// Device detection
-export const detectDevice = () => {
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-  
-  const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
-  const isAndroid = /android/i.test(userAgent);
-  const isMobile = /Mobi|Android/i.test(userAgent);
-  const isTablet = /iPad|Android(?!.*Mobile)/i.test(userAgent);
-  
-  const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
-  const isFirefox = /Firefox/.test(userAgent);
-  const isSafari = /Safari/.test(userAgent) && /Apple Computer/.test(navigator.vendor);
-  const isEdge = /Edg/.test(userAgent);
-  
-  return {
-    isIOS,
-    isAndroid,
-    isMobile,
-    isTablet,
-    isChrome,
-    isFirefox,
-    isSafari,
-    isEdge,
-    hasTouch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-    standalone: window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
-  };
-};
-
-// Responsive table configurations
-export const getResponsiveTableConfig = (isMobile) => {
-  if (isMobile) {
-    return {
-      size: 'small',
-      stickyHeader: true,
-      dense: true,
-      hideColumns: ['volume', 'change_percent', 'market_cap'], // Hide less important columns
-      maxVisibleColumns: 4,
-      cellPadding: 8,
-      fontSize: '0.75rem'
-    };
-  }
-  
-  return {
-    size: 'medium',
-    stickyHeader: false,
-    dense: false,
-    hideColumns: [],
-    maxVisibleColumns: 10,
-    cellPadding: 16,
-    fontSize: '0.875rem'
-  };
-};
-
-// Responsive chart configurations
-export const getResponsiveChartConfig = (isMobile) => {
-  if (isMobile) {
-    return {
-      height: 250,
-      maintainAspectRatio: false,
-      legend: {
-        display: false
-      },
-      scales: {
-        x: {
-          ticks: {
-            maxTicksLimit: 5,
-            fontSize: 10
-          }
-        },
-        y: {
-          ticks: {
-            maxTicksLimit: 5,
-            fontSize: 10
-          }
-        }
-      },
-      plugins: {
-        tooltip: {
-          enabled: false // Disable on mobile for performance
-        }
-      }
-    };
-  }
-  
-  return {
-    height: 400,
-    maintainAspectRatio: false,
-    legend: {
-      display: true
-    },
-    scales: {
-      x: {
-        ticks: {
-          maxTicksLimit: 10,
-          fontSize: 12
-        }
-      },
-      y: {
-        ticks: {
-          maxTicksLimit: 8,
-          fontSize: 12
-        }
-      }
-    },
-    plugins: {
-      tooltip: {
-        enabled: true
-      }
-    }
-  };
-};
+// Keep only React hooks - utilities moved to responsiveUtils.js
 
 // Responsive grid configurations
 export const getResponsiveGridConfig = (isMobile) => {

@@ -12,6 +12,8 @@
     "test:integration:real": "node scripts/load-test-env.js && jest --config jest.config.integration.js --verbose --runInBand --detectOpenHandles --forceExit",
     "test:integration:embedded": "npx jest tests/integration/embedded-real-integration.test.js --verbose --maxWorkers=1 --testTimeout=30000 --forceExit",
     "upload:unit-tests": "bash scripts/upload-unit-test-workflow.sh",
+    "setup:integration-auth": "node scripts/setup-integration-auth.js",
+    "test:integration:complete": "bash scripts/run-complete-integration-tests.sh",
     "test:integration:ci": "jest --config jest.integration.config.js --runInBand --detectOpenHandles --forceExit",
     "test:integration:aws": "jest --config jest.integration.config.js --testPathPattern=\"database-integration|auth-integration|portfolio-integration\" --runInBand --detectOpenHandles --forceExit",
     "test:all": "jest --verbose --runInBand --detectOpenHandles --forceExit",

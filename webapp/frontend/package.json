@@ -71,6 +71,7 @@
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
     "test:unit": "vitest run --reporter=verbose --coverage",
+    "test:unit:upload": "node scripts/run-unit-tests-with-upload.js",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "playwright test",
     "test:integration:comprehensive": "playwright test src/tests/integration/ --config=playwright.config.js",
@@ -96,6 +97,10 @@
     "test:ci-validation": "vitest run src/tests/ci-cd/ci-validation.test.js",
     "test:deployment": "vitest run src/tests/deployment/build-validation.test.js",
     "test:aws-integration": "vitest run src/tests/aws/infrastructure.test.js",
+    "validate": "node scripts/simple-validation.js",
+    "validate-quick": "node scripts/quick-validation.js",
+    "validate-full": "node scripts/local-dev-validation.js",
+    "validate-comprehensive": "node scripts/comprehensive-validation.js",
     "test:ci": "npm run test:ci-validation && npm run test:deployment && npm run test:unit && npm run test:integration && npm run test:performance && npm run test:security && npm run test:e2e",
     "test:headless": "npm run test:automated && npm run test:e2e",
     "setup-dev": "node scripts/setup-dev.js",
@@ -103,7 +108,9 @@
     "config": "node setup-api-config.js",
     "start": "npm run config && npm run setup-dev && npm run dev",
     "build-prod": "npm run config && npm run setup-prod && npm run build",
-    "debug:react": "node -e \"console.log('Running React diagnostics...'); import('./src/utils/reactHooksDebugger.js').then(m => m.runReactHooksDiagnostics())\""
+    "debug:react": "node -e \"console.log('Running React diagnostics...'); import('./src/utils/reactHooksDebugger.js').then(m => m.runReactHooksDiagnostics())\"",
+    "pre-push": "npm run validate",
+    "pre-push-quick": "npm run build && echo '✅ Quick pre-push validation passed! Safe to push.'"
   },
   "resolutions": {
     "react": "^18.3.1",

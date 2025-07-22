@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 
 const testConfig = {
   baseURL: process.env.E2E_BASE_URL || 'https://d1zb7knau41vl9.cloudfront.net',
-  apiURL: process.env.E2E_API_URL || 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+  apiURL: process.env.E2E_API_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
   cognitoURL: process.env.COGNITO_URL || 'https://cognito-idp.us-east-1.amazonaws.com',
   testUser: {
     email: process.env.E2E_TEST_EMAIL || 'e2e-test@example.com',

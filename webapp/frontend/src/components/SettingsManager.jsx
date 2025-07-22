@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import settingsService from '../services/settingsService';
 import { useApiKeys } from './ApiKeyProvider';
 import ApiKeyOnboarding from './ApiKeyOnboarding';
+import ApiKeysTab from './settings/ApiKeysTab';
+import TradingTab from './settings/TradingTab';
 import {
   Box,
   Card,
@@ -113,6 +115,23 @@ const SettingsManager = () => {
       autoRefresh: true,
       refreshInterval: 30
     },
+    // API Keys
+    apiKeys: {
+      alpaca: {
+        keyId: '',
+        secretKey: '',
+        enabled: false,
+        paperTrading: true
+      },
+      polygon: {
+        apiKey: '',
+        enabled: false
+      },
+      fmp: {
+        apiKey: '',
+        enabled: false
+      }
+    },
     // Security
     security: {
       twoFactorAuth: false,
@@ -128,6 +147,42 @@ const SettingsManager = () => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResults, setConnectionResults] = useState({});
   const [unsavedChanges, setUnsavedChanges] = useState(false);
+  
+  // Dialog and UI state
+  const [openDialog, setOpenDialog] = useState(null); // 'onboarding', 'editSetting', 'schedule', etc.
+  const [viewMode, setViewMode] = useState('tabs'); // 'tabs', 'list', 'accordion'
+  const [editingItem, setEditingItem] = useState(null);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [scheduleSettings, setScheduleSettings] = useState({
+    autoTradingEnabled: false,
+    tradingSchedule: {
+      enabled: false,
+      startTime: '09:30',
+      endTime: '16:00',
+      timezone: 'America/New_York',
+      weekdays: [1, 2, 3, 4, 5] // Monday to Friday
+    },
+    rebalancing: {
+      enabled: false,
+      frequency: 'weekly',
+      day: 'monday',
+      time: '09:30'
+    }
+  });
+  const [languageSettings, setLanguageSettings] = useState({
+    language: 'en',
+    region: 'US',
+    timezone: 'America/New_York',
+    currency: 'USD'
+  });
+  const [cloudSyncSettings, setCloudSyncSettings] = useState({
+    enabled: false,
+    lastSync: null,
+    syncSettings: true,
+    syncApiKeys: false,
+    syncTradingHistory: false,
+    autoSync: true
+  });
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -331,7 +386,577 @@ const SettingsManager = () => {
     }
   };
 
+  // Check if onboarding is needed
+  const needsOnboarding = () => {
+    return !hasApiKeys && !apiKeysLoading;
+  };
+
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    setOpenDialog(null);
+    setSnackbar({ 
+      open: true, 
+      message: 'Welcome! Your API keys have been configured successfully.', 
+      severity: 'success' 
+    });
+  };
+
+  // CRUD operations for settings
+  const handleAddSetting = (category, settingData) => {
+    setSettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        ...settingData
+      }
+    }));
+    setUnsavedChanges(true);
+    setOpenDialog(null);
+    setSnackbar({ open: true, message: 'Setting added successfully', severity: 'success' });
+  };
+
+  const handleEditSetting = (category, key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: value
+      }
+    }));
+    setUnsavedChanges(true);
+    setOpenDialog(null);
+    setSnackbar({ open: true, message: 'Setting updated successfully', severity: 'success' });
+  };
+
+  const handleDeleteSetting = (category, key) => {
+    if (window.confirm('Are you sure you want to delete this setting?')) {
+      setSettings(prev => {
+        const updated = { ...prev };
+        if (updated[category] && updated[category][key]) {
+          delete updated[category][key];
+        }
+        return updated;
+      });
+      setUnsavedChanges(true);
+      setSnackbar({ open: true, message: 'Setting deleted successfully', severity: 'warning' });
+    }
+  };
+
+  // Schedule management
+  const handleScheduleUpdate = (scheduleData) => {
+    setScheduleSettings(scheduleData);
+    setUnsavedChanges(true);
+    setOpenDialog(null);
+    setSnackbar({ open: true, message: 'Schedule updated successfully', severity: 'success' });
+  };
+
+  // Language settings
+  const handleLanguageUpdate = (languageData) => {
+    setLanguageSettings(languageData);
+    setUnsavedChanges(true);
+    setSnackbar({ open: true, message: 'Language settings updated', severity: 'success' });
+  };
+
+  // Cloud sync management
+  const handleCloudSyncToggle = async () => {
+    try {
+      const newState = !cloudSyncSettings.enabled;
+      setCloudSyncSettings(prev => ({ 
+        ...prev, 
+        enabled: newState,
+        lastSync: newState ? new Date().toISOString() : null
+      }));
+      setUnsavedChanges(true);
+      setSnackbar({ 
+        open: true, 
+        message: newState ? 'Cloud sync enabled' : 'Cloud sync disabled', 
+        severity: 'success' 
+      });
+    } catch (error) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Error updating cloud sync settings', 
+        severity: 'error' 
+      });
+    }
+  };
+
+  // Get setting validation status
+  const getSettingStatus = (category, key, value) => {
+    // Add validation logic for different settings
+    if (!value) return { status: 'warning', message: 'Not configured' };
+    if (category === 'apiKeys' && value.enabled && !value.keyId) {
+      return { status: 'error', message: 'API key required' };
+    }
+    if (category === 'trading' && key === 'maxPositionSize' && value > 0.1) {
+      return { status: 'warning', message: 'High risk setting' };
+    }
+    return { status: 'success', message: 'Configured' };
+  };
+
+  // Dialog Components
+  const renderOnboardingDialog = () => (
+    <Dialog
+      open={openDialog === 'onboarding'}
+      onClose={() => setOpenDialog(null)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>Welcome to Trading Platform</DialogTitle>
+      <DialogContent>
+        <ApiKeyOnboarding onComplete={handleOnboardingComplete} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpenDialog(null)}>Skip for Now</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const renderScheduleDialog = () => (
+    <Dialog
+      open={openDialog === 'schedule'}
+      onClose={() => setOpenDialog(null)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
+        <Schedule sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Trading Schedule Settings
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={scheduleSettings.autoTradingEnabled}
+                  onChange={(e) => setScheduleSettings(prev => ({ 
+                    ...prev, 
+                    autoTradingEnabled: e.target.checked 
+                  }))}
+                />
+              }
+              label="Enable Automated Trading"
+            />
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>Trading Hours</Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="Market Open"
+                  type="time"
+                  value={scheduleSettings.tradingSchedule.startTime}
+                  onChange={(e) => setScheduleSettings(prev => ({
+                    ...prev,
+                    tradingSchedule: { ...prev.tradingSchedule, startTime: e.target.value }
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="Market Close"
+                  type="time"
+                  value={scheduleSettings.tradingSchedule.endTime}
+                  onChange={(e) => setScheduleSettings(prev => ({
+                    ...prev,
+                    tradingSchedule: { ...prev.tradingSchedule, endTime: e.target.value }
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            </Grid>
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>Portfolio Rebalancing</Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={scheduleSettings.rebalancing.enabled}
+                  onChange={(e) => setScheduleSettings(prev => ({
+                    ...prev,
+                    rebalancing: { ...prev.rebalancing, enabled: e.target.checked }
+                  }))}
+                />
+              }
+              label="Auto-Rebalancing"
+            />
+            
+            {scheduleSettings.rebalancing.enabled && (
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Frequency</InputLabel>
+                    <Select
+                      value={scheduleSettings.rebalancing.frequency}
+                      onChange={(e) => setScheduleSettings(prev => ({
+                        ...prev,
+                        rebalancing: { ...prev.rebalancing, frequency: e.target.value }
+                      }))}
+                    >
+                      <MenuItem value="daily">Daily</MenuItem>
+                      <MenuItem value="weekly">Weekly</MenuItem>
+                      <MenuItem value="monthly">Monthly</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Time"
+                    type="time"
+                    value={scheduleSettings.rebalancing.time}
+                    onChange={(e) => setScheduleSettings(prev => ({
+                      ...prev,
+                      rebalancing: { ...prev.rebalancing, time: e.target.value }
+                    }))}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+              </Grid>
+            )}
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpenDialog(null)}>Cancel</Button>
+        <Button 
+          onClick={() => handleScheduleUpdate(scheduleSettings)} 
+          variant="contained"
+        >
+          Save Schedule
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const renderLanguageDialog = () => (
+    <Dialog
+      open={openDialog === 'language'}
+      onClose={() => setOpenDialog(null)}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>
+        <Language sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Language & Region Settings
+      </DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Language</InputLabel>
+              <Select
+                value={languageSettings.language}
+                onChange={(e) => setLanguageSettings(prev => ({ 
+                  ...prev, 
+                  language: e.target.value 
+                }))}
+              >
+                <MenuItem value="en">English</MenuItem>
+                <MenuItem value="es">Español</MenuItem>
+                <MenuItem value="fr">Français</MenuItem>
+                <MenuItem value="de">Deutsch</MenuItem>
+                <MenuItem value="zh">中文</MenuItem>
+                <MenuItem value="ja">日本語</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Region</InputLabel>
+              <Select
+                value={languageSettings.region}
+                onChange={(e) => setLanguageSettings(prev => ({ 
+                  ...prev, 
+                  region: e.target.value 
+                }))}
+              >
+                <MenuItem value="US">United States</MenuItem>
+                <MenuItem value="CA">Canada</MenuItem>
+                <MenuItem value="UK">United Kingdom</MenuItem>
+                <MenuItem value="EU">European Union</MenuItem>
+                <MenuItem value="AU">Australia</MenuItem>
+                <MenuItem value="JP">Japan</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpenDialog(null)}>Cancel</Button>
+        <Button 
+          onClick={() => handleLanguageUpdate(languageSettings)} 
+          variant="contained"
+        >
+          Apply
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const renderCloudSyncDialog = () => (
+    <Dialog
+      open={openDialog === 'cloudsync'}
+      onClose={() => setOpenDialog(null)}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>
+        <CloudSync sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Cloud Synchronization
+      </DialogTitle>
+      <DialogContent>
+        <Box sx={{ mt: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={cloudSyncSettings.enabled}
+                onChange={handleCloudSyncToggle}
+              />
+            }
+            label="Enable Cloud Sync"
+          />
+          
+          {cloudSyncSettings.enabled && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Last sync: {cloudSyncSettings.lastSync ? 
+                  new Date(cloudSyncSettings.lastSync).toLocaleString() : 
+                  'Never'
+                }
+              </Typography>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="subtitle2" gutterBottom>Sync Options</Typography>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={cloudSyncSettings.syncSettings}
+                    onChange={(e) => setCloudSyncSettings(prev => ({ 
+                      ...prev, 
+                      syncSettings: e.target.checked 
+                    }))}
+                  />
+                }
+                label="Sync Application Settings"
+              />
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={cloudSyncSettings.syncApiKeys}
+                    onChange={(e) => setCloudSyncSettings(prev => ({ 
+                      ...prev, 
+                      syncApiKeys: e.target.checked 
+                    }))}
+                  />
+                }
+                label="Sync API Keys (Encrypted)"
+              />
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={cloudSyncSettings.autoSync}
+                    onChange={(e) => setCloudSyncSettings(prev => ({ 
+                      ...prev, 
+                      autoSync: e.target.checked 
+                    }))}
+                  />
+                }
+                label="Auto-sync Changes"
+              />
+            </Box>
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpenDialog(null)}>Close</Button>
+        {cloudSyncSettings.enabled && (
+          <Button variant="contained" onClick={() => {
+            setCloudSyncSettings(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+            setSnackbar({ open: true, message: 'Settings synced to cloud', severity: 'success' });
+          }}>
+            Sync Now
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+
+  // List-based settings view
+  const renderSettingsList = () => (
+    <Paper>
+      <List>
+        <ListItem>
+          <ListItemText 
+            primary="API Keys" 
+            secondary={`${getActiveProviders().length} configured`}
+          />
+          <ListItemSecondaryAction>
+            <Tooltip title="Add API Key">
+              <IconButton onClick={() => setOpenDialog('onboarding')}>
+                <Add />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Edit API Keys">
+              <IconButton onClick={() => setActiveTab(0)}>
+                <Edit />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        </ListItem>
+        
+        <Divider />
+        
+        <ListItem>
+          <ListItemText 
+            primary="Trading Schedule" 
+            secondary={scheduleSettings.autoTradingEnabled ? 'Automated trading enabled' : 'Manual trading only'}
+          />
+          <ListItemSecondaryAction>
+            <Tooltip title="Configure Schedule">
+              <IconButton onClick={() => setOpenDialog('schedule')}>
+                <Schedule />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        </ListItem>
+        
+        <Divider />
+        
+        <ListItem>
+          <ListItemText 
+            primary="Language & Region" 
+            secondary={`${languageSettings.language.toUpperCase()} - ${languageSettings.region}`}
+          />
+          <ListItemSecondaryAction>
+            <Tooltip title="Change Language">
+              <IconButton onClick={() => setOpenDialog('language')}>
+                <Language />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        </ListItem>
+        
+        <Divider />
+        
+        <ListItem>
+          <ListItemText 
+            primary="Cloud Sync" 
+            secondary={cloudSyncSettings.enabled ? 'Enabled' : 'Disabled'}
+          />
+          <ListItemSecondaryAction>
+            {cloudSyncSettings.enabled ? 
+              <CheckCircle color="success" /> : 
+              <Warning color="warning" />
+            }
+            <Tooltip title="Configure Cloud Sync">
+              <IconButton onClick={() => setOpenDialog('cloudsync')}>
+                <CloudSync />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        </ListItem>
+      </List>
+    </Paper>
+  );
+
+  // Accordion-based settings view
+  const renderSettingsAccordion = () => (
+    <Box>
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography variant="h6">API Configuration</Typography>
+          {hasApiKeys ? <CheckCircle color="success" sx={{ ml: 1 }} /> : <Warning color="warning" sx={{ ml: 1 }} />}
+        </AccordionSummary>
+        <AccordionDetails>
+          {renderAPIKeysTab()}
+        </AccordionDetails>
+      </Accordion>
+      
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography variant="h6">Trading Settings</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          {renderTradingTab()}
+        </AccordionDetails>
+      </Accordion>
+      
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography variant="h6">Notifications</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          {renderNotificationsTab()}
+        </AccordionDetails>
+      </Accordion>
+      
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography variant="h6">Advanced Settings</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<Schedule />}
+                onClick={() => setOpenDialog('schedule')}
+              >
+                Trading Schedule
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<Language />}
+                onClick={() => setOpenDialog('language')}
+              >
+                Language & Region
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<CloudSync />}
+                onClick={() => setOpenDialog('cloudsync')}
+              >
+                Cloud Sync
+              </Button>
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
+  );
+
   const renderAPIKeysTab = () => (
+    <ApiKeysTab
+      settings={settings}
+      updateSettings={updateSettings}
+      showPasswords={showPasswords}
+      setShowPasswords={setShowPasswords}
+      saveApiKeyLocal={saveApiKeyLocal}
+      testConnection={testConnection}
+      testingConnection={testingConnection}
+      connectionResults={connectionResults}
+    />
+  );
+
+  const renderAPIKeysTabOld = () => (
     <Grid container spacing={3}>
       {/* Alpaca */}
       <Grid item xs={12}>
@@ -542,6 +1167,13 @@ const SettingsManager = () => {
   );
 
   const renderTradingTab = () => (
+    <TradingTab
+      settings={settings}
+      updateSettings={updateSettings}
+    />
+  );
+
+  const renderTradingTabOld = () => (
     <Grid container spacing={3}>
       <Grid item xs={12} md={6}>
         <Card>
@@ -984,13 +1616,73 @@ const SettingsManager = () => {
 
   return (
     <Box>
+      {/* Auto-trigger onboarding for new users */}
+      {needsOnboarding() && !openDialog && (
+        <Alert 
+          severity="info" 
+          action={
+            <Button color="inherit" onClick={() => setOpenDialog('onboarding')}>
+              Get Started
+            </Button>
+          }
+          sx={{ mb: 2 }}
+        >
+          Welcome! Set up your API keys to get started with trading.
+        </Alert>
+      )}
+
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h5">
           <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
           Settings
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {/* View Mode Toggle */}
+          <Box sx={{ display: 'flex', mr: 2 }}>
+            <Tooltip title="Tabs View">
+              <IconButton 
+                size="small"
+                color={viewMode === 'tabs' ? 'primary' : 'default'}
+                onClick={() => setViewMode('tabs')}
+              >
+                <Tabs fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="List View">
+              <IconButton 
+                size="small"
+                color={viewMode === 'list' ? 'primary' : 'default'}
+                onClick={() => setViewMode('list')}
+              >
+                <List fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Accordion View">
+              <IconButton 
+                size="small"
+                color={viewMode === 'accordion' ? 'primary' : 'default'}
+                onClick={() => setViewMode('accordion')}
+              >
+                <ExpandMore fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          {/* Advanced Settings Toggle */}
+          <Tooltip title="Advanced Settings">
+            <IconButton 
+              size="small"
+              color={showAdvancedSettings ? 'primary' : 'default'}
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+            >
+              <Settings fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
+          <Divider orientation="vertical" flexItem />
+          
+          {/* Action Buttons */}
           <input
             accept=".json"
             style={{ display: 'none' }}
@@ -1016,12 +1708,14 @@ const SettingsManager = () => {
             variant="contained" 
             onClick={() => {
               // Save API keys to backend
-              Object.keys(settings.apiKeys).forEach(provider => {
+              Object.keys(settings.apiKeys || {}).forEach(provider => {
                 const apiKey = settings.apiKeys[provider];
-                if (apiKey.enabled && (apiKey.keyId || apiKey.apiKey)) {
+                if (apiKey && apiKey.enabled && (apiKey.keyId || apiKey.apiKey)) {
                   saveApiKey(provider, apiKey);
                 }
               });
+              setUnsavedChanges(false);
+              setSnackbar({ open: true, message: 'Settings saved successfully', severity: 'success' });
             }}
             disabled={!unsavedChanges}
             startIcon={<Save />}
@@ -1031,23 +1725,91 @@ const SettingsManager = () => {
         </Box>
       </Box>
 
+      {/* Advanced Settings Panel */}
+      {showAdvancedSettings && (
+        <Card sx={{ mb: 3, bgcolor: 'background.paper' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Advanced Features
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item>
+                <Button
+                  variant="outlined"
+                  startIcon={<Schedule />}
+                  onClick={() => setOpenDialog('schedule')}
+                >
+                  Trading Schedule
+                </Button>
+              </Grid>
+              <Grid item>
+                <Button
+                  variant="outlined"
+                  startIcon={<Language />}
+                  onClick={() => setOpenDialog('language')}
+                >
+                  Language & Region
+                </Button>
+              </Grid>
+              <Grid item>
+                <Button
+                  variant="outlined"
+                  startIcon={<CloudSync />}
+                  onClick={() => setOpenDialog('cloudsync')}
+                  color={cloudSyncSettings.enabled ? 'success' : 'primary'}
+                >
+                  Cloud Sync {cloudSyncSettings.enabled && <CheckCircle sx={{ ml: 1 }} fontSize="small" />}
+                </Button>
+              </Grid>
+              <Grid item>
+                <Button
+                  variant="outlined"
+                  startIcon={<Add />}
+                  onClick={() => setOpenDialog('onboarding')}
+                >
+                  Add API Key
+                </Button>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
       {unsavedChanges && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          You have unsaved changes. Don&apos;t forget to save your settings.
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Warning />
+            You have unsaved changes. Don&apos;t forget to save your settings.
+          </Box>
         </Alert>
       )}
 
-      <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
-        <Tab label="API Keys" icon={<VpnKey />} />
-        <Tab label="Trading" icon={<ShowChart />} />
-        <Tab label="Notifications" icon={<Notifications />} />
-        <Tab label="Display" icon={<ColorLens />} />
-      </Tabs>
+      {/* Conditional Rendering Based on View Mode */}
+      {viewMode === 'tabs' && (
+        <>
+          <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
+            <Tab label="API Keys" icon={<VpnKey />} />
+            <Tab label="Trading" icon={<ShowChart />} />
+            <Tab label="Notifications" icon={<Notifications />} />
+            <Tab label="Display" icon={<ColorLens />} />
+          </Tabs>
 
-      {activeTab === 0 && renderAPIKeysTab()}
-      {activeTab === 1 && renderTradingTab()}
-      {activeTab === 2 && renderNotificationsTab()}
-      {activeTab === 3 && renderDisplayTab()}
+          {activeTab === 0 && renderAPIKeysTab()}
+          {activeTab === 1 && renderTradingTab()}
+          {activeTab === 2 && renderNotificationsTab()}
+          {activeTab === 3 && renderDisplayTab()}
+        </>
+      )}
+
+      {viewMode === 'list' && renderSettingsList()}
+
+      {viewMode === 'accordion' && renderSettingsAccordion()}
+
+      {/* All Dialog Components */}
+      {renderOnboardingDialog()}
+      {renderScheduleDialog()}
+      {renderLanguageDialog()}
+      {renderCloudSyncDialog()}
 
       <Snackbar
         open={snackbar.open}

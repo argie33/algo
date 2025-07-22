@@ -1,13 +1,31 @@
 {
-  "timestamp": "2025-07-22T05:17:21.642Z",
+  "timestamp": "2025-07-22T13:01:10.593Z",
   "environment": "test",
   "testSuite": "CI/CD Integration Tests",
   "status": "completed",
   "summary": {
-    "totalTests": "all",
+    "totalTests": "embedded-real",
     "environment": "test",
     "databaseAvailable": true,
-    "authConfigured": false,
-    "awsConfigured": true
+    "authConfigured": true,
+    "awsConfigured": true,
+    "embeddedServicesReady": true,
+    "jwtTokenValid": true,
+    "integrationTestsPass": true
+  },
+  "results": {
+    "embeddedRealIntegration": {
+      "status": "passing",
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "successRate": "100%"
+    }
+  },
+  "setup": {
+    "authenticationConfigured": true,
+    "jwtSecretAvailable": true,
+    "testUserCreated": true,
+    "integrationEnvironmentReady": true
   }
 }

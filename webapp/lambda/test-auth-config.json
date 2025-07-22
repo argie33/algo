@@ -1,0 +1,13 @@
+{
+  "integration": {
+    "testUser": {
+      "id": "integration-test-user-123",
+      "email": "integration-test@example.com",
+      "passwordHash": "$2b$10$.KsqPnIPAzhzOJWXw5QkCOyJM.6.YhZQeu7gNPK0OohM7JWdjby0W"
+    },
+    "jwtSecret": "integration-test-secret-key-2025",
+    "authToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJpbnRlZ3JhdGlvbi10ZXN0LXVzZXItMTIzIiwiZW1haWwiOiJpbnRlZ3JhdGlvbi10ZXN0QGV4YW1wbGUuY29tIiwiZXhwIjoxNzUzMjc1NjY3LCJpYXQiOjE3NTMxODkyNjd9.Oq8aYa1Nu8PlVzJYxrUQ9oqV3WRG-c1VuJcF5ovwQqw",
+    "configured": true,
+    "setupTimestamp": "2025-07-22T13:01:07.401Z"
+  }
+}

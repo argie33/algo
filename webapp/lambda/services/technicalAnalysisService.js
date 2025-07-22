@@ -32,7 +32,12 @@ class TechnicalAnalysisService {
         try {
           results[indicator] = this.indicators[indicator](data);
         } catch (error) {
-          console.error(`Failed to calculate ${indicator}:`, error.message);
+          logger.error('Technical indicator calculation failed', {
+            indicator,
+            error,
+            message: error.message,
+            dataPoints: data.length
+          });
           results[indicator] = { error: error.message };
         }
       } else {

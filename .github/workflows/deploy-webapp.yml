@@ -59,11 +59,99 @@ jobs:
           echo "stack_name=stocks-webapp-dev" >> $GITHUB_OUTPUT
           echo "Deploying to environment: dev"
 ################################################################################
-# 2) Detect changed components                                                 #
+# 2) Setup AWS Infrastructure Prerequisites                                    #
+################################################################################
+  setup-aws-services:
+    name: Setup AWS Services
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.environment == 'dev' || needs.setup.outputs.environment == 'prod'
+    outputs:
+      services_ready: ${{ steps.validate.outputs.services_ready }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}-setup
+
+      - name: Check if AWS services stack exists
+        id: check-stack
+        run: |
+          STACK_NAME="stocks-aws-services-${{ needs.setup.outputs.environment }}"
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" > /dev/null 2>&1; then
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy AWS services if needed
+        if: steps.check-stack.outputs.stack_exists == 'false'
+        run: |
+          echo "🚀 Deploying required AWS services..."
+          
+          # Get VPC info
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+          SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[*].SubnetId' --output text | tr '\t' ',')
+          
+          # Deploy services stack
+          aws cloudformation deploy \
+            --template-file webapp/lambda/cloudformation/aws-services-stack.yml \
+            --stack-name "stocks-aws-services-${{ needs.setup.outputs.environment }}" \
+            --parameter-overrides \
+              EnvironmentName=${{ needs.setup.outputs.environment }} \
+              VpcId="$VPC_ID" \
+              SubnetIds="$SUBNET_IDS" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+      - name: Validate services are ready
+        id: validate
+        run: |
+          echo "🔍 Validating AWS services are ready..."
+          
+          STACK_NAME="stocks-aws-services-${{ needs.setup.outputs.environment }}"
+          
+          # Wait for ElastiCache if it was just created
+          if [ "${{ steps.check-stack.outputs.stack_exists }}" = "false" ]; then
+            echo "Waiting for ElastiCache to be ready..."
+            timeout 600 bash -c '
+              while true; do
+                STATUS=$(aws elasticache describe-cache-clusters \
+                  --cache-cluster-id "${{ needs.setup.outputs.environment }}-redis-cluster" \
+                  --query "CacheClusters[0].CacheClusterStatus" \
+                  --output text 2>/dev/null || echo "creating")
+                
+                if [ "$STATUS" = "available" ]; then
+                  echo "✅ ElastiCache ready"
+                  break
+                elif [ "$STATUS" = "failed" ]; then
+                  echo "❌ ElastiCache failed"
+                  exit 1
+                fi
+                sleep 30
+              done
+            '
+          fi
+          
+          # Export service endpoints for deployment
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output text)
+          
+          echo "REDIS_ENDPOINT=$(echo "$OUTPUTS" | grep "RedisEndpoint" | cut -f2)" >> $GITHUB_ENV
+          echo "S3_BUCKET=$(echo "$OUTPUTS" | grep "StorageBucketName" | cut -f2)" >> $GITHUB_ENV
+          
+          echo "services_ready=true" >> $GITHUB_OUTPUT
+
+################################################################################
+# 3) Detect changed components                                                 #
 ################################################################################
   filter:
     name: Detect changed components
-    needs: setup
+    needs: [setup, setup-aws-services]
     runs-on: ubuntu-latest
     outputs:
       webapp:     ${{ steps.paths.outputs.webapp }}
@@ -100,11 +188,11 @@ jobs:
             echo "any=false" >> $GITHUB_OUTPUT
           fi
 ################################################################################
-# 3) Quick smoke tests (always run on push)                                   #
+# 4) Quick smoke tests (always run on push)                                   #
 ################################################################################
   smoke_tests:
     name: Quick smoke tests
-    needs: [setup, filter]
+    needs: [setup, setup-aws-services, filter]
     if: ${{ needs.filter.outputs.any == 'true' && github.event.inputs.deployment_type != 'hotfix' }}
     runs-on: ubuntu-latest
     env:

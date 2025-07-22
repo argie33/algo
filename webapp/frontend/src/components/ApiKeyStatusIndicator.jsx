@@ -38,11 +38,7 @@ const ApiKeyStatusIndicator = ({
   const [setupDialogOpen, setSetupDialogOpen] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    checkApiKeyStatus();
-  }, [provider]);
-
-  const checkApiKeyStatus = async () => {
+  const checkApiKeyStatus = React.useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -67,7 +63,11 @@ const ApiKeyStatusIndicator = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [provider, onStatusChange]);
+
+  useEffect(() => {
+    checkApiKeyStatus();
+  }, [checkApiKeyStatus]);
 
   const getStatusInfo = () => {
     if (loading) {
