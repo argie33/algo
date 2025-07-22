@@ -4,6 +4,7 @@ import { useApiKeys } from './ApiKeyProvider';
 import ApiKeyOnboarding from './ApiKeyOnboarding';
 import ApiKeysTab from './settings/ApiKeysTab';
 import TradingTab from './settings/TradingTab';
+import SecurityTab from './settings/SecurityTab';
 import {
   Box,
   Card,
@@ -866,6 +867,22 @@ const SettingsManager = () => {
             </Tooltip>
           </ListItemSecondaryAction>
         </ListItem>
+        
+        <Divider />
+        
+        <ListItem>
+          <ListItemText 
+            primary="Security & Account" 
+            secondary="Password, login sessions, and security settings"
+          />
+          <ListItemSecondaryAction>
+            <Tooltip title="Manage Security">
+              <IconButton onClick={() => setActiveTab(4)}>
+                <Security />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        </ListItem>
       </List>
     </Paper>
   );
@@ -898,6 +915,15 @@ const SettingsManager = () => {
         </AccordionSummary>
         <AccordionDetails>
           {renderNotificationsTab()}
+        </AccordionDetails>
+      </Accordion>
+      
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography variant="h6">Security & Account</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          {renderSecurityTab()}
         </AccordionDetails>
       </Accordion>
       
@@ -1614,6 +1640,13 @@ const SettingsManager = () => {
     </Grid>
   );
 
+  const renderSecurityTab = () => (
+    <SecurityTab 
+      settings={settings} 
+      updateSettings={updateSettings}
+    />
+  );
+
   return (
     <Box>
       {/* Auto-trigger onboarding for new users */}
@@ -1792,12 +1825,14 @@ const SettingsManager = () => {
             <Tab label="Trading" icon={<ShowChart />} />
             <Tab label="Notifications" icon={<Notifications />} />
             <Tab label="Display" icon={<ColorLens />} />
+            <Tab label="Security" icon={<Security />} />
           </Tabs>
 
           {activeTab === 0 && renderAPIKeysTab()}
           {activeTab === 1 && renderTradingTab()}
           {activeTab === 2 && renderNotificationsTab()}
           {activeTab === 3 && renderDisplayTab()}
+          {activeTab === 4 && renderSecurityTab()}
         </>
       )}
 

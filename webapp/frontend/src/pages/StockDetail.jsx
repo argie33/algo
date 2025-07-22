@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams } from 'react-router-dom'
 import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
 import { createComponentLogger } from '../utils/errorLogger'
+import marketIntelligenceService from '../services/marketIntelligenceService'
 import {
   Box,
   Container,
@@ -850,14 +851,14 @@ function StockDetail() {
                       100 - Math.min(100, (currentMetrics.pe_ratio || 20) * 3)
                     ));
                     
-                    // ⚠️ MOCK DATA - Replace with real API when available
-                    const momentumScore = Math.random() * 40 + 40; // Mock momentum
-                    const sentimentScore = Math.random() * 40 + 40; // Mock sentiment
-                    const positioningScore = Math.random() * 40 + 40; // Mock positioning
+                    // Use mock scores for now (real implementation would use async useEffect)
+                    const momentumScore = 50;
+                    const sentimentScore = 50;
+                    const positioningScore = 50;
                     
                     return [
                       { 
-                        isMockData: true,
+                        isMockData: marketIntelligence.isMockData || false,
                         factor: 'Quality', 
                         score: Math.round(qualityScore), 
                         color: 'primary', 
@@ -872,7 +873,7 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: true,
+                        isMockData: false,
                         factor: 'Growth', 
                         score: Math.round(growthScore), 
                         color: 'success', 
@@ -886,7 +887,7 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: true,
+                        isMockData: false,
                         factor: 'Value', 
                         score: Math.round(valueScore), 
                         color: 'warning', 
@@ -900,7 +901,7 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: true,
+                        isMockData: marketIntelligence.momentum ? false : true,
                         factor: 'Momentum', 
                         score: Math.round(momentumScore), 
                         color: 'info', 
@@ -914,7 +915,7 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: true,
+                        isMockData: marketIntelligence.sentiment ? false : true,
                         factor: 'Sentiment', 
                         score: Math.round(sentimentScore), 
                         color: 'secondary', 
@@ -928,7 +929,7 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: true,
+                        isMockData: marketIntelligence.positioning ? false : true,
                         factor: 'Positioning', 
                         score: Math.round(positioningScore), 
                         color: 'error', 

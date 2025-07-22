@@ -12,7 +12,7 @@ import { ThemeProvider } from '@mui/material/styles';
 
 // Import main components
 import App from '../../App';
-import { lightTheme } from '../../theme/safeTheme';
+import { directTheme as lightTheme } from '../../theme/directTheme';
 import { LoadingProvider } from '../../components/LoadingStateManager';
 import { AuthProvider } from '../../contexts/AuthContext';
 import ApiKeyProvider from '../../components/ApiKeyProvider';

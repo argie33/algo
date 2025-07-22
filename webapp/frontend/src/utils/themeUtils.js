@@ -19,10 +19,10 @@ export function checkMuiVersion() {
 }
 
 /**
- * Create a safe theme without MUI createTheme to avoid createPalette errors
+ * Create a direct theme object without MUI createTheme to avoid createPalette errors
  */
-export function createSafeTheme(mode = 'light') {
-  console.log('Creating safe theme object directly (no MUI createTheme) with mode:', mode);
+export function createDirectTheme(mode = 'light') {
+  console.log('Creating direct theme object (no MUI createTheme) with mode:', mode);
   
   const isDark = mode === 'dark';
   
@@ -131,7 +131,7 @@ export function debugThemeCreation() {
   
   // Test direct theme object creation
   try {
-    const basicTheme = createSafeTheme('light');
+    const basicTheme = createDirectTheme('light');
     console.log('Direct theme object creation works');
     console.log('Theme palette:', basicTheme.palette);
     return basicTheme;
