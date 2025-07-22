@@ -4,7 +4,7 @@
  * Replaces mock data in StockDetail component
  */
 
-import { apiRequest } from './api';
+import { api } from './api';
 
 class MarketIntelligenceService {
   constructor() {
@@ -70,7 +70,7 @@ class MarketIntelligenceService {
   async fetchSentimentScore(symbol) {
     try {
       // Try to get from our news sentiment API
-      const response = await apiRequest(`/market/sentiment/${symbol}`);
+      const response = await api().get(`/market/sentiment/${symbol}`);
       
       if (response.success && response.data) {
         return {
@@ -94,7 +94,7 @@ class MarketIntelligenceService {
   async fetchMomentumScore(symbol) {
     try {
       // Get momentum from our trading signals API
-      const response = await apiRequest(`/market/momentum/${symbol}`);
+      const response = await api().get(`/market/momentum/${symbol}`);
       
       if (response.success && response.data) {
         return {
@@ -119,7 +119,7 @@ class MarketIntelligenceService {
   async fetchPositioningScore(symbol) {
     try {
       // Get positioning from our market data API
-      const response = await apiRequest(`/market/positioning/${symbol}`);
+      const response = await api().get(`/market/positioning/${symbol}`);
       
       if (response.success && response.data) {
         return {
@@ -144,7 +144,7 @@ class MarketIntelligenceService {
   async calculateTechnicalSentiment(symbol) {
     try {
       // Try to get recent price data for technical sentiment
-      const response = await apiRequest(`/market/quotes/${symbol}`);
+      const response = await api().get(`/market/quotes/${symbol}`);
       
       if (response.success && response.data) {
         const { current_price, previous_close, volume, avg_volume } = response.data;
@@ -190,7 +190,7 @@ class MarketIntelligenceService {
   async calculateTechnicalMomentum(symbol) {
     try {
       // Try to get price history for momentum calculation
-      const response = await apiRequest(`/market/history/${symbol}?period=30d`);
+      const response = await api().get(`/market/history/${symbol}?period=30d`);
       
       if (response.success && response.data && response.data.length > 10) {
         const prices = response.data.map(d => d.close);

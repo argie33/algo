@@ -119,6 +119,61 @@ async function checkConsoleErrors() {
   }
 }
 
+async function storeValidationResults(buildResult, testResult, consoleResult) {
+  try {
+    const validationData = {
+      validationType: 'full',
+      results: {
+        build: {
+          success: buildResult.success,
+          output: buildResult.output,
+          error: buildResult.error,
+          duration: Date.now() // Placeholder timing
+        },
+        test: {
+          success: testResult.success,
+          output: testResult.output,
+          error: testResult.error,
+          duration: Date.now() // Placeholder timing
+        },
+        console: {
+          success: consoleResult,
+          errorCount: consoleResult ? 0 : 1,
+          timestamp: new Date().toISOString()
+        }
+      },
+      environment: 'development',
+      metadata: {
+        script: 'local-dev-validation',
+        steps: VALIDATION_STEPS,
+        currentStep: VALIDATION_STEPS.length,
+        totalErrors: errors.length
+      }
+    };
+
+    // Store results via validation API (if available)
+    try {
+      const response = await fetch('/api/validation/results', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEV_TOKEN || 'dev-token'}`
+        },
+        body: JSON.stringify(validationData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(chalk.green(`✅ Validation results stored with ID: ${result.data.validationId}`));
+      }
+    } catch (apiError) {
+      console.log(chalk.yellow(`⚠️  API storage failed: ${apiError.message}`));
+    }
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Result storage failed: ${error.message}`));
+  }
+}
+
 async function main() {
   console.log(chalk.blue.bold('\n🚀 Running Local Development Validation\n'));
   
@@ -150,6 +205,9 @@ async function main() {
   } catch {
     console.log(chalk.yellow('⚠️  Integration tests not available, skipping...'));
   }
+
+  // Store validation results using the previously dead variables
+  await storeValidationResults(buildResult, testResult, consoleResult);
   
   // Results Summary
   console.log(chalk.blue.bold('\n📊 Validation Summary\n'));

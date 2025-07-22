@@ -21,7 +21,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, AreaChart, Area, BarChart as RechartsBarChart,
   Bar, PieChart as RechartsPieChart, Cell, ComposedChart,
-  CandlestickChart as RechartsCandlestickChart, ScatterChart, Scatter
+  ScatterChart, Scatter
 } from 'recharts';
 import { useApiKeys } from './ApiKeyProvider';
 import { getApiConfig } from '../services/api';
