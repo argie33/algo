@@ -172,8 +172,8 @@ class ApiHealthService {
       const response = await fetch(`${this.getBaseUrl()}${endpoint.path}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
+          'Accept': 'application/json'
+          // Removed Cache-Control header - not allowed by CORS policy
         },
         signal: AbortSignal.timeout(this.config.endpointTimeout)
       });
