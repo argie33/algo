@@ -71,6 +71,7 @@
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
     "test:unit": "vitest run --reporter=verbose --coverage",
+    "test:smoke": "vitest run src/tests/smoke/ --reporter=verbose",
     "test:unit:upload": "node scripts/run-unit-tests-with-upload.js",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "playwright test",
@@ -110,8 +111,8 @@
     "start": "npm run config && npm run setup-dev && npm run dev",
     "build-prod": "npm run config && npm run setup-prod && npm run build",
     "debug:react": "node -e \"console.log('Running React diagnostics...'); import('./src/utils/reactHooksDebugger.js').then(m => m.runReactHooksDiagnostics())\"",
-    "pre-push": "npm run validate",
-    "pre-push-quick": "npm run build && echo '✅ Quick pre-push validation passed! Safe to push.'"
+    "pre-push": "npm run test:smoke && npm run validate",
+    "pre-push-quick": "npm run test:smoke && npm run build && echo '✅ Quick pre-push validation passed! Safe to push.'"
   },
   "resolutions": {
     "react": "^18.3.1",

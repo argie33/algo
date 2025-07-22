@@ -247,6 +247,11 @@ export const createSafeTheme = (mode = 'light') => {
           .join(',');
       }
     },
+    // Add applyStyles utility function for MUI v5.14+
+    applyStyles: (mode, styles) => {
+      const currentMode = mode || 'light';
+      return currentMode === isLight ? {} : styles;
+    },
     mixins: {
       toolbar: {
         minHeight: '56px',
