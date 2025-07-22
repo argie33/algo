@@ -6,7 +6,7 @@
 
 import { api } from './api';
 
-// Get WebSocket URL from config or environment
+// Get WebSocket URL from config or environment - NO HARDCODED URLS
 const getWebSocketURL = () => {
   // Try runtime config first (from public/config.js)
   if (window.__CONFIG__ && window.__CONFIG__.WS_URL) {
@@ -14,9 +14,17 @@ const getWebSocketURL = () => {
   }
   
   // Fall back to environment variables
-  return process.env.REACT_APP_WEBSOCKET_ENDPOINT || 
-         process.env.VITE_WS_URL ||
-         'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev/api/websocket';
+  if (process.env.REACT_APP_WEBSOCKET_ENDPOINT || process.env.VITE_WS_URL) {
+    return process.env.REACT_APP_WEBSOCKET_ENDPOINT || process.env.VITE_WS_URL;
+  }
+  
+  // Dynamic fallback: derive from API URL if available
+  const apiUrl = window.__CONFIG__?.API_URL || import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    return `${apiUrl}/api/websocket`;
+  }
+  
+  throw new Error('WebSocket URL not configured - set window.__CONFIG__.WS_URL, VITE_WS_URL, or ensure API_URL is configured');
 };
 
 const WS_ENDPOINT = getWebSocketURL();
