@@ -144,7 +144,7 @@ Resources:
   RedisParameterGroup:
     Type: AWS::ElastiCache::ParameterGroup
     Properties:
-      CacheParameterGroupFamily: 'redis7.x'
+      CacheParameterGroupFamily: 'redis7'
       Description: 'Redis parameters for stocks webapp'
       CacheParameterGroupName: !Sub '${EnvironmentName}-redis-params'
 
@@ -234,7 +234,6 @@ Resources:
         CustomRedirectDomain: !Sub '${EnvironmentName}.stocksapp.example.com'
       DeliveryOptions:
         TlsPolicy: Require
-      ReputationTrackingEnabled: true
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
