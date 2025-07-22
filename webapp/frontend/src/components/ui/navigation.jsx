@@ -234,9 +234,9 @@ export function TailwindNavigation({ children }) {
                     </button>
                   </div>
                 </Transition.Child>
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-2">
-                  <div className="flex h-16 shrink-0 items-center">
-                    <h1 className="text-xl font-bold text-blue-600">Financial Platform</h1>
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-2 mobile-menu safe-area-top">
+                  <div className="flex h-16 shrink-0 items-center mobile-menu-header">
+                    <h1 className="text-xl font-bold text-blue-600 mobile-title">Financial Platform</h1>
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -408,17 +408,21 @@ export function TailwindNavigation({ children }) {
         </div>
       </div>
 
-      {/* Mobile header */}
-      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
+      {/* Mobile header with responsive classes */}
+      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden mobile-nav safe-area-top">
         <button
           type="button"
-          className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+          className="-m-2.5 p-2.5 text-gray-700 lg:hidden touch-target"
           onClick={() => setSidebarOpen(true)}
         >
           <span className="sr-only">Open sidebar</span>
-          <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+          <div className="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </button>
-        <div className="flex-1 text-sm font-semibold leading-6 text-gray-900">
+        <div className="flex-1 text-sm font-semibold leading-6 text-gray-900 mobile-title">
           Financial Platform
         </div>
       </div>

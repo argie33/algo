@@ -83,7 +83,8 @@ export function useSyncExternalStoreWithSelector(
     }
   }, [getSnapshot, selector]);
 
-  const wrappedGetServerSnapshot = getServerSnapshot ? useCallback(() => {
+  const wrappedGetServerSnapshot = useCallback(() => {
+    if (!getServerSnapshot) return undefined;
     try {
       const serverSnapshot = getServerSnapshot();
       return selector ? selector(serverSnapshot) : serverSnapshot;
@@ -91,7 +92,7 @@ export function useSyncExternalStoreWithSelector(
       console.warn('useSyncExternalStoreWithSelector: Error in getServerSnapshot:', error);
       return undefined;
     }
-  }, [getServerSnapshot, selector]) : undefined;
+  }, [getServerSnapshot, selector]);
 
   return useSyncExternalStore(subscribe, wrappedGetSnapshot, wrappedGetServerSnapshot);
 }

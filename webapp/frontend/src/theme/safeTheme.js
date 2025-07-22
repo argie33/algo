@@ -203,6 +203,18 @@ export const createSafeTheme = (mode = 'light') => {
         md: 900,
         lg: 1200,
         xl: 1536
+      },
+      up: (key) => {
+        const value = typeof key === 'number' ? key : {
+          xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536
+        }[key];
+        return `@media (min-width:${value}px)`;
+      },
+      down: (key) => {
+        const value = typeof key === 'number' ? key : {
+          xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536
+        }[key];
+        return `@media (max-width:${value - 0.05}px)`;
       }
     },
     shape: {
@@ -236,6 +248,24 @@ export const createSafeTheme = (mode = 'light') => {
       }
     },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            scrollbarColor: "#6b6b6b #2b2b2b",
+            "&::-webkit-scrollbar, & *::-webkit-scrollbar": {
+              backgroundColor: "#2b2b2b",
+              width: 8,
+              height: 8,
+            },
+            "&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb": {
+              borderRadius: 8,
+              backgroundColor: "#6b6b6b",
+              minHeight: 24,
+              border: "2px solid #2b2b2b",
+            }
+          }
+        }
+      },
       MuiButton: {
         styleOverrides: {
           root: {
@@ -253,6 +283,18 @@ export const createSafeTheme = (mode = 'light') => {
             }
           }
         }
+      },
+      MuiContainer: {
+        styleOverrides: {
+          root: ({ theme }) => ({
+            paddingLeft: theme.spacing(2),
+            paddingRight: theme.spacing(2),
+            [theme.breakpoints.up('sm')]: {
+              paddingLeft: theme.spacing(3),
+              paddingRight: theme.spacing(3),
+            },
+          }),
+        },
       },
       MuiPaper: {
         styleOverrides: {

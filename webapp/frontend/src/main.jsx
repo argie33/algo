@@ -9,6 +9,7 @@ import { lightTheme } from './theme/safeTheme'
 
 // Import core components
 import './index.css'
+import './mobile-responsive.css'
 import App from './App'
 import SimpleErrorBoundary from './components/SimpleErrorBoundary'
 import { LoadingProvider } from './components/LoadingStateManager'

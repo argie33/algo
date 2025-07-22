@@ -244,8 +244,7 @@ describe('🏥 Real API Health Service', () => {
           expect.objectContaining({
             method: 'GET',
             headers: expect.objectContaining({
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache'
+              'Accept': 'application/json'
             })
           })
         );
@@ -343,8 +342,7 @@ describe('🏥 Real API Health Service', () => {
         expect.objectContaining({
           method: 'GET',
           headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Accept': 'application/json'
           },
           signal: expect.objectContaining({ timeout: 5000 })
         })

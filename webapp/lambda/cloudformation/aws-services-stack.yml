@@ -196,15 +196,6 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectCreated:*
-            Function: !GetAtt ProcessFileUploadsFunction.Arn
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: uploads/
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -251,38 +242,11 @@ Resources:
           Value: 'stocks-webapp'
 
   #############################################################################
-  # Lambda Functions for File Processing
+  # Lambda Functions for File Processing (Optional - Can be added later)
   #############################################################################
   
-  ProcessFileUploadsFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub '${EnvironmentName}-process-file-uploads'
-      Runtime: nodejs18.x
-      Handler: index.handler
-      Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            console.log('Processing file upload:', JSON.stringify(event, null, 2));
-            return { statusCode: 200, body: 'File processed successfully' };
-          };
-      Environment:
-        Variables:
-          ENVIRONMENT: !Ref EnvironmentName
-          S3_BUCKET: !Ref StorageBucket
-      Tags:
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Service
-          Value: 'stocks-webapp'
-
-  ProcessFileUploadsPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ProcessFileUploadsFunction
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceArn: !Sub '${StorageBucket}/*'
+  # ProcessFileUploadsFunction removed to prevent circular dependency
+  # Can be added in separate stack or after bucket creation
 
   #############################################################################
   # IAM Roles for Lambda Functions
@@ -311,7 +275,7 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:DeleteObject
-                Resource: !Sub '${StorageBucket}/*'
+                Resource: '*'  # Generic S3 access - can be restricted later
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
             Version: '2012-10-17'
