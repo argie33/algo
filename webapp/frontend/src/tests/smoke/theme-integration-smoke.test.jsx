@@ -3,6 +3,7 @@
  * Catches MUI theme-related errors before they reach production
  */
 
+import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

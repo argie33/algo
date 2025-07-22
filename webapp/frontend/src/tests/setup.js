@@ -77,7 +77,30 @@ beforeAll(async () => {
   }
   
   if (typeof document === 'undefined') {
-    global.document = {}
+    global.document = {
+      body: {},
+      head: {},
+      documentElement: {},
+      createElement: vi.fn(() => ({
+        style: {},
+        setAttribute: vi.fn(),
+        getAttribute: vi.fn(),
+        appendChild: vi.fn(),
+        removeChild: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        querySelector: vi.fn(),
+        querySelectorAll: vi.fn(() => []),
+      })),
+      getElementById: vi.fn(),
+      querySelector: vi.fn(),
+      querySelectorAll: vi.fn(() => []),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      createEvent: vi.fn(() => ({
+        initEvent: vi.fn(),
+      })),
+    }
   }
   
   // Additional browser API mocks

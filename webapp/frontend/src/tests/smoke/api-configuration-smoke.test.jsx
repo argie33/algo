@@ -4,32 +4,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createTestApiConfig, setupApiTestEnvironment, cleanupTestEnvironment } from '../setup/test-environment';
 import { getApiConfig } from '../../services/api';
 
 describe('🌐 API Configuration Smoke Tests', () => {
-  
-  let originalWindowConfig;
-  let originalEnv;
-
-  beforeEach(() => {
-    // Save original values
-    originalWindowConfig = global.window?.__CONFIG__;
-    originalEnv = import.meta.env.VITE_API_URL;
-    
-    // Clear any existing config
-    if (global.window) {
-      delete global.window.__CONFIG__;
-    }
-    
-    // Reset vi global stubs
-    vi.unstubAllGlobals();
-  });
 
   afterEach(() => {
-    // Restore original values
-    if (originalWindowConfig) {
-      global.window.__CONFIG__ = originalWindowConfig;
-    }
+    cleanupTestEnvironment();
   });
 
   describe('API URL Resolution Priority', () => {
@@ -37,13 +18,9 @@ describe('🌐 API Configuration Smoke Tests', () => {
       const windowApiUrl = 'https://window-config-url.com/api';
       const envApiUrl = 'https://env-config-url.com/api';
       
-      // Mock window config
-      global.window = { __CONFIG__: { API_URL: windowApiUrl } };
+      const testGetApiConfig = createTestApiConfig(windowApiUrl, envApiUrl);
+      const config = testGetApiConfig();
       
-      // Mock environment
-      vi.stubGlobal('import.meta', { env: { VITE_API_URL: envApiUrl } });
-      
-      const config = getApiConfig();
       expect(config.apiUrl).toBe(windowApiUrl);
       expect(config.baseURL).toBe(windowApiUrl);
     });
@@ -51,26 +28,18 @@ describe('🌐 API Configuration Smoke Tests', () => {
     it('should fallback to environment variable when window config is missing', () => {
       const envApiUrl = 'https://env-fallback-url.com/api';
       
-      // No window config
-      global.window = {};
+      const testGetApiConfig = createTestApiConfig(null, envApiUrl);
+      const config = testGetApiConfig();
       
-      // Mock environment
-      vi.stubGlobal('import.meta', { env: { VITE_API_URL: envApiUrl } });
-      
-      const config = getApiConfig();
       expect(config.apiUrl).toBe(envApiUrl);
       expect(config.baseURL).toBe(envApiUrl);
     });
 
     it('should throw error when no API URL is configured', () => {
-      // No window config
-      global.window = {};
-      
-      // No environment variable
-      vi.stubGlobal('import.meta', { env: {} });
+      const testGetApiConfig = createTestApiConfig(null, null);
       
       expect(() => {
-        getApiConfig();
+        testGetApiConfig();
       }).toThrow('API URL not configured');
     });
   });

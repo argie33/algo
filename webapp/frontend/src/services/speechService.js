@@ -35,6 +35,15 @@ class SpeechService {
   }
 
   checkSupport() {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return {
+        speechToText: false,
+        textToSpeech: false,
+        fullSupport: false
+      };
+    }
+    
     const hasSpeechRecognition = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
     const hasSpeechSynthesis = 'speechSynthesis' in window;
     
@@ -289,8 +298,15 @@ class SpeechService {
   }
 }
 
-// Create singleton instance
-const speechService = new SpeechService();
+// Create lazy singleton instance
+let speechService = null;
 
-export default speechService;
+const getSpeechService = () => {
+  if (!speechService) {
+    speechService = new SpeechService();
+  }
+  return speechService;
+};
+
+export default getSpeechService;
 export { SpeechService };

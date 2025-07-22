@@ -2,7 +2,15 @@ import { getApiConfig } from './api';
 
 class ApiKeyService {
   constructor() {
-    this.apiConfig = getApiConfig();
+    this.apiConfig = null; // Lazy initialize
+  }
+  
+  // Lazy initialize API config
+  _getApiConfig() {
+    if (!this.apiConfig) {
+      this.apiConfig = getApiConfig();
+    }
+    return this.apiConfig;
   }
 
   // Get all API keys for the current user
@@ -15,7 +23,7 @@ class ApiKeyService {
         return [];
       }
       
-      const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys`, {
+      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -56,7 +64,7 @@ class ApiKeyService {
         return { success: false, error: 'Authentication required' };
       }
       
-      const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/test-connection/${keyId}`, {
+      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/test-connection/${keyId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -149,7 +157,7 @@ class ApiKeyService {
         return null;
       }
 
-      const response = await fetch(`${this.apiConfig.apiUrl}/api/settings/api-keys/${provider}/credentials`, {
+      const response = await fetch(`${this._getApiConfig().apiUrl}/api/settings/api-keys/${provider}/credentials`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -183,4 +191,14 @@ class ApiKeyService {
   }
 }
 
-export default new ApiKeyService();
+// Create lazy singleton instance
+let apiKeyService = null;
+
+const getApiKeyService = () => {
+  if (!apiKeyService) {
+    apiKeyService = new ApiKeyService();
+  }
+  return apiKeyService;
+};
+
+export default getApiKeyService;

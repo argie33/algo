@@ -46,40 +46,172 @@ export const getApiConfig = () => {
   }
 }
 
-// Create API instance that can be updated
-let currentConfig = getApiConfig()
+// Create API instance that can be updated - lazy initialization
+let currentConfig = null;
+let api = null;
 
-// Warn if API URL is fallback (localhost or placeholder)
-if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost') || currentConfig.apiUrl.includes('PLACEHOLDER')) {
-  console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
-} else {
-  console.log('[API CONFIG] ✅ Using configured API URL:', currentConfig.baseURL)
-}
-
-const api = axios.create({
-  baseURL: currentConfig.baseURL,
-  timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
-
-// Add request interceptor to automatically include auth token
-api.interceptors.request.use(
-  (config) => {
-    // Get token from localStorage (try both possible names for backward compatibility)
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+const initializeApi = () => {
+  if (api) return api; // Already initialized
+  
+  try {
+    currentConfig = getApiConfig();
     
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Warn if API URL is fallback (localhost or placeholder)
+    if (!currentConfig.apiUrl || currentConfig.apiUrl.includes('localhost') || currentConfig.apiUrl.includes('PLACEHOLDER')) {
+      console.warn('[API CONFIG] Using fallback API URL:', currentConfig.baseURL + '\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override.')
+    } else {
+      console.log('[API CONFIG] ✅ Using configured API URL:', currentConfig.baseURL)
     }
     
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+    api = axios.create({
+      baseURL: currentConfig.baseURL,
+      timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    // Setup interceptors
+    setupInterceptors(api);
+    
+  } catch (error) {
+    // Fallback for test environments
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
+      api = axios.create({
+        baseURL: 'https://test-api.example.com/dev',
+        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      setupInterceptors(api);
+      console.warn('[API CONFIG] Using test fallback API configuration');
+    } else {
+      throw error;
+    }
   }
-);
+  
+  return api;
+};
+
+// Setup interceptors - called during lazy initialization
+const setupInterceptors = (apiInstance) => {
+  // Add request interceptor to automatically include auth token
+  apiInstance.interceptors.request.use(
+    (config) => {
+      // Get token from localStorage (try both possible names for backward compatibility)
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+      
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+  
+  // Add request interceptor for circuit breaker
+  apiInstance.interceptors.request.use(
+    (config) => {
+      if (!checkCircuitBreaker()) {
+        return Promise.reject(new Error('Circuit breaker is open - API unavailable'));
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
+  // Add response interceptor to handle auth errors and circuit breaker
+  apiInstance.interceptors.response.use(
+    (response) => {
+      recordSuccess();
+      return response;
+    },
+    (error) => {
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        console.warn('🔒 Authentication failed, clearing tokens');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        
+        // Redirect to login if not already there
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }
+      
+      // Record failure for circuit breaker (but not for auth errors)
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        recordFailure(error);
+      }
+      
+      return Promise.reject(error);
+    }
+  );
+
+  // Request interceptor for logging and Lambda optimization
+  apiInstance.interceptors.request.use(
+    (config) => {
+      // Remove any double /api/api with robust type checking
+      try {
+        if (config.url && typeof config.url === 'string' && config.url.includes('/api/api')) {
+          config.url = config.url.replace('/api/api', '/api');
+        }
+      } catch (error) {
+        console.warn('URL processing error:', error);
+        // Continue with original URL if processing fails
+      }
+      
+      // Add authentication token if available (redundant with first interceptor, but kept for backward compatibility)
+      try {
+        // Try to get auth token from localStorage or sessionStorage
+        let authToken = null;
+        
+        // Check if we're in browser context
+        if (typeof window !== 'undefined') {
+          // Try various storage locations for auth token
+          authToken = localStorage.getItem('authToken') || 
+                     sessionStorage.getItem('authToken') ||
+                     localStorage.getItem('accessToken') ||
+                     sessionStorage.getItem('accessToken');
+        }
+        
+        if (authToken && !config.headers.Authorization) {
+          config.headers['Authorization'] = `Bearer ${authToken}`;
+        }
+      } catch (error) {
+        console.log('Could not retrieve auth token:', error.message);
+      }
+      
+      const fullUrl = `${config.baseURL}${config.url}`;
+      console.log('[API REQUEST FINAL URL]', fullUrl, { method: config.method, url: config.url });
+      if (config.isServerless) {
+        config.headers['X-Lambda-Request'] = 'true';
+        config.headers['X-Request-Time'] = new Date().toISOString();
+      }
+      return config;
+    },
+    (error) => {
+      console.error('API Request Error:', error);
+      return Promise.reject(error);
+    }
+  );
+
+  // Enhanced diagnostics: Log every response's status and data
+  apiInstance.interceptors.response.use(
+    (response) => {
+      const fullUrl = `${response.config.baseURL}${response.config.url}`;
+      console.log('[API SUCCESS]', response.config.method?.toUpperCase(), fullUrl, { status: response.status, statusText: response.statusText });
+      return response;
+    },
+    async (error) => {
+      console.error('[API ERROR]', { message: error.message, status: error.response?.status, url: error.config?.url });
+      return Promise.reject(error);
+    }
+  );
+};
 
 // Circuit breaker functions
 const checkCircuitBreaker = () => {
@@ -123,55 +255,16 @@ const recordFailure = (error) => {
   );
 };
 
-// Add request interceptor for circuit breaker
-api.interceptors.request.use(
-  (config) => {
-    if (!checkCircuitBreaker()) {
-      return Promise.reject(new Error('Circuit breaker is open - API unavailable'));
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
-// Add response interceptor to handle auth errors and circuit breaker
-api.interceptors.response.use(
-  (response) => {
-    recordSuccess();
-    return response;
-  },
-  (error) => {
-    // Handle authentication errors
-    if (error.response?.status === 401) {
-      console.warn('🔒 Authentication failed, clearing tokens');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('refreshToken');
-      
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-    }
-    
-    // Record failure for circuit breaker (but not for auth errors)
-    if (error.response?.status !== 401 && error.response?.status !== 403) {
-      recordFailure(error);
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// Export the api instance for direct use
-export { api }
+// Export the api instance getter for direct use
+export { initializeApi as api };
 
 // Portfolio API functions
 export const getPortfolioData = async (accountType = 'paper') => {
   const operation = 'getPortfolioData';
   
   try {
-    const response = await api.get(`/api/portfolio/holdings?accountType=${accountType}`);
+    const response = await initializeApi().get(`/api/portfolio/holdings?accountType=${accountType}`);
     
     // Log successful operation
     ErrorManager.handleError({
@@ -242,7 +335,7 @@ export const addHolding = async (holding) => {
       throw new Error('Invalid holding data: symbol is required');
     }
     
-    const response = await api.post('/api/portfolio/holdings', holding);
+    const response = await initializeApi().post('/api/portfolio/holdings', holding);
     
     ErrorManager.handleError({
       type: 'api_success',
@@ -288,7 +381,7 @@ export const updateHolding = async (holdingId, holding) => {
       throw new Error('Invalid holding data: symbol is required');
     }
     
-    const response = await api.put(`/api/portfolio/holdings/${holdingId}`, holding);
+    const response = await initializeApi().put(`/api/portfolio/holdings/${holdingId}`, holding);
     return response.data;
   }, {
     context: {
@@ -307,7 +400,7 @@ export const deleteHolding = async (holdingId) => {
       throw new Error('Holding ID is required');
     }
     
-    const response = await api.delete(`/api/portfolio/holdings/${holdingId}`);
+    const response = await initializeApi().delete(`/api/portfolio/holdings/${holdingId}`);
     return response.data;
   }, {
     context: {
@@ -330,7 +423,7 @@ export const importPortfolioFromBroker = async (broker, accountType = 'paper', s
       params.append('keyId', selectedKeyId);
     }
     
-    const response = await api.post(`/api/portfolio/import/${broker}?${params.toString()}`);
+    const response = await initializeApi().post(`/api/portfolio/import/${broker}?${params.toString()}`);
     return response.data;
   }, {
     context: {
@@ -348,7 +441,7 @@ export const importPortfolioFromBroker = async (broker, accountType = 'paper', s
 // Get available account types for user
 export const getAvailableAccounts = async () => {
   return apiWrapper.execute('getAvailableAccounts', async () => {
-    const response = await api.get('/api/portfolio/accounts');
+    const response = await initializeApi().get('/api/portfolio/accounts');
     return response.data;
   }, {
     context: {
@@ -366,7 +459,7 @@ export const getAvailableAccounts = async () => {
 // Get account information for specific account type
 export const getAccountInfo = async (accountType = 'paper') => {
   return apiWrapper.execute('getAccountInfo', async () => {
-    const response = await api.get(`/api/portfolio/account?accountType=${accountType}`);
+    const response = await initializeApi().get(`/api/portfolio/account?accountType=${accountType}`);
     // Extract the data from the response
     if (response.data && response.data.success && response.data.data) {
       return response.data.data;
@@ -385,7 +478,7 @@ export const getAccountInfo = async (accountType = 'paper') => {
 export const getPortfolioPerformance = async (timeframe = '1Y') => {
   return apiWrapper.execute('getPortfolioPerformance', async () => {
     // Backend expects 'period' parameter, not 'timeframe'
-    const response = await api.get(`/api/portfolio/performance?period=${timeframe}`);
+    const response = await initializeApi().get(`/api/portfolio/performance?period=${timeframe}`);
     return response.data;
   }, {
     context: {
@@ -399,7 +492,7 @@ export const getPortfolioPerformance = async (timeframe = '1Y') => {
 
 export const getPortfolioAnalytics = async (timeframe = '1Y') => {
   return apiWrapper.execute('getPortfolioAnalytics', async () => {
-    const response = await api.get(`/api/portfolio/analytics?timeframe=${timeframe}`);
+    const response = await initializeApi().get(`/api/portfolio/analytics?timeframe=${timeframe}`);
     return response.data;
   }, {
     context: {
@@ -414,7 +507,7 @@ export const getPortfolioAnalytics = async (timeframe = '1Y') => {
 
 export const getBenchmarkData = async (timeframe = '1Y') => {
   return apiWrapper.execute('getBenchmarkData', async () => {
-    const response = await api.get(`/api/portfolio/benchmark?timeframe=${timeframe}`);
+    const response = await initializeApi().get(`/api/portfolio/benchmark?timeframe=${timeframe}`);
     return response.data;
   }, {
     context: {
@@ -428,7 +521,7 @@ export const getBenchmarkData = async (timeframe = '1Y') => {
 
 export const getPortfolioOptimizationData = async () => {
   return apiWrapper.execute('getPortfolioOptimizationData', async () => {
-    const response = await api.get('/api/portfolio/optimization');
+    const response = await initializeApi().get('/api/portfolio/optimization');
     return response.data;
   }, {
     context: {
@@ -441,7 +534,7 @@ export const getPortfolioOptimizationData = async () => {
 
 export const getRebalancingRecommendations = async () => {
   return apiWrapper.execute('getRebalancingRecommendations', async () => {
-    const response = await api.get('/api/portfolio/optimization/recommendations');
+    const response = await initializeApi().get('/api/portfolio/optimization/recommendations');
     return response.data;
   }, {
     context: {
@@ -454,7 +547,7 @@ export const getRebalancingRecommendations = async () => {
 
 export const getRiskAnalysis = async () => {
   return apiWrapper.execute('getRiskAnalysis', async () => {
-    const response = await api.get('/api/portfolio/risk');
+    const response = await initializeApi().get('/api/portfolio/risk');
     return response.data;
   }, {
     context: {
@@ -472,7 +565,7 @@ export const sendChatMessage = async (message, context = {}) => {
       throw new Error('Message cannot be empty');
     }
     
-    const response = await api.post('/api/ai/chat', { message, context });
+    const response = await initializeApi().post('/api/ai/chat', { message, context });
     return response.data;
   }, {
     context: {
@@ -488,7 +581,7 @@ export const sendChatMessage = async (message, context = {}) => {
 
 export const getChatHistory = async (limit = 20) => {
   return apiWrapper.execute('getChatHistory', async () => {
-    const response = await api.get(`/api/ai/history?limit=${limit}`);
+    const response = await initializeApi().get(`/api/ai/history?limit=${limit}`);
     return response.data;
   }, {
     context: {
@@ -502,7 +595,7 @@ export const getChatHistory = async (limit = 20) => {
 
 export const clearChatHistory = async () => {
   return apiWrapper.execute('clearChatHistory', async () => {
-    const response = await api.delete('/api/ai/history');
+    const response = await initializeApi().delete('/api/ai/history');
     return response.data;
   }, {
     context: {
@@ -515,7 +608,7 @@ export const clearChatHistory = async () => {
 
 export const getAIConfig = async () => {
   return apiWrapper.execute('getAIConfig', async () => {
-    const response = await api.get('/api/ai/config');
+    const response = await initializeApi().get('/api/ai/config');
     return response.data;
   }, {
     context: {
@@ -532,7 +625,7 @@ export const updateAIPreferences = async (preferences) => {
       throw new Error('Preferences must be a valid object');
     }
     
-    const response = await api.put('/api/ai/preferences', preferences);
+    const response = await initializeApi().put('/api/ai/preferences', preferences);
     return response.data;
   }, {
     context: {
@@ -546,7 +639,7 @@ export const updateAIPreferences = async (preferences) => {
 
 export const getMarketContext = async () => {
   return apiWrapper.execute('getMarketContext', async () => {
-    const response = await api.get('/api/ai/market-context');
+    const response = await initializeApi().get('/api/ai/market-context');
     return response.data;
   }, {
     context: {
@@ -563,7 +656,7 @@ export const sendVoiceMessage = async (audioData, format = 'webm') => {
       throw new Error('Audio data is required');
     }
     
-    const response = await api.post('/api/ai/voice', { audioData, format });
+    const response = await initializeApi().post('/api/ai/voice', { audioData, format });
     return response.data;
   }, {
     context: {
@@ -583,7 +676,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
       throw new Error('Message cannot be empty');
     }
     
-    const response = await api.post('/api/ai/digital-human', { message, avatar });
+    const response = await initializeApi().post('/api/ai/digital-human', { message, avatar });
     return response.data;
   }, {
     context: {
@@ -600,7 +693,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
 // API Keys management
 export const getApiKeys = async () => {
   return apiWrapper.execute('getApiKeys', async () => {
-    const response = await api.get('/settings/api-keys');
+    const response = await initializeApi().get('/settings/api-keys');
     return response.data;
   }, {
     context: {
@@ -623,7 +716,7 @@ export const addApiKey = async (apiKeyData) => {
       throw new Error('API key data must include name and key');
     }
     
-    const response = await api.post('/settings/api-keys', apiKeyData);
+    const response = await initializeApi().post('/settings/api-keys', apiKeyData);
     return response.data;
   }, {
     context: {
@@ -645,7 +738,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
       throw new Error('API key data is required');
     }
     
-    const response = await api.put(`/settings/api-keys/${keyId}`, apiKeyData);
+    const response = await initializeApi().put(`/settings/api-keys/${keyId}`, apiKeyData);
     return response.data;
   }, {
     context: {
@@ -673,7 +766,7 @@ export const deleteApiKey = async (keyId) => {
       throw new Error('Key ID is required');
     }
     
-    const response = await api.delete(`/settings/api-keys/${keyId}`);
+    const response = await initializeApi().delete(`/settings/api-keys/${keyId}`);
     return response.data;
   }, {
     context: {
@@ -700,7 +793,7 @@ export const testApiKeyConnection = async (keyId) => {
       throw new Error('Key ID is required');
     }
     
-    const response = await api.post(`/settings/test-connection/${keyId}`);
+    const response = await initializeApi().post(`/settings/test-connection/${keyId}`);
     return response.data;
   }, {
     context: {
@@ -716,7 +809,7 @@ export const testApiKeyConnection = async (keyId) => {
 // Watchlist API functions
 export const getWatchlists = async () => {
   return apiWrapper.execute('getWatchlists', async () => {
-    const response = await api.get('/api/watchlist');
+    const response = await initializeApi().get('/api/watchlist');
     return response.data;
   }, {
     context: {
@@ -733,7 +826,7 @@ export const createWatchlist = async (watchlistData) => {
       throw new Error('Watchlist name is required');
     }
     
-    const response = await api.post('/api/watchlist', watchlistData);
+    const response = await initializeApi().post('/api/watchlist', watchlistData);
     return response.data;
   }, {
     context: {
@@ -754,7 +847,7 @@ export const updateWatchlist = async (watchlistId, watchlistData) => {
       throw new Error('Watchlist data is required');
     }
     
-    const response = await api.put(`/api/watchlist/${watchlistId}`, watchlistData);
+    const response = await initializeApi().put(`/api/watchlist/${watchlistId}`, watchlistData);
     return response.data;
   }, {
     context: {
@@ -773,7 +866,7 @@ export const deleteWatchlist = async (watchlistId) => {
       throw new Error('Watchlist ID is required');
     }
     
-    const response = await api.delete(`/api/watchlist/${watchlistId}`);
+    const response = await initializeApi().delete(`/api/watchlist/${watchlistId}`);
     return response.data;
   }, {
     context: {
@@ -791,7 +884,7 @@ export const getWatchlistItems = async (watchlistId) => {
       throw new Error('Watchlist ID is required');
     }
     
-    const response = await api.get(`/api/watchlist/${watchlistId}/items`);
+    const response = await initializeApi().get(`/api/watchlist/${watchlistId}/items`);
     return response.data;
   }, {
     context: {
@@ -812,7 +905,7 @@ export const addWatchlistItem = async (watchlistId, itemData) => {
       throw new Error('Item data with symbol is required');
     }
     
-    const response = await api.post(`/api/watchlist/${watchlistId}/items`, itemData);
+    const response = await initializeApi().post(`/api/watchlist/${watchlistId}/items`, itemData);
     return response.data;
   }, {
     context: {
@@ -834,7 +927,7 @@ export const deleteWatchlistItem = async (watchlistId, itemId) => {
       throw new Error('Item ID is required');
     }
     
-    const response = await api.delete(`/api/watchlist/${watchlistId}/items/${itemId}`);
+    const response = await initializeApi().delete(`/api/watchlist/${watchlistId}/items/${itemId}`);
     return response.data;
   }, {
     context: {
@@ -856,7 +949,7 @@ export const reorderWatchlistItems = async (watchlistId, itemIds) => {
       throw new Error('Item IDs array is required');
     }
     
-    const response = await api.post(`/api/watchlist/${watchlistId}/items/reorder`, { itemIds });
+    const response = await initializeApi().post(`/api/watchlist/${watchlistId}/items/reorder`, { itemIds });
     return response.data;
   }, {
     context: {
@@ -877,7 +970,7 @@ export const getCurrentBaseURL = () => {
 // Function to update API base URL dynamically
 export const updateApiBaseUrl = (newUrl) => {
   currentConfig = { ...currentConfig, baseURL: newUrl, apiUrl: newUrl }
-  api.defaults.baseURL = newUrl
+  initializeApi().defaults.baseURL = newUrl
 }
 
 // Retry configuration for Lambda cold starts
@@ -902,78 +995,6 @@ const retryRequest = async (error) => {
   return Promise.reject(error)
 }
 
-// Request interceptor for logging and Lambda optimization
-api.interceptors.request.use(
-  (config) => {
-    // Remove any double /api/api with robust type checking
-    try {
-      if (config.url && typeof config.url === 'string' && config.url.includes('/api/api')) {
-        config.url = config.url.replace('/api/api', '/api');
-      }
-    } catch (error) {
-      console.warn('URL processing error:', error);
-      // Continue with original URL if processing fails
-    }
-    
-    // Add authentication token if available
-    try {
-      // Try to get auth token from localStorage or sessionStorage
-      let authToken = null;
-      
-      // Check if we're in browser context
-      if (typeof window !== 'undefined') {
-        // Try various storage locations for auth token
-        authToken = localStorage.getItem('authToken') || 
-                   sessionStorage.getItem('authToken') ||
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('accessToken');
-      }
-      
-      if (authToken) {
-        config.headers['Authorization'] = `Bearer ${authToken}`;
-      }
-      
-      // Add session ID for user isolation in development mode
-      // Temporarily disabled until backend CORS deployment completes
-      // if (typeof window !== 'undefined') {
-      //   let sessionId = localStorage.getItem('sessionId');
-      //   if (!sessionId) {
-      //     // Generate a unique session ID and store it
-      //     sessionId = 'session-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      //     localStorage.setItem('sessionId', sessionId);
-      //   }
-      //   config.headers['X-Session-ID'] = sessionId;
-      // }
-    } catch (error) {
-      console.log('Could not retrieve auth token:', error.message);
-    }
-    
-    const fullUrl = `${config.baseURL || api.defaults.baseURL}${config.url}`;
-    console.log('[API REQUEST FINAL URL]', fullUrl, { method: config.method, url: config.url });
-    if (config.isServerless) {
-      config.headers['X-Lambda-Request'] = 'true'
-      config.headers['X-Request-Time'] = new Date().toISOString()
-    }
-    return config
-  },
-  (error) => {
-    console.error('API Request Error:', error)
-    return Promise.reject(error)
-  }
-)
-
-// Enhanced diagnostics: Log every response's status and data
-api.interceptors.response.use(
-  (response) => {
-    const fullUrl = `${response.config.baseURL || api.defaults.baseURL}${response.config.url}`
-    console.log('[API SUCCESS]', response.config.method?.toUpperCase(), fullUrl, { status: response.status, statusText: response.statusText })
-    return response
-  },
-  async (error) => {
-    console.error('[API ERROR]', { message: error.message, status: error.response?.status, url: error.config?.url })
-    return Promise.reject(error)
-  }
-)
 
 // --- Add this utility for consistent error handling ---
 function handleApiError(error, context = '') {
@@ -1039,16 +1060,23 @@ function normalizeApiResponse(response, expectArray = true) {
   }
 }
 
-// --- PATCH: Log API config at startup ---
-console.log('🚀 [API STARTUP] Initializing API configuration...');
-console.log('🔧 [API CONFIG]', getApiConfig());
-console.log('📡 [AXIOS DEFAULT BASE URL]', api.defaults.baseURL);
+// --- PATCH: Log API config at startup (only in browser context) ---
+if (typeof window !== 'undefined') {
+  console.log('🚀 [API STARTUP] Initializing API configuration...');
+  try {
+    console.log('🔧 [API CONFIG]', getApiConfig());
+    console.log('📡 [AXIOS DEFAULT BASE URL]', initializeApi().defaults.baseURL);
+  } catch (error) {
+    console.warn('⚠️ [API STARTUP] Failed to initialize config during module load:', error.message);
+  }
+}
 
-// Test connection on startup
-setTimeout(async () => {
+// Test connection on startup (only in browser context)
+if (typeof window !== 'undefined') {
+  setTimeout(async () => {
   try {
     console.log('🔍 [API STARTUP] Testing connection...');
-    const testResponse = await api.get('/health', { timeout: 5000 });
+    const testResponse = await initializeApi().get('/health', { timeout: 5000 });
     console.log('✅ [API STARTUP] Connection test successful:', testResponse.status);
   } catch (error) {
     console.warn('⚠️ [API STARTUP] Connection test failed:', error.message);
@@ -1057,7 +1085,7 @@ setTimeout(async () => {
     const altEndpoints = ['/api/health', '/api', '/'];
     for (const endpoint of altEndpoints) {
       try {
-        const response = await api.get(endpoint, { timeout: 3000 });
+        const response = await initializeApi().get(endpoint, { timeout: 3000 });
         console.log(`✅ [API STARTUP] Alternative endpoint ${endpoint} successful:`, response.status);
         break;
       } catch (err) {
@@ -1065,14 +1093,19 @@ setTimeout(async () => {
       }
     }
   }
-}, 1000);
+  }, 1000);
+}
 
 // --- PATCH: Wrap all API methods with normalizeApiResponse ---
 // Market overview
 export const getMarketOverview = async () => {
   console.log('📈 [API] Fetching market overview...');
-  console.log('📈 [API] Current config:', getApiConfig());
-  console.log('📈 [API] Axios baseURL:', api.defaults.baseURL);
+  try {
+    console.log('📈 [API] Current config:', getApiConfig());
+    console.log('📈 [API] Axios baseURL:', initializeApi().defaults.baseURL);
+  } catch (configError) {
+    console.warn('📈 [API] Config logging failed:', configError.message);
+  }
   
   try {
     // Try multiple endpoint variations to catch URL issues
@@ -1084,7 +1117,7 @@ export const getMarketOverview = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📈 [API] Trying endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1131,7 +1164,7 @@ export const getMarketSentimentHistory = async (days = 30) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying sentiment endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with sentiment endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1181,7 +1214,7 @@ export const getMarketSectorPerformance = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying sector endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with sector endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1231,7 +1264,7 @@ export const getMarketBreadth = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying breadth endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with breadth endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1281,7 +1314,7 @@ export const getEconomicIndicators = async (days = 90) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying economic endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with economic endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1337,7 +1370,7 @@ export const getSeasonalityData = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📅 [API] Trying seasonality endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📅 [API] SUCCESS with seasonality endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1391,7 +1424,7 @@ export const getMarketResearchIndicators = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`🔬 [API] Trying research indicators endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`🔬 [API] SUCCESS with research indicators endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1444,7 +1477,7 @@ export const getPortfolioAnalyticsDetailed = async (timeframe = '1y') => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📈 [API] Trying portfolio analytics endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📈 [API] SUCCESS with portfolio analytics endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1486,7 +1519,7 @@ export const getPortfolioOptimization = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`🎯 [API] Trying portfolio optimization endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`🎯 [API] SUCCESS with portfolio optimization endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -1538,7 +1571,7 @@ export const getStocks = async (params = {}) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`🚀 getStocks: Trying endpoint: ${endpoint}`);
-        response = await api.get(endpoint, {
+        response = await initializeApi().get(endpoint, {
           baseURL: currentConfig.baseURL
         });
         console.log(`🚀 getStocks: SUCCESS with endpoint: ${endpoint}`, response);
@@ -1588,7 +1621,7 @@ export const getStocksQuick = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/stocks/quick/overview?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/stocks/quick/overview?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks quick')
@@ -1599,7 +1632,7 @@ export const getStocksQuick = async (params = {}) => {
 // Chunked stocks loading
 export const getStocksChunk = async (chunkIndex = 0) => {
   try {
-    const response = await api.get(`/api/stocks/chunk/${chunkIndex}`)
+    const response = await initializeApi().get(`/api/stocks/chunk/${chunkIndex}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks chunk')
@@ -1621,7 +1654,7 @@ export const getStocksFull = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/stocks/full/data?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/stocks/full/data?${queryParams.toString()}`)
     return normalizeApiResponse(response)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stocks full')
@@ -1632,7 +1665,7 @@ export const getStocksFull = async (params = {}) => {
 export const getStock = async (ticker) => {
   console.log('🚀 getStock: Starting API call for ticker:', ticker);
   try {
-    const response = await api.get(`/api/stocks/${ticker}`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}`)
     
     console.log('📊 getStock: Raw response:', {
       status: response.status,
@@ -1655,7 +1688,7 @@ export const getStock = async (ticker) => {
 // New methods for StockDetail page
 export const getStockProfile = async (ticker) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}/profile`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}/profile`)
     return normalizeApiResponse(response, false)
   } catch (error) {
     const errorMessage = handleApiError(error, 'get stock profile')
@@ -1665,7 +1698,7 @@ export const getStockProfile = async (ticker) => {
 
 export const getStockMetrics = async (ticker) => {
   try {
-    const response = await api.get(`/api/metrics/${ticker}`)
+    const response = await initializeApi().get(`/api/metrics/${ticker}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false)
     return { data: result };
@@ -1678,7 +1711,7 @@ export const getStockMetrics = async (ticker) => {
 export const getStockFinancials = async (ticker, type = 'income') => {
   console.log('🚀 getStockFinancials: Starting API call for ticker:', ticker, 'type:', type);
   try {
-    const response = await api.get(`/api/financials/${ticker}/${type}`)
+    const response = await initializeApi().get(`/api/financials/${ticker}/${type}`)
     
     console.log('📊 getStockFinancials: Raw response:', {
       status: response.status,
@@ -1700,7 +1733,7 @@ export const getStockFinancials = async (ticker, type = 'income') => {
 
 export const getAnalystRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/recommendations`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/recommendations`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1712,7 +1745,7 @@ export const getAnalystRecommendations = async (ticker) => {
 
 export const getStockPrices = async (ticker, timeframe = 'daily', limit = 100) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}/prices?timeframe=${timeframe}&limit=${limit}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1724,7 +1757,7 @@ export const getStockPrices = async (ticker, timeframe = 'daily', limit = 100) =
 
 export const getStockPricesRecent = async (ticker, limit = 30) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}/prices/recent?limit=${limit}`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}/prices/recent?limit=${limit}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1736,7 +1769,7 @@ export const getStockPricesRecent = async (ticker, limit = 30) => {
 
 export const getStockRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}/recommendations`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}/recommendations`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1748,7 +1781,7 @@ export const getStockRecommendations = async (ticker) => {
 
 export const getSectors = async () => {
   try {
-    const response = await api.get('/api/sectors')
+    const response = await initializeApi().get('/api/sectors')
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1766,7 +1799,7 @@ export const getValuationMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/metrics/valuation?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/metrics/valuation?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1784,7 +1817,7 @@ export const getGrowthMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/metrics/growth?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/metrics/growth?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1802,7 +1835,7 @@ export const getDividendMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/metrics/dividends?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/metrics/dividends?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1820,7 +1853,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/metrics/financial-strength?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/metrics/financial-strength?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -1843,7 +1876,7 @@ export const screenStocks = async (params) => {
     console.log('🔍 [API] Screening stocks with params:', params);
     console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${queryString}`);
     
-    const response = await api.get(`${endpoint}?${queryString}`, {
+    const response = await initializeApi().get(`${endpoint}?${queryString}`, {
       baseURL: currentConfig.baseURL
     });
     
@@ -1898,7 +1931,7 @@ export const screenStocks = async (params) => {
 // Stock screener additional functions
 export const getScreenerFilters = async () => {
   try {
-    const response = await api.get('/api/screener/filters');
+    const response = await initializeApi().get('/api/screener/filters');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching screener filters:', error);
@@ -1909,7 +1942,7 @@ export const getScreenerFilters = async () => {
 
 export const getScreenerPresets = async () => {
   try {
-    const response = await api.get('/api/screener/presets');
+    const response = await initializeApi().get('/api/screener/presets');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching screener presets:', error);
@@ -1920,7 +1953,7 @@ export const getScreenerPresets = async () => {
 
 export const applyScreenerPreset = async (presetId) => {
   try {
-    const response = await api.post(`/api/screener/presets/${presetId}/apply`);
+    const response = await initializeApi().post(`/api/screener/presets/${presetId}/apply`);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error applying screener preset:', error);
@@ -1931,7 +1964,7 @@ export const applyScreenerPreset = async (presetId) => {
 
 export const saveScreenerSettings = async (settings) => {
   try {
-    const response = await api.post('/api/screener/screens/save', settings);
+    const response = await initializeApi().post('/api/screener/screens/save', settings);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error saving screener settings:', error);
@@ -1942,7 +1975,7 @@ export const saveScreenerSettings = async (settings) => {
 
 export const getSavedScreens = async () => {
   try {
-    const response = await api.get('/api/screener/screens');
+    const response = await initializeApi().get('/api/screener/screens');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching saved screens:', error);
@@ -1953,7 +1986,7 @@ export const getSavedScreens = async () => {
 
 export const exportScreenerResults = async (symbols, format = 'csv') => {
   try {
-    const response = await api.post('/api/screener/export', { symbols, format });
+    const response = await initializeApi().post('/api/screener/export', { symbols, format });
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error exporting screener results:', error);
@@ -1971,7 +2004,7 @@ export const getAlerts = async (params = {}) => {
         queryParams.append(key, value);
       }
     });
-    const response = await api.get(`/api/alerts?${queryParams.toString()}`);
+    const response = await initializeApi().get(`/api/alerts?${queryParams.toString()}`);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching alerts:', error);
@@ -1982,7 +2015,7 @@ export const getAlerts = async (params = {}) => {
 
 export const createAlert = async (alertData) => {
   try {
-    const response = await api.post('/api/alerts', alertData);
+    const response = await initializeApi().post('/api/alerts', alertData);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error creating alert:', error);
@@ -1993,7 +2026,7 @@ export const createAlert = async (alertData) => {
 
 export const updateAlert = async (alertId, updates) => {
   try {
-    const response = await api.put(`/api/alerts/${alertId}`, updates);
+    const response = await initializeApi().put(`/api/alerts/${alertId}`, updates);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error updating alert:', error);
@@ -2004,7 +2037,7 @@ export const updateAlert = async (alertId, updates) => {
 
 export const deleteAlert = async (alertId) => {
   try {
-    const response = await api.delete(`/api/alerts/${alertId}`);
+    const response = await initializeApi().delete(`/api/alerts/${alertId}`);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error deleting alert:', error);
@@ -2015,7 +2048,7 @@ export const deleteAlert = async (alertId) => {
 
 export const getAlertNotifications = async (limit = 50) => {
   try {
-    const response = await api.get(`/api/alerts/notifications?limit=${limit}`);
+    const response = await initializeApi().get(`/api/alerts/notifications?limit=${limit}`);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching alert notifications:', error);
@@ -2026,7 +2059,7 @@ export const getAlertNotifications = async (limit = 50) => {
 
 export const markNotificationAsRead = async (notificationId) => {
   try {
-    const response = await api.put(`/api/alerts/notifications/${notificationId}/read`);
+    const response = await initializeApi().put(`/api/alerts/notifications/${notificationId}/read`);
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error marking notification as read:', error);
@@ -2037,7 +2070,7 @@ export const markNotificationAsRead = async (notificationId) => {
 
 export const getAlertTypes = async () => {
   try {
-    const response = await api.get('/api/alerts/types');
+    const response = await initializeApi().get('/api/alerts/types');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Error fetching alert types:', error);
@@ -2050,7 +2083,7 @@ export const getAlertTypes = async () => {
 export const getBuySignals = async () => {
   console.log('📈 [API] Fetching buy signals...');
   try {
-    const response = await api.get('/api/trading/signals/buy');
+    const response = await initializeApi().get('/api/trading/signals/buy');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Buy signals error:', error);
@@ -2061,7 +2094,7 @@ export const getBuySignals = async () => {
 export const getSellSignals = async () => {
   console.log('📉 [API] Fetching sell signals...');
   try {
-    const response = await api.get('/api/trading/signals/sell');
+    const response = await initializeApi().get('/api/trading/signals/sell');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Sell signals error:', error);
@@ -2078,7 +2111,7 @@ export const getEarningsEstimates = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/calendar/earnings-estimates?${queryParams.toString()}`, {
+    const response = await initializeApi().get(`/api/calendar/earnings-estimates?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
     // Always return { data: ... } structure for consistency
@@ -2098,7 +2131,7 @@ export const getEarningsHistory = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/calendar/earnings-history?${queryParams.toString()}`, {
+    const response = await initializeApi().get(`/api/calendar/earnings-history?${queryParams.toString()}`, {
       baseURL: currentConfig.baseURL
     })
     // Always return { data: ... } structure for consistency
@@ -2113,7 +2146,7 @@ export const getEarningsHistory = async (params = {}) => {
 // Ticker-based endpoints (wrap Axios promise for consistency)
 export const getTickerEarningsEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/earnings-estimates`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/earnings-estimates`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2125,7 +2158,7 @@ export const getTickerEarningsEstimates = async (ticker) => {
 
 export const getTickerEarningsHistory = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/earnings-history`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/earnings-history`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2137,7 +2170,7 @@ export const getTickerEarningsHistory = async (ticker) => {
 
 export const getTickerRevenueEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/revenue-estimates`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/revenue-estimates`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2149,7 +2182,7 @@ export const getTickerRevenueEstimates = async (ticker) => {
 
 export const getTickerEpsRevisions = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/eps-revisions`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/eps-revisions`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2161,7 +2194,7 @@ export const getTickerEpsRevisions = async (ticker) => {
 
 export const getTickerEpsTrend = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/eps-trend`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/eps-trend`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2173,7 +2206,7 @@ export const getTickerEpsTrend = async (ticker) => {
 
 export const getTickerGrowthEstimates = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/growth-estimates`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/growth-estimates`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2185,7 +2218,7 @@ export const getTickerGrowthEstimates = async (ticker) => {
 
 export const getTickerAnalystRecommendations = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/recommendations`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/recommendations`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2197,7 +2230,7 @@ export const getTickerAnalystRecommendations = async (ticker) => {
 
 export const getAnalystOverview = async (ticker) => {
   try {
-    const response = await api.get(`/api/analysts/${ticker}/overview`)
+    const response = await initializeApi().get(`/api/analysts/${ticker}/overview`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false)
     return { data: result };
@@ -2209,7 +2242,7 @@ export const getAnalystOverview = async (ticker) => {
 
 export const getFinancialStatements = async (ticker, period = 'annual') => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/statements?period=${period}`)
+    const response = await initializeApi().get(`/api/financials/${ticker}/statements?period=${period}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2221,7 +2254,7 @@ export const getFinancialStatements = async (ticker, period = 'annual') => {
 
 export const getIncomeStatement = async (ticker, period = 'annual') => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/income-statement?period=${period}`)
+    const response = await initializeApi().get(`/api/financials/${ticker}/income-statement?period=${period}`)
     const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
@@ -2232,7 +2265,7 @@ export const getIncomeStatement = async (ticker, period = 'annual') => {
 
 export const getCashFlowStatement = async (ticker, period = 'annual') => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/cash-flow?period=${period}`)
+    const response = await initializeApi().get(`/api/financials/${ticker}/cash-flow?period=${period}`)
     const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
@@ -2243,7 +2276,7 @@ export const getCashFlowStatement = async (ticker, period = 'annual') => {
 
 export const getBalanceSheet = async (ticker, period = 'annual') => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/balance-sheet?period=${period}`)
+    const response = await initializeApi().get(`/api/financials/${ticker}/balance-sheet?period=${period}`)
     const result = normalizeApiResponse(response, true);
     return { data: result };
   } catch (error) {
@@ -2255,7 +2288,7 @@ export const getBalanceSheet = async (ticker, period = 'annual') => {
 export const getKeyMetrics = async (ticker) => {
   try {
     const url = `/api/financials/${ticker}/key-metrics`
-    const response = await api.get(url, {
+    const response = await initializeApi().get(url, {
       baseURL: currentConfig.baseURL
     })
     const result = normalizeApiResponse(response, false);
@@ -2274,7 +2307,7 @@ export const getAllFinancialData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/financials/all?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/financials/all?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2292,7 +2325,7 @@ export const getFinancialMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/financials/metrics?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/financials/metrics?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2310,7 +2343,7 @@ export const getEpsRevisions = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/analysts/eps-revisions?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/analysts/eps-revisions?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2328,7 +2361,7 @@ export const getEpsTrend = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/analysts/eps-trend?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/analysts/eps-trend?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2346,7 +2379,7 @@ export const getGrowthEstimates = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/analysts/growth-estimates?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/analysts/growth-estimates?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2364,7 +2397,7 @@ export const getEconomicData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/economic/data?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/economic/data?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2378,7 +2411,7 @@ export const getEconomicData = async (params = {}) => {
 export const getTechnicalHistory = async (symbol) => {
   console.log(`📊 [API] Fetching technical history for ${symbol}...`);
   try {
-    const response = await api.get(`/technical/history/${symbol}`);
+    const response = await initializeApi().get(`/technical/history/${symbol}`);
     console.log(`📊 [API] Technical history response for ${symbol}:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2391,7 +2424,7 @@ export const getTechnicalHistory = async (symbol) => {
 export const getStockInfo = async (symbol) => {
   console.log(`ℹ️ [API] Fetching stock info for ${symbol}...`);
   try {
-    const response = await api.get(`/stocks/info/${symbol}`);
+    const response = await initializeApi().get(`/stocks/info/${symbol}`);
     console.log(`ℹ️ [API] Stock info response for ${symbol}:`, response);
     return normalizeApiResponse(response, false);
   } catch (error) {
@@ -2403,7 +2436,7 @@ export const getStockInfo = async (symbol) => {
 export const getStockPrice = async (symbol) => {
   console.log(`💰 [API] Fetching stock price for ${symbol}...`);
   try {
-    const response = await api.get(`/stocks/price/${symbol}`);
+    const response = await initializeApi().get(`/stocks/price/${symbol}`);
     console.log(`💰 [API] Stock price response for ${symbol}:`, response);
     return normalizeApiResponse(response, false);
   } catch (error) {
@@ -2415,7 +2448,7 @@ export const getStockPrice = async (symbol) => {
 export const getStockHistory = async (symbol) => {
   console.log(`📊 [API] Fetching stock history for ${symbol}...`);
   try {
-    const response = await api.get(`/stocks/history/${symbol}`);
+    const response = await initializeApi().get(`/stocks/history/${symbol}`);
     console.log(`📊 [API] Stock history response for ${symbol}:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2427,7 +2460,7 @@ export const getStockHistory = async (symbol) => {
 export const searchStocks = async (query) => {
   console.log(`🔍 [API] Searching stocks with query: ${query}...`);
   try {
-    const response = await api.get(`/stocks/search?q=${encodeURIComponent(query)}`);
+    const response = await initializeApi().get(`/stocks/search?q=${encodeURIComponent(query)}`);
     console.log(`🔍 [API] Stock search response:`, response);
     return normalizeApiResponse(response, true);
   } catch (error) {
@@ -2440,7 +2473,7 @@ export const searchStocks = async (query) => {
 export const getHealth = async () => {
   console.log('🏥 [API] Checking API health...');
   try {
-    const response = await api.get('/health');
+    const response = await initializeApi().get('/health');
     console.log('🏥 [API] Health check response:', response);
     return normalizeApiResponse(response, false);
   } catch (error) {
@@ -2458,7 +2491,7 @@ export const getNaaimData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/market/naaim?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/market/naaim?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true) // Array of NAAIM data
     return { data: result };
@@ -2476,7 +2509,7 @@ export const getFearGreedData = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/market/fear-greed?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/market/fear-greed?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true) // Array of fear/greed data
     return { data: result };
@@ -2510,7 +2543,7 @@ export const getPriceHistory = async (timeframe = 'daily', params = {}) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📈 [API] Trying price history endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📈 [API] SUCCESS with price history endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -2585,7 +2618,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying technical endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with technical endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -2655,7 +2688,7 @@ export const getTechnicalSummary = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/technical/summary?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/technical/summary?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2673,7 +2706,7 @@ export const getEarningsMetrics = async (params = {}) => {
         queryParams.append(key, value)
       }
     })
-    const response = await api.get(`/api/calendar/earnings-metrics?${queryParams.toString()}`)
+    const response = await initializeApi().get(`/api/calendar/earnings-metrics?${queryParams.toString()}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true)
     return { data: result };
@@ -2690,9 +2723,9 @@ export const testApiConnection = async (customUrl = null) => {
     console.log('Current API URL:', currentConfig.baseURL)
     console.log('Custom URL:', customUrl)
     console.log('Environment:', import.meta.env.MODE)
-    console.log('API_URL:', 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev')
+    console.log('API_URL:', 'https://2m14opj30h.execute-initializeApi().us-east-1.amazonaws.com/dev')
     const testUrl = customUrl || currentConfig.baseURL
-    const response = await api.get('/api/health?quick=true', {
+    const response = await initializeApi().get('/api/health?quick=true', {
       baseURL: testUrl,
       timeout: 7000
     })
@@ -2727,11 +2760,11 @@ export const testApiConnection = async (customUrl = null) => {
 export const getDiagnosticInfo = () => {
   return {
     currentApiUrl: currentConfig.baseURL,
-    axiosDefaultBaseUrl: api.defaults.baseURL,
-    viteApiUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
+    axiosDefaultBaseUrl: initializeApi().defaults.baseURL,
+    viteApiUrl: 'https://2m14opj30h.execute-initializeApi().us-east-1.amazonaws.com/dev',
     isConfigured: currentConfig.isConfigured,
     environment: import.meta.env.MODE,
-    urlsMatch: currentConfig.baseURL === api.defaults.baseURL,
+    urlsMatch: currentConfig.baseURL === initializeApi().defaults.baseURL,
     timestamp: new Date().toISOString()
   }
 }
@@ -2739,7 +2772,7 @@ export const getDiagnosticInfo = () => {
 // Database health (full details)
 export const getDatabaseHealthFull = async () => {
   try {
-    const response = await api.get('/api/health/database', {
+    const response = await initializeApi().get('/api/health/database', {
       baseURL: currentConfig.baseURL
     })
     // Return the full response (healthSummary, tables, etc.)
@@ -2756,7 +2789,7 @@ export const healthCheck = async (queryParams = '') => {
   let healthUrl = `/api/health${queryParams}`;
   let rootUrl = `/${queryParams}`;
   try {
-    const response = await api.get(healthUrl, {
+    const response = await initializeApi().get(healthUrl, {
       baseURL: currentConfig.baseURL
     });
     console.log('Health check response:', response.data);
@@ -2772,7 +2805,7 @@ export const healthCheck = async (queryParams = '') => {
     console.warn('Health check failed for /api/health, trying root / endpoint...');
     triedRoot = true;
     try {
-      const response = await api.get(rootUrl, {
+      const response = await initializeApi().get(rootUrl, {
         baseURL: currentConfig.baseURL
       });
       console.log('Root endpoint health check response:', response.data);
@@ -2801,7 +2834,7 @@ export const healthCheck = async (queryParams = '') => {
 // Data validation functions
 export const getDataValidationSummary = async () => {
   try {
-    const response = await api.get('/api/health/full');
+    const response = await initializeApi().get('/api/health/full');
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
     return { data: result };
@@ -2815,7 +2848,7 @@ export const getDataValidationSummary = async () => {
 export const getStockPriceHistory = async (ticker, limit = 90) => {
   try {
     console.log(`BULLETPROOF: Fetching price history for ${ticker} with limit ${limit}`);
-    const response = await api.get(`/api/stocks/${ticker}/prices?limit=${limit}`)
+    const response = await initializeApi().get(`/api/stocks/${ticker}/prices?limit=${limit}`)
     console.log(`BULLETPROOF: Price history response received for ${ticker}:`, response.data);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true) // Expect array of price data
@@ -2829,7 +2862,7 @@ export const getStockPriceHistory = async (ticker, limit = 90) => {
 
 export const getRecentAnalystActions = async (limit = 10) => {
   try {
-    const response = await api.get(`/api/analysts/recent-actions?limit=${limit}`)
+    const response = await initializeApi().get(`/api/analysts/recent-actions?limit=${limit}`)
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true) // Expect array of analyst actions
     return { 
@@ -2852,7 +2885,7 @@ export const testApiEndpoints = async () => {
   
   try {
     // Test basic health check
-    const healthResponse = await api.get('/api/health');
+    const healthResponse = await initializeApi().get('/api/health');
     results.health = { success: true, data: healthResponse.data };
   } catch (error) {
     results.health = { success: false, error: error.message };
@@ -2860,7 +2893,7 @@ export const testApiEndpoints = async () => {
   
   try {
     // Test stocks endpoint
-    const stocksResponse = await api.get('/api/stocks?limit=5');
+    const stocksResponse = await initializeApi().get('/api/stocks?limit=5');
     results.stocks = { success: true, data: stocksResponse.data };
   } catch (error) {
     results.stocks = { success: false, error: error.message };
@@ -2868,7 +2901,7 @@ export const testApiEndpoints = async () => {
   
   try {
     // Test technical data endpoint
-    const technicalResponse = await api.get('/api/technical/daily?limit=5');
+    const technicalResponse = await initializeApi().get('/api/technical/daily?limit=5');
     results.technical = { success: true, data: technicalResponse.data };
   } catch (error) {
     results.technical = { success: false, error: error.message };
@@ -2876,7 +2909,7 @@ export const testApiEndpoints = async () => {
   
   try {
     // Test market overview endpoint
-    const marketResponse = await api.get('/api/market/overview');
+    const marketResponse = await initializeApi().get('/api/market/overview');
     results.market = { success: true, data: marketResponse.data };
   } catch (error) {
     results.market = { success: false, error: error.message };
@@ -2890,7 +2923,7 @@ export const testApiEndpoints = async () => {
 export const getMarketIndices = async () => {
   console.log('🚀 getMarketIndices: Starting API call...');
   try {
-    const response = await api.get('/api/market/indices');
+    const response = await initializeApi().get('/api/market/indices');
     
     console.log('📊 getMarketIndices: Raw response:', {
       status: response.status,
@@ -2914,7 +2947,7 @@ export const getMarketIndices = async () => {
 export const getSectorPerformance = async () => {
   console.log('🚀 getSectorPerformance: Starting API call...');
   try {
-    const response = await api.get('/api/market/sectors');
+    const response = await initializeApi().get('/api/market/sectors');
     
     console.log('📊 getSectorPerformance: Raw response:', {
       status: response.status,
@@ -2938,7 +2971,7 @@ export const getSectorPerformance = async () => {
 export const getMarketVolatility = async () => {
   console.log('🚀 getMarketVolatility: Starting API call...');
   try {
-    const response = await api.get('/api/market/volatility');
+    const response = await initializeApi().get('/api/market/volatility');
     
     console.log('📊 getMarketVolatility: Raw response:', {
       status: response.status,
@@ -2963,7 +2996,7 @@ export const getMarketVolatility = async () => {
 export const getMarketCapCategories = async () => {
   console.log('🚀 getMarketCapCategories: Starting API call...');
   try {
-    const response = await api.get('/api/stocks/market-cap-categories');
+    const response = await initializeApi().get('/api/stocks/market-cap-categories');
     
     console.log('📊 getMarketCapCategories: Raw response:', {
       status: response.status,
@@ -2987,7 +3020,7 @@ export const getMarketCapCategories = async () => {
 export const getTechnicalIndicators = async (symbol, timeframe, indicators) => {
   console.log('🚀 getTechnicalIndicators: Starting API call...', { symbol, timeframe, indicators });
   try {
-    const response = await api.get(`/api/technical/indicators/${symbol}`, {
+    const response = await initializeApi().get(`/api/technical/indicators/${symbol}`, {
       params: { timeframe, indicators: indicators.join(',') }
     });
     
@@ -3013,7 +3046,7 @@ export const getTechnicalIndicators = async (symbol, timeframe, indicators) => {
 export const getVolumeData = async (symbol, timeframe) => {
   console.log('🚀 getVolumeData: Starting API call...', { symbol, timeframe });
   try {
-    const response = await api.get(`/api/stocks/${symbol}/volume`, {
+    const response = await initializeApi().get(`/api/stocks/${symbol}/volume`, {
       params: { timeframe }
     });
     
@@ -3040,7 +3073,7 @@ export const getFredEconomicData = async () => {
   console.log('📈 [API] Fetching FRED economic data...');
   
   try {
-    const response = await api.get('/api/market/economic/fred');
+    const response = await initializeApi().get('/api/market/economic/fred');
     console.log('📈 [API] FRED economic data response:', response.data);
     
     return {
@@ -3065,7 +3098,7 @@ export const updateFredData = async () => {
   console.log('🔄 [API] Updating FRED economic data...');
   
   try {
-    const response = await api.post('/api/market/economic/fred/update');
+    const response = await initializeApi().post('/api/market/economic/fred/update');
     console.log('🔄 [API] FRED data update response:', response.data);
     
     return {
@@ -3088,7 +3121,7 @@ export const searchFredSeries = async (searchText, limit = 20) => {
   console.log(`🔍 [API] Searching FRED series for: "${searchText}"`);
   
   try {
-    const response = await api.get('/api/market/economic/fred/search', {
+    const response = await initializeApi().get('/api/market/economic/fred/search', {
       params: { q: searchText, limit }
     });
     console.log('🔍 [API] FRED search response:', response.data);
@@ -3127,7 +3160,7 @@ export const getEconomicCalendar = async (days = 30, importance = null, category
     for (const endpoint of endpoints) {
       try {
         console.log(`📅 [API] Trying calendar endpoint: ${endpoint}`);
-        response = await api.get(endpoint, { params });
+        response = await initializeApi().get(endpoint, { params });
         console.log(`📅 [API] SUCCESS with calendar endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3170,7 +3203,7 @@ export const runPortfolioOptimization = async (params) => {
   console.log('🎯 [API] Running portfolio optimization...', params);
   
   try {
-    const response = await api.post('/api/portfolio/optimization/run', params);
+    const response = await initializeApi().post('/api/portfolio/optimization/run', params);
     console.log('🎯 [API] Portfolio optimization response:', response.data);
     
     return {
@@ -3193,7 +3226,7 @@ export const getOptimizationRecommendations = async () => {
   console.log('💡 [API] Getting optimization recommendations...');
   
   try {
-    const response = await api.get('/api/portfolio/optimization/recommendations');
+    const response = await initializeApi().get('/api/portfolio/optimization/recommendations');
     console.log('💡 [API] Optimization recommendations response:', response.data);
     
     return {
@@ -3217,7 +3250,7 @@ export const executeRebalancing = async (trades, confirmationToken) => {
   console.log('⚖️ [API] Executing rebalancing trades...', trades);
   
   try {
-    const response = await api.post('/api/portfolio/rebalance/execute', {
+    const response = await initializeApi().post('/api/portfolio/rebalance/execute', {
       trades,
       confirmationToken
     });
@@ -3243,7 +3276,7 @@ export const getPortfolioRiskAnalysis = async (params = {}) => {
   console.log('📊 [API] Getting portfolio risk analysis...', params);
   
   try {
-    const response = await api.get('/api/portfolio/risk-analysis', { params });
+    const response = await initializeApi().get('/api/portfolio/risk-analysis', { params });
     console.log('📊 [API] Risk analysis response:', response.data);
     
     return {
@@ -3266,7 +3299,7 @@ export const getPortfolioRiskAnalysis = async (params = {}) => {
 export const getSupportResistanceLevels = async (symbol) => {
   console.log('🚀 getSupportResistanceLevels: Starting API call...', { symbol });
   try {
-    const response = await api.get(`/api/technical/support-resistance/${symbol}`);
+    const response = await initializeApi().get(`/api/technical/support-resistance/${symbol}`);
     
     console.log('📊 getSupportResistanceLevels: Raw response:', {
       status: response.status,
@@ -3290,7 +3323,7 @@ export const getSupportResistanceLevels = async (symbol) => {
 export const getDashboardSummary = async () => {
   console.log('📊 [API] Fetching dashboard summary...');
   try {
-    const response = await api.get('/dashboard/summary');
+    const response = await initializeApi().get('/dashboard/summary');
     console.log('📊 [API] Dashboard summary response:', response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
@@ -3304,7 +3337,7 @@ export const getDashboardSummary = async () => {
 export const getDashboardPerformance = async () => {
   console.log('📈 [API] Fetching dashboard performance...');
   try {
-    const response = await api.get('/dashboard/performance');
+    const response = await initializeApi().get('/dashboard/performance');
     console.log('📈 [API] Dashboard performance response:', response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -3318,7 +3351,7 @@ export const getDashboardPerformance = async () => {
 export const getDashboardAlerts = async () => {
   console.log('🚨 [API] Fetching dashboard alerts...');
   try {
-    const response = await api.get('/dashboard/alerts');
+    const response = await initializeApi().get('/dashboard/alerts');
     console.log('🚨 [API] Dashboard alerts response:', response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -3332,7 +3365,7 @@ export const getDashboardAlerts = async () => {
 export const getDashboardDebug = async () => {
   console.log('🔧 [API] Fetching dashboard debug info...');
   try {
-    const response = await api.get('/dashboard/debug');
+    const response = await initializeApi().get('/dashboard/debug');
     console.log('🔧 [API] Dashboard debug response:', response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
@@ -3347,7 +3380,7 @@ export const getDashboardDebug = async () => {
 export const getMarketIndicators = async () => {
   console.log('📊 [API] Fetching market indicators...');
   try {
-    const response = await api.get('/market/indicators');
+    const response = await initializeApi().get('/market/indicators');
     console.log('📊 [API] Market indicators response:', response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
@@ -3389,7 +3422,7 @@ export const getMarketSentiment = async () => {
 export const getFinancialData = async (symbol) => {
   console.log(`💰 [API] Fetching financial data for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/data/${symbol}`);
+    const response = await initializeApi().get(`/financials/data/${symbol}`);
     console.log(`💰 [API] Financial data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
@@ -3403,7 +3436,7 @@ export const getFinancialData = async (symbol) => {
 export const getEarningsData = async (symbol) => {
   console.log(`📊 [API] Fetching earnings data for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/earnings/${symbol}`);
+    const response = await initializeApi().get(`/financials/earnings/${symbol}`);
     console.log(`📊 [API] Earnings data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -3417,7 +3450,7 @@ export const getEarningsData = async (symbol) => {
 export const getCashFlow = async (symbol) => {
   console.log(`💵 [API] Fetching cash flow for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/cash-flow/${symbol}`);
+    const response = await initializeApi().get(`/financials/cash-flow/${symbol}`);
     console.log(`💵 [API] Cash flow response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, true);
@@ -3597,7 +3630,7 @@ export const getDashboardEarningsCalendar = async () => {
 export const getDashboardAnalystInsights = async () => {
   console.log('🧠 [API] Fetching dashboard analyst insights...');
   try {
-    const response = await api.get('/api/dashboard/analyst-insights');
+    const response = await initializeApi().get('/api/dashboard/analyst-insights');
     return response.data;
   } catch (error) {
     console.error('❌ [API] Dashboard analyst insights error:', error);
@@ -3637,7 +3670,7 @@ export const getDashboardSymbols = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`🔤 [API] Trying dashboard symbols endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`🔤 [API] SUCCESS with dashboard symbols endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3651,7 +3684,7 @@ export const getDashboardSymbols = async () => {
       console.error('🔤 [API] All dashboard symbols endpoints failed, trying generic stocks endpoint');
       // Fallback to generic stocks endpoint
       try {
-        response = await api.get('/api/stocks?limit=20');
+        response = await initializeApi().get('/api/stocks?limit=20');
       } catch (fallbackError) {
         console.error('🔤 [API] Fallback stocks endpoint failed:', fallbackError);
         throw new Error(`Failed to fetch dashboard symbols: ${lastError?.message || fallbackError.message}`);
@@ -3835,7 +3868,7 @@ const apiMethods = {
 };
 
 // Add these methods to the api object
-api.getStockScores = async (symbol) => {
+initializeApi().getStockScores = async (symbol) => {
   console.log(`📊 [API] Fetching stock scores for ${symbol}...`);
   
   try {
@@ -3848,7 +3881,7 @@ api.getStockScores = async (symbol) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying scores endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with scores endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3872,7 +3905,7 @@ api.getStockScores = async (symbol) => {
   }
 };
 
-api.getPeerComparison = async (symbol) => {
+initializeApi().getPeerComparison = async (symbol) => {
   console.log(`📊 [API] Fetching peer comparison for ${symbol}...`);
   
   try {
@@ -3885,7 +3918,7 @@ api.getPeerComparison = async (symbol) => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying peer comparison endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with peer comparison endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3909,7 +3942,7 @@ api.getPeerComparison = async (symbol) => {
   }
 };
 
-api.getHistoricalScores = async (symbol, period = '3M') => {
+initializeApi().getHistoricalScores = async (symbol, period = '3M') => {
   console.log(`📊 [API] Fetching historical scores for ${symbol}, period: ${period}...`);
   
   try {
@@ -3925,7 +3958,7 @@ api.getHistoricalScores = async (symbol, period = '3M') => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying historical scores endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with historical scores endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3949,7 +3982,7 @@ api.getHistoricalScores = async (symbol, period = '3M') => {
   }
 };
 
-api.getStockOptions = async () => {
+initializeApi().getStockOptions = async () => {
   console.log('📊 [API] Fetching stock options...');
   
   try {
@@ -3962,7 +3995,7 @@ api.getStockOptions = async () => {
     for (const endpoint of endpoints) {
       try {
         console.log(`📊 [API] Trying stock options endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        response = await initializeApi().get(endpoint);
         console.log(`📊 [API] SUCCESS with stock options endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -3997,9 +4030,9 @@ api.getStockOptions = async () => {
 };
 
 // Sector analysis functions
-api.getSectorAnalysis = async (timeframe = 'daily') => {
+initializeApi().getSectorAnalysis = async (timeframe = 'daily') => {
   try {
-    const response = await api.get(`/api/sectors/analysis?timeframe=${timeframe}`)
+    const response = await initializeApi().get(`/api/sectors/analysis?timeframe=${timeframe}`)
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching sector analysis:', error);
@@ -4008,9 +4041,9 @@ api.getSectorAnalysis = async (timeframe = 'daily') => {
   }
 };
 
-api.getSectorDetails = async (sector) => {
+initializeApi().getSectorDetails = async (sector) => {
   try {
-    const response = await api.get(`/api/sectors/${encodeURIComponent(sector)}/details`)
+    const response = await initializeApi().get(`/api/sectors/${encodeURIComponent(sector)}/details`)
     return response.data;
   } catch (error) {
     console.error(`❌ Error fetching ${sector} details:`, error);
@@ -4020,14 +4053,14 @@ api.getSectorDetails = async (sector) => {
 };
 
 // Earnings Calendar functions
-api.getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) => {
+initializeApi().getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) => {
   try {
     const params = new URLSearchParams({
       type: timeFilter,
       page: page + 1,
       limit: limit
     });
-    const response = await api.get(`/calendar/events?${params}`);
+    const response = await initializeApi().get(`/calendar/events?${params}`);
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching calendar events:', error);
@@ -4040,11 +4073,11 @@ api.getCalendarEvents = async (timeFilter = 'upcoming', page = 0, limit = 25) =>
 
 
 
-api.getAaiiData = async () => {
+initializeApi().getAaiiData = async () => {
   console.log('📈 [API] Fetching AAII sentiment data...');
   
   try {
-    const response = await api.get('/data/aaii');
+    const response = await initializeApi().get('/data/aaii');
     console.log('📈 [API] AAII data response:', response.data);
     
     return {
@@ -4067,11 +4100,11 @@ api.getAaiiData = async () => {
   }
 };
 
-api.getDataLoaderStatus = async () => {
+initializeApi().getDataLoaderStatus = async () => {
   console.log('⚙️ [API] Fetching data loader status...');
   
   try {
-    const response = await api.get('/data/status');
+    const response = await initializeApi().get('/data/status');
     console.log('⚙️ [API] Data loader status response:', response.data);
     
     return {
@@ -4094,11 +4127,11 @@ api.getDataLoaderStatus = async () => {
   }
 };
 
-api.triggerDataLoader = async (loaderName) => {
+initializeApi().triggerDataLoader = async (loaderName) => {
   console.log(`🚀 [API] Triggering data loader: ${loaderName}`);
   
   try {
-    const response = await api.post(`/data/trigger/${loaderName}`);
+    const response = await initializeApi().post(`/data/trigger/${loaderName}`);
     console.log(`🚀 [API] Trigger ${loaderName} response:`, response.data);
     
     return {
@@ -4119,17 +4152,18 @@ api.triggerDataLoader = async (loaderName) => {
 };
 
 // Export named functions for direct imports
-export const getStockScores = api.getStockScores;
-export const getPeerComparison = api.getPeerComparison;
-export const getHistoricalScores = api.getHistoricalScores;
-export const getStockOptions = api.getStockOptions;
-export const getSectorAnalysis = api.getSectorAnalysis;
-export const getSectorDetails = api.getSectorDetails;
-export const getCalendarEvents = api.getCalendarEvents;
-export const getAaiiData = api.getAaiiData;
-export const getDataLoaderStatus = api.getDataLoaderStatus;
-export const triggerDataLoader = api.triggerDataLoader;
+export const getStockScores = initializeApi().getStockScores;
+export const getPeerComparison = initializeApi().getPeerComparison;
+export const getHistoricalScores = initializeApi().getHistoricalScores;
+export const getStockOptions = initializeApi().getStockOptions;
+export const getSectorAnalysis = initializeApi().getSectorAnalysis;
+export const getSectorDetails = initializeApi().getSectorDetails;
+export const getCalendarEvents = initializeApi().getCalendarEvents;
+export const getAaiiData = initializeApi().getAaiiData;
+export const getDataLoaderStatus = initializeApi().getDataLoaderStatus;
+export const triggerDataLoader = initializeApi().triggerDataLoader;
 
 // Export the main API object as default
-export default api;
+// Export initialized API instance as default
+export default initializeApi;
 

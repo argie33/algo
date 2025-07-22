@@ -20,6 +20,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    
+    // Test configuration
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['src/tests/setup.js'],
+      globals: true,
+      css: false, // Disable CSS processing in tests for better performance
+    },
     build: {
       outDir: 'dist',
       sourcemap: true,
