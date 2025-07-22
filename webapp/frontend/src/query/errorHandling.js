@@ -1,104 +1,43 @@
 /**
- * React Query Error Handling - Comprehensive error handling for data fetching
+ * Custom Query Error Handling - Comprehensive error handling for data fetching
  * Integrates with our error management system for better logging and recovery
  */
 
-import { QueryClient } from '../hooks/useSimpleFetch.js';
+import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
 import ErrorManager from '../error/ErrorManager';
 
-// Create enhanced query client with comprehensive error handling
-export const createErrorAwareQueryClient = () => {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        onError: (error, query) => {
-          ErrorManager.handleError({
-            type: 'react_query_error',
-            message: `Query failed: ${JSON.stringify(query.queryKey)}`,
-            error: error,
-            category: ErrorManager.CATEGORIES.API,
-            severity: ErrorManager.SEVERITY.MEDIUM,
-            context: {
-              queryKey: query.queryKey,
-              queryHash: query.queryHash,
-              failureCount: query.state.failureCount,
-              errorUpdateCount: query.state.errorUpdateCount,
-              dataUpdatedAt: query.state.dataUpdatedAt,
-              source: 'react_query'
-            }
-          });
-        },
-        onSuccess: (data, query) => {
-          // Log successful queries for debugging
-          ErrorManager.handleError({
-            type: 'react_query_success',
-            message: `Query succeeded: ${JSON.stringify(query.queryKey)}`,
-            category: ErrorManager.CATEGORIES.API,
-            severity: ErrorManager.SEVERITY.LOW,
-            context: {
-              queryKey: query.queryKey,
-              dataSize: JSON.stringify(data).length,
-              fetchTime: Date.now() - query.state.dataUpdatedAt,
-              source: 'react_query'
-            }
-          });
-        },
-        retry: (failureCount, error) => {
-          // Custom retry logic with logging
-          const shouldRetry = failureCount < 3;
-          
-          ErrorManager.handleError({
-            type: 'react_query_retry',
-            message: `Query retry ${failureCount}/3: ${shouldRetry ? 'retrying' : 'giving up'}`,
-            category: ErrorManager.CATEGORIES.API,
-            severity: shouldRetry ? ErrorManager.SEVERITY.LOW : ErrorManager.SEVERITY.MEDIUM,
-            context: {
-              failureCount,
-              shouldRetry,
-              error: error.message,
-              source: 'react_query'
-            }
-          });
-          
-          return shouldRetry;
-        },
-        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
-      },
-      mutations: {
-        onError: (error, variables, context, mutation) => {
-          ErrorManager.handleError({
-            type: 'react_query_mutation_error',
-            message: `Mutation failed: ${mutation.options.mutationKey || 'unknown'}`,
-            error: error,
-            category: ErrorManager.CATEGORIES.API,
-            severity: ErrorManager.SEVERITY.HIGH,
-            context: {
-              mutationKey: mutation.options.mutationKey,
-              variables: variables,
-              mutationId: mutation.mutationId,
-              failureCount: mutation.state.failureCount,
-              source: 'react_query'
-            }
-          });
-        },
-        onSuccess: (data, variables, context, mutation) => {
-          ErrorManager.handleError({
-            type: 'react_query_mutation_success',
-            message: `Mutation succeeded: ${mutation.options.mutationKey || 'unknown'}`,
-            category: ErrorManager.CATEGORIES.API,
-            severity: ErrorManager.SEVERITY.LOW,
-            context: {
-              mutationKey: mutation.options.mutationKey,
-              variables: variables,
-              responseSize: JSON.stringify(data).length,
-              source: 'react_query'
-            }
-          });
-        },
-        retry: 2
-      }
+// Error handling configuration for custom fetch implementation
+export const createErrorAwareConfig = () => {
+  return {
+    defaultRetry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    onError: (error, context = {}) => {
+      ErrorManager.handleError({
+        type: 'custom_query_error',
+        message: `Query failed: ${context.url || 'unknown'}`,
+        error: error,
+        category: ErrorManager.CATEGORIES.API,
+        severity: ErrorManager.SEVERITY.MEDIUM,
+        context: {
+          url: context.url,
+          source: 'custom_fetch'
+        }
+      });
+    },
+    onSuccess: (data, context = {}) => {
+      ErrorManager.handleError({
+        type: 'custom_query_success',
+        message: `Query succeeded: ${context.url || 'unknown'}`,
+        category: ErrorManager.CATEGORIES.API,
+        severity: ErrorManager.SEVERITY.LOW,
+        context: {
+          url: context.url,
+          dataSize: JSON.stringify(data).length,
+          source: 'custom_fetch'
+        }
+      });
     }
-  });
+  };
 };
 
 // Enhanced useSimpleFetch hook with error handling
@@ -150,55 +89,56 @@ export const useErrorAwareQuery = (queryKey, queryFn, options = {}) => {
   return useSimpleFetch(queryKey, queryFn, enhancedOptions);
 };
 
-// Enhanced useMutation hook with error handling
+// Enhanced mutation helper with error handling
 export const useErrorAwareMutation = (mutationFn, options = {}) => {
-  const enhancedOptions = {
-    ...options,
-    onError: (error, variables, context) => {
+  const enhancedMutationFn = async (variables) => {
+    try {
+      const result = await mutationFn(variables);
+      
+      ErrorManager.handleError({
+        type: 'use_mutation_success',
+        message: `Custom mutation success`,
+        category: ErrorManager.CATEGORIES.API,
+        severity: ErrorManager.SEVERITY.LOW,
+        context: {
+          variables,
+          responseSize: JSON.stringify(result).length,
+          source: 'custom_mutation'
+        }
+      });
+
+      if (options.onSuccess) {
+        options.onSuccess(result, variables);
+      }
+      
+      return result;
+    } catch (error) {
       const enhancedError = ErrorManager.handleError({
         type: 'use_mutation_error',
-        message: `useMutation hook error: ${error.message}`,
+        message: `Custom mutation error: ${error.message}`,
         error: error,
         category: ErrorManager.CATEGORIES.API,
         severity: ErrorManager.SEVERITY.HIGH,
         context: {
           variables,
-          context,
           componentStack: new Error().stack,
-          source: 'useMutation_hook'
+          source: 'custom_mutation'
         }
       });
 
-      // Call original onError if provided
       if (options.onError) {
-        options.onError(enhancedError, variables, context);
+        options.onError(enhancedError, variables);
       }
-    },
-    onSuccess: (data, variables, context) => {
-      ErrorManager.handleError({
-        type: 'use_mutation_success',
-        message: `useMutation hook success`,
-        category: ErrorManager.CATEGORIES.API,
-        severity: ErrorManager.SEVERITY.LOW,
-        context: {
-          variables,
-          responseSize: JSON.stringify(data).length,
-          source: 'useMutation_hook'
-        }
-      });
-
-      // Call original onSuccess if provided
-      if (options.onSuccess) {
-        options.onSuccess(data, variables, context);
-      }
+      
+      throw enhancedError;
     }
   };
 
-  return useMutation(mutationFn, enhancedOptions);
+  return { mutateAsync: enhancedMutationFn };
 };
 
 export default {
-  createErrorAwareQueryClient,
+  createErrorAwareConfig,
   useErrorAwareQuery,
   useErrorAwareMutation
 };

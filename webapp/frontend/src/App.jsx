@@ -1,5 +1,5 @@
 // Updated for database initialization testing - v1.7 - testing clean repository deployment with db-init fixes
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
   AppBar, 
@@ -16,7 +16,6 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Alert,
   Button,
   Menu,
   MenuItem,
@@ -46,7 +45,6 @@ import {
   Search as SearchIcon,
   Public as PublicIcon,
   Settings as SettingsIcon,
-  Lock as LockIcon,
   ExpandLess,
   ExpandMore,
   Stars,
@@ -69,7 +67,6 @@ import TechnicalHistory from './pages/TechnicalHistory'
 import Backtest from './pages/Backtest'
 import TradingSignals from './pages/TradingSignals'
 import Portfolio from './pages/Portfolio'
-import PortfolioHoldings from './pages/PortfolioHoldings'
 import PortfolioPerformance from './pages/PortfolioPerformance'
 import PortfolioOptimization from './pages/PortfolioOptimization'
 import TradeHistory from './pages/TradeHistory'
@@ -80,7 +77,6 @@ import Settings from './pages/Settings'
 import ScoresDashboard from './pages/ScoresDashboard'
 import { useAuth } from './contexts/AuthContext'
 import AuthModal from './components/auth/AuthModal'
-import ProtectedRoute from './components/auth/ProtectedRoute'
 import SectorAnalysis from './pages/SectorAnalysis'
 import SocialMediaSentiment from './pages/SocialMediaSentiment'
 import NewsSentiment from './pages/NewsSentiment'
@@ -95,7 +91,6 @@ import OptionsStrategies from './pages/options/OptionsStrategies'
 import OptionsFlow from './pages/options/OptionsFlow'
 import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
-import SimpleAlpacaData from './components/SimpleAlpacaData'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import LiveData from './pages/LiveData'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
@@ -179,8 +174,6 @@ function App() {
   const navigate = useNavigate()
   const location = useLocation()
   
-  // Mock premium status - replace with actual premium check
-  const isPremium = user?.isPremium || false
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -199,7 +192,7 @@ function App() {
     await logout()
   }
 
-  const handleNavigation = (path, isPremiumFeature = false) => {
+  const handleNavigation = (path) => {
     // All features are now available - no premium restrictions
     navigate(path)
     if (isMobile) {

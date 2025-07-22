@@ -349,13 +349,14 @@ class AnalyticsService {
     // Track page unload
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', () => {
-      if (isVisible) {
-        const visibleDuration = Date.now() - visibilityStart;
-        this.trackEngagement('page_visible', visibleDuration);
-      }
-      this.track('session_end');
-      this.flush(); // Final flush
-    });
+        if (isVisible) {
+          const visibleDuration = Date.now() - visibilityStart;
+          this.trackEngagement('page_visible', visibleDuration);
+        }
+        this.track('session_end');
+        this.flush(); // Final flush
+      });
+    }
   }
 
   // Setup error tracking
@@ -363,20 +364,21 @@ class AnalyticsService {
     // Global error handler
     if (typeof window !== 'undefined') {
       window.addEventListener('error', (event) => {
-      this.trackError(event.error || new Error(event.message), {
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-        type: 'javascript_error'
+        this.trackError(event.error || new Error(event.message), {
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          type: 'javascript_error'
+        });
       });
-    });
 
-    // Promise rejection handler
+      // Promise rejection handler
       window.addEventListener('unhandledrejection', (event) => {
-      this.trackError(event.reason || new Error('Unhandled promise rejection'), {
-        type: 'promise_rejection'
+        this.trackError(event.reason || new Error('Unhandled promise rejection'), {
+          type: 'promise_rejection'
+        });
       });
-    });
+    }
   }
 
   // Setup automatic scroll tracking

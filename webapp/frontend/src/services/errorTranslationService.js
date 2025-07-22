@@ -4,6 +4,8 @@
  * Addresses REQ-010: Error Handling Critical Gaps - User-Friendly Error Messages
  */
 
+import React from 'react';
+
 class ErrorTranslationService {
   constructor() {
     this.translations = new Map();

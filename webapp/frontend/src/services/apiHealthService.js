@@ -338,25 +338,56 @@ class ApiHealthService {
   }
 
   /**
-   * Get base URL for API calls
+   * Get base URL for API calls - COMPLETED with unified configuration
    */
   getBaseUrl() {
-    // Try runtime config first (from public/config.js)
-    if (window.__CONFIG__ && window.__CONFIG__.API_URL) {
-      return window.__CONFIG__.API_URL;
+    try {
+      // Use the same configuration priority as our unified system
+      // This avoids circular dependencies while maintaining consistency
+      
+      // 1. Runtime config (highest priority)
+      if (typeof window !== 'undefined' && window.__CONFIG__?.API_URL) {
+        return window.__CONFIG__.API_URL;
+      }
+      
+      // 2. Environment variables (medium priority)  
+      let envApiUrl = null;
+      try {
+        if (typeof globalThis !== 'undefined' && globalThis.import?.meta?.env?.VITE_API_URL) {
+          envApiUrl = globalThis.import.meta.env.VITE_API_URL;
+        } else if (typeof window !== 'undefined' && window.__VITE_IMPORT_META__?.env?.VITE_API_URL) {
+          envApiUrl = window.__VITE_IMPORT_META__.env.VITE_API_URL;
+        }
+      } catch (envError) {
+        console.warn('⚠️ [HEALTH] Could not access env vars:', envError.message);
+      }
+      
+      if (envApiUrl) return envApiUrl;
+      
+      // 3. Defaults (lowest priority) - same as unified system
+      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+      
+    } catch (error) {
+      console.warn('⚠️ [HEALTH] Failed to get unified config, using fallback:', error.message);
+      
+      // Emergency fallback with same priority order as unified system
+      // 1. Runtime config (highest priority)
+      if (typeof window !== 'undefined' && window.__CONFIG__?.API_URL) {
+        return window.__CONFIG__.API_URL;
+      }
+      
+      // 2. Environment variables (medium priority)  
+      try {
+        if (typeof globalThis !== 'undefined' && globalThis.import?.meta?.env?.VITE_API_URL) {
+          return globalThis.import.meta.env.VITE_API_URL;
+        }
+      } catch (envError) {
+        console.warn('⚠️ [HEALTH] Could not access env vars:', envError.message);
+      }
+      
+      // 3. Defaults (lowest priority)
+      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
     }
-    
-    // Fall back to environment variables
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
-    }
-    
-    // Use environment-specific API URL
-    if (process.env.NODE_ENV === 'development') {
-      return 'http://localhost:3000';
-    }
-    
-    // Production API Gateway URL (fallback)
     return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }
 
