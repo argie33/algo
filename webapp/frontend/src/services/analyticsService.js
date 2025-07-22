@@ -62,7 +62,7 @@ class AnalyticsService {
       timestamp: new Date().toISOString(),
       properties: {
         ...properties,
-        page_url: window.location.href,
+        page_url: typeof window !== 'undefined' ? window.location.href : 'test-url',
         page_title: document.title,
         referrer: document.referrer
       }
@@ -155,7 +155,7 @@ class AnalyticsService {
       value,
       unit,
       timestamp: new Date().toISOString(),
-      page: window.location.pathname
+      page: typeof window !== 'undefined' ? window.location.pathname : '/test'
     };
 
     this.performanceMetrics.set(metricName, metric);
@@ -285,7 +285,7 @@ class AnalyticsService {
 
   // Setup performance observer
   setupPerformanceObserver() {
-    if ('PerformanceObserver' in window) {
+    if (typeof window !== 'undefined' && 'PerformanceObserver' in window) {
       try {
         // Observe largest contentful paint
         const lcpObserver = new PerformanceObserver((entryList) => {
@@ -347,7 +347,8 @@ class AnalyticsService {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Track page unload
-    window.addEventListener('beforeunload', () => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => {
       if (isVisible) {
         const visibleDuration = Date.now() - visibilityStart;
         this.trackEngagement('page_visible', visibleDuration);
@@ -360,7 +361,8 @@ class AnalyticsService {
   // Setup error tracking
   setupErrorTracking() {
     // Global error handler
-    window.addEventListener('error', (event) => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', (event) => {
       this.trackError(event.error || new Error(event.message), {
         filename: event.filename,
         lineno: event.lineno,
@@ -370,7 +372,7 @@ class AnalyticsService {
     });
 
     // Promise rejection handler
-    window.addEventListener('unhandledrejection', (event) => {
+      window.addEventListener('unhandledrejection', (event) => {
       this.trackError(event.reason || new Error('Unhandled promise rejection'), {
         type: 'promise_rejection'
       });
@@ -384,7 +386,7 @@ class AnalyticsService {
 
     const handleScroll = () => {
       const scrollPercent = Math.round(
-        (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
+        typeof window !== 'undefined' ? (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100 : 0
       );
       
       if (scrollPercent > maxScroll) {
@@ -397,7 +399,9 @@ class AnalyticsService {
       }, 1000);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', handleScroll, { passive: true });
+    }
   }
 
   // Start auto-flush timer
