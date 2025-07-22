@@ -66,8 +66,8 @@ except ImportError:
 # Script configuration
 SCRIPT_NAME = "loadsentiment_realtime.py"
 logging.basicConfig(
-    level=logging.INFO
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 
@@ -84,18 +84,18 @@ def get_db_config():
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
         return {
-            "host": sec["host"]
-            "port": int(sec.get("port", 5432))
-            "user": sec["username"]
-            "password": sec["password"]
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
             "dbname": sec["dbname"]
         }
     except Exception:
         return {
-            "host": os.environ.get("DB_HOST", "localhost")
-            "port": int(os.environ.get("DB_PORT", 5432))
-            "user": os.environ.get("DB_USER", "postgres")
-            "password": os.environ.get("DB_PASSWORD", "")
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", ""),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -133,9 +133,9 @@ class AdvancedSentimentAnalyzer:
                 try:
                     model_name = "ProsusAI/finbert"
                     self.finbert_analyzer = pipeline(
-                        "sentiment-analysis"
-                        model=model_name
-                        tokenizer=model_name
+                        "sentiment-analysis",
+                        model=model_name,
+                        tokenizer=model_name,
                         device=-1  # CPU
                     )
                     logging.info("FinBERT sentiment analyzer initialized")
@@ -148,14 +148,14 @@ class AdvancedSentimentAnalyzer:
     def analyze_financial_text(self, text: str) -> Dict[str, float]:
         """Analyze sentiment of financial text using multiple methods"""
         results = {
-            'textblob_polarity': 0.0
-            'textblob_subjectivity': 0.0
-            'vader_compound': 0.0
-            'vader_positive': 0.0
-            'vader_negative': 0.0
-            'vader_neutral': 0.0
-            'finbert_score': 0.0
-            'finbert_label': 'neutral'
+            'textblob_polarity': 0.0,
+            'textblob_subjectivity': 0.0,
+            'vader_compound': 0.0,
+            'vader_positive': 0.0,
+            'vader_negative': 0.0,
+            'vader_neutral': 0.0,
+            'finbert_score': 0.0,
+            'finbert_label': 'neutral',
             'composite_sentiment': 0.0
         }
         
@@ -232,29 +232,29 @@ class RealTimeSentimentCollector:
     def _get_news_sources(self) -> List[str]:
         """Get list of financial news sources for API calls"""
         return [
-            "reuters.com"
-            "bloomberg.com"
-            "marketwatch.com"
-            "cnbc.com"
-            "seekingalpha.com"
-            "fool.com"
-            "barrons.com"
+            "reuters.com",
+            "bloomberg.com",
+            "marketwatch.com",
+            "cnbc.com",
+            "seekingalpha.com",
+            "fool.com",
+            "barrons.com",
             "wsj.com"
         ]
     
     def get_real_time_news_sentiment(self) -> Dict:
         """Get real-time news sentiment for the symbol"""
         result = {
-            'symbol': self.symbol
-            'date': date.today()
-            'news_article_count': 0
-            'news_sentiment_score': 0.0
-            'news_sentiment_strength': 0.0
-            'news_source_diversity': 0.0
-            'news_volume_trend': 0.0
-            'positive_news_ratio': 0.0
-            'negative_news_ratio': 0.0
-            'finbert_sentiment': 0.0
+            'symbol': self.symbol,
+            'date': date.today(),
+            'news_article_count': 0,
+            'news_sentiment_score': 0.0,
+            'news_sentiment_strength': 0.0,
+            'news_source_diversity': 0.0,
+            'news_volume_trend': 0.0,
+            'positive_news_ratio': 0.0,
+            'negative_news_ratio': 0.0,
+            'finbert_sentiment': 0.0,
             'vader_sentiment': 0.0
         }
         
@@ -352,13 +352,13 @@ class RealTimeSentimentCollector:
     def get_social_media_sentiment(self) -> Dict:
         """Get social media sentiment (Reddit, Twitter-like analysis)"""
         result = {
-            'symbol': self.symbol
-            'date': date.today()
-            'social_mention_count': 0
-            'social_sentiment_score': 0.0
-            'social_sentiment_volume': 0.0
-            'reddit_sentiment': 0.0
-            'social_momentum': 0.0
+            'symbol': self.symbol,
+            'date': date.today(),
+            'social_mention_count': 0,
+            'social_sentiment_score': 0.0,
+            'social_sentiment_volume': 0.0,
+            'reddit_sentiment': 0.0,
+            'social_momentum': 0.0,
             'viral_score': 0.0
         }
         
@@ -414,11 +414,11 @@ class RealTimeSentimentCollector:
             mention_count = int(base_mentions * mention_multiplier)
             
             result.update({
-                'social_mention_count': mention_count
-                'social_sentiment_score': social_sentiment
-                'social_sentiment_volume': mention_count * abs(social_sentiment)
+                'social_mention_count': mention_count,
+                'social_sentiment_score': social_sentiment,
+                'social_sentiment_volume': mention_count * abs(social_sentiment),
                 'reddit_sentiment': social_sentiment * 0.9,  # Reddit slightly more negative
-                'social_momentum': social_sentiment * mention_multiplier
+                'social_momentum': social_sentiment * mention_multiplier,
                 'viral_score': min(mention_count * viral_multiplier / 100, 10.0)
             })
             
@@ -430,14 +430,14 @@ class RealTimeSentimentCollector:
     def get_analyst_sentiment_changes(self) -> Dict:
         """Get recent analyst sentiment changes and upgrades/downgrades"""
         result = {
-            'symbol': self.symbol
-            'date': date.today()
-            'recent_upgrades': 0
-            'recent_downgrades': 0
-            'analyst_momentum': 0.0
-            'recommendation_change': 0.0
-            'estimate_revisions_up': 0
-            'estimate_revisions_down': 0
+            'symbol': self.symbol,
+            'date': date.today(),
+            'recent_upgrades': 0,
+            'recent_downgrades': 0,
+            'analyst_momentum': 0.0,
+            'recommendation_change': 0.0,
+            'estimate_revisions_up': 0,
+            'estimate_revisions_down': 0,
             'price_target_change': 0.0
         }
         
@@ -513,12 +513,12 @@ class RealTimeSentimentCollector:
     def get_alternative_sentiment_sources(self) -> Dict:
         """Get sentiment from alternative data sources"""
         result = {
-            'symbol': self.symbol
-            'date': date.today()
-            'sec_filing_sentiment': 0.0
-            'earnings_call_sentiment': 0.0
-            'management_sentiment': 0.0
-            'industry_sentiment': 0.0
+            'symbol': self.symbol,
+            'date': date.today(),
+            'sec_filing_sentiment': 0.0,
+            'earnings_call_sentiment': 0.0,
+            'management_sentiment': 0.0,
+            'industry_sentiment': 0.0,
             'economic_sentiment': 0.0
         }
         
@@ -546,10 +546,10 @@ class RealTimeSentimentCollector:
                 if sector:
                     # Simulate based on sector
                     sector_multipliers = {
-                        'Technology': 0.1
-                        'Healthcare': 0.05
-                        'Financials': 0.0
-                        'Energy': -0.05
+                        'Technology': 0.1,
+                        'Healthcare': 0.05,
+                        'Financials': 0.0,
+                        'Energy': -0.05,
                         'Real Estate': -0.1
                     }
                     result['industry_sentiment'] = sector_multipliers.get(sector, 0.0)
@@ -631,50 +631,50 @@ def create_realtime_sentiment_table(cur, conn):
     
     create_sql = """
     CREATE TABLE IF NOT EXISTS realtime_sentiment_analysis (
-        symbol VARCHAR(20)
-        date DATE
+        symbol VARCHAR(20),
+        date DATE,
         
         -- News Sentiment
-        news_article_count INTEGER DEFAULT 0
-        news_sentiment_score DECIMAL(6,4) DEFAULT 0
-        news_sentiment_strength DECIMAL(6,4) DEFAULT 0
-        news_source_diversity DECIMAL(6,4) DEFAULT 0
-        news_volume_trend DECIMAL(8,4) DEFAULT 0
-        positive_news_ratio DECIMAL(6,4) DEFAULT 0
-        negative_news_ratio DECIMAL(6,4) DEFAULT 0
-        finbert_sentiment DECIMAL(6,4) DEFAULT 0
-        vader_sentiment DECIMAL(6,4) DEFAULT 0
+        news_article_count INTEGER DEFAULT 0,
+        news_sentiment_score DECIMAL(6,4) DEFAULT 0,
+        news_sentiment_strength DECIMAL(6,4) DEFAULT 0,
+        news_source_diversity DECIMAL(6,4) DEFAULT 0,
+        news_volume_trend DECIMAL(8,4) DEFAULT 0,
+        positive_news_ratio DECIMAL(6,4) DEFAULT 0,
+        negative_news_ratio DECIMAL(6,4) DEFAULT 0,
+        finbert_sentiment DECIMAL(6,4) DEFAULT 0,
+        vader_sentiment DECIMAL(6,4) DEFAULT 0,
         
         -- Social Media Sentiment
-        social_mention_count INTEGER DEFAULT 0
-        social_sentiment_score DECIMAL(6,4) DEFAULT 0
-        social_sentiment_volume DECIMAL(8,2) DEFAULT 0
-        reddit_sentiment DECIMAL(6,4) DEFAULT 0
-        social_momentum DECIMAL(8,4) DEFAULT 0
-        viral_score DECIMAL(6,2) DEFAULT 0
+        social_mention_count INTEGER DEFAULT 0,
+        social_sentiment_score DECIMAL(6,4) DEFAULT 0,
+        social_sentiment_volume DECIMAL(8,2) DEFAULT 0,
+        reddit_sentiment DECIMAL(6,4) DEFAULT 0,
+        social_momentum DECIMAL(8,4) DEFAULT 0,
+        viral_score DECIMAL(6,2) DEFAULT 0,
         
         -- Analyst Sentiment Changes
-        recent_upgrades INTEGER DEFAULT 0
-        recent_downgrades INTEGER DEFAULT 0
-        analyst_momentum DECIMAL(6,4) DEFAULT 0
-        recommendation_change DECIMAL(6,4) DEFAULT 0
-        estimate_revisions_up INTEGER DEFAULT 0
-        estimate_revisions_down INTEGER DEFAULT 0
-        price_target_change DECIMAL(8,6) DEFAULT 0
+        recent_upgrades INTEGER DEFAULT 0,
+        recent_downgrades INTEGER DEFAULT 0,
+        analyst_momentum DECIMAL(6,4) DEFAULT 0,
+        recommendation_change DECIMAL(6,4) DEFAULT 0,
+        estimate_revisions_up INTEGER DEFAULT 0,
+        estimate_revisions_down INTEGER DEFAULT 0,
+        price_target_change DECIMAL(8,6) DEFAULT 0,
         
         -- Alternative Sources
-        sec_filing_sentiment DECIMAL(6,4) DEFAULT 0
-        earnings_call_sentiment DECIMAL(6,4) DEFAULT 0
-        management_sentiment DECIMAL(6,4) DEFAULT 0
-        industry_sentiment DECIMAL(6,4) DEFAULT 0
-        economic_sentiment DECIMAL(6,4) DEFAULT 0
+        sec_filing_sentiment DECIMAL(6,4) DEFAULT 0,
+        earnings_call_sentiment DECIMAL(6,4) DEFAULT 0,
+        management_sentiment DECIMAL(6,4) DEFAULT 0,
+        industry_sentiment DECIMAL(6,4) DEFAULT 0,
+        economic_sentiment DECIMAL(6,4) DEFAULT 0,
         
         -- Composite Metrics
-        composite_sentiment DECIMAL(6,4) DEFAULT 0
-        sentiment_momentum DECIMAL(6,4) DEFAULT 0
+        composite_sentiment DECIMAL(6,4) DEFAULT 0,
+        sentiment_momentum DECIMAL(6,4) DEFAULT 0,
         
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
     """
@@ -683,12 +683,12 @@ def create_realtime_sentiment_table(cur, conn):
     
     # Create indexes
     indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_symbol ON realtime_sentiment_analysis(symbol);"
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_date ON realtime_sentiment_analysis(date DESC);"
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_composite ON realtime_sentiment_analysis(composite_sentiment DESC);"
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_news ON realtime_sentiment_analysis(news_sentiment_score DESC);"
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_social ON realtime_sentiment_analysis(social_sentiment_score DESC);"
-        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_analyst ON realtime_sentiment_analysis(analyst_momentum DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_symbol ON realtime_sentiment_analysis(symbol);",
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_date ON realtime_sentiment_analysis(date DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_composite ON realtime_sentiment_analysis(composite_sentiment DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_news ON realtime_sentiment_analysis(news_sentiment_score DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_social ON realtime_sentiment_analysis(social_sentiment_score DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_analyst ON realtime_sentiment_analysis(analyst_momentum DESC);",
         "CREATE INDEX IF NOT EXISTS idx_realtime_sentiment_volume ON realtime_sentiment_analysis(news_article_count DESC);"
     ]
     
@@ -741,30 +741,30 @@ def load_realtime_sentiment_batch(symbols: List[str], conn, cur, batch_size: int
                 insert_data = []
                 for item in sentiment_data:
                     insert_data.append((
-                        item['symbol'], item['date']
+                        item['symbol'], item['date'],
                         
                         # News sentiment
-                        item.get('news_article_count', 0), item.get('news_sentiment_score', 0)
-                        item.get('news_sentiment_strength', 0), item.get('news_source_diversity', 0)
-                        item.get('news_volume_trend', 0), item.get('positive_news_ratio', 0)
-                        item.get('negative_news_ratio', 0), item.get('finbert_sentiment', 0)
-                        item.get('vader_sentiment', 0)
+                        item.get('news_article_count', 0), item.get('news_sentiment_score', 0),
+                        item.get('news_sentiment_strength', 0), item.get('news_source_diversity', 0),
+                        item.get('news_volume_trend', 0), item.get('positive_news_ratio', 0),
+                        item.get('negative_news_ratio', 0), item.get('finbert_sentiment', 0),
+                        item.get('vader_sentiment', 0),
                         
                         # Social sentiment
-                        item.get('social_mention_count', 0), item.get('social_sentiment_score', 0)
-                        item.get('social_sentiment_volume', 0), item.get('reddit_sentiment', 0)
-                        item.get('social_momentum', 0), item.get('viral_score', 0)
+                        item.get('social_mention_count', 0), item.get('social_sentiment_score', 0),
+                        item.get('social_sentiment_volume', 0), item.get('reddit_sentiment', 0),
+                        item.get('social_momentum', 0), item.get('viral_score', 0),
                         
                         # Analyst sentiment
-                        item.get('recent_upgrades', 0), item.get('recent_downgrades', 0)
-                        item.get('analyst_momentum', 0), item.get('recommendation_change', 0)
-                        item.get('estimate_revisions_up', 0), item.get('estimate_revisions_down', 0)
-                        item.get('price_target_change', 0)
+                        item.get('recent_upgrades', 0), item.get('recent_downgrades', 0),
+                        item.get('analyst_momentum', 0), item.get('recommendation_change', 0),
+                        item.get('estimate_revisions_up', 0), item.get('estimate_revisions_down', 0),
+                        item.get('price_target_change', 0),
                         
                         # Alternative sources
-                        item.get('sec_filing_sentiment', 0), item.get('earnings_call_sentiment', 0)
-                        item.get('management_sentiment', 0), item.get('industry_sentiment', 0)
-                        item.get('economic_sentiment', 0)
+                        item.get('sec_filing_sentiment', 0), item.get('earnings_call_sentiment', 0),
+                        item.get('management_sentiment', 0), item.get('industry_sentiment', 0),
+                        item.get('economic_sentiment', 0),
                         
                         # Composite
                         item.get('composite_sentiment', 0), item.get('sentiment_momentum', 0)
@@ -772,25 +772,25 @@ def load_realtime_sentiment_batch(symbols: List[str], conn, cur, batch_size: int
                 
                 insert_query = """
                     INSERT INTO realtime_sentiment_analysis (
-                        symbol, date
-                        news_article_count, news_sentiment_score, news_sentiment_strength
-                        news_source_diversity, news_volume_trend, positive_news_ratio
-                        negative_news_ratio, finbert_sentiment, vader_sentiment
-                        social_mention_count, social_sentiment_score, social_sentiment_volume
-                        reddit_sentiment, social_momentum, viral_score
-                        recent_upgrades, recent_downgrades, analyst_momentum
-                        recommendation_change, estimate_revisions_up, estimate_revisions_down
-                        price_target_change, sec_filing_sentiment, earnings_call_sentiment
-                        management_sentiment, industry_sentiment, economic_sentiment
+                        symbol, date,
+                        news_article_count, news_sentiment_score, news_sentiment_strength,
+                        news_source_diversity, news_volume_trend, positive_news_ratio,
+                        negative_news_ratio, finbert_sentiment, vader_sentiment,
+                        social_mention_count, social_sentiment_score, social_sentiment_volume,
+                        reddit_sentiment, social_momentum, viral_score,
+                        recent_upgrades, recent_downgrades, analyst_momentum,
+                        recommendation_change, estimate_revisions_up, estimate_revisions_down,
+                        price_target_change, sec_filing_sentiment, earnings_call_sentiment,
+                        management_sentiment, industry_sentiment, economic_sentiment,
                         composite_sentiment, sentiment_momentum
                     ) VALUES %s
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        news_article_count = EXCLUDED.news_article_count
-                        news_sentiment_score = EXCLUDED.news_sentiment_score
-                        social_mention_count = EXCLUDED.social_mention_count
-                        social_sentiment_score = EXCLUDED.social_sentiment_score
-                        analyst_momentum = EXCLUDED.analyst_momentum
-                        composite_sentiment = EXCLUDED.composite_sentiment
+                        news_article_count = EXCLUDED.news_article_count,
+                        news_sentiment_score = EXCLUDED.news_sentiment_score,
+                        social_mention_count = EXCLUDED.social_mention_count,
+                        social_sentiment_score = EXCLUDED.social_sentiment_score,
+                        analyst_momentum = EXCLUDED.analyst_momentum,
+                        composite_sentiment = EXCLUDED.composite_sentiment,
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -820,11 +820,10 @@ if __name__ == "__main__":
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"]
-        user=cfg["user"], password=cfg["password"]
-        dbname=cfg["dbname"]
-    
-            
+        host=cfg["host"], port=cfg["port"],
+        user=cfg["user"], password=cfg["password"],
+        dbname=cfg["dbname"],
+        sslmode='require'
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -868,9 +867,9 @@ if __name__ == "__main__":
     
     # Sample results
     cur.execute("""
-        SELECT r.symbol, se.company_name
-               r.news_article_count, r.news_sentiment_score, r.social_mention_count
-               r.social_sentiment_score, r.analyst_momentum, r.composite_sentiment
+        SELECT r.symbol, se.company_name,
+               r.news_article_count, r.news_sentiment_score, r.social_mention_count,
+               r.social_sentiment_score, r.analyst_momentum, r.composite_sentiment,
                r.viral_score
         FROM realtime_sentiment_analysis r
         JOIN stock_symbols_enhanced se ON r.symbol = se.symbol

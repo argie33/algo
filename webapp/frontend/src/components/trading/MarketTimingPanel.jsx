@@ -108,7 +108,7 @@ const MarketTimingPanel = ({ marketData = {} }) => {
           />
         }
       />
-      <div className="bg-white shadow-md rounded-lg"Content>
+      <div className="bg-white shadow-md rounded-lg"content>
         <div className="grid" container spacing={3}>
           {/* Distribution Days Alert */}
           <div className="grid" item xs={12}>

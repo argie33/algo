@@ -16,7 +16,27 @@ jest.mock('../../utils/portfolioMath', () => ({
 }));
 
 jest.mock('../../utils/database', () => ({
-  query: jest.fn()
+  query: jest.fn().mockImplementation(async (sql, params) => {
+    // Mock database responses based on query type
+    if (sql.includes('portfolio_holdings')) {
+      // For fallback test, throw error to trigger fallback optimization
+      const testName = expect.getState().currentTestName;
+      if (testName && testName.includes('fallback')) {
+        throw new Error('Database connection failed');
+      }
+      // Return mock portfolio holdings for other tests
+      return {
+        rows: [
+          { symbol: 'AAPL', quantity: 100, market_value: 15000, avg_cost: 140, unrealized_pl: 1000, unrealized_plpc: 7.14 },
+          { symbol: 'MSFT', quantity: 50, market_value: 12500, avg_cost: 240, unrealized_pl: 500, unrealized_plpc: 4.17 }
+        ]
+      };
+    }
+    return { rows: [] };
+  }),
+  safeQuery: jest.fn().mockResolvedValue({ rows: [] }),
+  initializeDatabase: jest.fn().mockResolvedValue(true),
+  closeDatabase: jest.fn().mockResolvedValue(true)
 }));
 
 describe('Optimization Engine Unit Tests', () => {

@@ -203,7 +203,7 @@ const ApiKeyStatusIndicator = ({
         <DialogContent>
           <Typography paragraph>
             To access live portfolio data, trading history, and real-time market feeds, 
-            you'll need to configure your broker API keys.
+            you&apos;ll need to configure your broker API keys.
           </Typography>
           <Typography paragraph>
             <strong>Supported Brokers:</strong>
@@ -218,7 +218,7 @@ const ApiKeyStatusIndicator = ({
             and stored securely. We never store your credentials in plaintext.
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Don't have API keys? You can still use the demo data to explore the platform.
+            Don&apos;t have API keys? You can still use the demo data to explore the platform.
           </Typography>
         </DialogContent>
         <DialogActions>

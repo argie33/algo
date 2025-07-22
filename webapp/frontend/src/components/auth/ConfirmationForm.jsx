@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Card,
@@ -96,14 +96,14 @@ function ConfirmationForm({ username, onConfirmationSuccess, onSwitchToLogin }) 
 
           <Box textAlign="center" mt={2}>
             <Typography variant="body2" color="text.secondary">
-              Didn't receive the code?{' '}
+              Didn&apos;t receive the code?{' '}
               <Link
                 component="button"
                 type="button"
                 variant="body2"
                 onClick={() => {
                   // TODO: Implement resend code functionality
-                  console.log('Resend code for:', username);
+                  // Resend code functionality
                 }}
                 disabled={isLoading}
                 sx={{ fontWeight: 'medium' }}

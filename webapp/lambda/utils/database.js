@@ -837,6 +837,7 @@ const REQUIRED_SCHEMA = {
     
     // Portfolio and trading tables
     portfolio: [
+        'portfolios',
         'portfolio_holdings',
         'portfolio_metadata',
         'trading_orders'

@@ -4,9 +4,9 @@
  * Updated with production-grade error handling and demo mode support
  */
 
-import React, { useState } from 'react';
-import { Box, Alert, Button, Dialog, CircularProgress, Typography, Card, CardContent, Chip, LinearProgress } from '@mui/material';
-import { Settings, VpnKey, Warning, TrendingUp } from '@mui/icons-material';
+import { useState } from 'react';
+import { Box, Alert, Button, Dialog, CircularProgress } from '@mui/material';
+import { Settings, VpnKey } from '@mui/icons-material';
 import { useApiKeys } from './ApiKeyProvider';
 import ApiKeyOnboarding from './ApiKeyOnboarding';
 import { useNavigate } from 'react-router-dom';
@@ -19,9 +19,7 @@ const RequiresApiKeys = ({
   fallbackContent = null // Content to show when no API keys (instead of onboarding)
 }) => {
   const { 
-    apiKeys, 
     isLoading, 
-    hasApiKeys, 
     needsOnboarding, 
     error,
     markOnboardingComplete,
@@ -29,7 +27,6 @@ const RequiresApiKeys = ({
   } = useApiKeys();
   
   const navigate = useNavigate();
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   // Show loading state
@@ -68,7 +65,6 @@ const RequiresApiKeys = ({
   };
 
   const handleOnboardingComplete = (savedKeys) => {
-    console.log('🎉 API key onboarding completed');
     setOnboardingOpen(false);
     markOnboardingComplete(savedKeys);
   };

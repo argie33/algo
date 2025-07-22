@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -73,21 +73,21 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   };
 
   const handleBiometricAuth = async (authResult) => {
-    console.log('Biometric authentication successful:', authResult);
+    // Biometric authentication successful
     // In production, you would validate this with your backend
     setLocalError('');
   };
 
   const handleBiometricSetup = (credentialData) => {
-    console.log('Biometric setup completed:', credentialData);
+    // Biometric setup completed
   };
 
   const handleBiometricError = (error) => {
-    console.error('Biometric error:', error);
+    // Biometric error handled
   };
 
   const handleMFASetupComplete = (method) => {
-    console.log('MFA setup completed with method:', method);
+    // MFA setup completed
     setShowMFASetup(false);
   };
 
@@ -202,7 +202,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
           <Box textAlign="center">
             <Typography variant="body2" color="text.secondary">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link
                 component="button"
                 type="button"

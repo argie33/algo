@@ -94,7 +94,7 @@ const SignalCardEnhanced = ({ signal, onBookmark, isBookmarked, onTrade }) => {
         }
       }}
     >
-      <div className="bg-white shadow-md rounded-lg"Content sx={{ flex: 1 }}>
+      <div className="bg-white shadow-md rounded-lg"content sx={{ flex: 1 }}>
         {/* Header */}
         <div  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <div>

@@ -379,11 +379,13 @@ jobs:
           mkdir -p "test-upload/unit-tests-${TIMESTAMP}"
           
           # Copy unit test artifacts if they exist
-          if [ -d "unit-test-artifacts" ]; then
+          if [ -d "unit-test-artifacts" ] && [ "$(ls -A unit-test-artifacts 2>/dev/null)" ]; then
             cp -r unit-test-artifacts/* "test-upload/unit-tests-${TIMESTAMP}/"
             echo "✅ Copied unit-test-artifacts directory"
           else
-            echo "⚠️ No unit-test-artifacts directory found"
+            echo "⚠️ No unit-test-artifacts directory found - creating placeholder"
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/artifacts"
+            echo "Unit test artifacts not generated - may indicate test runner issues" > "test-upload/unit-tests-${TIMESTAMP}/artifacts/README.txt"
           fi
           
           # Copy frontend test results
@@ -394,10 +396,14 @@ jobs:
           fi
           
           # Copy frontend coverage
-          if [ -d "webapp/frontend/coverage" ]; then
+          if [ -d "webapp/frontend/coverage" ] && [ "$(ls -A webapp/frontend/coverage 2>/dev/null)" ]; then
             mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend"
-            cp -r webapp/frontend/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend/"
+            cp -r webapp/frontend/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend/" 2>/dev/null || echo "⚠️ Coverage files empty or inaccessible"
             echo "✅ Copied frontend coverage"
+          else
+            echo "⚠️ Frontend coverage directory empty or missing - tests may have failed"
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend"
+            echo "Coverage not generated - tests may have failed or been interrupted" > "test-upload/unit-tests-${TIMESTAMP}/coverage/frontend/README.txt"
           fi
           
           # Copy backend test results
@@ -408,16 +414,23 @@ jobs:
           fi
           
           # Copy backend coverage
-          if [ -d "webapp/lambda/coverage" ]; then
+          if [ -d "webapp/lambda/coverage" ] && [ "$(ls -A webapp/lambda/coverage 2>/dev/null)" ]; then
             mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/backend"
-            cp -r webapp/lambda/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/backend/"
+            cp -r webapp/lambda/coverage/* "test-upload/unit-tests-${TIMESTAMP}/coverage/backend/" 2>/dev/null || echo "⚠️ Backend coverage files empty or inaccessible"
             echo "✅ Copied backend coverage"
+          else
+            echo "⚠️ Backend coverage directory empty or missing - tests may have failed"
+            mkdir -p "test-upload/unit-tests-${TIMESTAMP}/coverage/backend"
+            echo "Coverage not generated - tests may have failed or been interrupted" > "test-upload/unit-tests-${TIMESTAMP}/coverage/backend/README.txt"
           fi
           
           # Copy unit test report
           if [ -f "unit-test-coverage-report.md" ]; then
             cp "unit-test-coverage-report.md" "test-upload/unit-tests-${TIMESTAMP}/SUMMARY.md"
             echo "✅ Copied unit test report as SUMMARY.md"
+          else
+            echo "⚠️ Unit test coverage report not found - creating placeholder"
+            echo "# Test Report Not Generated\n\nTest coverage report was not generated. This may indicate:\n- Tests failed during execution\n- Coverage thresholds not met\n- Test runner configuration issues\n\nGenerated: $(date)" > "test-upload/unit-tests-${TIMESTAMP}/SUMMARY.md"
           fi
           
           # Create a latest.json pointer file
@@ -674,6 +687,11 @@ jobs:
           export INTEGRATION_TEST=true
           export REAL_AWS_TEST=true
           export API_KEY_ENCRYPTION_SECRET_ARN="arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:api-key-encryption"
+          
+          # Set Cognito environment variables for authentication testing
+          export COGNITO_USER_POOL_ID="us-east-1_test_pool_id"
+          export COGNITO_CLIENT_ID="test_client_id"
+          export COGNITO_REGION="us-east-1"
           
           # Run tests
           if npm run test:integration; then

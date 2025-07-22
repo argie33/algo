@@ -609,19 +609,19 @@ class PatternRecognitionLoader:
         duration = (end_time - self.start_time).total_seconds()
         
         summary = {
-            'start_time': self.start_time.isoformat()
-            'end_time': end_time.isoformat()
-            'duration_seconds': duration
-            'processed_symbols': self.processed_symbols
-            'total_patterns_found': self.total_patterns
-            'failed_symbols_count': len(self.failed_symbols)
-            'patterns_per_symbol': self.total_patterns / max(self.processed_symbols, 1)
-            'processing_rate_symbols_per_minute': self.processed_symbols / max(duration / 60, 1)
-            'timeframes_processed': self.timeframes
-            'batch_size': self.batch_size
-            'symbol_limit': self.symbol_limit
-            'confidence_threshold': self.confidence_threshold
-            'memory_usage_mb': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+            'start_time': self.start_time.isoformat(),
+            'end_time': end_time.isoformat(),
+            'duration_seconds': duration,
+            'processed_symbols': self.processed_symbols,
+            'total_patterns_found': self.total_patterns,
+            'failed_symbols_count': len(self.failed_symbols),
+            'patterns_per_symbol': self.total_patterns / max(self.processed_symbols, 1),
+            'processing_rate_symbols_per_minute': self.processed_symbols / max(duration / 60, 1),
+            'timeframes_processed': self.timeframes,
+            'batch_size': self.batch_size,
+            'symbol_limit': self.symbol_limit,
+            'confidence_threshold': self.confidence_threshold,
+            'memory_usage_mb': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
             'failed_symbols_sample': self.failed_symbols[:10]
         }
         
@@ -635,11 +635,11 @@ class PatternRecognitionLoader:
                 VALUES (%s, %s, %s)
                 ON CONFLICT (script_name) 
                 DO UPDATE SET 
-                    last_run = EXCLUDED.last_run
+                    last_run = EXCLUDED.last_run,
                     details = EXCLUDED.details
             """, (
-                'pattern_recognition_loader'
-                end_time
+                'pattern_recognition_loader',
+                end_time,
                 json.dumps(summary)
             ))
             

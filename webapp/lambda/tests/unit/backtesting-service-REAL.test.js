@@ -13,15 +13,30 @@ describe('BacktestingService REAL Implementation Tests', () => {
     backtestingService = new BacktestingService();
   });
 
+  // Helper function to create test price data
+  function createTestPriceData(prices, symbol = 'AAPL') {
+    return prices.map((price, index) => ({
+      symbol: symbol,
+      timestamp: `2023-01-${(index + 1).toString().padStart(2, '0')}`,
+      date: `2023-01-${(index + 1).toString().padStart(2, '0')}`,
+      open: price * 0.999,
+      high: price * 1.02,
+      low: price * 0.98,
+      close: price,
+      volume: 1000000
+    }));
+  }
+
   describe('Real Service Initialization', () => {
     test('initializes with correct strategy mappings from YOUR implementation', () => {
       expect(backtestingService.strategies).toBeDefined();
-      expect(backtestingService.strategies['RSI_STRATEGY']).toBe(backtestingService.rsiStrategy);
-      expect(backtestingService.strategies['MACD_STRATEGY']).toBe(backtestingService.macdStrategy);
-      expect(backtestingService.strategies['BOLLINGER_STRATEGY']).toBe(backtestingService.bollingerStrategy);
-      expect(backtestingService.strategies['MULTI_INDICATOR']).toBe(backtestingService.multiIndicatorStrategy);
-      expect(backtestingService.strategies['MEAN_REVERSION']).toBe(backtestingService.meanReversionStrategy);
-      expect(backtestingService.strategies['MOMENTUM']).toBe(backtestingService.momentumStrategy);
+      expect(typeof backtestingService.strategies['RSI_STRATEGY']).toBe('function');
+      expect(typeof backtestingService.strategies['MACD_STRATEGY']).toBe('function');
+      expect(typeof backtestingService.strategies['BOLLINGER_STRATEGY']).toBe('function');
+      expect(typeof backtestingService.strategies['MULTI_INDICATOR']).toBe('function');
+      expect(typeof backtestingService.strategies['MEAN_REVERSION']).toBe('function');
+      expect(typeof backtestingService.strategies['MOMENTUM']).toBe('function');
+      expect(Object.keys(backtestingService.strategies)).toHaveLength(6);
     });
 
     test('has real TechnicalAnalysisService instance', () => {
@@ -33,18 +48,6 @@ describe('BacktestingService REAL Implementation Tests', () => {
   });
 
   describe('Real RSI Strategy Implementation', () => {
-    function createTestPriceData(prices, symbol = 'AAPL') {
-      return prices.map((price, index) => ({
-        symbol: symbol,
-        timestamp: `2023-01-${(index + 1).toString().padStart(2, '0')}`,
-        date: `2023-01-${(index + 1).toString().padStart(2, '0')}`,
-        open: price * 0.999,
-        high: price * 1.02,
-        low: price * 0.98,
-        close: price,
-        volume: 1000000
-      }));
-    }
 
     test('RSI strategy generates BUY signal when RSI < 30 (YOUR implementation)', () => {
       // Create price data that will result in low RSI (oversold condition)

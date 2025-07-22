@@ -71,6 +71,11 @@ function ServiceHealth() {
   const [componentError, setComponentError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [comprehensiveMode, setComprehensiveMode] = useState(true); // Default to comprehensive view
+  
+  // Manual health check state - moved to top
+  const [healthData, setHealthData] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState(null);
 
   // Memoize diagnosticInfo to prevent infinite re-renders
   const diagnosticInfo = useMemo(() => {
@@ -99,6 +104,248 @@ function ServiceHealth() {
       return '';
     }
   }, []);
+
+  // Simplified endpoint tests - only test essential endpoints
+  const quickEndpoints = useMemo(() => [
+    { name: 'Health Check', fn: () => healthCheck(), critical: true },
+    { name: 'API Connection', fn: () => testApiConnection(), critical: true },
+    { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
+    { name: 'Technical Data', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
+    { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
+    { name: 'Stock Screener', fn: () => screenStocks({ limit: 5 }), critical: false },
+    { name: 'Buy Signals', fn: () => getBuySignals(), critical: false },
+    { name: 'Sell Signals', fn: () => getSellSignals(), critical: false },
+    { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
+    { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
+  ], []);
+
+  // Comprehensive endpoint tests - testing every single route that exists in the backend
+  const comprehensiveEndpoints = useMemo(() => [
+    {
+      category: 'System Health & Debug',
+      tests: [
+        { name: 'Health Check', fn: () => api.get('/health'), critical: true },
+        { name: 'Health Ready', fn: () => api.get('/health/ready'), critical: true },
+        { name: 'Health Debug DB', fn: () => api.get('/health/debug/db-test'), critical: false },
+        { name: 'Health Debug Tables', fn: () => api.get('/health/debug/tables'), critical: false },
+        { name: 'Health Debug Query', fn: () => api.get('/health/debug/test-query'), critical: false },
+        { name: 'Health Debug Env', fn: () => api.get('/health/debug/env'), critical: false },
+        { name: 'Health Debug CORS', fn: () => api.get('/health/debug/cors-test'), critical: false }
+      ]
+    },
+    {
+      category: 'Stock Data & Screening',
+      tests: [
+        { name: 'Stock List', fn: () => getStocks({ limit: 10 }), critical: true },
+        { name: 'Stock Detail (AAPL)', fn: () => api.get('/stocks/AAPL'), critical: true },
+        { name: 'Stock Screen', fn: () => screenStocks({ limit: 10 }), critical: true },
+        { name: 'Screener Templates', fn: () => api.get('/screener/templates'), critical: false },
+        { name: 'Screener Growth', fn: () => api.get('/screener/growth'), critical: false },
+        { name: 'Screener Value', fn: () => api.get('/screener/value'), critical: false },
+        { name: 'Screener Results', fn: () => api.get('/screener/results'), critical: false }
+      ]
+    },
+    {
+      category: 'Technical Analysis',
+      tests: [
+        { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 10 }), critical: true },
+        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL?timeframe=daily'), critical: false },
+        { name: 'Technical Root', fn: () => api.get('/technical'), critical: false }
+      ]
+    },
+    {
+      category: 'Market Data & Analysis',
+      tests: [
+        { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
+        { name: 'Market Root', fn: () => api.get('/market'), critical: false },
+        { name: 'Market Data Quotes', fn: () => api.get('/market-data/quotes'), critical: false },
+        { name: 'Market Data Status', fn: () => api.get('/market-data/status'), critical: false },
+        { name: 'Market Data Calendar', fn: () => api.get('/market-data/calendar'), critical: false },
+        { name: 'Market Data Assets', fn: () => api.get('/market-data/assets'), critical: false }
+      ]
+    },
+    {
+      category: 'Trading & Signals',
+      tests: [
+        { name: 'Buy Signals Daily', fn: () => getBuySignals(), critical: true },
+        { name: 'Sell Signals Daily', fn: () => getSellSignals(), critical: true },
+        { name: 'Signals Root', fn: () => api.get('/signals'), critical: false },
+        { name: 'Trading Root', fn: () => api.get('/trading'), critical: false }
+      ]
+    },
+    {
+      category: 'Portfolio & Holdings',
+      tests: [
+        { name: 'Portfolio Root', fn: () => api.get('/portfolio'), critical: false },
+        { name: 'Portfolio Balances', fn: () => api.get('/portfolio/balances'), critical: false },
+        { name: 'Portfolio Holdings', fn: () => api.get('/portfolio/holdings'), critical: false },
+        { name: 'Portfolio Performance', fn: () => api.get('/portfolio/performance'), critical: false },
+        { name: 'Portfolio Analysis', fn: () => api.get('/portfolio/analysis'), critical: false }
+      ]
+    },
+    {
+      category: 'Optimization & Backtesting',
+      tests: [
+        { name: 'Optimization Root', fn: () => api.get('/optimization'), critical: false },
+        { name: 'Backtesting Root', fn: () => api.get('/backtesting'), critical: false },
+        { name: 'Backtesting Results', fn: () => api.get('/backtesting/results'), critical: false },
+        { name: 'Backtesting History', fn: () => api.get('/backtesting/history'), critical: false },
+        { name: 'Backtesting Strategies', fn: () => api.get('/backtesting/strategies'), critical: false }
+      ]
+    },
+    {
+      category: 'Risk Management',
+      tests: [
+        { name: 'Risk Root', fn: () => api.get('/risk'), critical: false },
+        { name: 'Risk Assessment', fn: () => api.get('/risk/assessment'), critical: false },
+        { name: 'Risk Analysis', fn: () => api.get('/risk/analysis'), critical: false },
+        { name: 'Risk Limits', fn: () => api.get('/risk/limits'), critical: false }
+      ]
+    },
+    {
+      category: 'User & Data Management',
+      tests: [
+        { name: 'User Data', fn: () => api.get('/data'), critical: false },
+        { name: 'Data Export', fn: () => api.get('/data/export'), critical: false },
+        { name: 'User Profile', fn: () => api.get('/user'), critical: false },
+        { name: 'User Settings', fn: () => api.get('/user/settings'), critical: false },
+        { name: 'User Preferences', fn: () => api.get('/user/preferences'), critical: false },
+        { name: 'Notification Settings', fn: () => api.get('/notifications/settings'), critical: false }
+      ]
+    }
+  ], []);
+
+  const endpoints = comprehensiveMode ? comprehensiveEndpoints : quickEndpoints;
+
+  // Test all endpoints
+  const testAllEndpoints = useCallback(async () => {
+    setTestingInProgress(true);
+    const results = {};
+    
+    if (comprehensiveMode) {
+      // Test comprehensive endpoints by category
+      for (const category of endpoints) {
+        results[category.category] = {};
+        for (const endpoint of category.tests) {
+          const startTime = Date.now();
+          try {
+            // Testing endpoint
+            const response = await endpoint.fn();
+            const responseTime = Date.now() - startTime;
+            
+            results[category.category][endpoint.name] = {
+              status: 'success',
+              responseTime: responseTime,
+              critical: endpoint.critical,
+              data: response?.data || response,
+              error: null
+            };
+          } catch (error) {
+            const responseTime = Date.now() - startTime;
+            // Endpoint failed - error handled
+            
+            results[category.category][endpoint.name] = {
+              status: 'error',
+              responseTime: responseTime,
+              critical: endpoint.critical,
+              data: null,
+              error: error.message || 'Unknown error',
+              details: error.response?.data || error.response?.status || 'No additional details'
+            };
+          }
+        }
+      }
+    } else {
+      // Test quick endpoints
+      for (const endpoint of endpoints) {
+        const startTime = Date.now();
+        try {
+          // Testing endpoint
+          const response = await endpoint.fn();
+          const responseTime = Date.now() - startTime;
+          
+          results[endpoint.name] = {
+            status: 'success',
+            responseTime: responseTime,
+            critical: endpoint.critical,
+            data: response?.data || response,
+            error: null
+          };
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          // Log endpoint failure for debugging
+          
+          results[endpoint.name] = {
+            status: 'error',
+            responseTime: responseTime,
+            critical: endpoint.critical,
+            data: null,
+            error: error.message || 'Unknown error',
+            details: error.response?.data || error.response?.status || 'No additional details'
+          };
+        }
+      }
+    }
+    setTestResults(results);
+    setTestingInProgress(false);
+  }, [endpoints, comprehensiveMode]);
+
+  // Database health check
+  const refetchHealth = async () => {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      const result = await healthCheck();
+      setHealthData(result);
+      return result;
+    } catch (error) {
+      // Health check failed - error handled
+      setHealthError(error);
+      throw error;
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  // Refresh health status background job
+  const refreshHealthStatus = async () => {
+    try {
+      setRefreshing(true);
+      // Triggering comprehensive database health update
+      
+      // Call the backend to update health status
+      const response = await api.post('/health/update-status', {}, {
+        timeout: 60000 // 1 minute timeout for comprehensive analysis
+      });
+      
+      // Health status update completed successfully
+      
+      // Refetch the health data to show updated results
+      await refetchDb();
+      
+    } catch (error) {
+      // Failed to refresh health status - error handled gracefully
+      // Don't throw - just log the error so UI doesn't break
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Gather environment information
+  useEffect(() => {
+    const env = {
+      Frontend: {
+        ...apiConfig,
+        location: window.location.href,
+        userAgent: navigator.userAgent.substring(0, 100) + '...',
+        timestamp: new Date().toISOString(),
+        viteApiUrl: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+        currentBaseURL: currentBaseURL,
+        diagnosticInfo: diagnosticInfo
+      }
+    };
+    setEnvironmentInfo(env);
+  }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
   // Component error handler
   useEffect(() => {
@@ -225,416 +472,6 @@ function ServiceHealth() {
     );
   }
 
-  // Simplified endpoint tests - only test essential endpoints
-  const quickEndpoints = useMemo(() => [
-    { name: 'Health Check', fn: () => healthCheck(), critical: true },
-    { name: 'API Connection', fn: () => testApiConnection(), critical: true },
-    { name: 'Stocks', fn: () => getStocks({ limit: 5 }), critical: true },
-    { name: 'Technical Data', fn: () => getTechnicalData('daily', { limit: 5 }), critical: true },
-    { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
-    { name: 'Stock Screener', fn: () => screenStocks({ limit: 5 }), critical: false },
-    { name: 'Buy Signals', fn: () => getBuySignals(), critical: false },
-    { name: 'Sell Signals', fn: () => getSellSignals(), critical: false },
-    { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
-    { name: 'Fear &amp; Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
-  ], []);
-
-  // Comprehensive endpoint tests - testing every single route that exists in the backend
-  const comprehensiveEndpoints = useMemo(() => [
-    {
-      category: 'System Health & Debug',
-      tests: [
-        { name: 'Health Check', fn: () => api.get('/health'), critical: true },
-        { name: 'Health Ready', fn: () => api.get('/health/ready'), critical: true },
-        { name: 'Health Debug DB', fn: () => api.get('/health/debug/db-test'), critical: false },
-        { name: 'Health Debug Tables', fn: () => api.get('/health/debug/tables'), critical: false },
-        { name: 'Health Debug Query', fn: () => api.get('/health/debug/test-query'), critical: false },
-        { name: 'Health Debug Env', fn: () => api.get('/health/debug/env'), critical: false },
-        { name: 'Health Debug CORS', fn: () => api.get('/health/debug/cors-test'), critical: false }
-      ]
-    },
-    {
-      category: 'Stock Data & Screening',
-      tests: [
-        { name: 'Stock List', fn: () => getStocks({ limit: 10 }), critical: true },
-        { name: 'Stock Detail (AAPL)', fn: () => api.get('/stocks/AAPL'), critical: true },
-        { name: 'Stock Screen', fn: () => screenStocks({ limit: 10 }), critical: true },
-        { name: 'Screener Templates', fn: () => api.get('/screener/templates'), critical: false },
-        { name: 'Screener Growth', fn: () => api.get('/screener/growth'), critical: false },
-        { name: 'Screener Value', fn: () => api.get('/screener/value'), critical: false },
-        { name: 'Screener Results', fn: () => api.get('/screener/results'), critical: false }
-      ]
-    },
-    {
-      category: 'Technical Analysis',
-      tests: [
-        { name: 'Technical Daily', fn: () => getTechnicalData('daily', { limit: 10 }), critical: true },
-        { name: 'Technical Detail (AAPL)', fn: () => api.get('/technical/AAPL?timeframe=daily'), critical: false },
-        { name: 'Technical Root', fn: () => api.get('/technical'), critical: false }
-      ]
-    },
-    {
-      category: 'Market Data & Analysis',
-      tests: [
-        { name: 'Market Overview', fn: () => getMarketOverview(), critical: true },
-        { name: 'Market Root', fn: () => api.get('/market'), critical: false },
-        { name: 'Market Data Quotes', fn: () => api.get('/market-data/quotes'), critical: false },
-        { name: 'Market Data Status', fn: () => api.get('/market-data/status'), critical: false },
-        { name: 'Market Data Calendar', fn: () => api.get('/market-data/calendar'), critical: false },
-        { name: 'Market Data Assets', fn: () => api.get('/market-data/assets'), critical: false }
-      ]
-    },
-    {
-      category: 'Trading & Signals',
-      tests: [
-        { name: 'Buy Signals Daily', fn: () => getBuySignals(), critical: true },
-        { name: 'Sell Signals Daily', fn: () => getSellSignals(), critical: true },
-        { name: 'Signals Root', fn: () => api.get('/signals'), critical: false },
-        { name: 'Trading Root', fn: () => api.get('/trading'), critical: false }
-      ]
-    },
-    {
-      category: 'Portfolio & Holdings',
-      tests: [
-        { name: 'Portfolio Root', fn: () => api.get('/portfolio'), critical: false },
-        { name: 'Portfolio Holdings', fn: () => api.get('/portfolio/holdings'), critical: false },
-        { name: 'Trades Root', fn: () => api.get('/trades'), critical: false }
-      ]
-    },
-    {
-      category: 'Financial Data',
-      tests: [
-        { name: 'Financials Root', fn: () => api.get('/financials'), critical: false },
-        { name: 'Financials Ping', fn: () => api.get('/financials/ping'), critical: false },
-        { name: 'Financials Debug Tables', fn: () => api.get('/financials/debug/tables'), critical: false },
-        { name: 'Financials AAPL Balance', fn: () => api.get('/financials/AAPL/balance-sheet'), critical: false },
-        { name: 'Financials AAPL Income', fn: () => api.get('/financials/AAPL/income-statement'), critical: false },
-        { name: 'Financials AAPL Cash Flow', fn: () => api.get('/financials/AAPL/cash-flow'), critical: false },
-        { name: 'Financials AAPL Key Metrics', fn: () => api.get('/financials/AAPL/key-metrics'), critical: false }
-      ]
-    },
-    {
-      category: 'Analyst Data',
-      tests: [
-        { name: 'Analyst Upgrades', fn: () => api.get('/analysts/upgrades'), critical: false },
-        { name: 'Analyst Recent Actions', fn: () => api.get('/analysts/recent-actions'), critical: false },
-        { name: 'Analyst AAPL Recommendations', fn: () => api.get('/analysts/AAPL/recommendations'), critical: false },
-        { name: 'Analyst AAPL Earnings Est', fn: () => api.get('/analysts/AAPL/earnings-estimates'), critical: false },
-        { name: 'Analyst AAPL Revenue Est', fn: () => api.get('/analysts/AAPL/revenue-estimates'), critical: false },
-        { name: 'Analyst AAPL Overview', fn: () => api.get('/analysts/AAPL/overview'), critical: false }
-      ]
-    },
-    {
-      category: 'Metrics & Scoring',
-      tests: [
-        { name: 'Metrics Root', fn: () => api.get('/metrics'), critical: false },
-        { name: 'Metrics Ping', fn: () => api.get('/metrics/ping'), critical: false },
-        { name: 'Metrics Dashboard', fn: () => api.get('/metrics/dashboard'), critical: false },
-        { name: 'Metrics AAPL Detail', fn: () => api.get('/metrics/AAPL'), critical: false },
-        { name: 'Metrics Sectors Analysis', fn: () => api.get('/metrics/sectors/analysis'), critical: false },
-        { name: 'Metrics Top Quality', fn: () => api.get('/metrics/top/quality'), critical: false },
-        { name: 'Metrics Top Value', fn: () => api.get('/metrics/top/value'), critical: false },
-        { name: 'Metrics Top Growth', fn: () => api.get('/metrics/top/growth'), critical: false }
-      ]
-    },
-    {
-      category: 'Calendar & Events',
-      tests: [
-        { name: 'Calendar Root', fn: () => api.get('/calendar'), critical: false },
-        { name: 'Calendar Debug', fn: () => api.get('/calendar/debug'), critical: false },
-        { name: 'Calendar Test', fn: () => api.get('/calendar/test'), critical: false },
-        { name: 'Calendar Events', fn: () => api.get('/calendar/events'), critical: false },
-        { name: 'Calendar Summary', fn: () => api.get('/calendar/summary'), critical: false },
-        { name: 'Calendar Earnings Est', fn: () => api.get('/calendar/earnings-estimates'), critical: false },
-        { name: 'Calendar Earnings History', fn: () => api.get('/calendar/earnings-history'), critical: false }
-      ]
-    },
-    {
-      category: 'Data Management',
-      tests: [
-        { name: 'Data Root', fn: () => api.get('/data'), critical: false },
-        { name: 'Data Quality', fn: () => api.get('/data/quality'), critical: false },
-        { name: 'Data Sources', fn: () => api.get('/data/sources'), critical: false },
-        { name: 'Data EPS Revisions', fn: () => api.get('/data/eps-revisions'), critical: false },
-        { name: 'Data EPS Trend', fn: () => api.get('/data/eps-trend'), critical: false },
-        { name: 'Data Growth Estimates', fn: () => api.get('/data/growth-estimates'), critical: false },
-        { name: 'Data Economic', fn: () => api.get('/data/economic'), critical: false },
-        { name: 'Data NAAIM', fn: () => api.get('/data/naaim'), critical: false },
-        { name: 'Data Fear Greed', fn: () => api.get('/data/fear-greed'), critical: false },
-        { name: 'Data Validation Summary', fn: () => api.get('/data/validation-summary'), critical: false }
-      ]
-    },
-    {
-      category: 'Dashboard APIs',
-      tests: [
-        { name: 'Dashboard Summary', fn: () => api.get('/dashboard/summary'), critical: true },
-        { name: 'Dashboard Holdings', fn: () => api.get('/dashboard/holdings'), critical: false },
-        { name: 'Dashboard Performance', fn: () => api.get('/dashboard/performance'), critical: false },
-        { name: 'Dashboard Alerts', fn: () => api.get('/dashboard/alerts'), critical: false },
-        { name: 'Dashboard Market Data', fn: () => api.get('/dashboard/market-data'), critical: false },
-        { name: 'Dashboard Debug', fn: () => api.get('/dashboard/debug'), critical: false },
-        { name: 'Dashboard Watchlist', fn: () => api.get('/dashboard/watchlist'), critical: false },
-        { name: 'Dashboard Symbols', fn: () => api.get('/dashboard/symbols'), critical: false },
-        { name: 'Dashboard Market Summary', fn: () => api.get('/dashboard/market-summary'), critical: false },
-        { name: 'Dashboard Signals', fn: () => api.get('/dashboard/signals'), critical: false }
-      ]
-    },
-    {
-      category: 'Watchlist Management',
-      tests: [
-        { name: 'Watchlist Root', fn: () => api.get('/watchlist'), critical: false }
-      ]
-    },
-    {
-      category: 'Sector Analysis',
-      tests: [
-        { name: 'Sectors Root', fn: () => api.get('/sectors'), critical: false },
-        { name: 'Sectors Analysis', fn: () => api.get('/sectors/analysis'), critical: false }
-      ]
-    },
-    {
-      category: 'Pattern Recognition',
-      tests: [
-        { name: 'Patterns Root', fn: () => api.get('/patterns'), critical: false },
-        { name: 'Patterns Scan', fn: () => api.get('/patterns/scan'), critical: false },
-        { name: 'Patterns Types', fn: () => api.get('/patterns/types'), critical: false },
-        { name: 'Patterns Performance', fn: () => api.get('/patterns/performance'), critical: false },
-        { name: 'Patterns Alerts', fn: () => api.get('/patterns/alerts'), critical: false },
-        { name: 'Patterns Dashboard', fn: () => api.get('/patterns/dashboard'), critical: false },
-        { name: 'Patterns Statistics', fn: () => api.get('/patterns/statistics'), critical: false }
-      ]
-    },
-    {
-      category: 'Backtesting',
-      tests: [
-        { name: 'Backtest Strategies', fn: () => api.get('/backtest/strategies'), critical: false },
-        { name: 'Backtest Symbols', fn: () => api.get('/backtest/symbols'), critical: false },
-        { name: 'Backtest Templates', fn: () => api.get('/backtest/templates'), critical: false },
-        { name: 'Backtest History', fn: () => api.get('/backtest/history'), critical: false }
-      ]
-    },
-    {
-      category: 'Cryptocurrency',
-      tests: [
-        { name: 'Crypto Market Metrics', fn: () => api.get('/crypto/market-metrics'), critical: false },
-        { name: 'Crypto Fear Greed', fn: () => api.get('/crypto/fear-greed'), critical: false },
-        { name: 'Crypto Movers', fn: () => api.get('/crypto/movers'), critical: false },
-        { name: 'Crypto Trending', fn: () => api.get('/crypto/trending'), critical: false },
-        { name: 'Crypto Assets', fn: () => api.get('/crypto/assets'), critical: false },
-        { name: 'Crypto DeFi TVL', fn: () => api.get('/crypto/defi/tvl'), critical: false },
-        { name: 'Crypto Exchanges', fn: () => api.get('/crypto/exchanges'), critical: false }
-      ]
-    },
-    {
-      category: 'News & Sentiment',
-      tests: [
-        { name: 'News Articles', fn: () => api.get('/news/articles'), critical: false },
-        { name: 'News Market Sentiment', fn: () => api.get('/news/market-sentiment'), critical: false },
-        { name: 'News Sources', fn: () => api.get('/news/sources'), critical: false },
-        { name: 'News Categories', fn: () => api.get('/news/categories'), critical: false },
-        { name: 'News Trending', fn: () => api.get('/news/trending'), critical: false }
-      ]
-    },
-    {
-      category: 'Economic Data',
-      tests: [
-        { name: 'Economic Indicators', fn: () => api.get('/economic/indicators'), critical: false },
-        { name: 'Economic Calendar', fn: () => api.get('/economic/calendar'), critical: false },
-        { name: 'Economic Models', fn: () => api.get('/economic/models'), critical: false },
-        { name: 'Economic Correlations', fn: () => api.get('/economic/correlations'), critical: false },
-        { name: 'Economic Forecasts', fn: () => api.get('/economic/forecasts'), critical: false },
-        { name: 'Economic Yield Curve', fn: () => api.get('/economic/yield-curve'), critical: false },
-        { name: 'Economic Inflation', fn: () => api.get('/economic/inflation'), critical: false },
-        { name: 'Economic Employment', fn: () => api.get('/economic/employment'), critical: false },
-        { name: 'Economic GDP', fn: () => api.get('/economic/gdp'), critical: false },
-        { name: 'Economic Indicators List', fn: () => api.get('/economic/indicators/list'), critical: false }
-      ]
-    },
-    {
-      category: 'Commodities',
-      tests: [
-        { name: 'Commodities Categories', fn: () => api.get('/commodities/categories'), critical: false },
-        { name: 'Commodities Prices', fn: () => api.get('/commodities/prices'), critical: false },
-        { name: 'Commodities Market Summary', fn: () => api.get('/commodities/market-summary'), critical: false },
-        { name: 'Commodities Correlations', fn: () => api.get('/commodities/correlations'), critical: false },
-        { name: 'Commodities News', fn: () => api.get('/commodities/news'), critical: false }
-      ]
-    },
-    {
-      category: 'AI Assistant',
-      tests: [
-        { name: 'AI History', fn: () => api.get('/ai-assistant/history'), critical: false },
-        { name: 'AI Config', fn: () => api.get('/ai-assistant/config'), critical: false },
-        { name: 'AI Market Context', fn: () => api.get('/ai-assistant/market-context'), critical: false }
-      ]
-    },
-    {
-      category: 'Alerts & Notifications',
-      tests: [
-        { name: 'Alerts Root', fn: () => api.get('/alerts'), critical: false },
-        { name: 'Alerts Notifications', fn: () => api.get('/alerts/notifications'), critical: false },
-        { name: 'Alerts Types', fn: () => api.get('/alerts/types'), critical: false }
-      ]
-    },
-    {
-      category: 'User Settings',
-      tests: [
-        { name: 'Settings Root', fn: () => api.get('/settings'), critical: false }
-      ]
-    },
-    {
-      category: 'External Data Sources',
-      tests: [
-        { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
-        { name: 'Fear &amp; Greed Data', fn: () => getFearGreedData({ limit: 5 }), critical: false }
-      ]
-    }
-  ], []);
-
-  const endpoints = comprehensiveMode ? comprehensiveEndpoints : quickEndpoints;
-
-  // Test all endpoints
-  const testAllEndpoints = useCallback(async () => {
-    setTestingInProgress(true);
-    const results = {};
-    
-    if (comprehensiveMode) {
-      // Test comprehensive endpoints by category
-      for (const category of endpoints) {
-        results[category.category] = {};
-        for (const endpoint of category.tests) {
-          const startTime = Date.now();
-          try {
-            // Testing endpoint
-            const response = await endpoint.fn();
-            const responseTime = Date.now() - startTime;
-            
-            results[category.category][endpoint.name] = {
-              status: 'success',
-              responseTime: responseTime,
-              critical: endpoint.critical,
-              data: response?.data || response,
-              error: null
-            };
-          } catch (error) {
-            const responseTime = Date.now() - startTime;
-            // Endpoint failed - error handled
-            
-            results[category.category][endpoint.name] = {
-              status: 'error',
-              responseTime: responseTime,
-              critical: endpoint.critical,
-              data: null,
-              error: error.message || 'Unknown error',
-              details: error.response?.data || error.response?.status || 'No additional details'
-            };
-          }
-        }
-      }
-    } else {
-      // Test quick endpoints
-      for (const endpoint of endpoints) {
-        const startTime = Date.now();
-        try {
-          // Testing endpoint
-          const response = await endpoint.fn();
-          const responseTime = Date.now() - startTime;
-          
-          results[endpoint.name] = {
-            status: 'success',
-            responseTime: responseTime,
-            critical: endpoint.critical,
-            data: response?.data || response,
-            error: null
-          };
-        } catch (error) {
-          const responseTime = Date.now() - startTime;
-          // Log endpoint failure for debugging
-          
-          results[endpoint.name] = {
-            status: 'error',
-            responseTime: responseTime,
-            critical: endpoint.critical,
-            data: null,
-            error: error.message || 'Unknown error',
-            details: error.response?.data || error.response?.status || 'No additional details'
-          };
-        }
-      }
-    }
-    setTestResults(results);
-    setTestingInProgress(false);
-  }, [endpoints, comprehensiveMode]);
-
-  // Manual health check state
-  const [healthData, setHealthData] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthError, setHealthError] = useState(null);
-  
-  const refetchHealth = async () => {
-    setHealthLoading(true);
-    setHealthError(null);
-    try {
-      const result = await healthCheck();
-      setHealthData(result);
-      return result;
-    } catch (error) {
-      // Health check failed - error handled
-      setHealthError(error);
-      throw error;
-    } finally {
-      setHealthLoading(false);
-    }
-  };
-
-  // Removed auto-run API tests on component mount per user request
-  // API tests now only run when button is pressed manually
-  // useEffect(() => {
-  //   // Run API tests automatically when component mounts
-  //   testAllEndpoints();
-  // }, [testAllEndpoints]);
-
-  // Refresh health status background job
-  const refreshHealthStatus = async () => {
-    try {
-      setRefreshing(true);
-      // Triggering comprehensive database health update
-      
-      // Call the backend to update health status
-      const response = await api.post('/health/update-status', {}, {
-        timeout: 60000 // 1 minute timeout for comprehensive analysis
-      });
-      
-      // Health status update completed successfully
-      
-      // Refetch the health data to show updated results
-      await refetchDb();
-      
-    } catch (error) {
-      // Failed to refresh health status - error handled gracefully
-      // Don't throw - just log the error so UI doesn't break
-    } finally {
-      setRefreshing(false);
-    }
-  };
-  
-  // Note: health_status table creation is handled by db-init, not runtime
-
-  // Gather environment information
-  useEffect(() => {
-    const env = {
-      Frontend: {
-        ...apiConfig,
-        location: window.location.href,
-        userAgent: navigator.userAgent.substring(0, 100) + '...',
-        timestamp: new Date().toISOString(),
-        viteApiUrl: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
-        currentBaseURL: currentBaseURL,
-        diagnosticInfo: diagnosticInfo
-      }
-    };
-    setEnvironmentInfo(env);
-  }, [apiConfig, diagnosticInfo, currentBaseURL]);
 
   // Safe data extraction
   const safeHealthData = isObject(healthData) ? healthData : {};

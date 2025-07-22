@@ -10,7 +10,7 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
   const {
     componentName = WrappedComponent.displayName || WrappedComponent.name || 'Component',
     fallbackComponent: CustomFallback = null,
-    enableLogging = true,
+    // enableLogging = true,
     enableRecovery = true,
     maxRetries = 3,
     onError = null,
@@ -33,12 +33,12 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
       this.mountTime = Date.now();
     }
 
-    static getDerivedStateFromError(error) {
+    static getDerivedStateFromError() {
       return { hasError: true };
     }
 
     componentDidCatch(error, errorInfo) {
-      const errorId = this.generateErrorId();
+      // Generate error ID for tracking
       
       // Enhanced error context
       const enhancedError = ErrorManager.handleError({
@@ -75,7 +75,7 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
         try {
           onError(error, errorInfo, enhancedError, this.props);
         } catch (handlerError) {
-          console.error('Error in custom error handler:', handlerError);
+          // Error in custom error handler
         }
       }
 
@@ -157,7 +157,7 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
 
     handleRetry = async () => {
       if (this.state.retryCount >= maxRetries) {
-        console.warn(`Max retries reached for ${componentName}`);
+        // Max retries reached
         return;
       }
 
@@ -190,7 +190,7 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
         });
 
       } catch (recoveryError) {
-        console.error('Error during component recovery:', recoveryError);
+        // Error during component recovery
         this.setState({ isRecovering: false });
       }
     };
@@ -356,26 +356,32 @@ const withErrorHandler = (WrappedComponent, options = {}) => {
 
   ComponentErrorHandler.displayName = `withErrorHandler(${componentName})`;
   
-  return forwardRef((props, ref) => (
+  const WrappedComponentWithRef = forwardRef((props, ref) => (
     <ComponentErrorHandler {...props} ref={ref} />
   ));
+  
+  WrappedComponentWithRef.displayName = `withErrorHandler(${componentName})`;
+  
+  return WrappedComponentWithRef;
 };
 
 // Helper component for async component loading errors
 export const AsyncErrorBoundary = ({ children, componentName = 'AsyncComponent', fallback = null }) => {
-  return React.createElement(
-    withErrorHandler(
-      ({ children }) => children,
-      {
-        componentName,
-        fallbackComponent: fallback,
-        enableLogging: true,
-        enableRecovery: true,
-        maxRetries: 2
-      }
-    ),
-    { children }
+  const ChildrenWrapper = ({ children: childrenProp }) => childrenProp;
+  ChildrenWrapper.displayName = 'ChildrenWrapper';
+  
+  const ErrorBoundaryComponent = withErrorHandler(
+    ChildrenWrapper,
+    {
+      componentName,
+      fallbackComponent: fallback,
+      enableLogging: true,
+      enableRecovery: true,
+      maxRetries: 2
+    }
   );
+  
+  return React.createElement(ErrorBoundaryComponent, null, children);
 };
 
 export default withErrorHandler;

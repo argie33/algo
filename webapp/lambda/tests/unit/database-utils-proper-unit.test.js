@@ -85,7 +85,7 @@ describe('Database Utilities Unit Tests (Industry Standard)', () => {
       // Mock the tablesExist function to return all tables as existing
       database.tablesExist.mockResolvedValue({
         users: true,
-        portfolio: true
+        portfolios: true
       });
 
       database.query.mockResolvedValue({
@@ -106,12 +106,12 @@ describe('Database Utilities Unit Tests (Industry Standard)', () => {
       });
 
       const result = await database.safeQuery(
-        'SELECT * FROM users JOIN portfolio ON users.id = portfolio.user_id',
+        'SELECT * FROM users JOIN portfolios ON users.id = portfolios.user_id',
         [],
-        ['users', 'portfolio']
+        ['users', 'portfolios']
       );
 
-      expect(database.tablesExist).toHaveBeenCalledWith(['users', 'portfolio']);
+      expect(database.tablesExist).toHaveBeenCalledWith(['users', 'portfolios']);
       expect(database.query).toHaveBeenCalled();
       expect(result.rows).toHaveLength(1);
     });
@@ -124,7 +124,7 @@ describe('Database Utilities Unit Tests (Industry Standard)', () => {
       // Mock tablesExist to return missing tables
       database.tablesExist.mockResolvedValue({
         users: false,
-        portfolio: false
+        portfolios: false
       });
 
       // Mock safeQuery to avoid the actual implementation calling tablesExist
@@ -157,29 +157,22 @@ describe('Database Utilities Unit Tests (Industry Standard)', () => {
       const config = database.calculateOptimalPoolConfig();
       
       expect(config.max).toBeGreaterThan(0);
-      expect(config.max).toBeLessThanOrEqual(40); // Updated based on actual logic
+      expect(config.max).toBeLessThanOrEqual(20); // Lambda max is min(concurrency * 2, 20)
       expect(config.min).toBeGreaterThanOrEqual(1);
+      expect(config.min).toBeLessThanOrEqual(5); // Lambda min is max(1, floor(baseConnections/2))
     });
 
     it('uses default configuration for non-Lambda environment', () => {
       delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+      process.env.NODE_ENV = 'production';
       
-      // Mock the function to return expected defaults
-      jest.spyOn(database, 'calculateOptimalPoolConfig').mockReturnValue({
-        min: 4,
-        max: 25,
-        acquireTimeoutMillis: 10000,
-        createTimeoutMillis: 20000,
-        idleTimeoutMillis: 900000,
-        connectionTimeoutMillis: 15000
-      });
-      
+      // Test the actual function without mocking
       const config = database.calculateOptimalPoolConfig();
       
-      expect(config.max).toBe(25); // Default max for production
-      expect(config.min).toBe(4); // Default min for production
-      expect(config.acquireTimeoutMillis).toBe(10000);
-      expect(config.createTimeoutMillis).toBe(20000);
+      expect(config.max).toBeGreaterThanOrEqual(15); // Production max is baseConnections * 5
+      expect(config.min).toBeGreaterThanOrEqual(2); // Production min is baseConnections / 2
+      expect(config.acquireTimeoutMillis).toBeDefined();
+      expect(config.createTimeoutMillis).toBeDefined();
     });
   });
 

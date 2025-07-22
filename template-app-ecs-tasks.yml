@@ -107,6 +107,9 @@ Parameters:
   PatternRecognitionImageTag:
     Type: String
     Description: "Tag for pattern recognition loader image"
+  SentimentRealtimeImageTag:
+    Type: String
+    Description: "Tag for real-time sentiment analysis loader image"
   LoadCryptoImageTag:
     Type: String
     Description: "Tag for cryptocurrency data loader image"
@@ -3146,6 +3149,75 @@ Resources:
           AssignPublicIp: ENABLED
 
   #########################################
+  # Real-Time Sentiment Analysis Task     #
+  #########################################
+  SentimentRealtimeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sentiment_realtime-loader
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: sentiment_realtime-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SentimentRealtimeImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SSL
+              Value: 'false'
+            - Name: BATCH_SIZE
+              Value: "8"
+            - Name: BATCH_PAUSE
+              Value: "0.5"
+            - Name: MAX_SYMBOLS
+              Value: "75"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: PYTHONPATH
+              Value: "/app"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/sentiment_realtime-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  SentimentRealtimeService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: sentiment-realtime-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref SentimentRealtimeTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  #########################################
   # Outputs                               #
   #########################################
 Outputs:
@@ -3432,6 +3504,12 @@ Outputs:
     Value: !Ref PatternRecognitionTaskDefinition
     Export:
       Name: PatternRecognitionTaskDefArn
+
+  SentimentRealtimeTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for real-time sentiment analysis loader
+    Value: !Ref SentimentRealtimeTaskDefinition
+    Export:
+      Name: SentimentRealtimeTaskDefArn
 
   AnalystUpgradeDowngradeTaskDefArn:
     Description: ARN of the ECS TaskDefinition for analyst upgrade/downgrade loader

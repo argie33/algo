@@ -1033,7 +1033,7 @@ const SettingsManager = () => {
 
       {unsavedChanges && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          You have unsaved changes. Don't forget to save your settings.
+          You have unsaved changes. Don&apos;t forget to save your settings.
         </Alert>
       )}
 

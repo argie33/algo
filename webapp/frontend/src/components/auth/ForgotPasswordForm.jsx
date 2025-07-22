@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Card,
@@ -57,7 +57,7 @@ function ForgotPasswordForm({ onForgotPasswordSuccess, onSwitchToLogin }) {
         </Box>
 
         <Typography variant="body1" color="text.secondary" align="center" mb={3}>
-          Enter your username or email address and we'll send you a reset code
+          Enter your username or email address and we&apos;ll send you a reset code
         </Typography>
 
         {displayError && (
