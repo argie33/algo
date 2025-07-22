@@ -371,7 +371,7 @@ class ErrorManager {
    */
   logError(error) {
     const logLevel = this.getLogLevel(error.severity);
-    const logMessage = `[${error.category.toUpperCase()}] ${error.message}`;
+    const logMessage = `[${(error.category || 'UNKNOWN').toUpperCase()}] ${error.message}`;
     
     switch (logLevel) {
       case 'error':
