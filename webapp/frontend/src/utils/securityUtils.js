@@ -8,7 +8,7 @@ class SecurityUtils {
     this.cspNonce = this.generateNonce();
     this.trustedDomains = [
       'localhost',
-      'jh28jhdp01.execute-api.us-east-1.amazonaws.com',
+      '2m14opj30h.execute-api.us-east-1.amazonaws.com',
       'd1zb7knau41vl9.cloudfront.net'
     ];
     

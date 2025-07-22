@@ -34,7 +34,7 @@ const useRealTimeWebSocket = () => {
     }
     
     // Use the real deployed API Gateway endpoint
-    return 'wss://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+    return 'wss://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }, []);
 
   // Add error to list with timestamp

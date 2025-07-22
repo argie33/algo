@@ -339,7 +339,7 @@ function ServiceHealth() {
         location: window.location.href,
         userAgent: navigator.userAgent.substring(0, 100) + '...',
         timestamp: new Date().toISOString(),
-        viteApiUrl: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+        viteApiUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
         currentBaseURL: currentBaseURL,
         diagnosticInfo: diagnosticInfo
       }
@@ -688,8 +688,8 @@ function ServiceHealth() {
                   return 'Production';
                 })()}
               </Typography>
-                      <Typography variant="caption" display="block" sx={{ mt: 1 }} title={'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev'}>
-          API: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
+                      <Typography variant="caption" display="block" sx={{ mt: 1 }} title={'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'}>
+          API: https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev
               </Typography>
             </CardContent>
           </Card>

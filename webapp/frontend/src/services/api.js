@@ -2690,7 +2690,7 @@ export const testApiConnection = async (customUrl = null) => {
     console.log('Current API URL:', currentConfig.baseURL)
     console.log('Custom URL:', customUrl)
     console.log('Environment:', import.meta.env.MODE)
-    console.log('API_URL:', 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev')
+    console.log('API_URL:', 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev')
     const testUrl = customUrl || currentConfig.baseURL
     const response = await api.get('/api/health?quick=true', {
       baseURL: testUrl,
@@ -2728,7 +2728,7 @@ export const getDiagnosticInfo = () => {
   return {
     currentApiUrl: currentConfig.baseURL,
     axiosDefaultBaseUrl: api.defaults.baseURL,
-    viteApiUrl: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
+    viteApiUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
     isConfigured: currentConfig.isConfigured,
     environment: import.meta.env.MODE,
     urlsMatch: currentConfig.baseURL === api.defaults.baseURL,

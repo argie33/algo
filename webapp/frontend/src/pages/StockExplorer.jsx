@@ -684,7 +684,7 @@ function StockExplorer() {
                       Loading stocks data...
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      API: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
+                      API: https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev
                     </Typography>
                   </Box>
                 </Box>
@@ -702,7 +702,7 @@ function StockExplorer() {
                       <li>Database connection issues</li>
                       <li>Incorrect API endpoint configuration</li>
                     </ul>
-                    Current API URL: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
+                    Current API URL: https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev
                   </small>
                 </Alert>
               )}

@@ -336,13 +336,23 @@ class ApiHealthService {
    * Get base URL for API calls
    */
   getBaseUrl() {
+    // Try runtime config first (from public/config.js)
+    if (window.__CONFIG__ && window.__CONFIG__.API_URL) {
+      return window.__CONFIG__.API_URL;
+    }
+    
+    // Fall back to environment variables
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+    
     // Use environment-specific API URL
     if (process.env.NODE_ENV === 'development') {
       return 'http://localhost:3000';
     }
     
-    // Production API Gateway URL
-    return 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev';
+    // Production API Gateway URL (fallback)
+    return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }
 
   /**
