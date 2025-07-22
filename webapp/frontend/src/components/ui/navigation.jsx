@@ -10,26 +10,176 @@ import {
   CogIcon,
   HomeIcon,
   BellIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  DocumentTextIcon,
+  PresentationChartLineIcon,
+  BookOpenIcon,
+  WrenchScrewdriverIcon,
+  AcademicCapIcon,
+  LightBulbIcon,
+  TrophyIcon,
+  ShieldCheckIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { useResponsive } from '../../utils/responsive';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
-  { name: 'Portfolio', href: '/portfolio', icon: CurrencyDollarIcon },
-  { name: 'Live Data', href: '/live-data', icon: ChartBarIcon },
-  { name: 'Technical Analysis', href: '/technical', icon: ChartBarIcon },
-  { name: 'Market Overview', href: '/market', icon: ChartBarIcon },
-  { name: 'Trading Signals', href: '/trading', icon: BellIcon },
-  { name: 'News & Sentiment', href: '/sentiment/news', icon: NewspaperIcon },
-  { name: 'Watchlist', href: '/watchlist', icon: MagnifyingGlassIcon },
-  { name: 'Settings', href: '/settings', icon: CogIcon },
+  { 
+    name: 'Dashboard', 
+    href: '/', 
+    icon: HomeIcon,
+    current: false
+  },
+  { 
+    name: 'Portfolio', 
+    href: '/portfolio', 
+    icon: CurrencyDollarIcon,
+    current: false,
+    children: [
+      { name: 'Overview', href: '/portfolio' },
+      { name: 'Holdings', href: '/portfolio/holdings' },
+      { name: 'Performance', href: '/portfolio/performance' },
+      { name: 'Trade History', href: '/portfolio/trade-history' },
+      { name: 'Optimization', href: '/portfolio/optimize' },
+      { name: 'Enhanced View', href: '/portfolio/enhanced' },
+    ]
+  },
+  { 
+    name: 'Market Data', 
+    href: '/market', 
+    icon: ChartBarIcon,
+    current: false,
+    children: [
+      { name: 'Market Overview', href: '/market' },
+      { name: 'Live Data', href: '/live-data' },
+      { name: 'Real-Time Dashboard', href: '/real-time-dashboard' },
+      { name: 'Data Management', href: '/data-management' },
+      { name: 'Metrics Dashboard', href: '/metrics' },
+    ]
+  },
+  { 
+    name: 'Trading', 
+    href: '/trading', 
+    icon: BellIcon,
+    current: false,
+    children: [
+      { name: 'Trading Signals', href: '/trading' },
+      { name: 'Enhanced Signals', href: '/trading-signals-enhanced' },
+      { name: 'Risk Management', href: '/risk-management' },
+      { name: 'Backtest', href: '/backtest' },
+    ]
+  },
+  { 
+    name: 'Analysis', 
+    href: '/technical', 
+    icon: PresentationChartLineIcon,
+    current: false,
+    children: [
+      { name: 'Technical Analysis', href: '/technical' },
+      { name: 'Pattern Recognition', href: '/stocks/patterns' },
+      { name: 'Analyst Insights', href: '/analysts' },
+      { name: 'Sector Analysis', href: '/sectors' },
+      { name: 'Economic Modeling', href: '/economic' },
+    ]
+  },
+  { 
+    name: 'Stocks', 
+    href: '/stocks', 
+    icon: MagnifyingGlassIcon,
+    current: false,
+    children: [
+      { name: 'Stock Explorer', href: '/stocks' },
+      { name: 'Advanced Screener', href: '/screener-advanced' },
+      { name: 'Watchlist', href: '/watchlist' },
+      { name: 'Earnings Calendar', href: '/earnings' },
+    ]
+  },
+  { 
+    name: 'Options', 
+    href: '/options', 
+    icon: TrophyIcon,
+    current: false,
+    children: [
+      { name: 'Options Analytics', href: '/options' },
+      { name: 'Strategies', href: '/options/strategies' },
+      { name: 'Options Flow', href: '/options/flow' },
+      { name: 'Volatility Surface', href: '/options/volatility' },
+      { name: 'Greeks Monitor', href: '/options/greeks' },
+    ]
+  },
+  { 
+    name: 'Sentiment', 
+    href: '/sentiment', 
+    icon: NewspaperIcon,
+    current: false,
+    children: [
+      { name: 'Sentiment Analysis', href: '/sentiment' },
+      { name: 'News Sentiment', href: '/sentiment/news' },
+      { name: 'Social Media', href: '/sentiment/social' },
+      { name: 'News Analysis', href: '/news-analysis' },
+    ]
+  },
+  { 
+    name: 'Commodities & Crypto', 
+    href: '/commodities', 
+    icon: CurrencyDollarIcon,
+    current: false,
+    children: [
+      { name: 'Commodities', href: '/commodities' },
+      { name: 'Enhanced Commodities', href: '/commodities-enhanced' },
+      { name: 'Crypto Overview', href: '/crypto' },
+      { name: 'Crypto Advanced', href: '/crypto/advanced' },
+    ]
+  },
+  { 
+    name: 'Research', 
+    href: '/research/commentary', 
+    icon: BookOpenIcon,
+    current: false,
+    children: [
+      { name: 'Market Commentary', href: '/research/commentary' },
+      { name: 'Educational Content', href: '/research/education' },
+      { name: 'Research Reports', href: '/research/reports' },
+    ]
+  },
+  { 
+    name: 'Tools', 
+    href: '/scores', 
+    icon: WrenchScrewdriverIcon,
+    current: false,
+    children: [
+      { name: 'AI Assistant', href: '/tools/ai' },
+      { name: 'Scores Dashboard', href: '/scores' },
+      { name: 'Performance Monitor', href: '/performance-monitoring' },
+      { name: 'Service Health', href: '/service-health' },
+    ]
+  },
+  { 
+    name: 'Settings', 
+    href: '/settings', 
+    icon: CogIcon,
+    current: false,
+    children: [
+      { name: 'General Settings', href: '/settings' },
+      { name: 'API Keys', href: '/settings/api-keys' },
+    ]
+  },
 ];
 
 export function TailwindNavigation({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openDropdowns, setOpenDropdowns] = useState({});
   const location = useLocation();
   const { isMobile } = useResponsive();
+
+  const toggleDropdown = (itemName) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [itemName]: !prev[itemName]
+    }));
+  };
   
   const isActivePath = (href) => {
     if (href === '/') return location.pathname === '/';
@@ -94,25 +244,72 @@ export function TailwindNavigation({ children }) {
                         <ul role="list" className="-mx-2 space-y-1">
                           {navigation.map((item) => (
                             <li key={item.name}>
-                              <Link
-                                to={item.href}
-                                className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
-                                  isActivePath(item.href) 
-                                    ? 'bg-blue-50 text-blue-600' 
-                                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                                }`}
-                                onClick={() => setSidebarOpen(false)}
-                              >
-                                <item.icon
-                                  className={`h-6 w-6 shrink-0 ${
-                                    isActivePath(item.href)
-                                      ? 'text-blue-600'
-                                      : 'text-gray-400 group-hover:text-blue-600'
+                              {!item.children ? (
+                                <Link
+                                  to={item.href}
+                                  className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
+                                    isActivePath(item.href) 
+                                      ? 'bg-blue-50 text-blue-600' 
+                                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
                                   }`}
-                                  aria-hidden="true"
-                                />
-                                {item.name}
-                              </Link>
+                                  onClick={() => setSidebarOpen(false)}
+                                >
+                                  <item.icon
+                                    className={`h-6 w-6 shrink-0 ${
+                                      isActivePath(item.href)
+                                        ? 'text-blue-600'
+                                        : 'text-gray-400 group-hover:text-blue-600'
+                                    }`}
+                                    aria-hidden="true"
+                                  />
+                                  {item.name}
+                                </Link>
+                              ) : (
+                                <div>
+                                  <button
+                                    onClick={() => toggleDropdown(item.name)}
+                                    className={`group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm leading-6 font-semibold ${
+                                      isActivePath(item.href) 
+                                        ? 'bg-blue-50 text-blue-600' 
+                                        : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <item.icon
+                                      className={`h-6 w-6 shrink-0 ${
+                                        isActivePath(item.href)
+                                          ? 'text-blue-600'
+                                          : 'text-gray-400 group-hover:text-blue-600'
+                                      }`}
+                                      aria-hidden="true"
+                                    />
+                                    <span className="flex-1">{item.name}</span>
+                                    {openDropdowns[item.name] ? (
+                                      <ChevronDownIcon className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRightIcon className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  {openDropdowns[item.name] && (
+                                    <ul className="mt-1 space-y-1 pl-8">
+                                      {item.children.map((child) => (
+                                        <li key={child.name}>
+                                          <Link
+                                            to={child.href}
+                                            className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 ${
+                                              isActivePath(child.href)
+                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                                            }`}
+                                            onClick={() => setSidebarOpen(false)}
+                                          >
+                                            {child.name}
+                                          </Link>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -138,24 +335,70 @@ export function TailwindNavigation({ children }) {
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => (
                     <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
-                          isActivePath(item.href) 
-                            ? 'bg-blue-50 text-blue-600' 
-                            : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <item.icon
-                          className={`h-6 w-6 shrink-0 ${
-                            isActivePath(item.href)
-                              ? 'text-blue-600'
-                              : 'text-gray-400 group-hover:text-blue-600'
+                      {!item.children ? (
+                        <Link
+                          to={item.href}
+                          className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold ${
+                            isActivePath(item.href) 
+                              ? 'bg-blue-50 text-blue-600' 
+                              : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
                           }`}
-                          aria-hidden="true"
-                        />
-                        {item.name}
-                      </Link>
+                        >
+                          <item.icon
+                            className={`h-6 w-6 shrink-0 ${
+                              isActivePath(item.href)
+                                ? 'text-blue-600'
+                                : 'text-gray-400 group-hover:text-blue-600'
+                            }`}
+                            aria-hidden="true"
+                          />
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => toggleDropdown(item.name)}
+                            className={`group flex w-full items-center gap-x-3 rounded-md p-2 text-left text-sm leading-6 font-semibold ${
+                              isActivePath(item.href) 
+                                ? 'bg-blue-50 text-blue-600' 
+                                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <item.icon
+                              className={`h-6 w-6 shrink-0 ${
+                                isActivePath(item.href)
+                                  ? 'text-blue-600'
+                                  : 'text-gray-400 group-hover:text-blue-600'
+                              }`}
+                              aria-hidden="true"
+                            />
+                            <span className="flex-1">{item.name}</span>
+                            {openDropdowns[item.name] ? (
+                              <ChevronDownIcon className="h-4 w-4" />
+                            ) : (
+                              <ChevronRightIcon className="h-4 w-4" />
+                            )}
+                          </button>
+                          {openDropdowns[item.name] && (
+                            <ul className="mt-1 space-y-1 pl-8">
+                              {item.children.map((child) => (
+                                <li key={child.name}>
+                                  <Link
+                                    to={child.href}
+                                    className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 ${
+                                      isActivePath(child.href)
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {child.name}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
