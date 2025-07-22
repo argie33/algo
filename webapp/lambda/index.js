@@ -183,13 +183,28 @@ const getResponseFormatter = () => {
       console.log('✅ Response formatter initialized');
     } catch (error) {
       console.error('⚠️ Response formatter initialization failed:', error.message);
-      // Fallback response formatter
+      // Fallback response formatter with all required methods
       responseFormatter = (req, res, next) => {
         res.success = (data, message = 'Success') => {
           res.json({ success: true, data, message, timestamp: new Date().toISOString() });
         };
         res.error = (message, statusCode = 500) => {
           res.status(statusCode).json({ success: false, error: message, timestamp: new Date().toISOString() });
+        };
+        res.serverError = (message = 'Internal server error', details = null) => {
+          res.status(500).json({ success: false, error: message, details, timestamp: new Date().toISOString() });
+        };
+        res.badRequest = (message, details = null) => {
+          res.status(400).json({ success: false, error: message, details, timestamp: new Date().toISOString() });
+        };
+        res.unauthorized = (message = 'Authentication required', details = null) => {
+          res.status(401).json({ success: false, error: message, details, timestamp: new Date().toISOString() });
+        };
+        res.forbidden = (message = 'Access denied', details = null) => {
+          res.status(403).json({ success: false, error: message, details, timestamp: new Date().toISOString() });
+        };
+        res.notFound = (resource = 'Resource', details = null) => {
+          res.status(404).json({ success: false, error: `${resource} not found`, details, timestamp: new Date().toISOString() });
         };
         next();
       };

@@ -311,7 +311,7 @@ router.get('/portfolio-analysis', async (req, res) => {
         portfolioRisk: portfolioRisk,
         overallRiskScore: Math.max(portfolioRisk, concentrations[0]?.concentration || 0)
       },
-      recommendations: this.generatePortfolioRecommendations({
+      recommendations: generatePortfolioRecommendations({
         positionCount,
         diversificationScore,
         portfolioRisk,
