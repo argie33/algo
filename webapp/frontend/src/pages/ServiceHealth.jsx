@@ -77,7 +77,7 @@ function ServiceHealth() {
     try {
       return getDiagnosticInfo();
     } catch (error) {
-      console.error('Error getting diagnostic info:', error);
+      // Error getting diagnostic info - handled gracefully
       return {};
     }
   }, []);
@@ -87,7 +87,7 @@ function ServiceHealth() {
     try {
       return getApiConfig();
     } catch (error) {
-      console.error('Error getting API config:', error);
+      // Error getting API config - handled gracefully
       return {};
     }
   }, []);
@@ -95,7 +95,7 @@ function ServiceHealth() {
     try {
       return getCurrentBaseURL();
     } catch (error) {
-      console.error('Error getting current base URL:', error);
+      // Error getting current base URL - handled gracefully
       return '';
     }
   }, []);
@@ -103,7 +103,7 @@ function ServiceHealth() {
   // Component error handler
   useEffect(() => {
     const handleError = (event) => {
-      console.error('ServiceHealth component error:', event.error);
+      // ServiceHealth component error - handled gracefully
       setComponentError(event.error.message);
     };
     
@@ -122,8 +122,8 @@ function ServiceHealth() {
     setDbLoading(true);
     setDbError(null);
     try {
-      console.log('Starting enhanced database health check...');
-      console.log('Request started at:', new Date().toISOString());
+      // Starting enhanced database health check
+      // Request started
       
       const response = await api.get('/health', {
         timeout: 30000, // Reduced from 3 minutes to 30 seconds
@@ -132,11 +132,11 @@ function ServiceHealth() {
         
         const endTime = Date.now();
         const duration = endTime - startTime;
-        console.log(`Database health check completed in ${duration}ms`);
+        // Database health check completed
         
         // Handle case where response has error but is still returned
         if (response.data && response.data.error) {
-          console.warn('Database health check returned error:', response.data.error);
+          // Database health check returned error
           const errorResult = {
             database: {
               status: 'error',
@@ -156,25 +156,14 @@ function ServiceHealth() {
           return errorResult;
         }
         
-        console.log('✅ Database health data received');
-        console.log('📊 Database status:', response.data.database?.status);
-        console.log('📋 Tables found:', Object.keys(response.data.database?.tables || {}).length);
+        // Database health data received and processed
         setDbHealth(response.data);
         return response.data;
     } catch (error) {
         const endTime = Date.now();
         const duration = endTime - startTime;
         
-        console.error('Database health check failed:', error);
-        console.error('Request duration before failure:', duration + 'ms');
-        console.error('Error details:', {
-          message: error.message,
-          code: error.code,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          timeout: error.code === 'ECONNABORTED',
-          networkError: !error.response
-        });
+        // Database health check failed - error handled gracefully
         
         // Determine likely cause of timeout
         let timeoutCause = 'Unknown';
@@ -247,7 +236,7 @@ function ServiceHealth() {
     { name: 'Buy Signals', fn: () => getBuySignals(), critical: false },
     { name: 'Sell Signals', fn: () => getSellSignals(), critical: false },
     { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
-    { name: 'Fear & Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
+    { name: 'Fear &amp; Greed', fn: () => getFearGreedData({ limit: 5 }), critical: false }
   ], []);
 
   // Comprehensive endpoint tests - testing every single route that exists in the backend
@@ -497,7 +486,7 @@ function ServiceHealth() {
       category: 'External Data Sources',
       tests: [
         { name: 'NAAIM Data', fn: () => getNaaimData({ limit: 5 }), critical: false },
-        { name: 'Fear & Greed Data', fn: () => getFearGreedData({ limit: 5 }), critical: false }
+        { name: 'Fear &amp; Greed Data', fn: () => getFearGreedData({ limit: 5 }), critical: false }
       ]
     }
   ], []);
@@ -516,7 +505,7 @@ function ServiceHealth() {
         for (const endpoint of category.tests) {
           const startTime = Date.now();
           try {
-            console.log(`Testing endpoint: ${category.category} - ${endpoint.name}`);
+            // Testing endpoint
             const response = await endpoint.fn();
             const responseTime = Date.now() - startTime;
             
@@ -529,7 +518,7 @@ function ServiceHealth() {
             };
           } catch (error) {
             const responseTime = Date.now() - startTime;
-            console.error(`Endpoint ${endpoint.name} failed:`, error);
+            // Endpoint failed - error handled
             
             results[category.category][endpoint.name] = {
               status: 'error',
@@ -547,7 +536,7 @@ function ServiceHealth() {
       for (const endpoint of endpoints) {
         const startTime = Date.now();
         try {
-          console.log(`Testing endpoint: ${endpoint.name}`);
+          // Testing endpoint
           const response = await endpoint.fn();
           const responseTime = Date.now() - startTime;
           
@@ -560,7 +549,7 @@ function ServiceHealth() {
           };
         } catch (error) {
           const responseTime = Date.now() - startTime;
-          console.error(`Endpoint ${endpoint.name} failed:`, error);
+          // Log endpoint failure for debugging
           
           results[endpoint.name] = {
             status: 'error',
@@ -590,7 +579,7 @@ function ServiceHealth() {
       setHealthData(result);
       return result;
     } catch (error) {
-      console.error('Health check failed:', error);
+      // Health check failed - error handled
       setHealthError(error);
       throw error;
     } finally {
@@ -609,20 +598,20 @@ function ServiceHealth() {
   const refreshHealthStatus = async () => {
     try {
       setRefreshing(true);
-      console.log('🔄 Triggering comprehensive database health update...');
+      // Triggering comprehensive database health update
       
       // Call the backend to update health status
       const response = await api.post('/health/update-status', {}, {
         timeout: 60000 // 1 minute timeout for comprehensive analysis
       });
       
-      console.log('✅ Health status update completed:', response.data.message);
+      // Health status update completed successfully
       
       // Refetch the health data to show updated results
       await refetchDb();
       
     } catch (error) {
-      console.error('❌ Failed to refresh health status:', error);
+      // Failed to refresh health status - error handled gracefully
       // Don't throw - just log the error so UI doesn't break
     } finally {
       setRefreshing(false);
@@ -740,7 +729,7 @@ function ServiceHealth() {
         <ApiKeyStatusIndicator 
           showSetupDialog={true}
           onStatusChange={(status) => {
-            console.log('Service Health - API Key Status:', status);
+            // API key status changed - handled by component
           }}
         />
       </Box>
@@ -1075,10 +1064,10 @@ function ServiceHealth() {
               {/* Debug info */}
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  Debug: dbHealth={!!dbHealth ? 'exists' : 'null'}, 
-                  safeDbHealth={!!safeDbHealth ? 'exists' : 'empty'}, 
+                  Debug: dbHealth={dbHealth ? 'exists' : 'null'}, 
+                  safeDbHealth={safeDbHealth ? 'exists' : 'empty'}, 
                   dbLoading={dbLoading.toString()}, 
-                  dbError={!!dbError ? 'exists' : 'null'}
+                  dbError={dbError ? 'exists' : 'null'}
                 </Typography>
                 {safeDbHealth && (
                   <Typography variant="body2" sx={{ mt: 1 }}>
@@ -1105,7 +1094,7 @@ function ServiceHealth() {
 
               {safeDbHealth && (
                 <Box>
-                  {console.log('🔍 Rendering safeDbHealth:', safeDbHealth)}
+                  {/* Database health information rendered below */}
                   <Alert severity="success" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
                       🗄️ Database Status: {safeDbHealth.database?.status === 'connected' ? 'Connected & Healthy' : safeDbHealth.database?.status || 'Unknown'}

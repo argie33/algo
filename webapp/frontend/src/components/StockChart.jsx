@@ -156,8 +156,8 @@ const StockChart = ({
   };
 
   const handleDownload = () => {
-    // Note: Download functionality would need to be implemented with a different approach for recharts
-    console.log('Download functionality would be implemented here');
+    // TODO: Implement download functionality for recharts
+    // Could export as PNG/SVG using html2canvas or similar library
   };
 
   const chartData = processChartData();
@@ -271,7 +271,7 @@ const StockChart = ({
           ) : chartData ? (
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'area' ? (
-                <AreaChart data={chartData}>
+                <AreaChart data={chartData} aria-label="area">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="date" 
@@ -306,7 +306,7 @@ const StockChart = ({
                   )}
                 </AreaChart>
               ) : (
-                <LineChart data={chartData}>
+                <LineChart data={chartData} aria-label="line">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="date" 
