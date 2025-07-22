@@ -10,17 +10,22 @@ class RealTimeMarketDataService extends EventEmitter {
     super();
     
     this.options = {
-      enabledProviders: options.enabledProviders || ['alpaca', 'polygon', 'finnhub'],
-      primaryProvider: options.primaryProvider || 'alpaca',
-      fallbackProviders: options.fallbackProviders || ['polygon', 'finnhub'],
+      enabledProviders: options.enabledProviders || ['crypto_binance', 'stocks_td', 'stocks_alpaca', 'economic_calendar'],
+      primaryProvider: options.primaryProvider || 'crypto_binance',
+      fallbackProviders: options.fallbackProviders || ['stocks_td', 'stocks_alpaca'],
       dataBufferSize: options.dataBufferSize || 1000,
       dataFlushInterval: options.dataFlushInterval || 5000,
+      updateInterval: options.updateInterval || 5000, // 5 seconds for real data updates
       ...options
     };
     
     // Initialize services
     this.wsManager = new WebSocketManager();
     this.normalizer = new DataNormalizationService();
+    
+    // Real data services integration
+    this.realDataSources = new Map();
+    this.initializeRealDataSources();
     
     // Data management
     this.dataBuffer = [];
@@ -32,11 +37,90 @@ class RealTimeMarketDataService extends EventEmitter {
     this.connectedProviders = new Set();
     this.apiKeys = new Map(); // provider -> apiKey
     
+    // Real-time update management
+    this.updateTimers = new Map(); // symbol -> timer
+    this.isRealTimeMode = false;
+    
     // Setup WebSocket event handlers
     this.setupWebSocketHandlers();
     
     // Start data processing
     this.startDataProcessing();
+  }
+
+  /**
+   * Initialize real data sources
+   */
+  initializeRealDataSources() {
+    console.log('📊 Initializing real data sources...');
+    
+    // Crypto Exchange Service (Binance)
+    try {
+      const CryptoExchangeService = require('./cryptoExchangeService');
+      this.realDataSources.set('crypto_binance', {
+        service: new CryptoExchangeService('binance'),
+        type: 'crypto',
+        available: true,
+        symbols: new Set(),
+        lastUpdate: null
+      });
+      console.log('✅ Crypto exchange service (Binance) loaded');
+    } catch (error) {
+      console.warn('⚠️ Crypto exchange service not available:', error.message);
+    }
+
+    // TD Ameritrade Service
+    try {
+      const TDAmeritradeService = require('./tdAmeritradeService');
+      this.realDataSources.set('stocks_td', {
+        service: new TDAmeritradeService(),
+        type: 'stocks',
+        available: true,
+        symbols: new Set(),
+        lastUpdate: null
+      });
+      console.log('✅ TD Ameritrade service loaded');
+    } catch (error) {
+      console.warn('⚠️ TD Ameritrade service not available:', error.message);
+    }
+
+    // Alpaca Service (if available)
+    try {
+      const AlpacaService = require('../utils/alpacaService');
+      if (process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET) {
+        this.realDataSources.set('stocks_alpaca', {
+          service: new AlpacaService(
+            process.env.ALPACA_API_KEY,
+            process.env.ALPACA_API_SECRET,
+            process.env.ALPACA_ENVIRONMENT !== 'live'
+          ),
+          type: 'stocks',
+          available: true,
+          symbols: new Set(),
+          lastUpdate: null
+        });
+        console.log('✅ Alpaca service loaded');
+      }
+    } catch (error) {
+      console.warn('⚠️ Alpaca service not available:', error.message);
+    }
+
+    // Economic Calendar Service
+    try {
+      const EconomicCalendarService = require('./economicCalendarService');
+      this.realDataSources.set('economic_calendar', {
+        service: new EconomicCalendarService(),
+        type: 'economic',
+        available: true,
+        symbols: new Set(['ECONOMIC_EVENTS']),
+        lastUpdate: null
+      });
+      console.log('✅ Economic calendar service loaded');
+    } catch (error) {
+      console.warn('⚠️ Economic calendar service not available:', error.message);
+    }
+
+    console.log(`📈 Initialized ${this.realDataSources.size} real data sources`);
   }
   
   setupWebSocketHandlers() {
@@ -115,8 +199,8 @@ class RealTimeMarketDataService extends EventEmitter {
       symbols = [symbols];
     }
     
-    // Use specified providers or all connected providers
-    const targetProviders = providers || Array.from(this.connectedProviders);
+    // Use specified providers or all available real data sources
+    const targetProviders = providers || Array.from(this.realDataSources.keys());
     
     if (targetProviders.length === 0) {
       throw new Error('No providers available for subscription');
@@ -128,7 +212,19 @@ class RealTimeMarketDataService extends EventEmitter {
       const subscribedProviders = [];
       
       targetProviders.forEach(provider => {
-        if (this.connectedProviders.has(provider)) {
+        // Check if provider is a real data source
+        if (this.realDataSources.has(provider)) {
+          const dataSource = this.realDataSources.get(provider);
+          
+          // Add symbol to the data source's symbol set
+          dataSource.symbols.add(symbol.toUpperCase());
+          subscribedProviders.push(provider);
+          
+          // Start real-time updates for this symbol
+          this.startRealTimeUpdates(symbol, provider);
+          
+        } else if (this.connectedProviders.has(provider)) {
+          // Legacy WebSocket provider
           try {
             this.wsManager.subscribe(provider, [symbol]);
             subscribedProviders.push(provider);
@@ -146,10 +242,113 @@ class RealTimeMarketDataService extends EventEmitter {
       }
     });
     
-    console.log(`📊 Subscribed to ${symbols.length} symbols across providers`);
+    console.log(`📊 Subscribed to ${symbols.length} symbols across ${targetProviders.length} providers`);
     this.emit('subscribed', { symbols, results });
     
     return results;
+  }
+
+  /**
+   * Start real-time updates for a symbol from a specific provider
+   */
+  startRealTimeUpdates(symbol, provider) {
+    const updateKey = `${symbol}_${provider}`;
+    
+    // Clear existing timer if any
+    if (this.updateTimers.has(updateKey)) {
+      clearInterval(this.updateTimers.get(updateKey));
+    }
+    
+    // Start new update timer
+    const timer = setInterval(async () => {
+      await this.fetchRealTimeData(symbol, provider);
+    }, this.options.updateInterval);
+    
+    this.updateTimers.set(updateKey, timer);
+    
+    // Fetch initial data immediately
+    this.fetchRealTimeData(symbol, provider);
+  }
+
+  /**
+   * Fetch real-time data for a symbol from a specific provider
+   */
+  async fetchRealTimeData(symbol, provider) {
+    try {
+      const dataSource = this.realDataSources.get(provider);
+      if (!dataSource || !dataSource.available) {
+        return;
+      }
+      
+      let data = null;
+      
+      switch (dataSource.type) {
+        case 'crypto':
+          try {
+            data = await dataSource.service.getPrice(symbol);
+            data.type = 'quote';
+            data.symbol = symbol;
+            data.provider = provider;
+            data.timestamp = new Date();
+          } catch (error) {
+            console.warn(`⚠️ Failed to fetch crypto data for ${symbol}:`, error.message);
+          }
+          break;
+          
+        case 'stocks':
+          try {
+            if (dataSource.service.getQuote) {
+              data = await dataSource.service.getQuote(symbol);
+            } else if (dataSource.service.getPositions) {
+              // For Alpaca, get positions data
+              const positions = await dataSource.service.getPositions();
+              const position = positions.find(p => p.symbol === symbol);
+              if (position) {
+                data = {
+                  symbol: symbol,
+                  price: position.market_value / position.qty,
+                  qty: position.qty,
+                  market_value: position.market_value,
+                  unrealized_pl: position.unrealized_pl
+                };
+              }
+            }
+            
+            if (data) {
+              data.type = 'quote';
+              data.provider = provider;
+              data.timestamp = new Date();
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to fetch stock data for ${symbol}:`, error.message);
+          }
+          break;
+          
+        case 'economic':
+          try {
+            const calendarData = await dataSource.service.getTodaysEvents();
+            data = {
+              symbol: 'ECONOMIC_EVENTS',
+              type: 'economic',
+              events: calendarData.events || [],
+              provider: provider,
+              timestamp: new Date()
+            };
+          } catch (error) {
+            console.warn(`⚠️ Failed to fetch economic data:`, error.message);
+          }
+          break;
+      }
+      
+      if (data) {
+        // Process the data through existing pipeline
+        this.processNormalizedData(data);
+        dataSource.lastUpdate = new Date();
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error fetching real-time data for ${symbol} from ${provider}:`, error.message);
+    }
   }
   
   unsubscribe(symbols, providers = null) {
@@ -163,10 +362,21 @@ class RealTimeMarketDataService extends EventEmitter {
       
       targetProviders.forEach(provider => {
         if (subscribedProviders.includes(provider)) {
-          try {
-            this.wsManager.unsubscribe(provider, [symbol]);
-          } catch (error) {
-            console.error(`Failed to unsubscribe ${symbol} from ${provider}:`, error.message);
+          // Handle real data sources
+          if (this.realDataSources.has(provider)) {
+            const dataSource = this.realDataSources.get(provider);
+            dataSource.symbols.delete(symbol.toUpperCase());
+            
+            // Stop real-time updates
+            this.stopRealTimeUpdates(symbol, provider);
+            
+          } else {
+            // Handle legacy WebSocket providers
+            try {
+              this.wsManager.unsubscribe(provider, [symbol]);
+            } catch (error) {
+              console.error(`Failed to unsubscribe ${symbol} from ${provider}:`, error.message);
+            }
           }
         }
       });
@@ -176,6 +386,9 @@ class RealTimeMarketDataService extends EventEmitter {
         this.activeSubscriptions.delete(symbol);
         this.lastDataBySymbol.delete(symbol);
         this.dataCache.delete(symbol);
+        
+        // Stop all real-time updates for this symbol
+        this.stopAllRealTimeUpdates(symbol);
       } else {
         // Partial unsubscription
         const remainingProviders = subscribedProviders.filter(p => !targetProviders.includes(p));
@@ -183,12 +396,48 @@ class RealTimeMarketDataService extends EventEmitter {
           this.activeSubscriptions.set(symbol, remainingProviders);
         } else {
           this.activeSubscriptions.delete(symbol);
+          this.stopAllRealTimeUpdates(symbol);
         }
       }
     });
     
     console.log(`📊 Unsubscribed from ${symbols.length} symbols`);
     this.emit('unsubscribed', { symbols });
+  }
+
+  /**
+   * Stop real-time updates for a specific symbol and provider
+   */
+  stopRealTimeUpdates(symbol, provider) {
+    const updateKey = `${symbol}_${provider}`;
+    const timer = this.updateTimers.get(updateKey);
+    
+    if (timer) {
+      clearInterval(timer);
+      this.updateTimers.delete(updateKey);
+      console.log(`⏹️ Stopped real-time updates for ${symbol} from ${provider}`);
+    }
+  }
+
+  /**
+   * Stop all real-time updates for a symbol
+   */
+  stopAllRealTimeUpdates(symbol) {
+    const keysToRemove = [];
+    
+    for (const updateKey of this.updateTimers.keys()) {
+      if (updateKey.startsWith(`${symbol}_`)) {
+        const timer = this.updateTimers.get(updateKey);
+        clearInterval(timer);
+        keysToRemove.push(updateKey);
+      }
+    }
+    
+    keysToRemove.forEach(key => this.updateTimers.delete(key));
+    
+    if (keysToRemove.length > 0) {
+      console.log(`⏹️ Stopped ${keysToRemove.length} real-time update timers for ${symbol}`);
+    }
   }
   
   processRawMessage(provider, rawData) {
@@ -338,12 +587,25 @@ class RealTimeMarketDataService extends EventEmitter {
   }
   
   getConnectionStatus() {
+    const realDataSourceStatus = {};
+    for (const [sourceId, dataSource] of this.realDataSources) {
+      realDataSourceStatus[sourceId] = {
+        type: dataSource.type,
+        available: dataSource.available,
+        subscribedSymbols: Array.from(dataSource.symbols),
+        lastUpdate: dataSource.lastUpdate
+      };
+    }
+    
     return {
       connectedProviders: Array.from(this.connectedProviders),
+      realDataSources: realDataSourceStatus,
       totalProviders: this.options.enabledProviders.length,
       wsManagerStatus: this.wsManager.getConnectionStatus(),
       activeSubscriptions: Object.fromEntries(this.activeSubscriptions),
-      dataQuality: this.normalizer.getQualityMetrics()
+      activeUpdateTimers: this.updateTimers.size,
+      dataQuality: this.normalizer.getQualityMetrics(),
+      isRealTimeMode: this.isRealTimeMode
     };
   }
   
@@ -367,11 +629,30 @@ class RealTimeMarketDataService extends EventEmitter {
   
   disconnect() {
     console.log('🔌 Disconnecting real-time market data service');
+    
+    // Stop all real-time update timers
+    for (const timer of this.updateTimers.values()) {
+      clearInterval(timer);
+    }
+    this.updateTimers.clear();
+    
+    // Clear real data source symbols
+    for (const dataSource of this.realDataSources.values()) {
+      dataSource.symbols.clear();
+    }
+    
+    // Legacy WebSocket cleanup
     this.wsManager.disconnectAll();
+    
+    // Clear all data structures
     this.activeSubscriptions.clear();
     this.lastDataBySymbol.clear();
     this.dataCache.clear();
     this.connectedProviders.clear();
+    
+    this.isRealTimeMode = false;
+    
+    console.log('✅ Real-time market data service disconnected');
     this.emit('disconnected');
   }
 }

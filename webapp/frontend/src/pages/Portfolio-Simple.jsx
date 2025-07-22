@@ -50,6 +50,60 @@ function Portfolio() {
     alerts: []
   });
 
+  // Fetch real performance data from backend
+  const fetchRealPerformance = async () => {
+    try {
+      const response = await fetch('/api/portfolio/performance?periods=1D,1W,1M,3M,1Y,YTD', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.performance || {
+          oneDay: 0,
+          oneWeek: 0, 
+          oneMonth: 0,
+          threeMonth: 0,
+          oneYear: 0,
+          ytd: 0
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching performance:', error);
+    }
+    
+    return { oneDay: 0, oneWeek: 0, oneMonth: 0, threeMonth: 0, oneYear: 0, ytd: 0 };
+  };
+
+  // Fetch real portfolio metrics from backend
+  const fetchRealMetrics = async (holdings) => {
+    try {
+      const response = await fetch('/api/portfolio/analytics', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ holdings })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.metrics || {
+          sharpeRatio: 0,
+          beta: 0,
+          volatility: 0,
+          maxDrawdown: 0,
+          diversification: 'Unknown'
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+    }
+    
+    return { sharpeRatio: 0, beta: 0, volatility: 0, maxDrawdown: 0, diversification: 'Unknown' };
+  };
+
   useEffect(() => {
     // Fetch real portfolio data from API
     const fetchPortfolioData = async () => {
@@ -83,20 +137,8 @@ function Portfolio() {
             dayChange,
             dayChangePercent,
             holdings: portfolioData,
-        performance: {
-          oneDay: 0.74,
-          oneWeek: 2.45,
-          oneMonth: 8.73,
-          threeMonth: 15.42,
-          oneYear: 28.91,
-          ytd: 21.02
-        },
-        metrics: {
-          sharpeRatio: 1.24,
-          beta: 1.15,
-          volatility: 18.5,
-          maxDrawdown: -12.3,
-          diversification: 'Good'
+            performance: await fetchRealPerformance(),
+            metrics: await fetchRealMetrics(portfolioData)
         },
         alerts: [
           { type: 'gain', message: 'NVDA up 2.99% today', timestamp: '2 hours ago' },

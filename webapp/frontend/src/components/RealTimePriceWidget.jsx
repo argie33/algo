@@ -33,39 +33,14 @@ const RealTimePriceWidget = ({ symbol, showChart = false, compact = false }) => 
               return result;
             }
             
-            // ⚠️ MOCK DATA FALLBACK - Replace with real API when available
-            const basePrice = Math.random() * 200 + 50;
-            const previousClose = basePrice * (1 - (Math.random() * 0.04 - 0.02));
-            const dayChange = basePrice - previousClose;
-            const dayChangePercent = (dayChange / previousClose) * 100;
-            
-            return {
-              symbol,
-              price: basePrice,
-              previousClose,
-              dayChange,
-              dayChangePercent,
-              volume: Math.floor(Math.random() * 50000000),
-              marketCap: basePrice * Math.floor(Math.random() * 1000000000),
-              dayHigh: basePrice * 1.02,
-              dayLow: basePrice * 0.98,
-              lastUpdate: new Date().toISOString(),
-              isMockData: true // Flag to indicate this is mock data
-            };
+            // Try alternative real data sources if primary API fails
+            const alternativeResponse = await fetch(`/api/market/quote/${symbol}`);
+            if (!alternativeResponse.ok) throw new Error('All APIs failed');
+            return await alternativeResponse.json();
           } catch (error) {
             console.error('Price fetch error:', error);
-            // ⚠️ ERROR FALLBACK - Return mock data on error
-            const basePrice = 150 + Math.random() * 50;
-            return {
-              symbol,
-              price: basePrice,
-              previousClose: basePrice * 0.98,
-              dayChange: basePrice * 0.02,
-              dayChangePercent: 2.0,
-              volume: 25000000,
-              lastUpdate: new Date().toISOString(),
-              isMockData: true // Flag to indicate this is mock data
-            };
+            // Return null on error to properly handle missing data
+            return null;
           }
         }
       });

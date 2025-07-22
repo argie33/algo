@@ -93,10 +93,31 @@ class CryptoSignalsEngine {
 
       return result.rows.reverse(); // Return in chronological order
     } catch (error) {
-      this.logger.error('Failed to get price data', error, { symbol, timeframe, limit });
+      this.logger.error('Failed to get price data from primary source', error, { symbol, timeframe, limit });
       
-      // Return mock data for demonstration
-      return this.generateMockPriceData(symbol, limit);
+      try {
+        // Fallback to real crypto exchange API
+        const CryptoExchangeService = require('../services/cryptoExchangeService');
+        const exchange = new CryptoExchangeService('binance'); // Default to Binance
+        
+        console.log(`🔄 Fallback: Getting ${symbol} data from crypto exchange...`);
+        const historicalData = await exchange.getHistoricalData(symbol, timeframe, limit);
+        
+        return historicalData.map(candle => ({
+          timestamp: candle.timestamp,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          volume: candle.volume
+        }));
+      } catch (exchangeError) {
+        this.logger.error('Crypto exchange API also failed', exchangeError, { symbol });
+        
+        // Final fallback to mock data for demonstration
+        console.log('⚠️ Using mock data as final fallback');
+        return this.generateMockPriceData(symbol, limit);
+      }
     }
   }
 

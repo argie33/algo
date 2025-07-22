@@ -543,38 +543,112 @@ router.get('/', async (req, res) => {
 
 // Using standardized getUserApiKey from userApiKeyHelper for decryption
 
-// Broker API integration functions
+// Real Alpaca API integration
 async function fetchAlpacaPortfolio(apiKey, isSandbox) {
   console.log(`📡 Fetching Alpaca portfolio (sandbox: ${isSandbox})`);
   
-  // This is where you'd integrate with the actual Alpaca API
-  // For now, return mock data that simulates a successful API call
-  return {
-    positions: [
-      { symbol: 'AAPL', quantity: 100, avgCost: 150.25, currentPrice: 165.50 },
-      { symbol: 'MSFT', quantity: 50, avgCost: 250.75, currentPrice: 280.25 },
-      { symbol: 'GOOGL', quantity: 25, avgCost: 2500.00, currentPrice: 2650.75 }
-    ],
-    totalValue: 191743.75,
-    totalPnL: 19468.58,
-    totalPnLPercent: 11.3
-  };
+  try {
+    const alpacaService = new AlpacaService();
+    await alpacaService.initialize(apiKey, isSandbox);
+    
+    // Fetch real positions from Alpaca
+    const positions = await alpacaService.getPositions();
+    const account = await alpacaService.getAccount();
+    
+    // Calculate portfolio metrics from real data
+    let totalValue = 0;
+    let totalCost = 0;
+    
+    const processedPositions = positions.map(position => {
+      const quantity = parseFloat(position.qty);
+      const avgCost = parseFloat(position.avg_entry_price);
+      const currentPrice = parseFloat(position.current_price || position.market_value / quantity);
+      const positionValue = quantity * currentPrice;
+      const costBasis = quantity * avgCost;
+      
+      totalValue += positionValue;
+      totalCost += costBasis;
+      
+      return {
+        symbol: position.symbol,
+        quantity,
+        avgCost,
+        currentPrice,
+        marketValue: positionValue,
+        unrealizedPnL: parseFloat(position.unrealized_pl),
+        unrealizedPnLPercent: costBasis > 0 ? (parseFloat(position.unrealized_pl) / costBasis) * 100 : 0
+      };
+    });
+    
+    const totalPnL = totalValue - totalCost;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+    
+    return {
+      positions: processedPositions,
+      totalValue: parseFloat(account.portfolio_value),
+      totalPnL,
+      totalPnLPercent,
+      buyingPower: parseFloat(account.buying_power),
+      cash: parseFloat(account.cash)
+    };
+    
+  } catch (error) {
+    console.error('Failed to fetch Alpaca portfolio:', error);
+    throw new Error(`Alpaca API error: ${error.message}`);
+  }
 }
 
 async function fetchTDAmeritradePortfolio(apiKey, isSandbox) {
   console.log(`📡 Fetching TD Ameritrade portfolio (sandbox: ${isSandbox})`);
   
-  // This is where you'd integrate with the actual TD Ameritrade API
-  // For now, return mock data that simulates a successful API call
-  return {
-    positions: [
-      { symbol: 'TSLA', quantity: 75, avgCost: 200.50, currentPrice: 220.25 },
-      { symbol: 'NVDA', quantity: 40, avgCost: 450.00, currentPrice: 480.50 }
-    ],
-    totalValue: 135720.00,
-    totalPnL: 12850.00,
-    totalPnLPercent: 9.5
-  };
+  try {
+    const tdService = require('../services/tdAmeritradeService');
+    
+    // Initialize TD Ameritrade service with real API key
+    const account = await tdService.getAccount(apiKey);
+    const positions = await tdService.getPositions(apiKey);
+    
+    // Process real TD Ameritrade positions
+    let totalValue = 0;
+    let totalCost = 0;
+    
+    const processedPositions = positions.map(position => {
+      const quantity = parseFloat(position.longQuantity || position.shortQuantity || 0);
+      const avgCost = parseFloat(position.averagePrice || 0);
+      const currentPrice = parseFloat(position.markPrice || position.closePrice || 0);
+      const positionValue = quantity * currentPrice;
+      const costBasis = Math.abs(quantity) * avgCost;
+      
+      totalValue += positionValue;
+      totalCost += costBasis;
+      
+      return {
+        symbol: position.instrument.symbol,
+        quantity,
+        avgCost,
+        currentPrice,
+        marketValue: positionValue,
+        unrealizedPnL: positionValue - costBasis,
+        unrealizedPnLPercent: costBasis > 0 ? ((positionValue - costBasis) / costBasis) * 100 : 0
+      };
+    });
+    
+    const totalPnL = totalValue - totalCost;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+    
+    return {
+      positions: processedPositions,
+      totalValue,
+      totalPnL,
+      totalPnLPercent,
+      buyingPower: parseFloat(account.currentBalances.buyingPower || 0),
+      cash: parseFloat(account.currentBalances.cashBalance || 0)
+    };
+    
+  } catch (error) {
+    console.error('Failed to fetch TD Ameritrade portfolio:', error);
+    throw new Error(`TD Ameritrade API error: ${error.message}`);
+  }
 }
 
 // Store portfolio data in database with transaction for data integrity
@@ -2402,8 +2476,61 @@ router.post('/import/:broker', async (req, res) => {
         };
         
       } else if (broker.toLowerCase() === 'td_ameritrade') {
-        // TD Ameritrade integration would go here
-        throw new Error(`TD Ameritrade integration not yet implemented`);
+        // Real TD Ameritrade integration
+        const TdAmeritradeService = require('../services/tdAmeritradeService');
+        
+        if (!apiKey || !apiSecret) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing TD Ameritrade credentials',
+            message: 'TD Ameritrade API key and refresh token are required'
+          });
+        }
+        
+        const tdService = new TdAmeritradeService(apiKey, apiSecret);
+        
+        // Validate credentials first
+        const validation = await tdService.validateCredentials();
+        if (!validation.valid) {
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid TD Ameritrade credentials',
+            message: validation.message
+          });
+        }
+        
+        // Get portfolio data
+        const [positions, accountInfo, tradeHistory] = await Promise.all([
+          tdService.getPositions(),
+          tdService.getAccountInfo(),
+          tdService.getTradeHistory()
+        ]);
+        
+        portfolioData = {
+          success: true,
+          broker: 'td_ameritrade',
+          accountInfo,
+          positions: positions.map(pos => ({
+            symbol: pos.symbol,
+            quantity: pos.quantity,
+            avgCost: pos.averagePrice,
+            currentPrice: pos.currentPrice,
+            marketValue: pos.marketValue,
+            unrealizedPL: pos.unrealizedPL,
+            sector: pos.sector,
+            assetType: pos.assetType
+          })),
+          trades: tradeHistory.map(trade => ({
+            symbol: trade.symbol,
+            side: trade.side,
+            quantity: trade.quantity,
+            price: trade.price,
+            date: trade.date,
+            fees: trade.fees,
+            netAmount: trade.netAmount
+          }))
+        };
+        
       } else {
         throw new Error(`Unsupported broker: ${broker}`);
       }

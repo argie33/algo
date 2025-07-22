@@ -99,7 +99,7 @@ const PortfolioManager = () => {
       setPortfolioData(Array.isArray(data) ? data : []);
       
       // Calculate portfolio summary
-      calculatePortfolioSummary(Array.isArray(data) ? data : []);
+      await calculatePortfolioSummary(Array.isArray(data) ? data : []);
       
     } catch (err) {
       console.error('Error fetching portfolio data:', err);

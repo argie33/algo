@@ -871,6 +871,168 @@ class TradingStrategyEngine {
       return false;
     }
   }
+
+  // Update strategy configuration
+  async updateStrategy(strategyId, userId, updateConfig) {
+    try {
+      logger.info(`🔄 Updating trading strategy`, {
+        strategyId,
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown',
+        updateFields: Object.keys(updateConfig)
+      });
+
+      // First, verify the strategy exists and belongs to the user
+      const existingStrategy = await query(`
+        SELECT * FROM trading_strategies 
+        WHERE id = $1 AND user_id = $2
+      `, [strategyId, userId]);
+
+      if (existingStrategy.rows.length === 0) {
+        return {
+          success: false,
+          error: 'Strategy not found or access denied',
+          statusCode: 404
+        };
+      }
+
+      const strategy = existingStrategy.rows[0];
+      const currentConfig = JSON.parse(strategy.configuration);
+
+      // Build update query dynamically based on provided fields
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 3; // Starting after strategyId and userId
+
+      // Handle active status
+      if (typeof updateConfig.active === 'boolean') {
+        updateFields.push(`is_active = $${paramIndex}`);
+        updateValues.push(updateConfig.active);
+        paramIndex++;
+      }
+
+      // Handle name update
+      if (updateConfig.name) {
+        updateFields.push(`name = $${paramIndex}`);
+        updateValues.push(updateConfig.name);
+        paramIndex++;
+      }
+
+      // Handle description update  
+      if (updateConfig.description) {
+        updateFields.push(`description = $${paramIndex}`);
+        updateValues.push(updateConfig.description);
+        paramIndex++;
+      }
+
+      // Handle configuration updates (parameters and risk management)
+      if (updateConfig.parameters || updateConfig.riskManagement) {
+        const newConfig = { ...currentConfig };
+        
+        if (updateConfig.parameters) {
+          newConfig.parameters = { ...currentConfig.parameters, ...updateConfig.parameters };
+        }
+        
+        if (updateConfig.riskManagement) {
+          newConfig.riskManagement = { ...currentConfig.riskManagement, ...updateConfig.riskManagement };
+        }
+
+        updateFields.push(`configuration = $${paramIndex}`);
+        updateValues.push(JSON.stringify(newConfig));
+        paramIndex++;
+      }
+
+      // Always update the updated_at timestamp
+      updateFields.push('updated_at = NOW()');
+
+      if (updateFields.length === 1) { // Only updated_at field
+        return {
+          success: false,
+          error: 'No valid update fields provided',
+          statusCode: 400
+        };
+      }
+
+      // Execute the update
+      const updateQuery = `
+        UPDATE trading_strategies 
+        SET ${updateFields.join(', ')}
+        WHERE id = $1 AND user_id = $2
+        RETURNING *
+      `;
+
+      const updateResult = await query(updateQuery, [strategyId, userId, ...updateValues]);
+      const updatedStrategy = updateResult.rows[0];
+
+      // Update in-memory active strategies if needed
+      if (typeof updateConfig.active === 'boolean') {
+        if (updateConfig.active && !this.activeStrategies.has(strategyId)) {
+          // Strategy was activated - add to active strategies
+          try {
+            // Get user's API credentials
+            const credentials = await apiKeyService.getDecryptedApiKey(userId, strategy.provider || 'alpaca');
+            if (credentials) {
+              const strategyInstance = {
+                id: strategyId,
+                userId,
+                config: JSON.parse(updatedStrategy.configuration),
+                credentials,
+                alpacaService: new AlpacaService(credentials.apiKey, credentials.apiSecret, credentials.isSandbox),
+                status: 'active',
+                lastExecuted: strategy.last_executed,
+                executionCount: strategy.execution_count || 0,
+                performance: JSON.parse(strategy.performance || '{}')
+              };
+              
+              this.activeStrategies.set(strategyId, strategyInstance);
+              logger.info(`✅ Strategy added to active strategies`, { strategyId });
+            }
+          } catch (credError) {
+            logger.warn(`⚠️ Strategy updated but couldn't activate due to credential error`, {
+              strategyId,
+              error: credError.message
+            });
+          }
+        } else if (!updateConfig.active && this.activeStrategies.has(strategyId)) {
+          // Strategy was deactivated - remove from active strategies
+          this.activeStrategies.delete(strategyId);
+          logger.info(`🛑 Strategy removed from active strategies`, { strategyId });
+        }
+      } else if (this.activeStrategies.has(strategyId)) {
+        // Strategy is active and config was updated - update the instance
+        const activeStrategy = this.activeStrategies.get(strategyId);
+        activeStrategy.config = JSON.parse(updatedStrategy.configuration);
+        this.activeStrategies.set(strategyId, activeStrategy);
+        logger.info(`🔄 Active strategy configuration updated`, { strategyId });
+      }
+
+      logger.info(`✅ Strategy updated successfully`, {
+        strategyId,
+        updatedFields: Object.keys(updateConfig),
+        isActive: updatedStrategy.is_active
+      });
+
+      return {
+        success: true,
+        active: updatedStrategy.is_active,
+        updatedFields: Object.keys(updateConfig),
+        updatedAt: updatedStrategy.updated_at
+      };
+
+    } catch (error) {
+      logger.error(`❌ Error updating strategy`, {
+        error: error.message,
+        errorStack: error.stack,
+        strategyId,
+        userId: userId ? `${userId.substring(0, 8)}...` : 'unknown'
+      });
+      
+      return {
+        success: false,
+        error: `Failed to update strategy: ${error.message}`,
+        statusCode: 500
+      };
+    }
+  }
 }
 
 module.exports = new TradingStrategyEngine();

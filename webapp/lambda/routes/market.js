@@ -1299,62 +1299,87 @@ router.get('/calendar', async (req, res) => {
   try {
     console.log('📅 Economic calendar endpoint called');
     
-    // Check if economic_calendar table exists
-    const tableExists = await checkRequiredTables(['economic_calendar']);
+    // Use real EconomicCalendarService for data retrieval
+    const EconomicCalendarService = require('../services/economicCalendarService');
+    const calendarService = new EconomicCalendarService();
     
-    if (!tableExists.economic_calendar) {
-      console.log('⚠️ Economic calendar table not found, returning mock data');
+    const days = parseInt(req.query.days) || 7;
+    const country = req.query.country || 'US';
+    const importance = req.query.importance;
+    
+    try {
+      // Try to get real economic calendar data
+      console.log(`📊 Getting economic calendar for ${days} days, country: ${country}`);
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // Mock economic calendar data for fallback
-      const calendarData = [
-        {
-          event: 'FOMC Rate Decision',
-          date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-          time: '14:00',
-          importance: 'High',
-          currency: 'USD',
-          category: 'monetary_policy',
-          forecast: '5.00-5.25%',
-          previous: '5.25-5.50%',
-          country: 'US',
-          source: 'Federal Reserve'
-        },
-        {
-          event: 'Nonfarm Payrolls',
-          date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-          time: '08:30',
-          importance: 'High',
-          currency: 'USD',
-          category: 'employment',
-          forecast: '160K',
-          previous: '227K',
-          country: 'US',
-          source: 'Bureau of Labor Statistics'
-        },
-        {
-          event: 'Consumer Price Index',
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          time: '08:30',
-          importance: 'High',
-          currency: 'USD',
-          category: 'inflation',
-          forecast: '2.4% Y/Y',
-          previous: '2.6% Y/Y',
-          country: 'US',
-          source: 'Bureau of Labor Statistics'
-        }
-      ];
-
+      const calendarData = await calendarService.getEconomicCalendar(startDate, endDate, country);
+      
+      // Filter by importance if specified
+      let filteredEvents = calendarData.events;
+      if (importance) {
+        filteredEvents = calendarData.events.filter(event => 
+          event.importance.toLowerCase() === importance.toLowerCase()
+        );
+      }
+      
+      console.log(`✅ Retrieved ${filteredEvents.length} economic calendar events from ${calendarData.source}`);
+      
       return res.json({
-        data: calendarData,
-        count: calendarData.length,
-        source: 'mock'
+        data: filteredEvents,
+        count: filteredEvents.length,
+        source: calendarData.source,
+        dateRange: calendarData.dateRange,
+        country: calendarData.country,
+        filters: {
+          days: days,
+          country: country,
+          importance: importance || 'all'
+        },
+        timestamp: calendarData.timestamp
       });
+      
+    } catch (serviceError) {
+      console.warn(`⚠️ Economic calendar service failed: ${serviceError.message}`);
+      
+      // Fallback: Check if economic_calendar table exists
+      const tableExists = await checkRequiredTables(['economic_calendar']);
+      
+      if (!tableExists.economic_calendar) {
+        console.log('⚠️ Economic calendar table not found, using mock data');
+        
+        // Use EconomicCalendarService mock data generation
+        const mockData = calendarService.generateMockCalendar(
+          new Date().toISOString().split('T')[0],
+          new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          country
+        );
+        
+        let filteredEvents = mockData.events;
+        if (importance) {
+          filteredEvents = mockData.events.filter(event => 
+            event.importance.toLowerCase() === importance.toLowerCase()
+          );
+        }
+        
+        return res.json({
+          data: filteredEvents,
+          count: filteredEvents.length,
+          source: 'mock_data',
+          dateRange: mockData.dateRange,
+          country: mockData.country,
+          filters: {
+            days: days,
+            country: country,
+            importance: importance || 'all'
+          },
+          timestamp: mockData.timestamp,
+          message: 'Using mock data - API services unavailable'
+        });
+      }
     }
 
-    // Get upcoming events from database
-    const days = parseInt(req.query.days) || 30;
-    const importance = req.query.importance;
+    // Database fallback - Get upcoming events from database
     const category = req.query.category;
     
     let whereClause = 'WHERE event_date >= CURRENT_DATE';
@@ -1401,7 +1426,46 @@ router.get('/calendar', async (req, res) => {
 
     const result = await query(calendarQuery, queryParams);
     
-    // Format the results
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.log('⚠️ No database calendar data found, using EconomicCalendarService mock data');
+      
+      // Final fallback to EconomicCalendarService mock data
+      const mockData = calendarService.generateMockCalendar(
+        new Date().toISOString().split('T')[0],
+        new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        country
+      );
+      
+      let filteredEvents = mockData.events;
+      if (importance) {
+        filteredEvents = mockData.events.filter(event => 
+          event.importance.toLowerCase() === importance.toLowerCase()
+        );
+      }
+      if (category) {
+        filteredEvents = filteredEvents.filter(event => 
+          event.category === category
+        );
+      }
+      
+      return res.json({
+        data: filteredEvents,
+        count: filteredEvents.length,
+        source: 'mock_data',
+        dateRange: mockData.dateRange,
+        country: mockData.country,
+        filters: {
+          days: days,
+          country: country,
+          importance: importance || 'all',
+          category: category || 'all'
+        },
+        timestamp: mockData.timestamp,
+        message: 'Using mock data - Database and API services unavailable'
+      });
+    }
+    
+    // Format the database results
     const calendarData = result.rows.map(row => ({
       event_id: row.event_id,
       event: row.event_name,
@@ -1424,7 +1488,7 @@ router.get('/calendar', async (req, res) => {
       updated_at: row.updated_at
     }));
 
-    console.log(`✅ Retrieved ${calendarData.length} economic calendar events`);
+    console.log(`✅ Retrieved ${calendarData.length} economic calendar events from database`);
 
     res.json({
       data: calendarData,
@@ -1432,6 +1496,7 @@ router.get('/calendar', async (req, res) => {
       source: 'database',
       filters: {
         days,
+        country,
         importance,
         category
       }
@@ -2101,18 +2166,37 @@ router.get('/economic/fred', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     } catch (fredError) {
-      console.log('FRED API unavailable, using mock data:', fredError.message);
+      console.log('Primary FRED service unavailable, trying real FRED API:', fredError.message);
       
-      // Fallback to mock data
-      const mockData = FREDService.generateMockData();
-      
-      res.json({
-        status: 'ok',
-        data: mockData,
-        source: 'mock_data',
-        note: 'FRED API unavailable, using mock data',
-        timestamp: new Date().toISOString()
-      });
+      try {
+        // Use real FRED API service as fallback
+        const FREDApiService = require('../services/fredApiService');
+        const fredApi = new FREDApiService();
+        
+        const economicData = await fredApi.getEconomicIndicators();
+        
+        res.json({
+          status: 'ok',
+          data: economicData,
+          source: 'fred_api_direct',
+          note: 'Using direct FRED API integration',
+          timestamp: new Date().toISOString()
+        });
+      } catch (apiError) {
+        console.log('FRED API also unavailable, using mock data:', apiError.message);
+        
+        // Final fallback to mock data
+        const FREDApiService = require('../services/fredApiService');
+        const mockData = FREDApiService.generateMockData();
+        
+        res.json({
+          status: 'ok',
+          data: mockData,
+          source: 'mock_data',
+          note: 'FRED API unavailable, using mock data',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
   } catch (error) {
     console.error('[MARKET] Error in FRED endpoint:', error);

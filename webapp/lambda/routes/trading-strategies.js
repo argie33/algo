@@ -277,26 +277,67 @@ router.put('/:strategyId', async (req, res) => {
       active
     });
     
-    // For now, we'll implement a simple active/inactive toggle
-    // More comprehensive updates would require additional validation
-    if (active === false) {
-      const result = await tradingStrategyEngine.deactivateStrategy(strategyId);
+    // Build update configuration
+    const updateConfig = {};
+    let hasUpdates = false;
+    
+    // Handle active status toggle
+    if (typeof active === 'boolean') {
+      updateConfig.active = active;
+      hasUpdates = true;
+    }
+    
+    // Handle parameters update
+    if (parameters && typeof parameters === 'object') {
+      updateConfig.parameters = parameters;
+      hasUpdates = true;
+    }
+    
+    // Handle risk management update
+    if (riskManagement && typeof riskManagement === 'object') {
+      updateConfig.riskManagement = riskManagement;
+      hasUpdates = true;
+    }
+    
+    // Handle name update
+    if (name && typeof name === 'string') {
+      updateConfig.name = name.trim();
+      hasUpdates = true;
+    }
+    
+    // Handle description update
+    if (description && typeof description === 'string') {
+      updateConfig.description = description.trim();
+      hasUpdates = true;
+    }
+    
+    if (!hasUpdates) {
+      const response = responseFormatter.error('No valid updates provided', 400);
+      return res.status(400).json(response);
+    }
+    
+    // Perform the strategy update
+    const result = await tradingStrategyEngine.updateStrategy(strategyId, userId, updateConfig);
+    
+    if (result.success) {
+      const response = responseFormatter.success({
+        strategyId,
+        updatedFields: Object.keys(updateConfig),
+        status: result.active ? 'active' : 'inactive',
+        updatedAt: new Date().toISOString()
+      }, 'Strategy updated successfully');
       
-      if (result) {
-        const response = responseFormatter.success({
-          strategyId,
-          status: 'deactivated'
-        }, 'Strategy deactivated successfully');
-        
-        logger.info(`✅ [${requestId}] Strategy deactivated`, { strategyId });
-        res.json(response);
-      } else {
-        const response = responseFormatter.error('Failed to deactivate strategy', 500);
-        res.status(500).json(response);
-      }
+      logger.info(`✅ [${requestId}] Strategy updated successfully`, { 
+        strategyId,
+        updatedFields: Object.keys(updateConfig)
+      });
+      res.json(response);
     } else {
-      const response = responseFormatter.error('Strategy updates not fully implemented', 501);
-      res.status(501).json(response);
+      const response = responseFormatter.error(
+        result.error || 'Failed to update strategy', 
+        result.statusCode || 500
+      );
+      res.status(result.statusCode || 500).json(response);
     }
   } catch (error) {
     logger.error(`❌ [${requestId}] Error updating strategy`, {

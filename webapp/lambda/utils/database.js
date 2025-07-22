@@ -30,6 +30,32 @@ const secretsManager = new SecretsManagerClient({
 });
 
 /**
+ * Get database secret from AWS Secrets Manager using direct SDK calls
+ */
+async function getDatabaseSecretDirect(secretArn) {
+    try {
+        console.log(`🔑 Getting secret from AWS Secrets Manager: ${secretArn}`);
+        
+        const command = new GetSecretValueCommand({
+            SecretId: secretArn
+        });
+        
+        const response = await secretsManager.send(command);
+        
+        if (response.SecretString) {
+            const secret = JSON.parse(response.SecretString);
+            console.log('✅ Successfully retrieved secret from AWS Secrets Manager');
+            return secret;
+        } else {
+            throw new Error('Secret value is empty or binary format not supported');
+        }
+    } catch (error) {
+        console.error('❌ Failed to get secret from AWS Secrets Manager:', error.message);
+        throw new Error(`Failed to retrieve secret ${secretArn}: ${error.message}`);
+    }
+}
+
+/**
  * Get database configuration from environment variables or AWS Secrets Manager with enhanced error handling
  */
 async function getDbConfig() {
@@ -39,6 +65,8 @@ async function getDbConfig() {
     }
 
     const configStart = Date.now();
+    console.log('⏱️ Starting database config retrieval...');
+    
     try {
         // First try direct environment variables (full set)
         if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
@@ -56,7 +84,8 @@ async function getDbConfig() {
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
             };
 
-            console.log('✅ Database config loaded from complete environment variables');
+            const configDuration = Date.now() - configStart;
+            console.log(`✅ Database config loaded from complete environment variables (${configDuration}ms)`);
             console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
             console.log(`   🏊 Pool Max: ${dbConfig.max}`);
             console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
@@ -73,16 +102,23 @@ async function getDbConfig() {
             const secretArn = process.env.DB_SECRET_ARN;
             console.log(`🔑 Getting password from Secrets Manager: ${secretArn}`);
             
-            // Use diagnostic tool to get password from secret
-            const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
-            const diagnostic = new SecretsManagerDiagnostic();
-            
-            const diagnosis = await diagnostic.diagnoseSecret(secretArn);
-            if (!diagnosis.success) {
-                throw new Error(`Failed to get password from Secrets Manager: ${diagnosis.error}`);
+            let secret;
+            try {
+                // Try diagnostic tool first
+                const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
+                const diagnostic = new SecretsManagerDiagnostic();
+                
+                const diagnosis = await diagnostic.diagnoseSecret(secretArn);
+                if (diagnosis.success) {
+                    secret = diagnosis.config;
+                } else {
+                    throw new Error(diagnosis.error);
+                }
+            } catch (diagnosticError) {
+                console.warn('⚠️ Diagnostic tool failed, trying direct AWS SDK approach:', diagnosticError.message);
+                // Fallback to direct AWS SDK call
+                secret = await getDatabaseSecretDirect(secretArn);
             }
-            
-            const secret = diagnosis.config;
             
             dbConfig = {
                 host: process.env.DB_HOST || process.env.DB_ENDPOINT,
@@ -96,7 +132,8 @@ async function getDbConfig() {
                 connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
             };
 
-            console.log('✅ Database config loaded from hybrid env vars + secret');
+            const configDuration = Date.now() - configStart;
+            console.log(`✅ Database config loaded from hybrid env vars + secret (${configDuration}ms)`);
             console.log(`   🔒 SSL: ${dbConfig.ssl ? 'enabled' : 'disabled'}`);
             console.log(`   🏊 Pool Max: ${dbConfig.max}`);
             console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
@@ -629,10 +666,21 @@ async function query(text, params = [], timeoutMs = null) {
     
     console.log(`🔍 [${queryId}] QUERY START (Circuit Breaker): ${text.substring(0, 100)}...`);
     console.log(`🔍 [${queryId}] Params:`, params);
+    if (timeoutMs) {
+        console.log(`🔍 [${queryId}] Timeout: ${timeoutMs}ms`);
+    }
     
     try {
-        // Use new database manager with circuit breaker protection
-        const result = await databaseManager.query(text, params);
+        // Use timeout if specified, otherwise use database manager with circuit breaker protection
+        let result;
+        if (timeoutMs) {
+            result = await withDatabaseTimeout(
+                () => databaseManager.query(text, params),
+                timeoutMs
+            );
+        } else {
+            result = await databaseManager.query(text, params);
+        }
         
         const duration = Date.now() - startTime;
         console.log(`✅ [${queryId}] Query completed in ${duration}ms`);
@@ -1204,6 +1252,10 @@ function extractTableName(sql) {
         
         return 'unknown';
     } catch (error) {
+        // Log error for debugging but don't expose in production
+        if (process.env.NODE_ENV !== 'production') {
+            console.warn('📄 Table name extraction failed:', error.message);
+        }
         return 'unknown';
     }
 }

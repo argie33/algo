@@ -1,18 +1,18 @@
 {
   "testSuite": "Unit Tests",
-  "timestamp": "2025-07-22T13:08:19.978Z",
+  "timestamp": "2025-07-22T18:29:56.112Z",
   "environment": "test",
   "results": {
-    "total": 444,
-    "passed": 443,
-    "failed": 1,
+    "total": 413,
+    "passed": 355,
+    "failed": 58,
     "skipped": 0,
-    "successRate": "99.77%"
+    "successRate": "85.96%"
   },
   "performance": {
-    "startTime": 1753189659632,
-    "runtime": 37752,
-    "averageTestTime": "85.03ms"
+    "startTime": 1753208954823,
+    "runtime": 37653,
+    "averageTestTime": "91.17ms"
   },
   "coverage": {
     "enabled": true,
@@ -20,79 +20,79 @@
   },
   "testSuites": [
     {
-      "name": "tests/unit/backtesting-service-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1759
-    },
-    {
       "name": "tests/unit/portfolio-service-unit.test.js",
       "skipped": 0,
-      "runtime": 1174
+      "runtime": 1421
     },
     {
       "name": "tests/unit/real-timeout-helper.test.js",
       "skipped": 0,
-      "runtime": 12982
-    },
-    {
-      "name": "tests/unit/real-universal-error-handler.test.js",
-      "skipped": 0,
-      "runtime": 2266
-    },
-    {
-      "name": "tests/unit/backtesting-service.test.js",
-      "skipped": 0,
-      "runtime": 1216
-    },
-    {
-      "name": "tests/unit/enhanced-auth-service.test.js",
-      "skipped": 0,
-      "runtime": 1461
-    },
-    {
-      "name": "tests/unit/technical-analysis-service.test.js",
-      "skipped": 0,
-      "runtime": 1243
-    },
-    {
-      "name": "tests/unit/auth-middleware.test.js",
-      "skipped": 0,
-      "runtime": 1236
-    },
-    {
-      "name": "tests/unit/real-database-circuit-breaker.test.js",
-      "skipped": 0,
-      "runtime": 1236
-    },
-    {
-      "name": "tests/unit/optimization-engine.test.js",
-      "skipped": 0,
-      "runtime": 1216
-    },
-    {
-      "name": "tests/unit/circuit-breaker-utils.test.js",
-      "skipped": 0,
-      "runtime": 1207
-    },
-    {
-      "name": "tests/unit/portfolio-service-REAL.test.js",
-      "skipped": 0,
-      "runtime": 1197
-    },
-    {
-      "name": "tests/unit/risk-manager.test.js",
-      "skipped": 0,
-      "runtime": 1196
+      "runtime": 13306
     },
     {
       "name": "tests/unit/portfolio-service.test.js",
       "skipped": 0,
-      "runtime": 2676
+      "runtime": 1425
+    },
+    {
+      "name": "tests/unit/real-universal-error-handler.test.js",
+      "skipped": 0,
+      "runtime": 2256
+    },
+    {
+      "name": "tests/unit/backtesting-service-REAL.test.js",
+      "skipped": 0,
+      "runtime": 1305
+    },
+    {
+      "name": "tests/unit/enhanced-auth-service.test.js",
+      "skipped": 0,
+      "runtime": 0
+    },
+    {
+      "name": "tests/unit/technical-analysis-service.test.js",
+      "skipped": 0,
+      "runtime": 1309
+    },
+    {
+      "name": "tests/unit/real-database-circuit-breaker.test.js",
+      "skipped": 0,
+      "runtime": 1246
+    },
+    {
+      "name": "tests/unit/auth-middleware.test.js",
+      "skipped": 0,
+      "runtime": 1311
+    },
+    {
+      "name": "tests/unit/optimization-engine.test.js",
+      "skipped": 0,
+      "runtime": 1394
+    },
+    {
+      "name": "tests/unit/backtesting-service.test.js",
+      "skipped": 0,
+      "runtime": 1234
+    },
+    {
+      "name": "tests/unit/circuit-breaker-utils.test.js",
+      "skipped": 0,
+      "runtime": 1224
+    },
+    {
+      "name": "tests/unit/portfolio-service-REAL.test.js",
+      "skipped": 0,
+      "runtime": 1175
+    },
+    {
+      "name": "tests/unit/risk-manager.test.js",
+      "skipped": 0,
+      "runtime": 3344
     },
     {
       "name": "tests/unit/portfolioMath-REAL.test.js",
       "skipped": 0,
-      "runtime": 1165
+      "runtime": 1155
     },
     {
       "name": "tests/unit/utils/advancedPerformanceAnalytics.test.js",
@@ -100,19 +100,19 @@
       "runtime": 1141
     },
     {
-      "name": "tests/unit/database-utils.test.js",
-      "skipped": 0,
-      "runtime": 1129
-    },
-    {
       "name": "tests/unit/optimization-engine-REAL.test.js",
       "skipped": 0,
-      "runtime": 1140
+      "runtime": 1152
+    },
+    {
+      "name": "tests/unit/database-utils.test.js",
+      "skipped": 0,
+      "runtime": 1133
     },
     {
       "name": "tests/unit/database-utils-proper-unit.test.js",
       "skipped": 0,
-      "runtime": 1112
+      "runtime": 1122
     }
   ]
 }

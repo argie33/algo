@@ -26,34 +26,72 @@ function Dashboard() {
   });
 
   useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => {
-      setData({
-        portfolio: { 
-          value: 125420.50, 
-          change: 2847.20, 
-          changePercent: 2.32 
-        },
-        market: { 
-          sp500: 4185.47, 
-          nasdaq: 12987.22, 
-          dow: 33875.12 
-        },
-        watchlist: [
-          { symbol: 'AAPL', price: 175.43, change: 2.10 },
-          { symbol: 'GOOGL', price: 2431.20, change: -15.80 },
-          { symbol: 'MSFT', price: 295.37, change: 5.25 },
-          { symbol: 'TSLA', price: 678.90, change: -12.45 }
-        ],
-        recentTrades: [
-          { symbol: 'AAPL', type: 'BUY', shares: 100, price: 173.33, time: '2 hours ago' },
-          { symbol: 'GOOGL', type: 'SELL', shares: 25, price: 2447.00, time: '1 day ago' }
-        ]
-      });
-      setLoading(false);
-    }, 1000);
+    // Fetch real dashboard data
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch real portfolio data
+        const portfolioResponse = await fetch('/api/portfolio/summary', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-    return () => clearTimeout(timer);
+        // Fetch real market data
+        const marketResponse = await fetch('/api/market/indices', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Fetch real watchlist data
+        const watchlistResponse = await fetch('/api/watchlist', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Fetch real trading history
+        const tradesResponse = await fetch('/api/trades/recent?limit=5', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const [portfolioData, marketData, watchlistData, tradesData] = await Promise.all([
+          portfolioResponse.ok ? portfolioResponse.json() : { value: 0, change: 0, changePercent: 0 },
+          marketResponse.ok ? marketResponse.json() : { sp500: 0, nasdaq: 0, dow: 0 },
+          watchlistResponse.ok ? watchlistResponse.json() : [],
+          tradesResponse.ok ? tradesResponse.json() : []
+        ]);
+
+        setData({
+          portfolio: portfolioData.portfolio || portfolioData,
+          market: marketData.market || marketData,
+          watchlist: watchlistData.watchlist || watchlistData.data || watchlistData,
+          recentTrades: tradesData.trades || tradesData.data || tradesData
+        });
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        // Set empty data on error
+        setData({
+          portfolio: { value: 0, change: 0, changePercent: 0 },
+          market: { sp500: 0, nasdaq: 0, dow: 0 },
+          watchlist: [],
+          recentTrades: []
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, []);
 
   if (loading) {
