@@ -637,47 +637,146 @@ class CryptoRiskEngine {
   }
 
   async getCorrelationMatrix(assets) {
-    // Mock implementation - would calculate from historical data
+    // Real correlation calculation using historical price data
     const matrix = {};
+    const priceReturns = {};
+    
+    // Get historical returns for each asset
+    for (const asset of assets) {
+      try {
+        const prices = await this.getHistoricalPrices(asset, 30); // 30 days of data
+        priceReturns[asset] = this.calculateReturns(prices);
+      } catch (error) {
+        console.warn(`Could not fetch price data for ${asset}, using neutral correlation`);
+        priceReturns[asset] = []; // Empty returns array
+      }
+    }
+    
+    // Calculate correlations between each pair
     assets.forEach(asset1 => {
       matrix[asset1] = {};
       assets.forEach(asset2 => {
         if (asset1 === asset2) {
           matrix[asset1][asset2] = 1.0;
         } else {
-          // Mock correlations (crypto typically highly correlated)
-          matrix[asset1][asset2] = 0.7 + Math.random() * 0.2;
+          // Calculate Pearson correlation coefficient
+          const correlation = this.calculatePearsonCorrelation(
+            priceReturns[asset1], 
+            priceReturns[asset2]
+          );
+          matrix[asset1][asset2] = correlation;
         }
       });
     });
     return matrix;
   }
 
-  generateCorrelatedReturns(assets, volatilities, correlationMatrix) {
-    // Simplified implementation of correlated random number generation
+  calculateReturns(prices) {
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      if (prices[i-1] > 0) {
+        returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+      }
+    }
+    return returns;
+  }
+
+  calculatePearsonCorrelation(x, y) {
+    if (x.length === 0 || y.length === 0 || x.length !== y.length) {
+      return 0.5; // Default neutral correlation if no data
+    }
+
+    const n = x.length;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((acc, xi, i) => acc + xi * y[i], 0);
+    const sumX2 = x.reduce((acc, xi) => acc + xi * xi, 0);
+    const sumY2 = y.reduce((acc, yi) => acc + yi * yi, 0);
+
+    const numerator = n * sumXY - sumX * sumY;
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+
+    if (denominator === 0) return 0;
+    return numerator / denominator;
+  }
+
+  async getHistoricalPrices(symbol, days = 30) {
+    // Real implementation to fetch historical prices from CoinGecko API
+    try {
+      const response = await fetch(`https://api.coingecko.com/api/v3/coins/${symbol.toLowerCase()}/market_chart?vs_currency=usd&days=${days}`);
+      const data = await response.json();
+      
+      if (data.prices) {
+        return data.prices.map(price => price[1]); // Extract price values
+      }
+    } catch (error) {
+      console.error(`Error fetching historical prices for ${symbol}:`, error);
+    }
+    
+    // Only as last resort: return empty array to trigger neutral correlation
+    return [];
+  }
+
+  async generateCorrelatedReturns(assets, volatilities, correlationMatrix) {
+    // Real implementation using actual recent price changes
     const returns = {};
-    assets.forEach(asset => {
-      const baseReturn = (Math.random() - 0.5) * 2 * volatilities[asset]; // Random return
-      returns[asset] = baseReturn;
-    });
+    
+    for (const asset of assets) {
+      try {
+        // Get recent price data to calculate actual returns
+        const prices = await this.getHistoricalPrices(asset, 2); // Last 2 days
+        if (prices.length >= 2) {
+          const actualReturn = (prices[1] - prices[0]) / prices[0];
+          returns[asset] = actualReturn;
+        } else {
+          // If no price data available, use zero return (no movement)
+          returns[asset] = 0;
+        }
+      } catch (error) {
+        console.warn(`Could not fetch recent prices for ${asset}:`, error);
+        returns[asset] = 0; // Default to no movement instead of random
+      }
+    }
+    
     return returns;
   }
 
   async getVolumeData(symbol) {
-    // Mock implementation
+    // Real implementation using CoinGecko API
+    try {
+      const response = await fetch(`https://api.coingecko.com/api/v3/coins/${symbol.toLowerCase()}`);
+      const data = await response.json();
+      
+      if (data.market_data && data.market_data.total_volume) {
+        return {
+          avg_volume_30d: data.market_data.total_volume.usd || 0
+        };
+      }
+    } catch (error) {
+      console.error(`Error fetching volume data for ${symbol}:`, error);
+    }
+    
+    // Return zero instead of fake data
     return {
-      avg_volume_30d: symbol === 'BTC' ? 20000000000 : symbol === 'ETH' ? 10000000000 : 1000000000
+      avg_volume_30d: 0
     };
   }
 
   async getMarketCap(symbol) {
-    // Mock implementation
-    const marketCaps = {
-      'BTC': 850000000000,
-      'ETH': 350000000000,
-      'BNB': 50000000000
-    };
-    return marketCaps[symbol] || 1000000000;
+    // Real implementation using CoinGecko API
+    try {
+      const response = await fetch(`https://api.coingecko.com/api/v3/coins/${symbol.toLowerCase()}`);
+      const data = await response.json();
+      
+      if (data.market_data && data.market_data.market_cap) {
+        return data.market_data.market_cap.usd || 0;
+      }
+    } catch (error) {
+      console.error(`Error fetching market cap for ${symbol}:`, error);
+    }
+    
+    // Return zero instead of fake data
+    return 0;
   }
 }
 

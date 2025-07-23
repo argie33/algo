@@ -7,6 +7,9 @@ module.exports = {
   // Test environment
   testEnvironment: 'node',
   
+  // Global setup for mocking database connections
+  globalSetup: '<rootDir>/tests/global-setup.js',
+  
   // Test patterns - only unit tests
   testMatch: [
     '**/tests/unit/**/*.test.js'
@@ -73,10 +76,17 @@ module.exports = {
     'node_modules/(?!(@babel/runtime)/)'
   ],
   
-  // Clear mocks between tests
+  // Mock configuration
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
+  
+  // Manual mocks for database and AWS services
+  moduleNameMapper: {
+    '^utils/database$': '<rootDir>/__mocks__/utils/database.js',
+    '^utils/databaseConnectionManager$': '<rootDir>/__mocks__/utils/databaseConnectionManager.js', 
+    '^utils/databaseCircuitBreaker$': '<rootDir>/__mocks__/utils/databaseCircuitBreaker.js'
+  },
   
   // Bail after first test failure (optional)
   bail: false,

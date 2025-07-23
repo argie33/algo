@@ -425,15 +425,17 @@ class OptimizationEngine {
     }
     
     // Concentration analysis
-    const maxWeight = Math.max(...optimization.weights);
-    if (maxWeight > 0.4) {
-      insights.push({
-        type: 'warning',
-        category: 'Concentration',
-        title: 'High Concentration Risk',
-        message: `Largest position represents ${(maxWeight * 100).toFixed(1)}% of portfolio.`,
-        recommendation: 'Consider reducing concentration in top holdings'
-      });
+    if (optimization.weights && Array.isArray(optimization.weights) && optimization.weights.length > 0) {
+      const maxWeight = Math.max(...optimization.weights);
+      if (maxWeight > 0.4) {
+        insights.push({
+          type: 'warning',
+          category: 'Concentration',
+          title: 'High Concentration Risk',
+          message: `Largest position represents ${(maxWeight * 100).toFixed(1)}% of portfolio.`,
+          recommendation: 'Consider reducing concentration in top holdings'
+        });
+      }
     }
     
     return insights;

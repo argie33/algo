@@ -2118,4 +2118,46 @@ async function generatePerformanceAnalytics(userId, provider, timeframe) {
   }
 }
 
+// Runtime configuration endpoint - provides actual AWS resource values to frontend
+router.get('/runtime-config', async (req, res) => {
+  try {
+    console.log('📋 Fetching runtime configuration...');
+    
+    const config = {
+      cognito: {
+        userPoolId: process.env.COGNITO_USER_POOL_ID || null,
+        clientId: process.env.COGNITO_CLIENT_ID || null,
+        region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1',
+        domain: process.env.COGNITO_DOMAIN || null
+      },
+      api: {
+        baseUrl: process.env.API_GATEWAY_URL || null,
+        region: process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || 'us-east-1'
+      },
+      environment: process.env.ENVIRONMENT || process.env.NODE_ENV || 'development',
+      features: {
+        authentication: !!process.env.COGNITO_USER_POOL_ID && !!process.env.COGNITO_CLIENT_ID
+      }
+    };
+    
+    console.log('✅ Runtime config generated:', {
+      cognitoConfigured: !!config.cognito.userPoolId && !!config.cognito.clientId,
+      environment: config.environment,
+      region: config.cognito.region
+    });
+    
+    res.json({
+      success: true,
+      config
+    });
+  } catch (error) {
+    console.error('❌ Error fetching runtime config:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch runtime configuration',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -308,16 +308,56 @@ class BacktestEngine {
       if (dayData && dayData.close) {
         const position = context.getPosition(symbol);
         
-        // Mock RSI - in real implementation would calculate properly
-        const mockRSI = 50 + Math.sin(Date.now() / 1000000) * 30; // Mock oscillating RSI
+        // Real RSI calculation using actual price data
+        const rsi = this.calculateRSI(context.priceHistory[symbol] || [], 14);
         
-        if (!position && mockRSI < 30 && dayData.close > 5) {
+        if (!position && rsi < 30 && dayData.close > 5) {
           context.buy(symbol, 5, dayData.close);
-        } else if (position && mockRSI > 70) {
+        } else if (position && rsi > 70) {
           context.sell(symbol, position.quantity, dayData.close, 'rsi_overbought');
         }
       }
     }
+  }
+
+  // Real RSI calculation using price data
+  calculateRSI(prices, periods = 14) {
+    if (prices.length < periods + 1) {
+      return 50; // Not enough data, return neutral RSI
+    }
+
+    let gains = 0;
+    let losses = 0;
+
+    // Calculate initial average gain/loss
+    for (let i = 1; i <= periods; i++) {
+      const change = prices[i] - prices[i - 1];
+      if (change > 0) {
+        gains += change;
+      } else {
+        losses -= change; // Make losses positive
+      }
+    }
+
+    let avgGain = gains / periods;
+    let avgLoss = losses / periods;
+
+    // Calculate subsequent averages using smoothed average
+    for (let i = periods + 1; i < prices.length; i++) {
+      const change = prices[i] - prices[i - 1];
+      if (change > 0) {
+        avgGain = ((avgGain * (periods - 1)) + change) / periods;
+        avgLoss = (avgLoss * (periods - 1)) / periods;
+      } else {
+        avgGain = (avgGain * (periods - 1)) / periods;
+        avgLoss = ((avgLoss * (periods - 1)) - change) / periods;
+      }
+    }
+
+    if (avgLoss === 0) return 100;
+    
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
   }
 
   executeBuyAndHoldStrategy(context) {

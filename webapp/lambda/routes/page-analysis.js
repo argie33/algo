@@ -233,8 +233,15 @@ router.get('/health-summary', async (req, res) => {
       }
 
     } catch (dbError) {
-      logger.warn('⚠️ Database query failed, generating calculated summary:', dbError.message);
-      healthSummary = generateCalculatedHealthSummary(timeframe);
+      logger.warn('⚠️ Database query failed, returning empty summary:', dbError.message);
+      healthSummary = {
+        totalPages: 0,
+        avgHealthScore: 0,
+        totalIssues: 0,
+        criticalIssues: 0,
+        pageHealth: {},
+        dataSource: 'unavailable'
+      };
     }
 
     const response = responseFormatter.success({

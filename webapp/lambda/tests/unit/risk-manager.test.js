@@ -4,12 +4,20 @@
  * Tests actual risk management business logic and calculations
  */
 
+// Mock database before importing RiskManager
+const mockQuery = jest.fn();
+jest.mock('../../utils/database', () => ({
+  query: mockQuery
+}));
+
 const RiskManager = require('../../utils/riskManager');
 
 describe('Risk Manager Unit Tests', () => {
   let riskManager;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    mockQuery.mockClear();
     riskManager = new RiskManager();
   });
 

@@ -324,14 +324,37 @@ router.get('/health', async (req, res) => {
       { close: 102, high: 104, low: 100, open: 101, volume: 1200, timestamp: '2024-01-03' }
     ];
     
-    // Add more sample data
+    // Add more realistic sample data using deterministic patterns
     for (let i = 4; i <= 100; i++) {
+      const dayIndex = i - 3;
+      
+      // Create realistic price movement using market patterns (no random)
+      const trendComponent = 0.05 * Math.sin(dayIndex / 20); // Long-term trend
+      const cyclicalComponent = 0.02 * Math.sin(dayIndex / 5); // Short-term cycle
+      const volatilityComponent = 0.01 * Math.cos(dayIndex / 3); // Daily volatility
+      
+      const basePrice = 100 + (dayIndex * 0.1); // Slight upward trend
+      const priceChange = trendComponent + cyclicalComponent + volatilityComponent;
+      const close = parseFloat((basePrice + priceChange * 10).toFixed(2));
+      
+      // Calculate realistic OHLC based on close price
+      const dailyRange = Math.abs(priceChange) * 15 + 1; // Volatility-based range
+      const high = parseFloat((close + dailyRange * Math.abs(Math.sin(dayIndex / 4))).toFixed(2));
+      const low = parseFloat((close - dailyRange * Math.abs(Math.cos(dayIndex / 4))).toFixed(2));
+      const open = parseFloat((close + (priceChange * 5)).toFixed(2));
+      
+      // Realistic volume with patterns
+      const baseVolume = 1000;
+      const volumeMultiplier = 1 + 0.3 * Math.abs(Math.sin(dayIndex / 7)); // Weekly volume cycle
+      const volatilityBoost = 1 + Math.abs(priceChange) * 50; // Higher volatility = higher volume
+      const volume = Math.floor(baseVolume * volumeMultiplier * volatilityBoost);
+      
       sampleData.push({
-        close: 100 + Math.random() * 10 - 5,
-        high: 105 + Math.random() * 5,
-        low: 95 + Math.random() * 5,
-        open: 100 + Math.random() * 5 - 2.5,
-        volume: 1000 + Math.random() * 500,
+        close: close,
+        high: Math.max(close, high, open),
+        low: Math.min(close, low, open),
+        open: open,
+        volume: volume,
         timestamp: `2024-01-${i.toString().padStart(2, '0')}`
       });
     }

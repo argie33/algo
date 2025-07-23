@@ -45,9 +45,11 @@ beforeAll(async () => {
 // Per-test cleanup to ensure isolation
 beforeEach(async () => {
   try {
-    // Reset database state before each test to ensure isolation
-    const { resetDatabaseState } = require('../utils/database');
-    await resetDatabaseState();
+    // Only reset database state if not using mocked database
+    if (!process.env.USE_MOCK_DATABASE) {
+      const { resetDatabaseState } = require('../utils/database');
+      await resetDatabaseState();
+    }
   } catch (error) {
     // Non-fatal - some tests may not need database
     console.warn('⚠️ Database state reset warning:', error.message);

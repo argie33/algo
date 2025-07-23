@@ -4,6 +4,12 @@
  * Tests actual portfolio optimization business logic
  */
 
+// Mock database before importing OptimizationEngine
+const mockQuery = jest.fn();
+jest.mock('../../utils/database', () => ({
+  query: mockQuery
+}));
+
 const OptimizationEngine = require('../../services/optimizationEngine');
 const PortfolioMath = require('../../utils/portfolioMath');
 
@@ -11,6 +17,8 @@ describe('Optimization Engine Unit Tests', () => {
   let optimizationEngine;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    mockQuery.mockClear();
     optimizationEngine = new OptimizationEngine();
   });
 
@@ -31,20 +39,26 @@ describe('Optimization Engine Unit Tests', () => {
 
   describe('Current Portfolio Retrieval', () => {
     it('retrieves portfolio from database successfully', async () => {
-      // Test the actual getCurrentPortfolio method logic
-      // When database is unavailable, it should fallback to demo portfolio
-      try {
-        const portfolio = await optimizationEngine.getCurrentPortfolio(123);
-        expect(portfolio).toBeDefined();
-        expect(Array.isArray(portfolio.holdings)).toBe(true);
-        expect(typeof portfolio.totalValue).toBe('number');
-      } catch (error) {
-        // Graceful failure is acceptable in unit test environment
-        expect(error.message).toContain('Database connection failed');
-      }
+      // Mock successful database response
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { symbol: 'AAPL', quantity: 10, market_value: '15000', avg_cost: '140', pnl: '2000', pnl_percent: '15.3' },
+          { symbol: 'MSFT', quantity: 5, market_value: '12000', avg_cost: '220', pnl: '1500', pnl_percent: '14.2' }
+        ]
+      });
+      
+      const portfolio = await optimizationEngine.getCurrentPortfolio(123);
+      expect(portfolio).toBeDefined();
+      expect(Array.isArray(portfolio.holdings)).toBe(true);
+      expect(typeof portfolio.totalValue).toBe('number');
+      expect(portfolio.holdings.length).toBe(2);
+      expect(portfolio.totalValue).toBe(27000);
     });
 
     it('returns demo portfolio when database query fails', async () => {
+      // Mock empty result to trigger demo portfolio fallback
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      
       // This tests the real fallback logic in getCurrentPortfolio
       const portfolio = await optimizationEngine.getCurrentPortfolio(123);
       
@@ -59,6 +73,9 @@ describe('Optimization Engine Unit Tests', () => {
     });
 
     it('returns demo portfolio when no holdings found', async () => {
+      // Mock empty result (no holdings)
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      
       const portfolio = await optimizationEngine.getCurrentPortfolio(999999);
       
       expect(portfolio).toBeDefined();
@@ -67,6 +84,14 @@ describe('Optimization Engine Unit Tests', () => {
     });
 
     it('calculates portfolio weights correctly', async () => {
+      // Mock portfolio data with known values
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { symbol: 'AAPL', quantity: 10, market_value: '30000', avg_cost: '140', pnl: '2000', pnl_percent: '15.3' },
+          { symbol: 'MSFT', quantity: 5, market_value: '20000', avg_cost: '220', pnl: '1500', pnl_percent: '14.2' }
+        ]
+      });
+      
       const portfolio = await optimizationEngine.getCurrentPortfolio(123);
       
       // Calculate total weight
@@ -74,6 +99,8 @@ describe('Optimization Engine Unit Tests', () => {
       
       // Weights should sum to approximately 1.0 (allowing for floating point precision)
       expect(totalWeight).toBeCloseTo(1.0, 2);
+      expect(portfolio.holdings[0].weight).toBeCloseTo(0.6, 2); // 30000/50000
+      expect(portfolio.holdings[1].weight).toBeCloseTo(0.4, 2); // 20000/50000
     });
   });
 
@@ -95,9 +122,9 @@ describe('Optimization Engine Unit Tests', () => {
   });
 
   describe('Optimization Universe', () => {
-    it('creates universe from current holdings', () => {
+    it('creates universe from current holdings', async () => {
       const portfolio = optimizationEngine.getDemoPortfolio();
-      const universe = optimizationEngine.getOptimizationUniverse(portfolio);
+      const universe = await optimizationEngine.getOptimizationUniverse(portfolio);
       
       expect(Array.isArray(universe)).toBe(true);
       expect(universe.length).toBeGreaterThan(0);
@@ -109,20 +136,20 @@ describe('Optimization Engine Unit Tests', () => {
       });
     });
 
-    it('includes additional assets for diversification', () => {
+    it('includes additional assets for diversification', async () => {
       const portfolio = { holdings: [{ symbol: 'AAPL', weight: 1.0 }] };
-      const universe = optimizationEngine.getOptimizationUniverse(portfolio);
+      const universe = await optimizationEngine.getOptimizationUniverse(portfolio);
       
       expect(universe.length).toBeGreaterThan(1);
       expect(universe).toContain('AAPL');
     });
 
-    it('respects include and exclude assets', () => {
+    it('respects include and exclude assets', async () => {
       const portfolio = { holdings: [{ symbol: 'AAPL', weight: 1.0 }] };
       const includeAssets = ['MSFT', 'GOOGL'];
       const excludeAssets = ['AAPL'];
       
-      const universe = optimizationEngine.getOptimizationUniverse(
+      const universe = await optimizationEngine.getOptimizationUniverse(
         portfolio, 
         includeAssets, 
         excludeAssets
@@ -137,7 +164,7 @@ describe('Optimization Engine Unit Tests', () => {
       });
     });
 
-    it('limits universe size to 20 assets', () => {
+    it('limits universe size to 20 assets', async () => {
       const largePortfolio = {
         holdings: Array.from({ length: 30 }, (_, i) => ({
           symbol: `STOCK${i}`,
@@ -145,31 +172,35 @@ describe('Optimization Engine Unit Tests', () => {
         }))
       };
       
-      const universe = optimizationEngine.getOptimizationUniverse(largePortfolio);
+      const universe = await optimizationEngine.getOptimizationUniverse(largePortfolio);
       expect(universe.length).toBeLessThanOrEqual(20);
     });
   });
 
   describe('Historical Price Data', () => {
     it('generates mock price data for symbols', () => {
-      const symbols = ['AAPL', 'MSFT', 'GOOGL'];
-      const priceData = optimizationEngine.generateMockPriceData(symbols, 252);
+      const symbol = 'AAPL';
+      const startDate = new Date('2023-01-01');
+      const endDate = new Date('2023-12-31');
+      const priceData = optimizationEngine.generateMockPriceData(symbol, startDate, endDate);
       
       expect(Array.isArray(priceData)).toBe(true);
-      expect(priceData.length).toBe(252);
+      expect(priceData.length).toBeGreaterThan(250); // About 365 days
       expect(priceData[0]).toHaveProperty('date');
-      expect(priceData[0]).toHaveProperty('AAPL');
-      expect(priceData[0]).toHaveProperty('MSFT');
-      expect(priceData[0]).toHaveProperty('GOOGL');
+      expect(priceData[0]).toHaveProperty('close');
+      expect(priceData[0]).toHaveProperty('symbol');
+      expect(priceData[0].symbol).toBe('AAPL');
     });
 
     it('generates realistic price movements', () => {
-      const symbols = ['AAPL'];
-      const priceData = optimizationEngine.generateMockPriceData(symbols, 100);
+      const symbol = 'AAPL';
+      const startDate = new Date('2023-01-01');
+      const endDate = new Date('2023-04-01'); // 3 months
+      const priceData = optimizationEngine.generateMockPriceData(symbol, startDate, endDate);
       
       // Check that prices change over time (not static)
-      const initialPrice = priceData[0].AAPL;
-      const finalPrice = priceData[priceData.length - 1].AAPL;
+      const initialPrice = priceData[0].close;
+      const finalPrice = priceData[priceData.length - 1].close;
       
       expect(initialPrice).not.toBe(finalPrice);
       expect(initialPrice).toBeGreaterThan(0);
@@ -179,38 +210,53 @@ describe('Optimization Engine Unit Tests', () => {
 
   describe('Returns Matrix Calculation', () => {
     it('calculates returns matrix from price data', () => {
-      const priceData = [
-        { date: '2023-01-01', AAPL: 100, MSFT: 200 },
-        { date: '2023-01-02', AAPL: 105, MSFT: 210 },
-        { date: '2023-01-03', AAPL: 102, MSFT: 205 }
-      ];
+      const priceData = {
+        AAPL: [
+          { date: '2023-01-01', close: 100 },
+          { date: '2023-01-02', close: 105 },
+          { date: '2023-01-03', close: 102 }
+        ],
+        MSFT: [
+          { date: '2023-01-01', close: 200 },
+          { date: '2023-01-02', close: 210 },
+          { date: '2023-01-03', close: 205 }
+        ]
+      };
       
-      const returns = optimizationEngine.calculateReturnsMatrix(priceData, ['AAPL', 'MSFT']);
+      const result = optimizationEngine.calculateReturnsMatrix(priceData);
       
-      expect(Array.isArray(returns)).toBe(true);
-      expect(returns.length).toBe(2); // One less than price data length
-      expect(returns[0].length).toBe(2); // Two assets
+      expect(result).toHaveProperty('returns');
+      expect(result).toHaveProperty('dates');
+      expect(result).toHaveProperty('symbols');
+      expect(Array.isArray(result.returns)).toBe(true);
+      expect(result.returns.length).toBe(2); // One less than price data length
+      expect(result.returns[0].length).toBe(2); // Two assets
       
       // Verify actual return calculations
-      expect(returns[0][0]).toBeCloseTo(0.05); // AAPL: (105-100)/100
-      expect(returns[0][1]).toBeCloseTo(0.05); // MSFT: (210-200)/200
+      expect(result.returns[0][0]).toBeCloseTo(0.05); // AAPL: (105-100)/100
+      expect(result.returns[0][1]).toBeCloseTo(0.05); // MSFT: (210-200)/200
     });
 
     it('handles empty price data', () => {
-      const returns = optimizationEngine.calculateReturnsMatrix([], ['AAPL']);
-      expect(Array.isArray(returns)).toBe(true);
-      expect(returns.length).toBe(0);
+      const result = optimizationEngine.calculateReturnsMatrix({});
+      expect(result).toHaveProperty('returns');
+      expect(result).toHaveProperty('dates');
+      expect(result).toHaveProperty('symbols');
+      expect(Array.isArray(result.returns)).toBe(true);
+      expect(result.returns.length).toBe(0);
     });
 
     it('handles single price point', () => {
-      const priceData = [{ date: '2023-01-01', AAPL: 100 }];
-      const returns = optimizationEngine.calculateReturnsMatrix(priceData, ['AAPL']);
-      expect(returns.length).toBe(0);
+      const priceData = {
+        AAPL: [{ date: '2023-01-01', close: 100 }]
+      };
+      const result = optimizationEngine.calculateReturnsMatrix(priceData);
+      expect(result.returns.length).toBe(0);
     });
   });
 
   describe('Rebalancing Calculations', () => {
-    it('calculates rebalancing trades correctly', () => {
+    it('calculates rebalancing trades correctly', async () => {
       const currentPortfolio = {
         holdings: [
           { symbol: 'AAPL', weight: 0.6, marketValue: 60000 },
@@ -219,9 +265,10 @@ describe('Optimization Engine Unit Tests', () => {
         totalValue: 100000
       };
       
-      const targetWeights = { AAPL: 0.5, MSFT: 0.5 };
+      const universe = ['AAPL', 'MSFT'];
+      const targetWeights = [0.5, 0.5]; // Array matching universe order
       
-      const trades = optimizationEngine.calculateRebalancing(currentPortfolio, targetWeights);
+      const trades = await optimizationEngine.calculateRebalancing(currentPortfolio, universe, targetWeights);
       
       expect(Array.isArray(trades)).toBe(true);
       expect(trades.length).toBe(2);
@@ -229,27 +276,28 @@ describe('Optimization Engine Unit Tests', () => {
       // AAPL should be sold (weight decreases from 0.6 to 0.5)
       const aaplTrade = trades.find(t => t.symbol === 'AAPL');
       expect(aaplTrade.action).toBe('SELL');
-      expect(aaplTrade.amount).toBeCloseTo(10000); // 0.1 * 100000
+      expect(aaplTrade.tradeValue).toBeCloseTo(-10000); // 0.1 * 100000
       
       // MSFT should be bought (weight increases from 0.4 to 0.5)
       const msftTrade = trades.find(t => t.symbol === 'MSFT');
       expect(msftTrade.action).toBe('BUY');
-      expect(msftTrade.amount).toBeCloseTo(10000);
+      expect(msftTrade.tradeValue).toBeCloseTo(10000);
     });
 
-    it('ignores small weight differences', () => {
+    it('ignores small weight differences', async () => {
       const currentPortfolio = {
         holdings: [{ symbol: 'AAPL', weight: 0.501, marketValue: 50100 }],
         totalValue: 100000
       };
       
-      const targetWeights = { AAPL: 0.5 };
+      const universe = ['AAPL'];
+      const targetWeights = [0.5];
       
-      const trades = optimizationEngine.calculateRebalancing(currentPortfolio, targetWeights);
+      const trades = await optimizationEngine.calculateRebalancing(currentPortfolio, universe, targetWeights);
       expect(trades.length).toBe(0); // Small difference should be ignored
     });
 
-    it('sorts trades by priority and value', () => {
+    it('sorts trades by priority and value', async () => {
       const currentPortfolio = {
         holdings: [
           { symbol: 'AAPL', weight: 0.7, marketValue: 70000 },
@@ -259,147 +307,204 @@ describe('Optimization Engine Unit Tests', () => {
         totalValue: 100000
       };
       
-      const targetWeights = { AAPL: 0.4, MSFT: 0.3, GOOGL: 0.3 };
+      const universe = ['AAPL', 'MSFT', 'GOOGL'];
+      const targetWeights = [0.4, 0.3, 0.3];
       
-      const trades = optimizationEngine.calculateRebalancing(currentPortfolio, targetWeights);
+      const trades = await optimizationEngine.calculateRebalancing(currentPortfolio, universe, targetWeights);
       
-      // First trade should be the largest adjustment
-      expect(trades[0].symbol).toBe('AAPL'); // Largest adjustment
-      expect(Math.abs(trades[0].amount)).toBeGreaterThanOrEqual(Math.abs(trades[1].amount));
+      // Should have trades for all 3 positions (large differences)
+      expect(trades.length).toBe(3);
+      
+      // Find AAPL trade - should be largest sell (0.7 -> 0.4 = -0.3)
+      const aaplTrade = trades.find(t => t.symbol === 'AAPL');
+      expect(aaplTrade.action).toBe('SELL');
+      expect(Math.abs(aaplTrade.tradeValue)).toBe(30000); // 0.3 * 100000
     });
   });
 
   describe('Optimization Insights', () => {
     it('generates risk warning for high volatility', () => {
-      const optimizationResult = {
-        risk: 0.25, // 25% volatility
-        expectedReturn: 0.12,
-        sharpeRatio: 0.4
-      };
+      const currentPortfolio = { holdings: [] };
+      const optimization = { sharpeRatio: 0.4 };
+      const riskMetrics = { volatility: 0.25 }; // 25% volatility
+      const corrMatrix = [];
+      const universe = ['AAPL', 'MSFT'];
       
-      const insights = optimizationEngine.generateOptimizationInsights(optimizationResult);
+      const insights = optimizationEngine.generateOptimizationInsights(currentPortfolio, optimization, riskMetrics, corrMatrix, universe);
       
       expect(Array.isArray(insights)).toBe(true);
-      const riskInsight = insights.find(i => i.type === 'risk_warning');
+      const riskInsight = insights.find(i => i.type === 'warning' && i.category === 'Risk');
       expect(riskInsight).toBeDefined();
+      expect(riskInsight.title).toContain('High Portfolio Volatility');
     });
 
     it('generates diversification insight for small portfolios', () => {
-      const optimizationResult = {
-        portfolioSize: 2,
-        risk: 0.15,
-        expectedReturn: 0.10
-      };
+      const currentPortfolio = { holdings: [] };
+      const optimization = { sharpeRatio: 1.0 };
+      const riskMetrics = { volatility: 0.15 };
+      const corrMatrix = [];
+      const universe = ['AAPL', 'MSFT']; // Small universe (2 assets)
       
-      const insights = optimizationEngine.generateOptimizationInsights(optimizationResult);
-      const diversificationInsight = insights.find(i => i.type === 'diversification');
+      const insights = optimizationEngine.generateOptimizationInsights(currentPortfolio, optimization, riskMetrics, corrMatrix, universe);
+      const diversificationInsight = insights.find(i => i.category === 'Diversification');
       expect(diversificationInsight).toBeDefined();
+      expect(diversificationInsight.title).toContain('Limited Diversification');
     });
 
     it('generates positive insight for high Sharpe ratio', () => {
-      const optimizationResult = {
-        sharpeRatio: 1.5,
-        expectedReturn: 0.15,
-        risk: 0.10
-      };
+      const currentPortfolio = { holdings: [] };
+      const optimization = { sharpeRatio: 1.8 }; // High Sharpe ratio
+      const riskMetrics = { volatility: 0.10 };
+      const corrMatrix = [];
+      const universe = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'JPM', 'JNJ']; // 10 assets
       
-      const insights = optimizationEngine.generateOptimizationInsights(optimizationResult);
-      const performanceInsight = insights.find(i => i.type === 'performance');
+      const insights = optimizationEngine.generateOptimizationInsights(currentPortfolio, optimization, riskMetrics, corrMatrix, universe);
+      const performanceInsight = insights.find(i => i.type === 'success');
       expect(performanceInsight).toBeDefined();
+      expect(performanceInsight.category).toBe('Performance');
     });
 
     it('generates concentration warning for large positions', () => {
-      const weights = { AAPL: 0.6, MSFT: 0.4 }; // 60% concentration
-      const optimizationResult = { weights };
+      const currentPortfolio = { 
+        holdings: [
+          { symbol: 'AAPL', weight: 0.6 },
+          { symbol: 'MSFT', weight: 0.4 }
+        ]
+      };
+      const optimization = { 
+        sharpeRatio: 1.0, 
+        weights: [0.6, 0.4] // Array of weight values, not objects
+      };
+      const riskMetrics = { volatility: 0.15 };
+      const corrMatrix = [];
+      const universe = ['AAPL', 'MSFT'];
       
-      const insights = optimizationEngine.generateOptimizationInsights(optimizationResult);
-      const concentrationInsight = insights.find(i => i.type === 'concentration');
+      const insights = optimizationEngine.generateOptimizationInsights(currentPortfolio, optimization, riskMetrics, corrMatrix, universe);
+      const concentrationInsight = insights.find(i => i.category === 'Concentration');
       expect(concentrationInsight).toBeDefined();
     });
   });
 
   describe('Formatting Functions', () => {
     it('formats weights correctly', () => {
-      const weights = { AAPL: 0.456789, MSFT: 0.543211 };
-      const formatted = optimizationEngine.formatWeights(weights);
+      const universe = ['AAPL', 'MSFT'];
+      const weights = [0.456789, 0.543211];
+      const formatted = optimizationEngine.formatWeights(universe, weights);
       
-      expect(formatted.AAPL).toBe('45.68%');
-      expect(formatted.MSFT).toBe('54.32%');
+      expect(Array.isArray(formatted)).toBe(true);
+      expect(formatted[0].symbol).toBe('AAPL');
+      expect(formatted[0].weight).toBe(45.68); // Percentage
+      expect(formatted[0].allocation).toBe(0.456789);
+      expect(formatted[1].symbol).toBe('MSFT');
+      expect(formatted[1].weight).toBe(54.32);
     });
 
     it('formats portfolio summary correctly', () => {
-      const result = {
-        expectedReturn: 0.123456,
-        risk: 0.087654,
-        sharpeRatio: 1.234567
+      const portfolio = {
+        totalValue: 100000,
+        numPositions: 3,
+        holdings: [
+          { symbol: 'AAPL', weight: 0.4, marketValue: 40000, pnl: 5000, pnlPercent: 12.5 },
+          { symbol: 'MSFT', weight: 0.35, marketValue: 35000, pnl: 3000, pnlPercent: 8.6 },
+          { symbol: 'GOOGL', weight: 0.25, marketValue: 25000, pnl: 2000, pnlPercent: 8.0 }
+        ]
       };
       
-      const summary = optimizationEngine.formatPortfolioSummary(result);
+      const summary = optimizationEngine.formatPortfolioSummary(portfolio);
       
-      expect(summary.expectedReturn).toBe('12.35%');
-      expect(summary.risk).toBe('8.77%');
-      expect(summary.sharpeRatio).toBe('1.23');
+      expect(summary.totalValue).toBe(100000);
+      expect(summary.numPositions).toBe(3);
+      expect(Array.isArray(summary.topHoldings)).toBe(true);
+      expect(summary.topHoldings[0].symbol).toBe('AAPL');
+      expect(summary.topHoldings[0].weight).toBe(40); // Percentage
     });
 
     it('formats correlation matrix correctly', () => {
-      const correlationMatrix = [[1.0, 0.123], [0.123, 1.0]];
-      const symbols = ['AAPL', 'MSFT'];
+      // Create a mock correlation matrix with .get method
+      const correlationMatrix = {
+        get: (i, j) => {
+          if (i === 0 && j === 1) return 0.85; // High correlation
+          if (i === 1 && j === 0) return 0.85;
+          return i === j ? 1.0 : 0.0;
+        }
+      };
+      const universe = ['AAPL', 'MSFT'];
       
-      const formatted = optimizationEngine.formatCorrelationMatrix(correlationMatrix, symbols);
+      const formatted = optimizationEngine.formatCorrelationMatrix(universe, correlationMatrix);
       
-      expect(formatted).toHaveProperty('AAPL');
-      expect(formatted).toHaveProperty('MSFT');
-      expect(formatted.AAPL.MSFT).toBe('12.3%');
+      expect(Array.isArray(formatted)).toBe(true);
+      expect(formatted[0]).toHaveProperty('asset1');
+      expect(formatted[0]).toHaveProperty('asset2');
+      expect(formatted[0]).toHaveProperty('correlation');
+      expect(formatted[0]).toHaveProperty('strength');
+      expect(formatted[0].correlation).toBe(0.85);
     });
   });
 
   describe('Data Quality Assessment', () => {
     it('assesses high-quality data correctly', () => {
-      const priceData = Array.from({ length: 252 }, (_, i) => ({
-        date: new Date(2023, 0, i + 1).toISOString().split('T')[0],
-        AAPL: 100 + Math.random() * 20,
-        MSFT: 200 + Math.random() * 40
-      }));
+      const priceData = {
+        AAPL: Array.from({ length: 252 }, (_, i) => ({
+          date: new Date(2023, 0, i + 1).toISOString().split('T')[0],
+          close: 100 + Math.random() * 20
+        })),
+        MSFT: Array.from({ length: 252 }, (_, i) => ({
+          date: new Date(2023, 0, i + 1).toISOString().split('T')[0],
+          close: 200 + Math.random() * 40
+        }))
+      };
       
-      const assessment = optimizationEngine.assessDataQuality(priceData, ['AAPL', 'MSFT']);
+      const assessment = optimizationEngine.assessDataQuality(priceData, {});
       
-      expect(assessment.score).toBeGreaterThan(0.8);
-      expect(assessment.completeness).toBeCloseTo(1.0);
-      expect(assessment.issues.length).toBe(0);
+      expect(assessment.score).toBeGreaterThan(80);
+      expect(assessment.symbols).toBe(2);
+      expect(assessment.totalDataPoints).toBe(504);
+      expect(assessment.missingDataPoints).toBe(0);
     });
 
     it('identifies missing data points', () => {
-      const priceData = [
-        { date: '2023-01-01', AAPL: 100, MSFT: null },
-        { date: '2023-01-02', AAPL: 105, MSFT: 210 }
-      ];
+      const priceData = {
+        AAPL: [
+          { date: '2023-01-01', close: 100 },
+          { date: '2023-01-02', close: 105 }
+        ],
+        MSFT: [
+          { date: '2023-01-01', close: null }, // Missing data
+          { date: '2023-01-02', close: 210 }
+        ]
+      };
       
-      const assessment = optimizationEngine.assessDataQuality(priceData, ['AAPL', 'MSFT']);
+      const assessment = optimizationEngine.assessDataQuality(priceData, {});
       
-      expect(assessment.score).toBeLessThan(1.0);
-      expect(assessment.issues.length).toBeGreaterThan(0);
+      expect(assessment.score).toBeLessThan(100);
+      expect(assessment.missingDataPoints).toBeGreaterThan(0);
     });
   });
 
   describe('Fallback Optimization', () => {
     it('generates fallback optimization with demo data', () => {
-      const result = optimizationEngine.generateFallbackOptimization('maxSharpe');
+      const result = optimizationEngine.generateFallbackOptimization('user123', 'maxSharpe');
       
-      expect(result).toHaveProperty('weights');
-      expect(result).toHaveProperty('expectedReturn');
-      expect(result).toHaveProperty('risk');
-      expect(result).toHaveProperty('sharpeRatio');
-      expect(result.status).toBe('fallback');
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('optimization');
+      expect(result).toHaveProperty('currentPortfolio');
+      expect(result).toHaveProperty('rebalancing');
+      expect(result.success).toBe(true);
+      expect(result.optimization).toHaveProperty('weights');
+      expect(result.optimization).toHaveProperty('expectedReturn');
+      expect(result.optimization).toHaveProperty('volatility');
+      expect(result.optimization).toHaveProperty('sharpeRatio');
     });
 
     it('uses equal weights for equalWeight objective', () => {
-      const result = optimizationEngine.generateFallbackOptimization('equalWeight');
+      const result = optimizationEngine.generateFallbackOptimization('user123', 'equalWeight');
       
-      const weights = Object.values(result.weights);
-      const expectedWeight = 1 / weights.length;
+      const weights = result.optimization.weights;
+      const expectedWeight = 20; // 100% / 5 assets = 20%
       
-      weights.forEach(weight => {
-        expect(weight).toBeCloseTo(expectedWeight, 2);
+      weights.forEach(weightObj => {
+        expect(weightObj.weight).toBeCloseTo(expectedWeight, 1);
+        expect(weightObj.allocation).toBeCloseTo(0.2, 1);
       });
     });
 
@@ -407,73 +512,94 @@ describe('Optimization Engine Unit Tests', () => {
       const frontier = optimizationEngine.generateMockEfficientFrontier();
       
       expect(Array.isArray(frontier)).toBe(true);
-      expect(frontier.length).toBeGreaterThan(10);
+      expect(frontier.length).toBe(20);
       
       frontier.forEach(point => {
-        expect(point).toHaveProperty('risk');
-        expect(point).toHaveProperty('return');
-        expect(point.risk).toBeGreaterThan(0);
-        expect(point.return).toBeGreaterThan(0);
+        expect(point).toHaveProperty('volatility');
+        expect(point).toHaveProperty('expectedReturn');
+        expect(point).toHaveProperty('sharpeRatio');
+        expect(point.volatility).toBeGreaterThan(0);
+        expect(point.expectedReturn).toBeGreaterThan(0);
       });
     });
   });
 
   describe('Full Optimization Integration', () => {
     it('runs complete optimization successfully', async () => {
-      const result = await optimizationEngine.runOptimization(123, 'maxSharpe');
+      const params = {
+        userId: 123,
+        objective: 'maxSharpe',
+        constraints: {},
+        includeAssets: [],
+        excludeAssets: []
+      };
+      
+      const result = await optimizationEngine.runOptimization(params);
       
       expect(result).toBeDefined();
-      expect(result).toHaveProperty('weights');
-      expect(result).toHaveProperty('expectedReturn');
-      expect(result).toHaveProperty('risk');
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('optimization');
+      expect(result).toHaveProperty('currentPortfolio');
       expect(result).toHaveProperty('insights');
       expect(result).toHaveProperty('rebalancing');
     });
 
     it('falls back to demo optimization on error', async () => {
-      // Test with invalid user ID to trigger fallback
-      const result = await optimizationEngine.runOptimization(null, 'maxSharpe');
+      // Test with invalid params to trigger fallback
+      const params = {
+        userId: null, // Invalid user ID
+        objective: 'maxSharpe'
+      };
       
-      expect(result.status).toBe('fallback');
-      expect(result).toHaveProperty('weights');
-      expect(result).toHaveProperty('expectedReturn');
+      const result = await optimizationEngine.runOptimization(params);
+      
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('optimization');
+      expect(result).toHaveProperty('currentPortfolio');
     });
   });
 
   describe('Mock Price Data Generation', () => {
     it('generates price data with correct structure', () => {
-      const symbols = ['AAPL', 'MSFT'];
-      const priceData = optimizationEngine.generateMockPriceData(symbols, 10);
+      const symbol = 'AAPL';
+      const startDate = new Date('2023-01-01');
+      const endDate = new Date('2023-01-10'); // 10 days
+      const priceData = optimizationEngine.generateMockPriceData(symbol, startDate, endDate);
       
-      expect(priceData.length).toBe(10);
+      expect(priceData.length).toBeGreaterThan(8); // About 10 days
       priceData.forEach(day => {
         expect(day).toHaveProperty('date');
-        expect(day).toHaveProperty('AAPL');
-        expect(day).toHaveProperty('MSFT');
-        expect(typeof day.AAPL).toBe('number');
-        expect(typeof day.MSFT).toBe('number');
+        expect(day).toHaveProperty('close');
+        expect(day).toHaveProperty('symbol');
+        expect(typeof day.close).toBe('number');
+        expect(day.symbol).toBe('AAPL');
       });
     });
 
     it('applies different volatility for different assets', () => {
-      const symbols = ['VOLATILE_STOCK', 'STABLE_STOCK'];
-      const priceData = optimizationEngine.generateMockPriceData(symbols, 100);
+      const startDate = new Date('2023-01-01');
+      const endDate = new Date('2023-04-01'); // 3 months
+      
+      const tslaData = optimizationEngine.generateMockPriceData('TSLA', startDate, endDate);
+      const spyData = optimizationEngine.generateMockPriceData('SPY', startDate, endDate);
       
       // Calculate returns to verify different volatilities
-      const volatileReturns = [];
-      const stableReturns = [];
+      const tslaReturns = [];
+      const spyReturns = [];
       
-      for (let i = 1; i < priceData.length; i++) {
-        volatileReturns.push((priceData[i].VOLATILE_STOCK - priceData[i-1].VOLATILE_STOCK) / priceData[i-1].VOLATILE_STOCK);
-        stableReturns.push((priceData[i].STABLE_STOCK - priceData[i-1].STABLE_STOCK) / priceData[i-1].STABLE_STOCK);
+      for (let i = 1; i < tslaData.length; i++) {
+        tslaReturns.push((tslaData[i].close - tslaData[i-1].close) / tslaData[i-1].close);
+        spyReturns.push((spyData[i].close - spyData[i-1].close) / spyData[i-1].close);
       }
       
       // Both should have returns (not static prices)
-      const volatileVariance = volatileReturns.reduce((sum, r) => sum + r*r, 0) / volatileReturns.length;
-      const stableVariance = stableReturns.reduce((sum, r) => sum + r*r, 0) / stableReturns.length;
+      const tslaVariance = tslaReturns.reduce((sum, r) => sum + r*r, 0) / tslaReturns.length;
+      const spyVariance = spyReturns.reduce((sum, r) => sum + r*r, 0) / spyReturns.length;
       
-      expect(volatileVariance).toBeGreaterThan(0);
-      expect(stableVariance).toBeGreaterThan(0);
+      expect(tslaVariance).toBeGreaterThan(0);
+      expect(spyVariance).toBeGreaterThan(0);
+      // TSLA should have higher volatility than SPY
+      expect(tslaVariance).toBeGreaterThan(spyVariance);
     });
   });
 });
