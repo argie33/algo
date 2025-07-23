@@ -132,6 +132,14 @@ export const useLivePortfolioData = (userId, apiKeyId, initialData = null) => {
   // Connect to live data service
   const connectToLiveData = useCallback(async () => {
     try {
+      // Check if WebSocket is disabled in configuration
+      const { PERFORMANCE_CONFIG } = await import('../config/environment');
+      if (!PERFORMANCE_CONFIG.websocket.enabled) {
+        console.log('ℹ️ WebSocket is disabled, skipping live data connection');
+        setLiveDataError(new Error('WebSocket functionality is disabled in configuration'));
+        return;
+      }
+
       if (!liveDataService.isConnected()) {
         console.log('🔗 Connecting to live data service...');
         await liveDataService.connect(userId);
@@ -141,6 +149,14 @@ export const useLivePortfolioData = (userId, apiKeyId, initialData = null) => {
       liveDataService.on('connected', () => handleConnectionStatus(true));
       liveDataService.on('disconnected', () => handleConnectionStatus(false));
       liveDataService.on('error', handleError);
+      liveDataService.on('configurationError', (message) => {
+        console.log('ℹ️ WebSocket configuration issue:', message);
+        setLiveDataError(new Error(`WebSocket configuration: ${message}`));
+      });
+      liveDataService.on('authenticationError', (message) => {
+        console.log('ℹ️ WebSocket authentication issue:', message);
+        setLiveDataError(new Error(`WebSocket authentication: ${message}`));
+      });
       
       // Subscribe to portfolio data
       subscribe();
@@ -161,6 +177,8 @@ export const useLivePortfolioData = (userId, apiKeyId, initialData = null) => {
     liveDataService.off('connected', handleConnectionStatus);
     liveDataService.off('disconnected', handleConnectionStatus);
     liveDataService.off('error', handleError);
+    liveDataService.off('configurationError');
+    liveDataService.off('authenticationError');
     
     setIsLiveConnected(false);
     setLiveDataError(null);

@@ -267,14 +267,14 @@ export const PERFORMANCE_CONFIG = {
   
   // WebSocket Configuration
   websocket: {
-    enabled: import.meta.env.VITE_WEBSOCKET_ENABLED !== 'false',
+    enabled: import.meta.env.VITE_WEBSOCKET_ENABLED === 'true', // Disabled by default until WebSocket API Gateway is configured
     url: import.meta.env.VITE_WS_URL || 
          import.meta.env.VITE_WEBSOCKET_URL ||
          process.env.REACT_APP_WS_URL ||
          window.__CONFIG__?.WEBSOCKET?.URL ||
          'wss://ckzvfd1ds3.execute-api.us-east-1.amazonaws.com/dev', // Real AWS WebSocket API
     reconnectInterval: parseInt(import.meta.env.VITE_WS_RECONNECT_INTERVAL) || 5000,
-    maxReconnectAttempts: parseInt(import.meta.env.VITE_WS_MAX_RECONNECT) || 10,
+    maxReconnectAttempts: parseInt(import.meta.env.VITE_WS_MAX_RECONNECT) || 5, // Reduced max attempts
     heartbeatInterval: parseInt(import.meta.env.VITE_WS_HEARTBEAT_INTERVAL) || 30000,
     connectionTimeout: parseInt(import.meta.env.VITE_WS_CONNECTION_TIMEOUT) || 10000,
     messageTimeout: parseInt(import.meta.env.VITE_WS_MESSAGE_TIMEOUT) || 5000,
