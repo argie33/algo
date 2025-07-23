@@ -39,7 +39,7 @@ class ApiWrapper {
         }
 
         // Log request start
-        this.logRequestStart(operation, requestId, args);
+        this.logRequestStart(operation, requestId, args, category);
 
         // Execute the API function
         const result = await apiFunction(...args);
@@ -52,7 +52,7 @@ class ApiWrapper {
         const finalResult = transformResponse ? transformResponse(result) : result;
 
         // Log successful completion
-        this.logRequestSuccess(operation, requestId, duration, finalResult);
+        this.logRequestSuccess(operation, requestId, duration, finalResult, category);
 
         return finalResult;
 
@@ -80,7 +80,7 @@ class ApiWrapper {
   /**
    * Log request start with context
    */
-  logRequestStart(operation, requestId, args) {
+  logRequestStart(operation, requestId, args, category = null) {
     const sanitizedArgs = this.sanitizeArgs(args);
     
     console.log(`🚀 [API] ${operation} started`, {
@@ -94,7 +94,7 @@ class ApiWrapper {
     ErrorManager.handleError({
       type: 'api_request_started',
       message: `API request ${operation} initiated`,
-      category: ErrorManager.CATEGORIES.API,
+      category: category || ErrorManager.CATEGORIES.API,
       severity: ErrorManager.SEVERITY.LOW,
       context: {
         operation,
@@ -108,7 +108,7 @@ class ApiWrapper {
   /**
    * Log successful request completion
    */
-  logRequestSuccess(operation, requestId, duration, result) {
+  logRequestSuccess(operation, requestId, duration, result, category = null) {
     const responseSize = this.calculateResponseSize(result);
     
     console.log(`✅ [API] ${operation} completed successfully`, {
@@ -138,7 +138,7 @@ class ApiWrapper {
     ErrorManager.handleError({
       type: 'api_request_completed',
       message: `API request ${operation} completed successfully`,
-      category: ErrorManager.CATEGORIES.API,
+      category: category || ErrorManager.CATEGORIES.API,
       severity: ErrorManager.SEVERITY.LOW,
       context: {
         operation,

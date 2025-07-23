@@ -238,7 +238,7 @@ function usePortfolioData() {
         return res.json();
       } catch (err) {
         console.warn('Portfolio API failed, using mock data:', err);
-        return { data: mockPortfolio };
+        return { data: generatePortfolioFromMarketData() };
       }
     },
     staleTime: 2 * 60 * 1000,
@@ -599,8 +599,8 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000
   });
   
-  // Use data or fallback to mock
-  const safePortfolio = portfolioData?.data || mockPortfolio;
+  // Use data or fallback to generated data
+  const safePortfolio = portfolioData?.data || generatePortfolioFromMarketData(priceData, selectedSymbol);
   const safeWatchlist = mockWatchlist;
   const safeNews = mockNews;
   const safeActivity = mockActivity;

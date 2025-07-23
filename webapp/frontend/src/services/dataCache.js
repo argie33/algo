@@ -185,9 +185,8 @@ class DataCacheService {
             cacheType: endpoint.cacheType,
             fetchFunction: async () => {
               try {
-                const { getApiConfig } = await import('./api');
-                const { apiUrl } = getApiConfig();
-                const fullUrl = `${apiUrl}${endpoint.endpoint}`;
+                const { getApiUrl } = await import('../config/environment');
+                const fullUrl = getApiUrl(endpoint.endpoint);
                 
                 console.log(`[DataCache] Fetching ${fullUrl}`);
                 const response = await fetch(fullUrl);

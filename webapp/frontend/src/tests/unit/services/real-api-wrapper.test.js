@@ -214,6 +214,8 @@ describe('🔧 Real API Wrapper', () => {
     });
 
     it('should track slow requests', async () => {
+      // Reset and set up specific timing for this test
+      global.performance.now.mockReset();
       global.performance.now
         .mockReturnValueOnce(1000) // Start
         .mockReturnValueOnce(7000); // End (6000ms - slow)
@@ -334,6 +336,7 @@ describe('🔧 Real API Wrapper', () => {
 
   describe('Performance Monitoring', () => {
     it('should record performance metrics for operations', async () => {
+      global.performance.now.mockReset();
       global.performance.now
         .mockReturnValueOnce(1000).mockReturnValueOnce(1200) // 200ms
         .mockReturnValueOnce(2000).mockReturnValueOnce(2300); // 300ms
@@ -494,6 +497,7 @@ describe('🔧 Real API Wrapper', () => {
 
   describe('Statistics Management', () => {
     it('should provide comprehensive performance statistics', async () => {
+      global.performance.now.mockReset();
       global.performance.now
         .mockReturnValueOnce(1000).mockReturnValueOnce(1150) // 150ms
         .mockReturnValueOnce(2000).mockReturnValueOnce(2250); // 250ms
@@ -591,8 +595,8 @@ describe('🔧 Real API Wrapper', () => {
 
   describe('Edge Cases and Error Handling', () => {
     it('should handle functions without names', async () => {
-      const anonymousFunction = async () => ({ data: 'success' });
-      const wrappedFunction = apiWrapper.wrap(anonymousFunction);
+      // Create truly anonymous function by calling wrap directly
+      const wrappedFunction = apiWrapper.wrap(async () => ({ data: 'success' }));
       
       const result = await wrappedFunction();
       
@@ -703,11 +707,15 @@ describe('🔧 Real API Wrapper', () => {
       const operations = ['getUserData', 'getPortfolio', 'getMarketData'];
       const durations = [100, 200, 300];
       
+      // Set up all mock calls at once
+      global.performance.now.mockReset();
       for (let i = 0; i < operations.length; i++) {
         global.performance.now
           .mockReturnValueOnce(1000)
           .mockReturnValueOnce(1000 + durations[i]);
-        
+      }
+      
+      for (let i = 0; i < operations.length; i++) {
         const mockApiFunction = vi.fn().mockResolvedValue({ data: `${operations[i]} result` });
         const wrappedFunction = apiWrapper.wrap(mockApiFunction, {
           operation: operations[i]

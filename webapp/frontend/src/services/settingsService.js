@@ -200,11 +200,13 @@ class SettingsService {
 
   /**
    * Convert backend API keys to frontend format for compatibility
-   * Alpaca-only implementation
+   * Multi-provider implementation
    */
   formatApiKeysForFrontend(backendApiKeys) {
     const formatted = {
-      alpaca: { keyId: '', secretKey: '', paperTrading: true, enabled: false }
+      alpaca: { keyId: '', secretKey: '', paperTrading: true, enabled: false },
+      polygon: { apiKey: '', enabled: false },
+      finnhub: { apiKey: '', enabled: false }
     };
 
     if (!Array.isArray(backendApiKeys)) {
@@ -217,6 +219,22 @@ class SettingsService {
           keyId: key.masked_api_key || '',
           secretKey: '••••••••', // Never show actual secret
           paperTrading: key.is_sandbox || true,
+          enabled: key.is_active || false,
+          id: key.id,
+          validationStatus: key.validation_status,
+          lastValidated: key.last_validated
+        };
+      } else if (key.provider === 'polygon') {
+        formatted.polygon = {
+          apiKey: key.masked_api_key || '',
+          enabled: key.is_active || false,
+          id: key.id,
+          validationStatus: key.validation_status,
+          lastValidated: key.last_validated
+        };
+      } else if (key.provider === 'finnhub') {
+        formatted.finnhub = {
+          apiKey: key.masked_api_key || '',
           enabled: key.is_active || false,
           id: key.id,
           validationStatus: key.validation_status,
@@ -249,7 +267,7 @@ class SettingsService {
 
       const migrations = [];
 
-      // Migrate Alpaca API key (Alpaca-only implementation)
+      // Migrate Alpaca API key
       if (settings.apiKeys.alpaca?.keyId && settings.apiKeys.alpaca?.secretKey) {
         try {
           await this.addApiKey({
@@ -262,6 +280,34 @@ class SettingsService {
           migrations.push('alpaca');
         } catch (error) {
           console.warn('⚠️ Failed to migrate Alpaca API key:', error.message);
+        }
+      }
+
+      // Migrate Polygon API key
+      if (settings.apiKeys.polygon?.apiKey) {
+        try {
+          await this.addApiKey({
+            provider: 'polygon',
+            apiKey: settings.apiKeys.polygon.apiKey,
+            description: 'Migrated from localStorage'
+          });
+          migrations.push('polygon');
+        } catch (error) {
+          console.warn('⚠️ Failed to migrate Polygon API key:', error.message);
+        }
+      }
+
+      // Migrate Finnhub API key
+      if (settings.apiKeys.finnhub?.apiKey) {
+        try {
+          await this.addApiKey({
+            provider: 'finnhub',
+            apiKey: settings.apiKeys.finnhub.apiKey,
+            description: 'Migrated from localStorage'
+          });
+          migrations.push('finnhub');
+        } catch (error) {
+          console.warn('⚠️ Failed to migrate Finnhub API key:', error.message);
         }
       }
 

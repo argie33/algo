@@ -12,8 +12,8 @@ vi.mock('react', () => ({
   useCallback: vi.fn((fn) => fn)
 }));
 
-// Import the REAL PortfolioMathService
-import PortfolioMathService from '../../../services/portfolioMathService';
+// Import the REAL PortfolioMathService (singleton instance)
+import portfolioMathService from '../../../services/portfolioMathService';
 
 describe('📊 Real Portfolio Math Service', () => {
   let service;
@@ -58,7 +58,7 @@ describe('📊 Real Portfolio Math Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    service = new PortfolioMathService();
+    service = portfolioMathService;
     service.clearCache();
     
     // Mock console to avoid noise

@@ -38,16 +38,19 @@ export const AWS_CONFIG = {
     retryDelay: parseInt(import.meta.env.VITE_API_RETRY_DELAY) || 1000
   },
   
-  // Cognito Configuration
+  // Cognito Configuration - will be loaded dynamically from runtime API
   cognito: {
     userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || 
                window.__CONFIG__?.COGNITO?.USER_POOL_ID ||
+               window.__RUNTIME_CONFIG__?.cognito?.userPoolId ||
                null, // No fallback - must be configured
     clientId: import.meta.env.VITE_COGNITO_CLIENT_ID || 
               window.__CONFIG__?.COGNITO?.CLIENT_ID ||
+              window.__RUNTIME_CONFIG__?.cognito?.clientId ||
               null, // No fallback - must be configured
     domain: import.meta.env.VITE_COGNITO_DOMAIN || 
             window.__CONFIG__?.COGNITO?.DOMAIN ||
+            window.__RUNTIME_CONFIG__?.cognito?.domain ||
             '',
     redirectSignIn: import.meta.env.VITE_COGNITO_REDIRECT_SIGN_IN || 
                     window.__CONFIG__?.COGNITO?.REDIRECT_SIGN_IN ||

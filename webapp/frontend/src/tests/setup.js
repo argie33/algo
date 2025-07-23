@@ -30,7 +30,7 @@ beforeAll(async () => {
       DEV: true,
       PROD: false,
       BASE_URL: '/',
-      VITE_API_URL: 'https://test-api.example.com/dev'
+      VITE_API_URL: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
     }
   };
   
@@ -76,6 +76,45 @@ beforeAll(async () => {
     })),
   })
   
+  // Mock browser APIs for notifications and audio
+  global.AudioContext = class MockAudioContext {
+    constructor() {
+      this.destination = {};
+      this.sampleRate = 44100;
+      this.currentTime = 0;
+      this.state = 'running';
+    }
+    createOscillator() {
+      return {
+        frequency: { value: 440 },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn()
+      };
+    }
+    createGain() {
+      return {
+        gain: { value: 1 },
+        connect: vi.fn()
+      };
+    }
+    close() { return Promise.resolve(); }
+  };
+  
+  global.webkitAudioContext = global.AudioContext;
+  
+  global.Notification = class MockNotification {
+    constructor(title, options) {
+      this.title = title;
+      this.body = options?.body;
+      this.icon = options?.icon;
+    }
+    static requestPermission() {
+      return Promise.resolve('granted');
+    }
+    static permission = 'granted';
+  };
+
   // Mock localStorage with working implementation
   const localStorageData = {}
   const localStorageMock = {
@@ -92,6 +131,23 @@ beforeAll(async () => {
   if (typeof window === 'undefined') {
     global.window = {}
   }
+
+  // Ensure browser APIs are available on window
+  global.window.AudioContext = global.AudioContext;
+  global.window.webkitAudioContext = global.webkitAudioContext;
+  global.window.Notification = global.Notification;
+
+  // Mock performance API
+  global.performance = {
+    now: vi.fn(() => Date.now()),
+    mark: vi.fn(),
+    measure: vi.fn(),
+    getEntriesByType: vi.fn(() => []),
+    getEntriesByName: vi.fn(() => []),
+    clearMarks: vi.fn(),
+    clearMeasures: vi.fn(),
+  };
+  global.window.performance = global.performance;
   
   if (typeof document === 'undefined') {
     const mockElement = {

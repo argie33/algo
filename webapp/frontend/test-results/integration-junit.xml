@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="19" failures="5" errors="0" time="118.684">
+    <testsuite name="src/tests/integration/api/real-api-endpoints.test.js" timestamp="2025-07-23T02:49:35.098Z" hostname="LAPTOP-J9NJ3854" tests="19" failures="5" errors="0" skipped="0" time="117.962">
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should connect to main health endpoint" time="18.041">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
+ ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
+ ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
+ ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should get detailed health status" time="8.266">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should handle health check with specific services" time="6.007">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch market overview data" time="6.006">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch stock quotes" time="20.346">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch market news" time="6.017">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 💼 Portfolio Endpoints &gt; should handle portfolio data requests" time="6.006">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 💼 Portfolio Endpoints &gt; should handle portfolio performance requests" time="6.01">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔐 Authentication Endpoints &gt; should handle authentication status check" time="6.008">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔐 Authentication Endpoints &gt; should handle login endpoint structure" time="6.007">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔧 Configuration Endpoints &gt; should fetch application configuration" time="8.172">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔧 Configuration Endpoints &gt; should fetch API version info" time="6.005">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📡 WebSocket Connection Info &gt; should get WebSocket connection details" time="6.007">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle 404 endpoints gracefully" time="0.007">
+            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
+AssertionError: expected undefined to be 404 // Object.is equality
+
+- Expected: 
+404
+
++ Received: 
+undefined
+
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+            </failure>
+            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
+AssertionError: expected undefined to be 404 // Object.is equality
+
+- Expected: 
+404
+
++ Received: 
+undefined
+
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+            </failure>
+            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
+AssertionError: expected undefined to be 404 // Object.is equality
+
+- Expected: 
+404
+
++ Received: 
+undefined
+
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle malformed requests" time="0.004">
+            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
+TypeError: actual value must be number or bigint, received &quot;undefined&quot;
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+            </failure>
+            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
+TypeError: actual value must be number or bigint, received &quot;undefined&quot;
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+            </failure>
+            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
+TypeError: actual value must be number or bigint, received &quot;undefined&quot;
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle timeout scenarios" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should measure response times" time="6.006">
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should handle concurrent requests" time="0.01">
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+            </failure>
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+            </failure>
+            <failure message="expected 0 to be greater than 0" type="AssertionError">
+AssertionError: expected 0 to be greater than 0
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should maintain connection stability" time="3.032">
+            <failure message="expected 0 to be greater than 7" type="AssertionError">
+AssertionError: expected 0 to be greater than 7
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+            </failure>
+            <failure message="expected 0 to be greater than 7" type="AssertionError">
+AssertionError: expected 0 to be greater than 7
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+            </failure>
+            <failure message="expected 0 to be greater than 7" type="AssertionError">
+AssertionError: expected 0 to be greater than 7
+ ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -1,0 +1,12 @@
+
+> financial-dashboard-frontend@1.0.10 test
+> vitest --run --reporter=json
+
+Cannot parse /home/stocks/algo/webapp/frontend/src/tests/integration/auth/authentication-security-workflows.test.js:
+Expression expected
+Cannot parse /home/stocks/algo/webapp/frontend/src/tests/integration/api/external-api-integration.test.js:
+Expression expected
+Cannot parse /home/stocks/algo/webapp/frontend/src/tests/integration/realtime/websocket-realtime-integration.test.js:
+Expression expected
+Cannot parse /home/stocks/algo/webapp/frontend/src/tests/integration/workflows/user-journey-comprehensive.test.js:
+Expression expected

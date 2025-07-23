@@ -94,14 +94,17 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       
-      // Check if Cognito is properly configured
-      const cognitoConfig = window.__CONFIG__?.COGNITO;
-      const isCognitoValid = cognitoConfig?.USER_POOL_ID && 
-                            cognitoConfig?.CLIENT_ID && 
-                            !cognitoConfig.USER_POOL_ID.includes('MISSING') &&
-                            !cognitoConfig.CLIENT_ID.includes('missing');
+      // Check if authentication is enabled and Cognito is configured
+      const { FEATURES, AWS_CONFIG } = await import('../config/environment');
+      const { isCognitoConfigured } = await import('../config/amplify');
       
-      if (!isCognitoValid) {
+      if (!FEATURES.authentication.enabled) {
+        console.warn('⚠️ Authentication is disabled via feature flags');
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return;
+      }
+      
+      if (!FEATURES.authentication.methods.cognito || !isCognitoConfigured()) {
         console.warn('⚠️ Cognito misconfigured, checking for demo session');
         const demoUser = localStorage.getItem('demo-user');
         if (demoUser) {
