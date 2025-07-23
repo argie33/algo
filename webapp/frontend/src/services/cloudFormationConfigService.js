@@ -77,7 +77,7 @@ class CloudFormationConfigService {
     try {
       console.log(`🔍 Fetching CloudFormation outputs for stack: ${this.stackName}`);
       
-      const response = await fetch(`${this.apiUrl}/config/cloudformation?stackName=${this.stackName}`, {
+      const response = await fetch(`${this.apiUrl}/api/config/cloudformation?stackName=${this.stackName}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -82,7 +82,7 @@ class ConfigurationService {
     try {
       console.log('🔍 Fetching CloudFormation config from API...');
       const apiUrl = this.getApiBaseUrl();
-      const response = await fetch(`${apiUrl}/config/cloudformation?stackName=stocks-webapp-dev`);
+      const response = await fetch(`${apiUrl}/api/config/cloudformation?stackName=stocks-webapp-dev`);
       
       if (response.ok) {
         const data = await response.json();

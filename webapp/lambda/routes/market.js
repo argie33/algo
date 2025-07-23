@@ -2970,4 +2970,211 @@ router.get('/positioning/:symbol', async (req, res) => {
   }
 });
 
+// Get market prices for a specific symbol - REAL DATA ONLY
+router.get('/prices/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`[MARKET] Prices endpoint called for symbol: ${symbol}`);
+  
+  try {
+    // Input validation
+    if (!symbol || typeof symbol !== 'string' || !/^[A-Z]{1,10}$/.test(symbol.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol',
+        message: 'Symbol must be 1-10 uppercase letters'
+      });
+    }
+
+    const upperSymbol = symbol.toUpperCase();
+
+    // Check if market_data table exists - FAIL if not configured
+    const tableExists = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'market_data'
+      );
+    `, []);
+
+    if (!tableExists.rows[0].exists) {
+      console.error('Market data table not found - database not properly configured');
+      return res.status(503).json({
+        success: false,
+        error: 'Service unavailable',
+        message: 'Market data infrastructure not configured. Database table missing.',
+        symbol: upperSymbol
+      });
+    }
+
+    // Get latest price data for the symbol from REAL data source
+    const priceQuery = `
+      SELECT 
+        symbol,
+        COALESCE(price, current_price, close_price, last_price) as price,
+        COALESCE(change_percent, percent_change, pct_change, daily_change) as change_percent,
+        COALESCE(price_change, change, daily_change_amount) as price_change,
+        volume,
+        COALESCE(high, day_high, high_price) as high,
+        COALESCE(low, day_low, low_price) as low,
+        COALESCE(open, open_price, opening_price) as open,
+        date,
+        timestamp
+      FROM market_data
+      WHERE UPPER(symbol) = $1
+        AND COALESCE(price, current_price, close_price, last_price) IS NOT NULL
+      ORDER BY COALESCE(timestamp, date) DESC
+      LIMIT 1
+    `;
+
+    const result = await query(priceQuery, [upperSymbol]);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error(`No real price data found for ${upperSymbol} in database`);
+      return res.status(404).json({
+        success: false,
+        error: 'Symbol not found',
+        message: `No market data available for symbol ${upperSymbol}. Data may not be loaded or symbol may be invalid.`,
+        symbol: upperSymbol
+      });
+    }
+
+    const priceData = result.rows[0];
+
+    // Validate that we have actual data, not null values
+    if (!priceData.price) {
+      return res.status(404).json({
+        success: false,
+        error: 'Incomplete data',
+        message: `Market data for ${upperSymbol} exists but price information is missing`,
+        symbol: upperSymbol
+      });
+    }
+
+    res.json({
+      success: true,
+      symbol: upperSymbol,
+      price: parseFloat(priceData.price),
+      change: parseFloat(priceData.price_change) || 0,
+      changePercent: parseFloat(priceData.change_percent) || 0,
+      volume: parseInt(priceData.volume) || 0,
+      high: parseFloat(priceData.high) || parseFloat(priceData.price),
+      low: parseFloat(priceData.low) || parseFloat(priceData.price),
+      open: parseFloat(priceData.open) || parseFloat(priceData.price),
+      timestamp: priceData.timestamp || priceData.date
+    });
+
+  } catch (error) {
+    console.error(`Error fetching prices for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to retrieve market data from database',
+      symbol: symbol.toUpperCase(),
+      details: error.message
+    });
+  }
+});
+
+// Get market metrics for a specific symbol - REAL DATA ONLY
+router.get('/metrics/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  console.log(`[MARKET] Metrics endpoint called for symbol: ${symbol}`);
+  
+  try {
+    // Input validation
+    if (!symbol || typeof symbol !== 'string' || !/^[A-Z]{1,10}$/.test(symbol.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol',
+        message: 'Symbol must be 1-10 uppercase letters'
+      });
+    }
+
+    const upperSymbol = symbol.toUpperCase();
+
+    // Check if market_data table exists - FAIL if not configured
+    const tableExists = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'market_data'
+      );
+    `, []);
+
+    if (!tableExists.rows[0].exists) {
+      console.error('Market data table not found - database not properly configured');
+      return res.status(503).json({
+        success: false,
+        error: 'Service unavailable',
+        message: 'Market data infrastructure not configured. Database table missing.',
+        symbol: upperSymbol
+      });
+    }
+
+    // Get metrics data for the symbol from REAL data source
+    const metricsQuery = `
+      SELECT 
+        symbol,
+        COALESCE(market_cap, marketcap) as market_cap,
+        COALESCE(pe_ratio, pe, price_to_earnings) as pe_ratio,
+        COALESCE(pb_ratio, pb, price_to_book) as pb_ratio,
+        COALESCE(dividend, dividend_rate) as dividend,
+        COALESCE(dividend_yield, div_yield) as dividend_yield,
+        COALESCE(eps, earnings_per_share) as eps,
+        beta,
+        COALESCE(volatility, vol, implied_volatility) as volatility,
+        COALESCE(avg_volume, average_volume, volume_avg) as avg_volume,
+        COALESCE(shares_outstanding, shares_out, outstanding_shares) as shares_outstanding,
+        date,
+        timestamp
+      FROM market_data
+      WHERE UPPER(symbol) = $1
+      ORDER BY COALESCE(timestamp, date) DESC
+      LIMIT 1
+    `;
+
+    const result = await query(metricsQuery, [upperSymbol]);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error(`No real metrics data found for ${upperSymbol} in database`);
+      return res.status(404).json({
+        success: false,
+        error: 'Symbol not found',
+        message: `No market metrics available for symbol ${upperSymbol}. Data may not be loaded or symbol may be invalid.`,
+        symbol: upperSymbol
+      });
+    }
+
+    const metricsData = result.rows[0];
+
+    res.json({
+      success: true,
+      symbol: upperSymbol,
+      metrics: {
+        marketCap: parseInt(metricsData.market_cap) || null,
+        peRatio: parseFloat(metricsData.pe_ratio) || null,
+        pbRatio: parseFloat(metricsData.pb_ratio) || null,
+        dividend: parseFloat(metricsData.dividend) || null,
+        dividendYield: parseFloat(metricsData.dividend_yield) || null,
+        eps: parseFloat(metricsData.eps) || null,
+        beta: parseFloat(metricsData.beta) || null,
+        volatility: parseFloat(metricsData.volatility) || null,
+        avgVolume: parseInt(metricsData.avg_volume) || null,
+        sharesOutstanding: parseInt(metricsData.shares_outstanding) || null
+      },
+      timestamp: metricsData.timestamp || metricsData.date
+    });
+
+  } catch (error) {
+    console.error(`Error fetching metrics for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to retrieve market metrics from database',
+      symbol: symbol.toUpperCase(),
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
