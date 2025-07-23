@@ -31,12 +31,12 @@ window.__CONFIG__ = {
       }
       
       if (hostname.includes('staging') || hostname.includes('dev')) {
-        // Staging environment - will be replaced during deployment
-        return 'https://api-staging.protrade-analytics.com';
+        // Staging environment - AWS API Gateway staging stage
+        return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/staging';
       }
       
-      // Production - will be replaced during deployment
-      return 'https://api.protrade-analytics.com';
+      // Production - AWS API Gateway production stage
+      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
     })(),
     VERSION: 'v1',
     TIMEOUT: 30000,

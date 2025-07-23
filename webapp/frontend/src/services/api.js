@@ -244,15 +244,15 @@ const initializeApi = () => {
     setupInterceptors(api);
     
   } catch (error) {
-    // Fallback for test environments
+    // Fallback for test environments - use AWS API Gateway
     if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
       api = axios.create({
-        baseURL: 'https://test-api.example.com/dev',
+        baseURL: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
         timeout: 30000,
         headers: { 'Content-Type': 'application/json' },
       });
       setupInterceptors(api);
-      console.warn('[API CONFIG] Using test fallback API configuration');
+      console.warn('[API CONFIG] Using AWS API Gateway test fallback configuration');
     } else {
       throw error;
     }

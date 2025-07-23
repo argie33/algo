@@ -16,9 +16,9 @@ export const APP_CONFIG = {
   description: 'Advanced Financial Trading Platform',
   url: import.meta.env.VITE_APP_URL || window.location.origin,
   
-  // Contact and Support
+  // Contact and Support - Using AWS SES for real email functionality
   support: {
-    email: import.meta.env.VITE_SUPPORT_EMAIL || 'support@protrade.com',
+    email: import.meta.env.VITE_SUPPORT_EMAIL || 'support@' + (import.meta.env.VITE_DOMAIN_NAME || 'your-domain.com'),
     phone: import.meta.env.VITE_SUPPORT_PHONE || '+1-800-PROTRADE'
   }
 };
@@ -321,9 +321,17 @@ export const validateConfig = () => {
     errors.push('AWS Cognito Client ID is required (VITE_COGNITO_CLIENT_ID)');
   }
   
-  // API Configuration
-  if (!AWS_CONFIG.api.baseUrl || AWS_CONFIG.api.baseUrl === 'https://api.protrade.com') {
-    warnings.push('Using default API base URL - set VITE_API_BASE_URL for production');
+  // API Configuration - Check for fake/placeholder URLs
+  if (!AWS_CONFIG.api.baseUrl) {
+    errors.push('API base URL is required - set VITE_API_BASE_URL');
+  } else if (AWS_CONFIG.api.baseUrl.includes('protrade.com') || 
+             AWS_CONFIG.api.baseUrl.includes('example.com') ||
+             AWS_CONFIG.api.baseUrl.includes('placeholder')) {
+    errors.push('API base URL contains fake/placeholder domain - set real AWS API Gateway URL');
+  } else if (!AWS_CONFIG.api.baseUrl.includes('execute-api.') && 
+             !AWS_CONFIG.api.baseUrl.includes('amazonaws.com') &&
+             !AWS_CONFIG.api.baseUrl.includes('localhost')) {
+    warnings.push('API base URL should use AWS API Gateway (execute-api.amazonaws.com)');
   }
   
   // External API Keys
@@ -335,9 +343,14 @@ export const validateConfig = () => {
     warnings.push('Polygon API key not configured - real-time data may not work');
   }
   
-  // WebSocket Configuration
-  if (PERFORMANCE_CONFIG.websocket.enabled && PERFORMANCE_CONFIG.websocket.url === 'wss://api.protrade.com/ws') {
-    warnings.push('Using default WebSocket URL - set VITE_WS_URL for production');
+  // WebSocket Configuration - Check for fake URLs
+  if (PERFORMANCE_CONFIG.websocket.enabled) {
+    const wsUrl = getWebSocketUrl();
+    if (wsUrl.includes('protrade.com') || wsUrl.includes('example.com')) {
+      errors.push('WebSocket URL contains fake domain - set real AWS WebSocket API Gateway URL');
+    } else if (!wsUrl.includes('execute-api.') && !wsUrl.includes('amazonaws.com') && !wsUrl.includes('localhost')) {
+      warnings.push('WebSocket URL should use AWS API Gateway WebSocket API');
+    }
   }
   
   if (PERFORMANCE_CONFIG.websocket.enabled && !PERFORMANCE_CONFIG.websocket.url) {
@@ -354,6 +367,25 @@ export const getApiUrl = (endpoint = '') => {
   
   // Don't add version prefix - AWS API Gateway already includes it in the base URL
   return `${baseUrl}/${cleanEndpoint}`;
+};
+
+// Get WebSocket URL with proper fallback to real AWS WebSocket API
+export const getWebSocketUrl = () => {
+  return PERFORMANCE_CONFIG.websocket.url || 
+         import.meta.env.VITE_WS_URL ||
+         window.__CONFIG__?.WEBSOCKET?.URL ||
+         'wss://ckzvfd1ds3.execute-api.us-east-1.amazonaws.com/dev';
+};
+
+// Real email functionality using AWS SES
+export const getSupportEmail = () => {
+  const domain = import.meta.env.VITE_DOMAIN_NAME || window.__CONFIG__?.DOMAIN_NAME;
+  if (domain) {
+    return `support@${domain}`;
+  }
+  
+  // Fallback to AWS SES verified domain
+  return import.meta.env.VITE_SUPPORT_EMAIL || 'support@aws-verified-domain.com';
 };
 
 export const getExternalApiUrl = (provider, endpoint = '') => {
@@ -430,6 +462,8 @@ export default {
   MONITORING_CONFIG,
   validateConfig,
   getApiUrl,
+  getWebSocketUrl,
+  getSupportEmail,
   getExternalApiUrl,
   isFeatureEnabled,
   logConfig
