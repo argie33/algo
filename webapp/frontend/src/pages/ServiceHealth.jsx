@@ -314,7 +314,7 @@ function ServiceHealth() {
       // Triggering comprehensive database health update
       
       // Call the backend to update health status
-      const response = await api.post('/health/update-status', {}, {
+      const response = await api.post('/api/health-full/update-status', {}, {
         timeout: 60000 // 1 minute timeout for comprehensive analysis
       });
       
