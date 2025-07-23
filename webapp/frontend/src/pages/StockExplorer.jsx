@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createComponentLogger } from '../utils/errorLogger'
 import { formatCurrency, formatNumber, formatPercentage as formatPercent, getChangeColor } from '../utils/formatters'
@@ -172,121 +171,129 @@ function StockExplorer() {
     return params
   }
 
-  // Fetch screener results with optimized settings
-  const { data: stocksData, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order],
-    queryFn: async () => {
-      try {
-        const params = buildQueryParams();
-        logger.success('buildQueryParams', null, { params: params.toString() });
-        
-        // Add timeout handling
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('API call timeout')), 10000)
-        );
-        
-        const result = await Promise.race([
-          screenStocks(params),
-          timeoutPromise
-        ]);
-        
-        // Add debug logging to see the actual response structure
-        console.log('StockExplorer: Raw API response:', result);
-        console.log('StockExplorer: Data array:', result?.data);
-        console.log('StockExplorer: First item structure:', result?.data?.[0]);
-        
-        logger.success('screenStocks', result, { 
-          resultCount: result?.data?.length || 0,
-          total: result?.total || 0,
-          page: page + 1,
-          filters: Object.keys(filters).filter(k => filters[k] !== '' && filters[k] !== false).length
-        });
-        return result;
-      } catch (err) {
-        console.error('StockExplorer: API Error:', err);
-        console.log('Using mock stock data due to API failure');
-        logger.error('screenStocks', err, {
-          params: buildQueryParams().toString(),
-          page: page + 1,
-          rowsPerPage,
-          filters: filters,
-          orderBy,
-          order
-        });
-        
-        // Return mock data when API fails
-        const mockData = {
-          data: [
-            {
-              symbol: 'AAPL',
-              displayName: 'Apple Inc.',
-              name: 'Apple Inc.',
-              exchange: 'NASDAQ',
-              sector: 'Technology',
-              industry: 'Consumer Electronics',
-              price: { current: 189.45, previousClose: 187.15 },
+  // Custom state for managing stocks data
+  const [stocksData, setStocksData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Fetch screener results with proper error handling
+  const fetchStocks = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const params = buildQueryParams();
+      logger.success('buildQueryParams', null, { params: params.toString() });
+      
+      // Add timeout handling
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('API call timeout')), 10000)
+      );
+      
+      const result = await Promise.race([
+        screenStocks(params),
+        timeoutPromise
+      ]);
+      
+      // Add debug logging to see the actual response structure
+      console.log('StockExplorer: Raw API response:', result);
+      console.log('StockExplorer: Data array:', result?.data);
+      console.log('StockExplorer: First item structure:', result?.data?.[0]);
+      
+      logger.success('screenStocks', result, { 
+        resultCount: result?.data?.length || 0,
+        total: result?.total || 0,
+        page: page + 1,
+        filters: Object.keys(filters).filter(k => filters[k] !== '' && filters[k] !== false).length
+      });
+      
+      setStocksData(result);
+    } catch (err) {
+      console.error('StockExplorer: API Error:', err);
+      console.log('Using mock stock data due to API failure');
+      logger.error('screenStocks', err, {
+        params: buildQueryParams().toString(),
+        page: page + 1,
+        rowsPerPage,
+        filters: filters,
+        orderBy,
+        order
+      });
+      
+      // Set mock data when API fails
+      const mockData = {
+        data: [
+          {
+            symbol: 'AAPL',
+            displayName: 'Apple Inc.',
+            name: 'Apple Inc.',
+            exchange: 'NASDAQ',
+            sector: 'Technology',
+            industry: 'Consumer Electronics',
+            price: { current: 189.45, previousClose: 187.15 },
+            marketCap: 2950000000000,
+            financialMetrics: {
               marketCap: 2950000000000,
-              financialMetrics: {
-                marketCap: 2950000000000,
-                peRatio: 28.5,
-                priceToBook: 45.2,
-                epsTrailing: 6.64,
-                revenueGrowth: 0.082,
-                profitMargin: 0.258
-              }
-            },
-            {
-              symbol: 'MSFT',
-              displayName: 'Microsoft Corporation',
-              name: 'Microsoft Corporation',
-              exchange: 'NASDAQ',
-              sector: 'Technology',
-              industry: 'Software—Infrastructure',
-              price: { current: 334.89, previousClose: 336.34 },
-              marketCap: 2480000000000,
-              financialMetrics: {
-                marketCap: 2480000000000,
-                peRatio: 32.1,
-                priceToBook: 12.8,
-                epsTrailing: 10.43,
-                revenueGrowth: 0.165,
-                profitMargin: 0.367
-              }
-            },
-            {
-              symbol: 'GOOGL',
-              displayName: 'Alphabet Inc.',
-              name: 'Alphabet Inc.',
-              exchange: 'NASDAQ',
-              sector: 'Communication Services',
-              industry: 'Internet Content & Information',
-              price: { current: 134.23, previousClose: 133.38 },
-              marketCap: 1690000000000,
-              financialMetrics: {
-                marketCap: 1690000000000,
-                peRatio: 26.8,
-                priceToBook: 5.2,
-                epsTrailing: 5.01,
-                revenueGrowth: 0.134,
-                profitMargin: 0.216
-              }
+              peRatio: 28.5,
+              priceToBook: 45.2,
+              epsTrailing: 6.64,
+              revenueGrowth: 0.082,
+              profitMargin: 0.258
             }
-          ],
-          total: 3,
-          page: 1,
-          limit: 25
-        };
-        
-        return mockData;
-      }
-    },
-    keepPreviousData: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes (was cacheTime)
-    retry: 2, // Reduce retries to fail faster if there's an issue
-    retryDelay: 1000,
-    onError: (err) => logger.queryError('stockExplorer', err, { queryKey: ['stockExplorer', filters, page, rowsPerPage, orderBy, order] })
-  })
+          },
+          {
+            symbol: 'MSFT',
+            displayName: 'Microsoft Corporation',
+            name: 'Microsoft Corporation',
+            exchange: 'NASDAQ',
+            sector: 'Technology',
+            industry: 'Software—Infrastructure',
+            price: { current: 334.89, previousClose: 336.34 },
+            marketCap: 2480000000000,
+            financialMetrics: {
+              marketCap: 2480000000000,
+              peRatio: 32.1,
+              priceToBook: 12.8,
+              epsTrailing: 10.43,
+              revenueGrowth: 0.165,
+              profitMargin: 0.367
+            }
+          },
+          {
+            symbol: 'GOOGL',
+            displayName: 'Alphabet Inc.',
+            name: 'Alphabet Inc.',
+            exchange: 'NASDAQ',
+            sector: 'Communication Services',
+            industry: 'Internet Content & Information',
+            price: { current: 134.23, previousClose: 133.38 },
+            marketCap: 1690000000000,
+            financialMetrics: {
+              marketCap: 1690000000000,
+              peRatio: 26.8,
+              priceToBook: 5.2,
+              epsTrailing: 5.01,
+              revenueGrowth: 0.134,
+              profitMargin: 0.216
+            }
+          }
+        ],
+        total: 3,
+        page: 1,
+        limit: 25
+      };
+      
+      setStocksData(mockData);
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters, page, rowsPerPage, orderBy, order]);
+
+  // Effect to fetch data when dependencies change
+  useEffect(() => {
+    fetchStocks();
+  }, [fetchStocks]);
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({

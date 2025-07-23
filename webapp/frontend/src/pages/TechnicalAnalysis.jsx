@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useSimpleFetch } from '../hooks/useSimpleFetch.js';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createComponentLogger } from '../utils/errorLogger';
 import {
   Box,
@@ -58,15 +57,21 @@ function TechnicalAnalysis() {
   const [activeFilters, setActiveFilters] = useState(0);
   const [expandedRow, setExpandedRow] = useState(null);
   const navigate = useNavigate();
-  // --- FIX: Move these above useSimpleFetch ---
   const [indicatorFilter, setIndicatorFilter] = useState('');
   const [indicatorMin, setIndicatorMin] = useState('');
   const [indicatorMax, setIndicatorMax] = useState('');
 
-  // Fetch technical data
-  const { data: technicalData, isLoading, error, refetch } = useSimpleFetch({
-    queryKey: ['technicalAnalysis', timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order],
-    queryFn: async () => {
+  // Custom state for managing technical data
+  const [technicalData, setTechnicalData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Fetch technical data with proper error handling
+  const fetchTechnicalData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
       // Map frontend parameters to backend parameters
       const params = {
         page: page + 1,
@@ -98,18 +103,51 @@ function TechnicalAnalysis() {
       }
       
       console.log('TechnicalAnalysis: calling getTechnicalData with params:', params);
-      const result = await getTechnicalData(timeframe, params);
+      
+      // Add timeout handling
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('API call timeout')), 10000)
+      );
+      
+      const result = await Promise.race([
+        getTechnicalData(timeframe, params),
+        timeoutPromise
+      ]);
+      
       console.log('TechnicalAnalysis: getTechnicalData result:', result);
       
-      if (Array.isArray(result)) return { data: result };
-      if (!Array.isArray(result.data)) return { ...result, data: [] };
-      return result;
-    },
-    onError: (error) => logger.queryError('technicalAnalysis', error, { timeframe, symbolFilter, page }),
-    refetchInterval: 300000,
-    retry: 2,
-    staleTime: 60000
-  });
+      // Normalize result format
+      let normalizedResult;
+      if (Array.isArray(result)) {
+        normalizedResult = { data: result };
+      } else if (!Array.isArray(result.data)) {
+        normalizedResult = { ...result, data: [] };
+      } else {
+        normalizedResult = result;
+      }
+      
+      setTechnicalData(normalizedResult);
+    } catch (err) {
+      console.error('TechnicalAnalysis: API Error:', err);
+      logger.error('technicalAnalysis', err, { timeframe, symbolFilter, page });
+      setError(err);
+      
+      // Set empty data on error
+      setTechnicalData({ data: [], total: 0, page: 1, limit: rowsPerPage });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeframe, symbolFilter, indicatorFilter, indicatorMin, indicatorMax, page, rowsPerPage, orderBy, order, logger]);
+
+  // Effect to fetch data when dependencies change
+  useEffect(() => {
+    fetchTechnicalData();
+  }, [fetchTechnicalData]);
+
+  // Refetch function for manual refresh
+  const refetch = useCallback(() => {
+    fetchTechnicalData();
+  }, [fetchTechnicalData]);
 
   useEffect(() => {
     // Count active filters (excluding default timeframe)

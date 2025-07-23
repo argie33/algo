@@ -15,7 +15,8 @@ export default defineConfig({
       'src/tests/integration/validation-real-calculations.test.js',
       'src/tests/integration/crypto-signals-aws-routes.test.js',
       'src/tests/integration/market-aws-routes.test.js',
-      'src/tests/integration/dashboard-usesimplefetch.test.jsx'
+      'src/tests/integration/dashboard-usesimplefetch.test.jsx',
+      'src/tests/integration/api/stock-explorer-api.test.jsx'
     ],
     exclude: [
       'src/tests/integration/services/liveDataService.integration.test.js',
