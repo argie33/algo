@@ -29,7 +29,7 @@ export async function fetchRuntimeConfig() {
   configPromise = (async () => {
     try {
       const { apiUrl } = getApiConfig();
-      const response = await fetch(`${apiUrl}/settings/runtime-config`, {
+      const response = await fetch(`${apiUrl}/api/settings/runtime-config`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
