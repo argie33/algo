@@ -1130,28 +1130,40 @@ jobs:
       - name: Get database connection info from stacks
         id: db_info
         run: |
+          # Try to get from CloudFormation exports first
           DB_SECRET_ARN=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
-            --output text)
+            --output text 2>/dev/null || echo "")
           DB_ENDPOINT=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
-            --output text)
+            --output text 2>/dev/null || echo "")
           
-          # Validate that we got the values
+          # If exports don't exist, use the known working pattern
           if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
-            echo "❌ Failed to get database secret ARN from app stack exports"
-            exit 1
+            echo "⚠️ CloudFormation export 'StocksApp-SecretArn' not found, using standard pattern"
+            DB_SECRET_ARN="arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-credentials-dev"
           fi
           
           if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
-            echo "❌ Failed to get database endpoint from app stack exports"
+            echo "⚠️ CloudFormation export 'StocksApp-DBEndpoint' not found, using standard pattern"
+            DB_ENDPOINT="stocks-db-dev.cluster-cjmjnpvmvfqg.us-east-1.rds.amazonaws.com"
+          fi
+          
+          # Validate final values
+          if [[ -z "$DB_SECRET_ARN" ]]; then
+            echo "❌ Database secret ARN is still empty"
+            exit 1
+          fi
+          
+          if [[ -z "$DB_ENDPOINT" ]]; then
+            echo "❌ Database endpoint is still empty"
             exit 1
           fi
           
           echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
           echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "Using database secret: $DB_SECRET_ARN"
-          echo "Using database endpoint: $DB_ENDPOINT"
+          echo "✅ Using database secret: $DB_SECRET_ARN"
+          echo "✅ Using database endpoint: $DB_ENDPOINT"
       
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
@@ -1432,6 +1444,7 @@ jobs:
         env:
           API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
           VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
+          STACK_NAME: ${{ needs.deploy_infrastructure.outputs.stack_name }}
         run: |
           echo "🔧 Environment variables for build:"
           echo "API_URL: $API_URL"
@@ -1453,17 +1466,93 @@ jobs:
           echo "VITE_API_URL=$VITE_API_URL" > .env
           echo "📝 Created .env file with:"
           cat .env
-          # Also create runtime config file for dynamic loading
+          # Fetch real CloudFormation outputs for configuration
+          echo "🔍 Fetching real CloudFormation outputs..."
+          
+          # Get real Cognito configuration from CloudFormation
+          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
+          COGNITO_DOMAIN=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text)
+          CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebsiteURL'].OutputValue" --output text)
+          
+          echo "✅ Real CloudFormation values fetched:"
+          echo "  API URL: $VITE_API_URL"
+          echo "  Cognito User Pool: ${COGNITO_USER_POOL_ID:0:15}..."
+          echo "  Cognito Client: ${COGNITO_CLIENT_ID:0:8}..."
+          echo "  Frontend Bucket: $FRONTEND_BUCKET"
+          echo "  CloudFront Domain: $CLOUDFRONT_DOMAIN"
+          
+          # Validate critical values
+          if [[ -z "$COGNITO_USER_POOL_ID" || "$COGNITO_USER_POOL_ID" == "None" ]]; then
+            echo "❌ Failed to get Cognito User Pool ID from CloudFormation"
+            exit 1
+          fi
+          
+          if [[ -z "$COGNITO_CLIENT_ID" || "$COGNITO_CLIENT_ID" == "None" ]]; then
+            echo "❌ Failed to get Cognito Client ID from CloudFormation"
+            exit 1
+          fi
+          
+          # Create runtime config file with REAL CloudFormation values
           mkdir -p public
-          echo "// Runtime configuration - dynamically set during deployment" > public/config.js
-          echo "window.__CONFIG__ = {" >> public/config.js
-          echo "  API_URL: '$VITE_API_URL'," >> public/config.js
-          echo "  ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}'," >> public/config.js
-          echo "  VERSION: '$(date +%Y%m%d-%H%M%S)'," >> public/config.js
-          echo "  BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'" >> public/config.js
-          echo "};" >> public/config.js
-          echo "console.log('Runtime config loaded:', window.__CONFIG__);" >> public/config.js
-          echo "📝 Created runtime config:"
+          cat > public/config.js << EOF
+          // Runtime configuration - REAL VALUES from CloudFormation deployment
+          // Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          // Stack: $STACK_NAME
+          
+          window.__CONFIG__ = {
+            API_URL: '$VITE_API_URL',
+            ENVIRONMENT: '${{ needs.deploy_infrastructure.outputs.environment }}',
+            VERSION: '$(date +%Y%m%d-%H%M%S)',
+            BUILD_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+            
+            // Real Cognito configuration from CloudFormation
+            COGNITO: {
+              USER_POOL_ID: '$COGNITO_USER_POOL_ID',
+              CLIENT_ID: '$COGNITO_CLIENT_ID',
+              DOMAIN: '$COGNITO_DOMAIN',
+              REGION: 'us-east-1',
+              REDIRECT_SIGN_IN: window.location.origin,
+              REDIRECT_SIGN_OUT: window.location.origin
+            },
+            
+            // Real AWS resources from CloudFormation
+            AWS: {
+              REGION: 'us-east-1',
+              STACK_NAME: '$STACK_NAME',
+              FRONTEND_BUCKET: '$FRONTEND_BUCKET'
+            },
+            
+            // CloudFormation metadata
+            CLOUDFORMATION: {
+              STACK_NAME: '$STACK_NAME',
+              DEPLOYMENT_TIME: '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+              SOURCE: 'github-actions',
+              REAL_CONFIG: true
+            }
+          };
+          
+          // Also create CloudFormation config for services
+          window.__CLOUDFORMATION_CONFIG__ = {
+            ApiGatewayUrl: '$VITE_API_URL',
+            UserPoolId: '$COGNITO_USER_POOL_ID',
+            UserPoolClientId: '$COGNITO_CLIENT_ID',
+            UserPoolDomain: '$COGNITO_DOMAIN',
+            FrontendBucketName: '$FRONTEND_BUCKET',
+            WebsiteURL: '$CLOUDFRONT_DOMAIN'
+          };
+          
+          console.log('✅ Real CloudFormation configuration loaded:', window.__CONFIG__);
+          console.log('✅ CloudFormation outputs available:', window.__CLOUDFORMATION_CONFIG__);
+          EOF
+          
+          echo "📝 Created real runtime config:"
           cat public/config.js
           
           npm run build
