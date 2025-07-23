@@ -463,14 +463,6 @@ function StockExplorer() {
   // Simplified data access: API always returns { success: true, data: [...] }
   const stocksList = stocksData?.data || [];
   
-  // Debug logging
-  console.log('StockExplorer data structure:', {
-    hasStocksData: !!stocksData,
-    success: stocksData?.success,
-    dataIsArray: Array.isArray(stocksData?.data),
-    dataLength: stocksData?.data?.length || 0,
-    pagination: stocksData?.pagination
-  });
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

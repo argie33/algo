@@ -87,8 +87,6 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function FinancialData() {
-  console.log('🚀 FinancialData: Component rendering...');
-  
   const logger = createComponentLogger('FinancialData');
   
   const [ticker, setTicker] = useState('AAPL')
@@ -101,35 +99,26 @@ function FinancialData() {
     queryKey: ['companies'],
     queryFn: () => getStocks({ limit: 1000, sortBy: 'ticker' }),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSuccess: (data) => console.log('✅ FinancialData: Companies data loaded:', data),
-    onError: (error) => console.error('❌ FinancialData: Companies data error:', error)
+    onError: (error) => logger.queryError('companies', error)
   });
 
   const companies = companiesData?.data?.data ?? companiesData?.data ?? companiesData ?? [];
-  console.log('📊 FinancialData: Companies data:', { 
-    hasData: !!companiesData, 
-    companiesLength: companies.length,
-    sampleCompany: companies[0] 
-  });
 
   // Defensive: ensure companies is always an array before using .find
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   const handleTabChange = (event, newValue) => {
-    console.log('🔄 FinancialData: Tab changed to:', newValue);
     setTabValue(newValue)
   }
 
   const handleSearch = () => {
     if (searchTicker.trim()) {
-      console.log('🔍 FinancialData: Searching for ticker:', searchTicker.trim().toUpperCase());
       setTicker(searchTicker.trim().toUpperCase())
     }
   }
 
   const handlePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) {
-      console.log('📅 FinancialData: Period changed to:', newPeriod);
       setPeriod(newPeriod)
     }
   }
@@ -139,43 +128,23 @@ function FinancialData() {
     queryKey: ['balanceSheet', ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
     enabled: !!ticker && tabValue === 0,
-    onSuccess: (data) => console.log('✅ FinancialData: Balance sheet loaded:', data),
-    onError: (error) => {
-      console.error('❌ FinancialData: Balance sheet error:', error);
-      logger.queryError('balanceSheet', error, { ticker, period });
-    }
+    onError: (error) => logger.queryError('balanceSheet', error, { ticker, period })
   })
 
   const { data: incomeStatement, isLoading: incomeStatementLoading, error: incomeStatementError } = useSimpleFetch({
     queryKey: ['incomeStatement', ticker, period],
     queryFn: () => getIncomeStatement(ticker, period),
     enabled: !!ticker && tabValue === 1,
-    onSuccess: (data) => console.log('✅ FinancialData: Income statement loaded:', data),
-    onError: (error) => {
-      console.error('❌ FinancialData: Income statement error:', error);
-      logger.queryError('incomeStatement', error, { ticker, period });
-    }
+    onError: (error) => logger.queryError('incomeStatement', error, { ticker, period })
   })
   
   const { data: cashFlowStatement, isLoading: cashFlowLoading, error: cashFlowError } = useSimpleFetch({
     queryKey: ['cashFlowStatement', ticker, period],
     queryFn: () => getCashFlowStatement(ticker, period),
     enabled: !!ticker && tabValue === 2,
-    onSuccess: (data) => console.log('✅ FinancialData: Cash flow statement loaded:', data),
-    onError: (error) => {
-      console.error('❌ FinancialData: Cash flow statement error:', error);
-      logger.queryError('cashFlowStatement', error, { ticker, period });
-    }
+    onError: (error) => logger.queryError('cashFlowStatement', error, { ticker, period })
   })
 
-  console.log('📊 FinancialData: Data summary:', {
-    ticker,
-    period,
-    tabValue,
-    balanceSheet: { hasData: !!balanceSheet, isLoading: balanceSheetLoading, hasError: !!balanceSheetError },
-    incomeStatement: { hasData: !!incomeStatement, isLoading: incomeStatementLoading, hasError: !!incomeStatementError },
-    cashFlowStatement: { hasData: !!cashFlowStatement, isLoading: cashFlowLoading, hasError: !!cashFlowError }
-  });
 
   const { data: keyMetrics, isLoading: keyMetricsLoading, error: keyMetricsError } = useSimpleFetch({
     queryKey: ['keyMetrics', ticker],
