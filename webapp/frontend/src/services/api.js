@@ -4338,6 +4338,30 @@ export const getAaiiData = initializeApi().getAaiiData;
 export const getDataLoaderStatus = initializeApi().getDataLoaderStatus;
 export const triggerDataLoader = initializeApi().triggerDataLoader;
 
+// Circuit breaker management
+export const resetCircuitBreaker = () => {
+  console.log('🔄 [API] Manually resetting circuit breaker');
+  circuitBreakerState.isOpen = false;
+  circuitBreakerState.failures = 0;
+  circuitBreakerState.lastFailureTime = null;
+  console.log('✅ [API] Circuit breaker reset successfully');
+};
+
+export const getCircuitBreakerStatus = () => {
+  return {
+    isOpen: circuitBreakerState.isOpen,
+    failures: circuitBreakerState.failures,
+    lastFailureTime: circuitBreakerState.lastFailureTime,
+    timeout: circuitBreakerState.timeout
+  };
+};
+
+// Make circuit breaker reset available globally for development
+if (typeof window !== 'undefined') {
+  window.resetCircuitBreaker = resetCircuitBreaker;
+  window.getCircuitBreakerStatus = getCircuitBreakerStatus;
+}
+
 // Export the main API object as default
 // Export initialized API instance as default
 export default initializeApi;
