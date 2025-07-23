@@ -412,7 +412,7 @@ router.get('/api-keys', async (req, res) => {
     console.warn('⚠️  API Key encryption service is disabled - returning setup guidance');
     return res.json({
       success: true,
-      apiKeys: [],
+      data: [],
       setupRequired: true,
       message: 'API key service is initializing. You can still use demo data while we configure the encryption service.',
       guidance: {
@@ -471,17 +471,18 @@ router.get('/api-keys', async (req, res) => {
       id: `${key.provider}-${userId}`, // Generate consistent ID
       provider: key.provider,
       description: `${key.provider} API Key`,
-      isSandbox: true, // Default for now
-      isActive: true,
-      createdAt: key.created,
-      lastUsed: null,
-      apiKey: key.keyId // Already masked by service
+      is_sandbox: true, // Default for now
+      is_active: true,
+      created_at: key.created,
+      last_used: null,
+      masked_api_key: key.keyId, // Already masked by service
+      validation_status: 'valid'
     }));
 
     console.log('🎯 Returning API keys response');
     res.json({ 
       success: true, 
-      apiKeys: formattedApiKeys
+      data: formattedApiKeys
     });
   } catch (error) {
     console.error('❌ API Key service error:', error);
@@ -490,7 +491,7 @@ router.get('/api-keys', async (req, res) => {
     console.log('🔄 API Key service failed, returning empty list as fallback');
     res.json({ 
       success: true, 
-      apiKeys: [],
+      data: [],
       note: 'API key service temporarily unavailable',
       errorCode: 'SERVICE_UNAVAILABLE',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
