@@ -5578,4 +5578,8 @@ function generateStressTestRecommendations(scenarioKey, portfolioImpact, portfol
   return recommendations;
 }
 
+// Include API Keys management routes
+const portfolioApiKeysRouter = require('./portfolio-api-keys');
+router.use('/', portfolioApiKeysRouter);
+
 module.exports = router;

@@ -471,6 +471,7 @@ const routes = [
   { path: './routes/economic', name: 'Economic Data', mount: '/api/economic' },
   
   // User & Settings Routes
+  { path: './routes/user', name: 'User Management', mount: '/api/user' },
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
   { path: './routes/auth-status', name: 'Auth Status', mount: '/api/auth-status' },
