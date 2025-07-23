@@ -20,8 +20,8 @@ class ConfigurationService {
     }
 
     try {
-      // Load from CloudFormation config if available
-      const cloudFormationConfig = this.loadCloudFormationConfig();
+      // Load from CloudFormation config if available (now async)
+      const cloudFormationConfig = await this.loadCloudFormationConfig();
       
       // Load from window.__CONFIG__ if available
       const windowConfig = this.loadWindowConfig();
@@ -56,26 +56,77 @@ class ConfigurationService {
   /**
    * Load CloudFormation configuration if available
    */
-  loadCloudFormationConfig() {
+  async loadCloudFormationConfig() {
     if (typeof window === 'undefined') return {};
     
+    // First try window.__CLOUDFORMATION_CONFIG__
     const cfConfig = window.__CLOUDFORMATION_CONFIG__;
-    if (!cfConfig) return {};
+    if (cfConfig) {
+      return {
+        api: {
+          baseUrl: cfConfig.ApiGatewayUrl
+        },
+        cognito: {
+          userPoolId: cfConfig.UserPoolId,
+          clientId: cfConfig.UserPoolClientId,
+          domain: cfConfig.UserPoolDomain
+        },
+        aws: {
+          region: 'us-east-1'
+        },
+        source: 'cloudformation'
+      };
+    }
+
+    // Try to fetch from API endpoint
+    try {
+      console.log('🔍 Fetching CloudFormation config from API...');
+      const apiUrl = this.getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/config/cloudformation?stackName=stocks-webapp-dev`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ CloudFormation config fetched from API');
+        
+        return {
+          api: {
+            baseUrl: data.api?.gatewayUrl
+          },
+          cognito: {
+            userPoolId: data.cognito?.userPoolId,
+            clientId: data.cognito?.clientId,
+            domain: data.cognito?.domain
+          },
+          aws: {
+            region: data.cognito?.region || 'us-east-1'
+          },
+          source: 'api'
+        };
+      } else {
+        console.warn('⚠️ Failed to fetch CloudFormation config from API:', response.status);
+      }
+    } catch (fetchError) {
+      console.warn('⚠️ Error fetching CloudFormation config from API:', fetchError.message);
+    }
+
+    return {};
+  }
+
+  /**
+   * Get API base URL for configuration fetching
+   */
+  getApiBaseUrl() {
+    // Try multiple sources for API URL
+    if (typeof window !== 'undefined' && window.__CONFIG__?.API?.BASE_URL) {
+      return window.__CONFIG__.API.BASE_URL;
+    }
     
-    return {
-      api: {
-        baseUrl: cfConfig.ApiGatewayUrl
-      },
-      cognito: {
-        userPoolId: cfConfig.UserPoolId,
-        clientId: cfConfig.UserPoolClientId,
-        domain: cfConfig.UserPoolDomain
-      },
-      aws: {
-        region: 'us-east-1'
-      },
-      source: 'cloudformation'
-    };
+    if (process.env.REACT_APP_API_URL) {
+      return process.env.REACT_APP_API_URL;
+    }
+    
+    // Fallback to known CloudFormation output
+    return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }
 
   /**
