@@ -5,10 +5,17 @@
  */
 
 const express = require('express');
-const { 
-  changePassword, 
-  getCurrentUser 
-} = require('@aws-amplify/auth');
+// AWS Amplify functions will be loaded conditionally to avoid import errors
+let changePassword, getCurrentUser;
+try {
+  const amplifyAuth = require('@aws-amplify/auth');
+  changePassword = amplifyAuth.changePassword;
+  getCurrentUser = amplifyAuth.getCurrentUser;
+} catch (error) {
+  console.warn('⚠️ AWS Amplify Auth not available, using fallback implementations');
+  changePassword = null;
+  getCurrentUser = null;
+}
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -51,11 +58,85 @@ const proxyToSettings = (settingsPath) => {
   };
 };
 
-// Two-Factor Authentication endpoints - proxy to settings
-router.post('/two-factor/enable', proxyToSettings('/two-factor/enable'));
-router.post('/two-factor/disable', proxyToSettings('/two-factor/disable'));
-router.post('/two-factor/verify', proxyToSettings('/two-factor/verify'));
-router.get('/two-factor/status', proxyToSettings('/two-factor/status'));
+// Two-Factor Authentication endpoints
+router.post('/two-factor/enable', async (req, res) => {
+  try {
+    console.log('🔐 2FA Enable requested');
+    
+    // For now, return a placeholder response until we implement full 2FA
+    res.json({
+      success: false,
+      error: 'Two-factor authentication setup is coming soon',
+      message: 'This feature will be available in the next update',
+      requiresSetup: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enable 2FA',
+      message: error.message
+    });
+  }
+});
+
+router.post('/two-factor/disable', async (req, res) => {
+  try {
+    console.log('🔐 2FA Disable requested');
+    
+    res.json({
+      success: false,
+      error: 'Two-factor authentication management is coming soon',
+      message: 'This feature will be available in the next update'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to disable 2FA',
+      message: error.message
+    });
+  }
+});
+
+router.post('/two-factor/verify', async (req, res) => {
+  try {
+    console.log('🔐 2FA Verify requested');
+    
+    res.json({
+      success: false,
+      error: 'Two-factor authentication verification is coming soon',
+      message: 'This feature will be available in the next update'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify 2FA',
+      message: error.message
+    });
+  }
+});
+
+router.get('/two-factor/status', async (req, res) => {
+  try {
+    console.log('🔐 2FA Status requested');
+    
+    res.json({
+      success: true,
+      data: {
+        enabled: false,
+        setupRequired: true,
+        backupCodes: 0,
+        lastUsed: null
+      },
+      message: 'Two-factor authentication is not yet configured'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get 2FA status',
+      message: error.message
+    });
+  }
+});
 
 // Recovery codes - proxy to settings
 router.get('/recovery-codes', proxyToSettings('/recovery-codes'));
@@ -116,6 +197,15 @@ router.post('/change-password', async (req, res) => {
     console.log('🔒 Changing password for user:', userId);
     
     try {
+      // Check if AWS Amplify is available
+      if (!changePassword) {
+        return res.status(503).json({
+          success: false,
+          error: 'Password change service unavailable',
+          message: 'AWS Amplify authentication service is not configured'
+        });
+      }
+      
       // Use AWS Amplify to change password
       await changePassword({
         oldPassword: currentPassword,

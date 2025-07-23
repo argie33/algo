@@ -603,7 +603,7 @@ app.get('/api/settings/api-keys', async (req, res) => {
   logger.info('API Keys GET endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     
     const result = await dbManager.query(
       'SELECT id, provider, masked_api_key, is_active, validation_status, created_at FROM user_api_keys WHERE user_id = $1',
@@ -639,7 +639,7 @@ app.post('/api/settings/api-keys', async (req, res) => {
   logger.info('API Keys POST endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     const { provider, keyId, secretKey } = req.body;
     
     if (!provider || !keyId) {
@@ -690,7 +690,7 @@ app.delete('/api/settings/api-keys/:provider', async (req, res) => {
   logger.info('API Keys DELETE endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     const { provider } = req.params;
     
     const result = await dbManager.query(
@@ -734,7 +734,7 @@ app.get('/api/settings/notifications', async (req, res) => {
   logger.info('Notifications GET endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     
     const result = await dbManager.query(
       `SELECT email_notifications as email, push_notifications as push, 
@@ -784,7 +784,7 @@ app.put('/api/settings/notifications', async (req, res) => {
   logger.info('Notifications PUT endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     const { email = true, push = true, sms = false } = req.body;
     
     const result = await dbManager.query(
@@ -829,7 +829,7 @@ app.get('/api/settings/theme', async (req, res) => {
   logger.info('Theme GET endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     
     const result = await dbManager.query(
       `SELECT dark_mode, primary_color, updated_at 
@@ -876,7 +876,7 @@ app.put('/api/settings/theme', async (req, res) => {
   logger.info('Theme PUT endpoint accessed');
   
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user?.sub || req.user?.id || 'demo-user';
     const { darkMode = false, primaryColor = '#1976d2' } = req.body;
     
     const result = await dbManager.query(

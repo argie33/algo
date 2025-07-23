@@ -13,7 +13,16 @@
 
 const crypto = require('crypto');
 const validator = require('validator');
-const geoip = require('geoip-lite');
+// Optional geoip dependency - gracefully handle if not available
+let geoip;
+try {
+  geoip = require('geoip-lite');
+} catch (error) {
+  console.warn('⚠️ geoip-lite not available, geographic security features disabled');
+  geoip = {
+    lookup: () => null
+  };
+}
 const logger = require('../utils/logger');
 
 /**
