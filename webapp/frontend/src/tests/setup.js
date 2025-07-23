@@ -125,7 +125,11 @@ beforeAll(async () => {
     length: 0,
     key: vi.fn((index) => Object.keys(localStorageData)[index] || null)
   }
-  global.localStorage = localStorageMock
+  Object.defineProperty(global, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true
+  })
   
   // Mock window and document if not available
   if (typeof window === 'undefined') {

@@ -451,6 +451,7 @@ const routes = [
   { path: './routes/health', name: 'Health', mount: '/api/health-full' },
   { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/health' },
   { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
+  { path: './routes/cloudformation', name: 'CloudFormation Config', mount: '/api/config/cloudformation' },
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },

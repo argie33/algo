@@ -1,0 +1,5 @@
+
+> financial-dashboard-frontend@1.0.10 test
+> vitest --config vitest.config.local.js src/tests/unit/services/api-key-service.test.js --reporter=json
+
+JSON report written to /home/stocks/algo/webapp/frontend/test-results/local-results.json

@@ -21,12 +21,17 @@ import {
 const TradingTab = ({ settings, updateSettings }) => {
   return (
     <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Typography variant="h5" gutterBottom>
+          Trading Preferences
+        </Typography>
+      </Grid>
       <Grid item xs={12} md={6}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
-              Order Defaults
+              Order Settings
             </Typography>
             
             <Grid container spacing={2}>
@@ -142,7 +147,8 @@ const TradingTab = ({ settings, updateSettings }) => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Automatic Stop Loss & Take Profit
+              <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
+              Stop Loss & Take Profit
             </Typography>
             
             <Grid container spacing={2}>

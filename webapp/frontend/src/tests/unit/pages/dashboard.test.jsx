@@ -12,6 +12,26 @@ import { BrowserRouter } from 'react-router-dom';
 // Import the component to test
 import Dashboard from '../../../pages/Dashboard';
 
+// Mock useSimpleFetch hook to replace React Query
+vi.mock('../../../hooks/useSimpleFetch', () => ({
+  useSimpleFetch: vi.fn(() => ({
+    data: {
+      portfolio: { value: 50000, change: 1250, changePercent: 2.56 },
+      market: { sp500: 4500, nasdaq: 14200, dow: 34800 },
+      watchlist: [
+        { symbol: 'AAPL', price: 175.25, change: 2.45, changePercent: 1.42 },
+        { symbol: 'MSFT', price: 332.89, change: -1.23, changePercent: -0.37 }
+      ]
+    },
+    loading: false,
+    error: null,
+    isLoading: false,
+    isError: false,
+    isSuccess: true,
+    refetch: vi.fn()
+  }))
+}));
+
 // Mock AuthContext
 const mockAuthContext = {
   user: { username: 'testuser', email: 'test@example.com' },
@@ -168,52 +188,45 @@ describe('📊 Dashboard Page Tests', () => {
     });
   });
 
-  describe('Data Fetching', () => {
-    it('should fetch dashboard data on mount', async () => {
+  describe('Data Fetching with useSimpleFetch', () => {
+    it('should use useSimpleFetch hook for data loading', async () => {
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
 
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/portfolio/summary', {
-          headers: {
-            'Authorization': 'Bearer mock-token',
-            'Content-Type': 'application/json'
-          }
-        });
-      });
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/market/indices', {
-          headers: {
-            'Authorization': 'Bearer mock-token',
-            'Content-Type': 'application/json'
-          }
-        });
-      });
+      // Dashboard should call useSimpleFetch multiple times for different data
+      expect(useSimpleFetch).toHaveBeenCalled();
     });
 
-    it('should handle successful data loading', async () => {
+    it('should handle successful data loading with useSimpleFetch', async () => {
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
 
-      // Wait for loading to complete
-      await waitFor(() => {
-        expect(screen.queryByTestId('loading-fallback')).not.toBeInTheDocument();
-      });
-
-      // Should have fetched data
-      expect(mockFetch).toHaveBeenCalled();
+      // Should render without loading state since mock shows loaded data
+      expect(screen.getByTestId('page-layout')).toBeInTheDocument();
+      expect(screen.queryByTestId('loading-fallback')).not.toBeInTheDocument();
     });
 
-    it('should handle API errors gracefully', async () => {
-      // Mock API error
-      mockFetch.mockRejectedValue(new Error('API Error'));
+    it('should handle loading state with useSimpleFetch', async () => {
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
+      // Mock loading state
+      useSimpleFetch.mockReturnValue({
+        data: null,
+        loading: true,
+        error: null,
+        isLoading: true,
+        isError: false,
+        isSuccess: false,
+        refetch: vi.fn()
+      });
 
       render(
         <TestWrapper>
@@ -221,18 +234,21 @@ describe('📊 Dashboard Page Tests', () => {
         </TestWrapper>
       );
 
-      // Should handle error without crashing
-      await waitFor(() => {
-        expect(screen.getByTestId('page-layout')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('loading-fallback')).toBeInTheDocument();
     });
 
-    it('should handle failed API responses', async () => {
-      // Mock failed response
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ success: false, error: 'Server error' })
+    it('should handle error state with useSimpleFetch', async () => {
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
+      // Mock error state
+      useSimpleFetch.mockReturnValue({
+        data: null,
+        loading: false,
+        error: 'API Error',
+        isLoading: false,
+        isError: true,
+        isSuccess: false,
+        refetch: vi.fn()
       });
 
       render(
@@ -241,78 +257,70 @@ describe('📊 Dashboard Page Tests', () => {
         </TestWrapper>
       );
 
-      // Should handle failed response gracefully
-      await waitFor(() => {
-        expect(screen.getByTestId('page-layout')).toBeInTheDocument();
-      });
+      // Should handle error gracefully
+      expect(screen.getByTestId('page-layout')).toBeInTheDocument();
     });
   });
 
   describe('Data Display', () => {
-    it('should display portfolio data when loaded', async () => {
+    it('should display dashboard data when loaded via useSimpleFetch', async () => {
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
-
-      // Wait for data to load
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalled();
-      });
 
       // Data should be processed (specific UI assertions would depend on actual implementation)
       expect(screen.getByTestId('page-layout')).toBeInTheDocument();
+      expect(screen.getByTestId('grid-layout')).toBeInTheDocument();
     });
 
-    it('should display market data when loaded', async () => {
+    it('should handle data rendering without fetch dependency', async () => {
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
 
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/market/indices', expect.any(Object));
-      });
-
+      // Should render page layout with useSimpleFetch data
       expect(screen.getByTestId('page-layout')).toBeInTheDocument();
     });
 
-    it('should display watchlist data when available', async () => {
+    it('should display multiple data widgets from useSimpleFetch', async () => {
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
 
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalled();
-      });
-
-      // Should render without errors
-      expect(screen.getByTestId('page-layout')).toBeInTheDocument();
+      // Should render grid layout for multiple dashboard widgets
+      expect(screen.getByTestId('grid-layout')).toBeInTheDocument();
     });
   });
 
   describe('User Interactions', () => {
-    it('should handle refresh functionality if available', async () => {
+    it('should handle refresh functionality with useSimpleFetch refetch', async () => {
+      const mockRefetch = vi.fn();
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
+      useSimpleFetch.mockReturnValue({
+        data: { portfolio: { value: 50000 } },
+        loading: false,
+        error: null,
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        refetch: mockRefetch
+      });
+
       render(
         <TestWrapper>
           <Dashboard />
         </TestWrapper>
       );
 
-      // Wait for initial load
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalled();
-      });
-
-      // Reset mock
-      mockFetch.mockClear();
-
-      // If there's a refresh mechanism, it should work
-      // This would depend on the specific UI implementation
+      // Refetch function should be available from useSimpleFetch
+      expect(mockRefetch).toBeDefined();
       expect(screen.getByTestId('page-layout')).toBeInTheDocument();
     });
 
@@ -329,8 +337,18 @@ describe('📊 Dashboard Page Tests', () => {
   });
 
   describe('Error Handling', () => {
-    it('should display error state when data fetch fails', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'));
+    it('should display error state when useSimpleFetch fails', async () => {
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
+      useSimpleFetch.mockReturnValue({
+        data: null,
+        loading: false,
+        error: 'Network error',
+        isLoading: false,
+        isError: true,
+        isSuccess: false,
+        refetch: vi.fn()
+      });
 
       render(
         <TestWrapper>
@@ -339,19 +357,32 @@ describe('📊 Dashboard Page Tests', () => {
       );
 
       // Should handle error gracefully
-      await waitFor(() => {
-        expect(screen.getByTestId('page-layout')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('page-layout')).toBeInTheDocument();
     });
 
-    it('should handle partial data loading failures', async () => {
-      // Mock one successful and one failed request
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ success: true, data: { portfolio: { value: 50000 } } })
+    it('should handle partial data loading with multiple useSimpleFetch calls', async () => {
+      const { useSimpleFetch } = await import('../../../hooks/useSimpleFetch');
+      
+      // Mock mixed success/failure states for different data sources
+      useSimpleFetch
+        .mockReturnValueOnce({
+          data: { portfolio: { value: 50000 } },
+          loading: false,
+          error: null,
+          isLoading: false,
+          isError: false,
+          isSuccess: true,
+          refetch: vi.fn()
         })
-        .mockRejectedValueOnce(new Error('Market data failed'));
+        .mockReturnValueOnce({
+          data: null,
+          loading: false,
+          error: 'Market data failed',
+          isLoading: false,
+          isError: true,
+          isSuccess: false,
+          refetch: vi.fn()
+        });
 
       render(
         <TestWrapper>
@@ -359,10 +390,8 @@ describe('📊 Dashboard Page Tests', () => {
         </TestWrapper>
       );
 
-      // Should handle partial failures
-      await waitFor(() => {
-        expect(screen.getByTestId('page-layout')).toBeInTheDocument();
-      });
+      // Should handle partial failures gracefully
+      expect(screen.getByTestId('page-layout')).toBeInTheDocument();
     });
   });
 

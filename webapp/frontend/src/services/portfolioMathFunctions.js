@@ -242,3 +242,115 @@ function getZScore(confidenceLevel) {
   
   return criticalValues[confidenceLevel] || 1.645;
 }
+
+/**
+ * Basic Statistical Functions for Portfolio Math
+ */
+
+/**
+ * Calculate the mean (average) of an array of numbers
+ */
+export function mean(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Data must be a non-empty array');
+  }
+  
+  const sum = data.reduce((acc, val) => acc + val, 0);
+  return sum / data.length;
+}
+
+/**
+ * Calculate the variance of an array of numbers
+ */
+export function variance(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Data must be a non-empty array');
+  }
+  
+  const meanValue = mean(data);
+  const squaredDifferences = data.map(val => Math.pow(val - meanValue, 2));
+  return mean(squaredDifferences);
+}
+
+/**
+ * Calculate the standard deviation of an array of numbers
+ */
+export function standardDeviation(data) {
+  return Math.sqrt(variance(data));
+}
+
+/**
+ * Calculate the covariance between two arrays of numbers
+ */
+export function covariance(dataX, dataY) {
+  if (!Array.isArray(dataX) || !Array.isArray(dataY)) {
+    throw new Error('Both inputs must be arrays');
+  }
+  
+  if (dataX.length !== dataY.length) {
+    throw new Error('Arrays must have the same length');
+  }
+  
+  if (dataX.length === 0) {
+    throw new Error('Arrays cannot be empty');
+  }
+  
+  const meanX = mean(dataX);
+  const meanY = mean(dataY);
+  
+  const covariances = dataX.map((x, i) => (x - meanX) * (dataY[i] - meanY));
+  return mean(covariances);
+}
+
+/**
+ * Calculate the correlation coefficient between two arrays of numbers
+ */
+export function correlation(dataX, dataY) {
+  const cov = covariance(dataX, dataY);
+  const stdX = standardDeviation(dataX);
+  const stdY = standardDeviation(dataY);
+  
+  if (stdX === 0 || stdY === 0) {
+    return 0; // No correlation if either variable has no variance
+  }
+  
+  return cov / (stdX * stdY);
+}
+
+/**
+ * Calculate a percentile of an array of numbers
+ */
+export function percentile(data, percentile) {
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Data must be a non-empty array');
+  }
+  
+  if (percentile < 0 || percentile > 100) {
+    throw new Error('Percentile must be between 0 and 100');
+  }
+  
+  const sorted = [...data].sort((a, b) => a - b);
+  const index = (percentile / 100) * (sorted.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  
+  if (lower === upper) {
+    return sorted[lower];
+  }
+  
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+// Export all functions as default object for backward compatibility
+const portfolioMathFunctions = {
+  calculateVaR,
+  mean,
+  variance,
+  standardDeviation,
+  covariance,
+  correlation,
+  percentile
+};
+
+export default portfolioMathFunctions;

@@ -113,7 +113,8 @@ describe('🗣️ Real Speech Service', () => {
     
     // Dynamically import to get fresh instance
     const speechServiceModule = await import('../../../services/speechService');
-    speechService = speechServiceModule.default;
+    const getSpeechService = speechServiceModule.default;
+    speechService = getSpeechService(); // Call the function to get the actual service instance
     
     // Reset service state and settings
     speechService.isListening = false;

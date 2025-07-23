@@ -52,7 +52,7 @@ import {
   AreaChart, Area, BarChart as RechartsBarChart, Bar, Cell, PieChart, Pie, RadialBarChart, RadialBar, 
   ScatterChart, Scatter, ComposedChart
 } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
+import { useSimpleFetch } from '../hooks/useSimpleFetch';
 import { getStockPrices, getStockMetrics, getBuySignals, getSellSignals } from '../services/api';
 import { format } from 'date-fns';
 import { getApiConfig } from '../services/api';
@@ -179,132 +179,53 @@ const marketSummary = [
 
 // Enhanced data fetching hooks
 function useMarketOverview() {
-  return useQuery({
-    queryKey: ['market-overview'],
-    queryFn: async () => {
-      return dataCache.get('/api/market/overview', {}, {
-        cacheType: 'marketData',
-        fetchFunction: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/market/overview`);
-            if (!res.ok) throw new Error('Failed to fetch market overview');
-            return res.json();
-          } catch (err) {
-            console.error('Market overview API failed:', err);
-            throw new Error('Market data unavailable - check API connection');
-          }
-        }
-      });
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    refetchInterval: 60 * 60 * 1000 // 1 hour refresh
+  return useSimpleFetch(`${API_BASE}/api/market/overview`, {
+    enabled: true,
+    retry: 3,
+    staleTime: 30000
   });
 }
 
 function useTopStocks() {
-  return useQuery({
-    queryKey: ['top-stocks'],
-    queryFn: async () => {
-      return dataCache.get('/api/scores', { limit: 10, sortBy: 'composite_score', sortOrder: 'desc' }, {
-        cacheType: 'marketData',
-        fetchFunction: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`);
-            if (!res.ok) throw new Error('Failed to fetch top stocks');
-            return res.json();
-          } catch (err) {
-            console.error('Top stocks API failed:', err);
-            throw new Error('Stock scoring data unavailable - check API connection');
-          }
-        }
-      });
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    refetchInterval: 60 * 60 * 1000 // 1 hour refresh
+  return useSimpleFetch(`${API_BASE}/api/scores/?limit=10&sortBy=composite_score&sortOrder=desc`, {
+    enabled: true,
+    retry: 3,
+    staleTime: 60 * 60 * 1000
   });
 }
 
 function usePortfolioData() {
   const { isAuthenticated } = useAuth();
-  return useQuery({
-    queryKey: ['portfolio-data'],
-    queryFn: async () => {
-      if (!isAuthenticated) return { data: mockPortfolio };
-      try {
-        const res = await fetch(`${API_BASE}/api/portfolio/analytics`, {
-          credentials: 'include'
-        });
-        if (!res.ok) throw new Error('Failed to fetch portfolio');
-        return res.json();
-      } catch (err) {
-        console.warn('Portfolio API failed, using mock data:', err);
-        return { data: generatePortfolioFromMarketData() };
-      }
-    },
-    staleTime: 2 * 60 * 1000,
-    enabled: true
+  const url = isAuthenticated ? `${API_BASE}/api/portfolio/holdings` : null;
+  return useSimpleFetch(url, {
+    enabled: isAuthenticated,
+    retry: 3,
+    staleTime: 30000
   });
 }
 
 function useUser() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-user'],
-    queryFn: async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
-        if (!res.ok) throw new Error('Failed to fetch user info');
-        return res.json();
-      } catch (err) {
-        console.warn('User fetch failed:', err);
-        return null;
-      }
-    },
-    staleTime: 10 * 60 * 1000,
-    retry: 1,
-    retryDelay: 1000
+  const { data, loading: isLoading, error } = useSimpleFetch(`${API_BASE}/api/user/profile`, {
+    enabled: true,
+    retry: 3,
+    staleTime: 60000
   });
-  return {
-    user: data?.data || null,
-    isLoading,
-    error,
-    isAuthenticated: !!data?.data
-  };
+  
+  return { data, isLoading, error };
 }
 
 function TechnicalSignalsWidget() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-technical-signals'],
-    queryFn: async () => {
-      try {
-        const url = `${API_BASE}/api/trading/signals/daily?limit=10`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.warn('Trading signals API failed, using mock data');
-          return {
-            data: [
-              { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
-              { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 },
-              { symbol: 'NVDA', signal: 'Buy', date: '2025-07-01', current_price: 1200, performance_percent: 3.5 }
-            ]
-          };
-        }
-        return await res.json();
-      } catch (err) {
-        console.warn('Technical signals error, using mock data:', err);
-        return {
-          data: [
-            { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
-            { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 }
-          ]
-        };
-      }
-    },
-    refetchInterval: 300000,
-    retry: 1,
-    retryDelay: 1000
+  const { data, loading: isLoading } = useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
+    enabled: true,
+    retry: 3,
+    staleTime: 300000
   });
   
-  const signals = data?.data || [];
+  const signals = Array.isArray(data?.data) ? data.data : [
+    { symbol: 'AAPL', signal: 'Buy', date: '2025-07-03', current_price: 195.12, performance_percent: 2.1 },
+    { symbol: 'TSLA', signal: 'Sell', date: '2025-07-02', current_price: 710.22, performance_percent: -1.8 },
+    { symbol: 'NVDA', signal: 'Buy', date: '2025-07-01', current_price: 1200, performance_percent: 3.5 }
+  ];
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -329,7 +250,7 @@ function TechnicalSignalsWidget() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {signals.map((sig, idx) => (
+                {(signals || []).map((sig, idx) => (
                   <TableRow key={sig.symbol + sig.date + idx}>
                     <TableCell>{sig.symbol}</TableCell>
                     <TableCell>
@@ -361,7 +282,7 @@ function TechnicalSignalsWidget() {
 
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, loading: isLoading } = useMarketOverview();
   const sentiment = marketData?.data?.sentiment || mockMarketSentiment;
   
   const getSentimentColor = (value) => {
@@ -435,7 +356,7 @@ function MarketSentimentWidget() {
 }
 
 function SectorPerformanceWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, loading: isLoading } = useMarketOverview();
   const sectors = marketData?.data?.sectors || mockSectorPerformance;
   
   return (
@@ -453,7 +374,7 @@ function SectorPerformanceWidget() {
             <YAxis tick={{ fontSize: 12 }} />
             <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
-              {sectors.map((entry, index) => (
+              {(sectors || []).map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.performance >= 0 ? '#00C49F' : '#FF8042'} />
               ))}
             </Bar>
@@ -465,8 +386,8 @@ function SectorPerformanceWidget() {
 }
 
 function TopStocksWidget() {
-  const { data: stocksData, isLoading } = useTopStocks();
-  const stocks = stocksData?.data || mockTopStocks;
+  const { data: stocksData, loading: isLoading } = useTopStocks();
+  const stocks = Array.isArray(stocksData?.data) ? stocksData.data : mockTopStocks;
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -487,7 +408,7 @@ function TopStocksWidget() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {stocks.slice(0, 6).map((stock, idx) => (
+              {(stocks || []).slice(0, 6).map((stock, idx) => (
                 <TableRow key={stock.symbol || idx}>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -514,7 +435,7 @@ function TopStocksWidget() {
 }
 
 function EconomicIndicatorsWidget() {
-  const { data: marketData, isLoading } = useMarketOverview();
+  const { data: marketData, loading: isLoading } = useMarketOverview();
   const indicators = marketData?.data?.economic || mockEconomicIndicators;
   
   const getTrendIcon = (trend) => {
@@ -532,7 +453,7 @@ function EconomicIndicatorsWidget() {
         </Box>
         
         <Stack spacing={2}>
-          {indicators.map((indicator, idx) => (
+          {(indicators || []).map((indicator, idx) => (
             <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="body2">{indicator.name}</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -559,48 +480,24 @@ const Dashboard = () => {
   const { data: marketData } = useMarketOverview();
   const { data: topStocksData } = useTopStocks();
   
-  const { data: priceData, isLoading: priceLoading } = useQuery({
-    queryKey: ['stock-prices', selectedSymbol],
-    queryFn: async () => {
-      try {
-        return await getStockPrices(selectedSymbol, 'daily', 30);
-      } catch (err) {
-        console.warn('Stock prices API failed, using mock data:', err);
-        return {
-          data: [
-            { date: '2025-06-30', close: 190.5 },
-            { date: '2025-07-01', close: 192.3 },
-            { date: '2025-07-02', close: 195.1 },
-            { date: '2025-07-03', close: 197.8 }
-          ]
-        };
-      }
-    },
+  const { data: priceData, loading: priceLoading } = useSimpleFetch(`${API_BASE}/api/market/prices/${selectedSymbol}`, {
+    enabled: true,
+    retry: 3,
     staleTime: 5 * 60 * 1000
   });
   
-  const { data: metricsData, isLoading: metricsLoading } = useQuery({
-    queryKey: ['stock-metrics', selectedSymbol],
-    queryFn: async () => {
-      try {
-        return await getStockMetrics(selectedSymbol);
-      } catch (err) {
-        console.warn('Stock metrics API failed, using mock data:', err);
-        return {
-          data: {
-            beta: 1.2,
-            volatility: 0.28,
-            sharpe_ratio: 1.45,
-            max_drawdown: -0.15
-          }
-        };
-      }
-    },
+  const { data: metricsData, loading: metricsLoading } = useSimpleFetch(`${API_BASE}/api/market/metrics/${selectedSymbol}`, {
+    enabled: true,
+    retry: 3,
     staleTime: 5 * 60 * 1000
   });
   
-  // Use data or fallback to generated data
-  const safePortfolio = portfolioData?.data || generatePortfolioFromMarketData(priceData, selectedSymbol);
+  // Use data or fallback to generated data with safe defaults
+  const safePortfolio = portfolioData?.data || generatePortfolioFromMarketData(priceData, selectedSymbol) || {
+    value: 125000,
+    pnl: { daily: 0, mtd: 0, ytd: 0 },
+    allocation: []
+  };
   const safeWatchlist = mockWatchlist;
   const safeNews = mockNews;
   const safeActivity = mockActivity;
@@ -690,8 +587,8 @@ const Dashboard = () => {
                   </Box>
                   <Box textAlign="center">
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>Today's P&L</Typography>
-                    <Typography variant="h5" fontWeight="bold" color={safePortfolio.pnl.daily >= 0 ? 'success.light' : 'error.light'}>
-                      ${safePortfolio.pnl.daily.toLocaleString()}
+                    <Typography variant="h5" fontWeight="bold" color={safePortfolio.pnl?.daily >= 0 ? 'success.light' : 'error.light'}>
+                      ${(safePortfolio.pnl?.daily || 0).toLocaleString()}
                     </Typography>
                   </Box>
                   <Box textAlign="center">
@@ -854,7 +751,7 @@ const Dashboard = () => {
       <Box sx={{ mb: 4, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Market Summary</Typography>
         <Grid container spacing={2}>
-          {marketSummary.map((mkt, idx) => (
+          {(marketSummary || []).map((mkt, idx) => (
             <Grid item xs={12} sm={6} md={2} key={mkt.name}>
               <Card sx={{ boxShadow: 1, borderTop: `4px solid ${WIDGET_COLORS[idx % WIDGET_COLORS.length]}` }}>
                 <CardContent sx={{ textAlign: 'center', py: 1 }}>
@@ -884,14 +781,14 @@ const Dashboard = () => {
                 ${safePortfolio.value.toLocaleString()}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Chip label={`Daily: $${safePortfolio.pnl.daily.toLocaleString()}`} color={safePortfolio.pnl.daily >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`MTD: $${safePortfolio.pnl.mtd.toLocaleString()}`} color={safePortfolio.pnl.mtd >= 0 ? 'success' : 'error'} size="small" />
-                <Chip label={`YTD: $${safePortfolio.pnl.ytd.toLocaleString()}`} color={safePortfolio.pnl.ytd >= 0 ? 'success' : 'error'} size="small" />
+                <Chip label={`Daily: $${(safePortfolio.pnl?.daily || 0).toLocaleString()}`} color={safePortfolio.pnl?.daily >= 0 ? 'success' : 'error'} size="small" />
+                <Chip label={`MTD: $${(safePortfolio.pnl?.mtd || 0).toLocaleString()}`} color={safePortfolio.pnl?.mtd >= 0 ? 'success' : 'error'} size="small" />
+                <Chip label={`YTD: $${(safePortfolio.pnl?.ytd || 0).toLocaleString()}`} color={safePortfolio.pnl?.ytd >= 0 ? 'success' : 'error'} size="small" />
               </Box>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={safePortfolio.allocation} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name} ${value}%`}>
-                    {safePortfolio.allocation.map((entry, idx) => (
+                  <Pie data={safePortfolio.allocation || []} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name} ${value}%`}>
+                    {(safePortfolio.allocation || []).map((entry, idx) => (
                       <Cell key={`cell-${idx}`} fill={WIDGET_COLORS[idx % WIDGET_COLORS.length]} />
                     ))}
                   </Pie>
@@ -920,7 +817,7 @@ const Dashboard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {safeWatchlist.map((item, idx) => (
+                    {(safeWatchlist || []).map((item, idx) => (
                       <TableRow key={item.symbol || idx}>
                         <TableCell>
                           <Typography variant="body2" fontWeight="bold">{item.symbol}</Typography>
@@ -990,7 +887,7 @@ const Dashboard = () => {
                 <Chip label="AI-Powered" color="primary" size="small" sx={{ ml: 1 }} />
               </Box>
               <Stack spacing={2}>
-                {safeSignals.map((sig, idx) => (
+                {(safeSignals || []).map((sig, idx) => (
                   <Box key={sig.symbol || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box>
@@ -1031,7 +928,7 @@ const Dashboard = () => {
                 <Chip label="High Impact" color="warning" size="small" sx={{ ml: 1 }} />
               </Box>
               <Stack spacing={2}>
-                {safeCalendar.map((ev, idx) => (
+                {(safeCalendar || []).map((ev, idx) => (
                   <Box key={ev.event || idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box>
@@ -1069,7 +966,7 @@ const Dashboard = () => {
                 </Button>
               </Box>
               <Stack spacing={2}>
-                {safeActivity.map((act, idx) => (
+                {(safeActivity || []).map((act, idx) => (
                   <Box key={act.type + act.desc + idx} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box>
@@ -1088,182 +985,6 @@ const Dashboard = () => {
                   </Box>
                 ))}
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-
-      {/* AI-Powered Analytics Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)', border: '1px solid #ddd' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <Psychology sx={{ color: 'primary.main', mr: 1, fontSize: 32 }} />
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>AI-Powered Intelligence Center</Typography>
-                <Chip label="Neural Networks" color="primary" size="small" sx={{ ml: 2 }} />
-                <Chip label="Machine Learning" color="secondary" size="small" sx={{ ml: 1 }} />
-              </Box>
-              
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #1976d2' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
-                        Market Intelligence
-                      </Typography>
-                      <List dense>
-                        <ListItem>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'success.main', width: 32, height: 32 }}>
-                              <TrendingUp fontSize="small" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary="Market Sentiment: Bullish"
-                            secondary="Neural network confidence: 89%"
-                          />
-                        </ListItem>
-                        <ListItem>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'warning.main', width: 32, height: 32 }}>
-                              <Warning fontSize="small" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary="Volatility Forecast"
-                            secondary="VIX spike probability: 34%"
-                          />
-                        </ListItem>
-                        <ListItem>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
-                              <AutoGraph fontSize="small" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary="Sector Rotation Signal"
-                            secondary="Technology outperformance expected"
-                          />
-                        </ListItem>
-                      </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #43a047' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'success.main', fontWeight: 600 }}>
-                        Risk Management
-                      </Typography>
-                      <Stack spacing={2}>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Portfolio Beta
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={75}
-                              sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                            />
-                            <Typography variant="h6">0.95</Typography>
-                          </Box>
-                        </Box>
-                        
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Value at Risk (95%)
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={60}
-                              color="warning"
-                              sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                            />
-                            <Typography variant="h6">-$28K</Typography>
-                          </Box>
-                        </Box>
-                        
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Sharpe Ratio
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={85}
-                              color="success"
-                              sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                            />
-                            <Typography variant="h6">1.42</Typography>
-                          </Box>
-                        </Box>
-                        
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Max Drawdown
-                          </Typography>
-                          <Box display="flex" alignItems="center" gap={2}>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={25}
-                              color="error"
-                              sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                            />
-                            <Typography variant="h6">-8.2%</Typography>
-                          </Box>
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ height: '100%', border: '2px solid #ff9800' }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'warning.main', fontWeight: 600 }}>
-                        Algorithm Signals
-                      </Typography>
-                      <List dense>
-                        {safeSignals.map((signal, idx) => (
-                          <ListItem key={idx}>
-                            <ListItemAvatar>
-                              <Avatar sx={{ 
-                                bgcolor: signal.action === 'Buy' ? 'success.main' : 'error.main',
-                                width: 32, height: 32
-                              }}>
-                                {signal.action === 'Buy' ? <ArrowUpward fontSize="small" /> : <ArrowDownward fontSize="small" />}
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={`${signal.action} ${signal.symbol}`}
-                              secondary={`${(signal.confidence * 100).toFixed(0)}% confidence • ${signal.type}`}
-                            />
-                            <IconButton size="small" color="primary">
-                              <PlayArrow />
-                            </IconButton>
-                          </ListItem>
-                        ))}
-                        <ListItem>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
-                              <Bolt fontSize="small" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary="Strategy Performance"
-                            secondary="YTD: +23.7% • Win Rate: 87.2%"
-                          />
-                        </ListItem>
-                      </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
             </CardContent>
           </Card>
         </Grid>
@@ -1338,26 +1059,6 @@ const Dashboard = () => {
                 onClick={() => window.location.href = '/alerts'}
               >
                 Set Alert
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
-                variant="contained" 
-                color="info"
-                startIcon={<Download />} 
-                fullWidth
-              >
-                Export Data
-              </Button>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Button 
-                variant="outlined"
-                startIcon={<Settings />} 
-                fullWidth
-                onClick={() => window.location.href = '/settings'}
-              >
-                Settings
               </Button>
             </Grid>
           </Grid>

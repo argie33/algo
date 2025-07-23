@@ -8,7 +8,10 @@ const initialState = {
   isAuthenticated: false,
   isLoading: true,
   error: null,
-  tokens: null
+  tokens: null,
+  retryCount: 0,
+  maxRetries: 3,
+  lastRetryTime: 0
 };
 
 // Auth actions
@@ -19,7 +22,9 @@ const AUTH_ACTIONS = {
   LOGOUT: 'LOGOUT',
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
-  UPDATE_TOKENS: 'UPDATE_TOKENS'
+  UPDATE_TOKENS: 'UPDATE_TOKENS',
+  INCREMENT_RETRY: 'INCREMENT_RETRY',
+  RESET_RETRIES: 'RESET_RETRIES'
 };
 
 // Auth reducer
@@ -73,6 +78,18 @@ function authReducer(state, action) {
         ...state,
         tokens: action.payload
       };
+    case AUTH_ACTIONS.INCREMENT_RETRY:
+      return {
+        ...state,
+        retryCount: state.retryCount + 1,
+        lastRetryTime: Date.now()
+      };
+    case AUTH_ACTIONS.RESET_RETRIES:
+      return {
+        ...state,
+        retryCount: 0,
+        lastRetryTime: 0
+      };
     default:
       return state;
   }
@@ -90,9 +107,36 @@ export function AuthProvider({ children }) {
     checkAuthState();
   }, []);
 
-  const checkAuthState = async () => {
+  const checkAuthState = async (forceRetry = false) => {
+    // Circuit breaker: prevent infinite loops
+    const now = Date.now();
+    const timeSinceLastRetry = now - state.lastRetryTime;
+    const exponentialBackoff = Math.min(10000 * Math.pow(2, state.retryCount), 60000); // Max 1 minute
+    
+    if (!forceRetry && state.retryCount >= state.maxRetries) {
+      console.warn('🛑 Auth retry limit reached. Preventing infinite loop.');
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Authentication retry limit exceeded. Please sign in manually.' });
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      return;
+    }
+    
+    if (!forceRetry && timeSinceLastRetry < exponentialBackoff) {
+      console.warn(`🛑 Auth retry backoff active. Wait ${Math.ceil((exponentialBackoff - timeSinceLastRetry) / 1000)}s before next attempt.`);
+      return;
+    }
+    
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
+      dispatch({ type: AUTH_ACTIONS.INCREMENT_RETRY });
+      
+      // Initialize runtime configuration first
+      try {
+        const { initializeRuntimeConfig } = await import('../services/runtimeConfig');
+        await initializeRuntimeConfig();
+        console.log('✅ Runtime configuration loaded in AuthContext');
+      } catch (runtimeError) {
+        console.warn('⚠️ Runtime config failed, using static config:', runtimeError);
+      }
       
       // Check if authentication is enabled and Cognito is configured
       const { FEATURES, AWS_CONFIG } = await import('../config/environment');
@@ -168,6 +212,7 @@ export function AuthProvider({ children }) {
               tokens
             }
           });
+          dispatch({ type: AUTH_ACTIONS.RESET_RETRIES }); // Reset retry count on success
           console.log('✅ User authenticated with Cognito');
           return;
         }
@@ -179,7 +224,14 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } catch (error) {
       console.error('Error checking auth state:', error);
-      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+      
+      // Stop retrying after max attempts to prevent infinite loops
+      if (state.retryCount >= state.maxRetries) {
+        console.error('🛑 Max auth retries reached. Stopping attempts.');
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+      } else {
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+      }
     } finally {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
     }
@@ -208,7 +260,8 @@ export function AuthProvider({ children }) {
       const { isSignedIn, nextStep } = await signIn({ username, password });
 
       if (isSignedIn) {
-        await checkAuthState(); // This will update the state with user info
+        dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
+        await checkAuthState(true); // Force retry for successful login
         return { success: true };
       } else if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
         return { 
@@ -395,7 +448,9 @@ export function AuthProvider({ children }) {
     forgotPassword: resetPasswordRequest, // Alias for Settings.jsx compatibility
     clearError,
     refreshTokens,
-    checkAuthState
+    checkAuthState,
+    retryCount: state.retryCount,
+    maxRetries: state.maxRetries
   };
 
   return (

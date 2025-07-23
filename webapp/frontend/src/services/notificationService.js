@@ -74,13 +74,28 @@ class NotificationService {
 
   // Initialize audio for sound alerts
   initializeAudio() {
+    // Skip audio initialization in test environments
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
+      console.log('🔇 Audio context disabled in test environment');
+      return;
+    }
+
     try {
-      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        console.warn('🔇 AudioContext not supported in this browser');
+        return;
+      }
+
+      this.audioContext = new AudioContextClass();
       this.gainNode = this.audioContext.createGain();
       this.gainNode.connect(this.audioContext.destination);
       this.gainNode.gain.value = this.settings.soundVolume;
+      console.log('🔊 Audio context initialized successfully');
     } catch (e) {
       console.warn('Audio context not supported:', e);
+      this.audioContext = null;
+      this.gainNode = null;
     }
   }
 

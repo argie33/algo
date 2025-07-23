@@ -4,27 +4,48 @@
  */
 
 import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import StockDetail from '../../../pages/StockDetail';
 
+// Mock useSimpleFetch hook
+vi.mock('../../../hooks/useSimpleFetch', () => ({
+  useSimpleFetch: vi.fn(() => ({
+    data: {
+      symbol: 'AAPL',
+      name: 'Apple Inc.',
+      price: 150,
+      change: 2.5,
+      changePercent: 1.69,
+      marketCap: 2500000000000,
+      volume: 50000000
+    },
+    loading: false,
+    error: null,
+    isLoading: false,
+    isError: false,
+    isSuccess: true,
+    refetch: vi.fn()
+  }))
+}));
+
 // Mock the API module
-jest.mock('../../../services/api', () => ({
+vi.mock('../../../services/api', () => ({
   getApiConfig: () => ({
     apiUrl: 'https://test-api.com',
     isServerless: true,
     isConfigured: true
   }),
-  getStockPrices: jest.fn().mockResolvedValue({
+  getStockPrices: vi.fn().mockResolvedValue({
     data: [
       { date: '2025-01-01', close: 150, open: 148, high: 152, low: 147, volume: 1000000 },
       { date: '2025-01-02', close: 155, open: 150, high: 157, low: 149, volume: 1200000 }
     ],
     success: true
   }),
-  getStockData: jest.fn().mockResolvedValue({
+  getStockData: vi.fn().mockResolvedValue({
     data: {
       symbol: 'AAPL',
       name: 'Apple Inc.',
@@ -40,7 +61,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getStockMetrics: jest.fn().mockResolvedValue({
+  getStockMetrics: vi.fn().mockResolvedValue({
     data: {
       beta: 1.2,
       volatility: 0.15,
@@ -58,7 +79,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getAnalystRecommendations: jest.fn().mockResolvedValue({
+  getAnalystRecommendations: vi.fn().mockResolvedValue({
     data: {
       strong_buy: 5,
       buy: 8,
@@ -71,7 +92,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getBalanceSheet: jest.fn().mockResolvedValue({
+  getBalanceSheet: vi.fn().mockResolvedValue({
     data: {
       totalAssets: 365725000000,
       totalLiabilities: 287912000000,
@@ -81,7 +102,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getIncomeStatement: jest.fn().mockResolvedValue({
+  getIncomeStatement: vi.fn().mockResolvedValue({
     data: {
       revenue: 394328000000,
       grossProfit: 169148000000,
@@ -91,7 +112,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getCashFlowStatement: jest.fn().mockResolvedValue({
+  getCashFlowStatement: vi.fn().mockResolvedValue({
     data: {
       operatingCashFlow: 122151000000,
       capitalExpenditures: -10708000000,
@@ -100,7 +121,7 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getAnalystOverview: jest.fn().mockResolvedValue({
+  getAnalystOverview: vi.fn().mockResolvedValue({
     data: {
       averageRating: 'Buy',
       totalAnalysts: 28,
@@ -113,7 +134,7 @@ jest.mock('../../../services/api', () => ({
 }));
 
 // Mock components that might cause rendering issues
-jest.mock('../../../components/ApiKeyStatusIndicator', () => {
+vi.mock('../../../components/ApiKeyStatusIndicator', () => {
   return function MockApiKeyStatusIndicator({ compact, showSetupDialog, onStatusChange }) {
     return (
       <div data-testid="api-key-status-indicator">
@@ -123,7 +144,7 @@ jest.mock('../../../components/ApiKeyStatusIndicator', () => {
   };
 });
 
-jest.mock('../../../components/HistoricalPriceChart', () => {
+vi.mock('../../../components/HistoricalPriceChart', () => {
   return function MockHistoricalPriceChart({ data, symbol }) {
     return (
       <div data-testid="historical-price-chart">
@@ -160,7 +181,7 @@ const TestWrapper = ({ children, symbol = 'AAPL' }) => {
 
 describe('StockDetail Component', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {

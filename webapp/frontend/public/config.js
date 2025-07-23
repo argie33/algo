@@ -19,24 +19,29 @@ window.__CONFIG__ = {
     return 'production';
   })(),
   
-  // API Configuration (NO HARDCODED URLs)
+  // API Configuration - will be populated by CloudFormation deployment
   API: {
     BASE_URL: (function() {
-      // Environment-based API URL selection
+      // Check if CloudFormation config was injected during deployment
+      if (window.__CLOUDFORMATION_CONFIG__?.ApiGatewayUrl) {
+        return window.__CLOUDFORMATION_CONFIG__.ApiGatewayUrl;
+      }
+      
+      // Environment-based API URL selection as fallback
       const hostname = window.location.hostname;
       
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // Development - use local backend or mock
+        // Development - use local backend or placeholder
         return 'http://localhost:3001/api';
       }
       
       if (hostname.includes('staging') || hostname.includes('dev')) {
-        // Staging environment - AWS API Gateway staging stage
-        return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/staging';
+        // Staging environment - placeholder that will be replaced by deployment
+        return 'https://api-gateway-placeholder-staging.execute-api.us-east-1.amazonaws.com/staging';
       }
       
-      // Production - AWS API Gateway production stage
-      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+      // Production - placeholder that will be replaced by deployment
+      return 'https://api-gateway-placeholder-prod.execute-api.us-east-1.amazonaws.com/prod';
     })(),
     VERSION: 'v1',
     TIMEOUT: 30000,
@@ -49,12 +54,12 @@ window.__CONFIG__ = {
     REGION: 'us-east-1' // Will be updated during deployment
   },
   
-  // Cognito Configuration (MUST BE SET DURING DEPLOYMENT)
+  // Cognito Configuration - will be populated by CloudFormation deployment
   COGNITO: {
-    USER_POOL_ID: null, // CRITICAL: Must be set via deployment script
-    CLIENT_ID: null,    // CRITICAL: Must be set via deployment script
+    USER_POOL_ID: window.__CLOUDFORMATION_CONFIG__?.UserPoolId || null, // Populated by deployment
+    CLIENT_ID: window.__CLOUDFORMATION_CONFIG__?.UserPoolClientId || null, // Populated by deployment
     REGION: 'us-east-1',
-    DOMAIN: null, // Optional OAuth domain
+    DOMAIN: window.__CLOUDFORMATION_CONFIG__?.UserPoolDomain || null,
     REDIRECT_SIGN_IN: window.location.origin,
     REDIRECT_SIGN_OUT: window.location.origin
   },

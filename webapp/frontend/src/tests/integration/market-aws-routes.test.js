@@ -270,7 +270,8 @@ describe('🔵 AWS Market Route Integration Tests - INTERNAL LOGIC', () => {
       
       const priceData = [100, 102, 101, 103, 105, 104, 106, 108, 107, 109];
       const sma5 = simpleMovingAverage(priceData, 5);
-      const expectedSma5 = (105 + 104 + 106 + 108 + 107) / 5;
+      // The last 5 values are: [104, 106, 108, 107, 109]
+      const expectedSma5 = (104 + 106 + 108 + 107 + 109) / 5;
       
       expect(sma5).toBeCloseTo(expectedSma5, 6);
       console.log(`✅ SMA(5) calculated: ${sma5} (expected: ${expectedSma5})`);

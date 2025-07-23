@@ -88,7 +88,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const Settings = () => {
-  const { user, isAuthenticated, isLoading, logout, checkAuthState } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, checkAuthState, retryCount, maxRetries } = useAuth();
   const navigate = useNavigate();
   const { apiUrl } = getApiConfig();
   
@@ -142,16 +142,18 @@ const Settings = () => {
   //   }
   // }, [isAuthenticated, isLoading, navigate]);
 
-  // Load user data
+  // Load user data with circuit breaker
   useEffect(() => {
     if (isAuthenticated && user) {
       loadUserSettings();
-    } else if (!isLoading && !user && !isAuthenticated) {
-      // If we're not loading, have no user, and not authenticated, try to re-check auth
-      console.log('Settings: No user found, attempting to re-check authentication');
+    } else if (!isLoading && !user && !isAuthenticated && retryCount < maxRetries) {
+      // Only retry if we haven't exceeded the limit
+      console.log(`Settings: No user found, attempting to re-check authentication (${retryCount}/${maxRetries})`);
       checkAuthState();
+    } else if (retryCount >= maxRetries) {
+      console.warn('🛑 Settings: Auth retry limit reached, stopping attempts');
     }
-  }, [isAuthenticated, user, isLoading]);
+  }, [isAuthenticated, user, isLoading, retryCount, maxRetries]);
 
   const loadUserSettings = async () => {
     try {

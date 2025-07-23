@@ -69,6 +69,16 @@ Resources:
                 Action:
                   - execute-api:Invoke
                 Resource: 'arn:aws:execute-api:*:*:*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: 
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:alpaca-api-credentials-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:polygon-api-credentials-*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*'
 
   #############################################################################
   # ELASTICACHE REDIS - LOW LATENCY CACHING
@@ -536,7 +546,264 @@ Resources:
           ELASTICACHE_ENDPOINT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
           ELASTICACHE_PORT: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
           WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
-          API_ENDPOINT: https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev
+          API_ENDPOINT: https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev
+
+  # Real-time WebSocket handler with Alpaca integration
+  RealTimeWebSocketHandler:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-websocket-realtime-handler'
+      Runtime: nodejs18.x
+      Handler: realBroadcaster.handler
+      Role: !GetAtt WebSocketLambdaRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AWS_REGION: !Ref 'AWS::Region'
+          ALPACA_API_KEY: !Sub '{{resolve:secretsmanager:alpaca-api-credentials:SecretString:keyId}}'
+          ALPACA_SECRET_KEY: !Sub '{{resolve:secretsmanager:alpaca-api-credentials:SecretString:secretKey}}'
+      Code:
+        ZipFile: |
+          // Placeholder - will be replaced with actual code during deployment
+          exports.handler = async (event, context) => {
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ message: 'WebSocket handler placeholder' })
+            };
+          };
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-websocket-realtime-handler'
+        - Key: TestIntegration
+          Value: 'true'
+  
+  # Real market data broadcaster - uses actual financial APIs
+  RealMarketDataBroadcaster:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-market-data-broadcaster-real'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt WebSocketLambdaRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+          MARKET_DATA_TABLE: !Ref MarketDataTable
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue StocksCore-PublicSubnet1Id
+          - !ImportValue StocksCore-PublicSubnet2Id
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const https = require('https');
+          
+          const dynamoDB = new AWS.DynamoDB.DocumentClient();
+          const secretsManager = new AWS.SecretsManager();
+          const apigateway = new AWS.ApiGatewayManagementApi({
+            endpoint: process.env.WEBSOCKET_API_ENDPOINT
+          });
+          
+          let alpacaCredentials = null;
+          let polygonCredentials = null;
+          
+          async function getCredentials() {
+            if (alpacaCredentials && polygonCredentials) {
+              return { alpacaCredentials, polygonCredentials };
+            }
+            
+            try {
+              const [alpacaSecret, polygonSecret] = await Promise.all([
+                secretsManager.getSecretValue({ SecretId: 'alpaca-api-credentials' }).promise(),
+                secretsManager.getSecretValue({ SecretId: 'polygon-api-credentials' }).promise()
+              ]);
+              
+              alpacaCredentials = JSON.parse(alpacaSecret.SecretString);
+              polygonCredentials = JSON.parse(polygonSecret.SecretString);
+              
+              return { alpacaCredentials, polygonCredentials };
+            } catch (error) {
+              console.error('Failed to get API credentials:', error);
+              throw new Error('API credentials not available');
+            }
+          }
+          
+          async function fetchRealMarketData(symbols) {
+            const { alpacaCredentials, polygonCredentials } = await getCredentials();
+            const marketData = [];
+            
+            // Fetch from Alpaca
+            try {
+              const alpacaData = await fetchFromAlpaca(symbols, alpacaCredentials);
+              marketData.push(...alpacaData);
+            } catch (error) {
+              console.error('Alpaca fetch failed:', error);
+            }
+            
+            // Fetch from Polygon as backup
+            if (marketData.length === 0) {
+              try {
+                const polygonData = await fetchFromPolygon(symbols, polygonCredentials);
+                marketData.push(...polygonData);
+              } catch (error) {
+                console.error('Polygon fetch also failed:', error);
+                throw new Error('All market data sources failed');
+              }
+            }
+            
+            return marketData;
+          }
+          
+          function fetchFromAlpaca(symbols, credentials) {
+            return new Promise((resolve, reject) => {
+              const params = new URLSearchParams({
+                symbols: symbols.join(','),
+                feed: 'iex'
+              });
+              
+              const options = {
+                hostname: 'data.alpaca.markets',
+                path: `/v2/stocks/quotes/latest?${params}`,
+                method: 'GET',
+                headers: {
+                  'APCA-API-KEY-ID': credentials.keyId,
+                  'APCA-API-SECRET-KEY': credentials.secretKey
+                }
+              };
+              
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    const result = JSON.parse(data);
+                    const marketData = [];
+                    
+                    if (result.quotes) {
+                      for (const [symbol, quote] of Object.entries(result.quotes)) {
+                        if (quote.bp && quote.ap) {
+                          marketData.push({
+                            symbol,
+                            price: (quote.bp + quote.ap) / 2,
+                            bid: quote.bp,
+                            ask: quote.ap,
+                            timestamp: new Date(quote.t).getTime(),
+                            source: 'alpaca'
+                          });
+                        }
+                      }
+                    }
+                    resolve(marketData);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+              });
+              
+              req.on('error', reject);
+              req.setTimeout(10000, () => reject(new Error('Alpaca timeout')));
+              req.end();
+            });
+          }
+          
+          function fetchFromPolygon(symbols, credentials) {
+            return new Promise((resolve, reject) => {
+              const params = new URLSearchParams({
+                tickers: symbols.join(','),
+                apikey: credentials.apiKey
+              });
+              
+              const options = {
+                hostname: 'api.polygon.io',
+                path: `/v2/snapshot/locale/us/markets/stocks/tickers?${params}`,
+                method: 'GET'
+              };
+              
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    const result = JSON.parse(data);
+                    const marketData = [];
+                    
+                    if (result.results) {
+                      for (const item of result.results) {
+                        if (item.value && item.lastQuote) {
+                          marketData.push({
+                            symbol: item.ticker,
+                            price: item.value,
+                            bid: item.lastQuote.bid,
+                            ask: item.lastQuote.ask,
+                            volume: item.day?.v || 0,
+                            timestamp: item.updated || Date.now(),
+                            source: 'polygon'
+                          });
+                        }
+                      }
+                    }
+                    resolve(marketData);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+              });
+              
+              req.on('error', reject);
+              req.setTimeout(10000, () => reject(new Error('Polygon timeout')));
+              req.end();
+            });
+          }
+          
+          exports.handler = async (event) => {
+            console.log('Real market data broadcaster invoked');
+            
+            try {
+              const { symbols } = event;
+              
+              if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+                return {
+                  statusCode: 400,
+                  body: JSON.stringify({ error: 'No symbols provided' })
+                };
+              }
+              
+              console.log(`Fetching real data for symbols: ${symbols.join(', ')}`);
+              const marketData = await fetchRealMarketData(symbols);
+              
+              console.log(`Retrieved ${marketData.length} real market data points`);
+              
+              return {
+                statusCode: 200,
+                body: JSON.stringify({
+                  message: 'Real market data fetched successfully',
+                  marketData,
+                  symbolsRequested: symbols.length,
+                  dataRetrieved: marketData.length
+                })
+              };
+              
+            } catch (error) {
+              console.error('Real market data fetch failed:', error);
+              return {
+                statusCode: 500,
+                body: JSON.stringify({
+                  error: 'Real market data fetch failed',
+                  message: error.message
+                })
+              };
+            }
+          };
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-real-market-data-broadcaster'
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
@@ -547,10 +814,8 @@ Resources:
         ZipFile: |
           import json
           import boto3
-          import redis
           import logging
           import os
-          import time
           import requests
           from datetime import datetime
           
@@ -559,84 +824,174 @@ Resources:
           
           # AWS clients
           dynamodb = boto3.resource('dynamodb')
+          dynamodb_client = boto3.client('dynamodb')
           apigateway = boto3.client('apigatewaymanagementapi', 
                                   endpoint_url=os.environ['WEBSOCKET_API_ENDPOINT'])
           
           def lambda_handler(event, context):
+              logger.info("REAL market data broadcast starting...")
+              
               try:
-                  # Get latest market data from our existing API
-                  api_url = f"{os.environ['API_ENDPOINT']}/api/stocks"
-                  response = requests.get(api_url, params={'limit': 50}, timeout=10)
-                  
-                  if response.status_code != 200:
-                      logger.error(f"API request failed: {response.status_code}")
-                      return {'statusCode': 500}
-                  
-                  stocks_data = response.json()
-                  
-                  # Connect to Redis
-                  redis_client = redis.Redis(
-                      host=os.environ['ELASTICACHE_ENDPOINT'],
-                      port=int(os.environ['ELASTICACHE_PORT']),
-                      decode_responses=True,
-                      socket_connect_timeout=2,
-                      socket_timeout=2
+                  # Get active subscriptions from DynamoDB
+                  subscriptions_table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+                  response = subscriptions_table.scan(
+                      FilterExpression='#status = :status',
+                      ExpressionAttributeNames={'#status': 'status'},
+                      ExpressionAttributeValues={':status': 'active'}
                   )
                   
-                  # Broadcast data to subscribers
-                  for stock in stocks_data:
-                      symbol = stock.get('symbol')
-                      if not symbol:
-                          continue
-                          
-                      # Get subscribers for this symbol
-                      subscribers = redis_client.smembers(f'subscribers:{symbol}')
-                      
-                      if subscribers:
-                          # Prepare market data message
-                          market_data = {
-                              'type': 'market_data',
-                              'symbol': symbol,
-                              'data': {
-                                  'price': stock.get('price'),
-                                  'change': stock.get('change'),
-                                  'change_percent': stock.get('change_percent'),
-                                  'volume': stock.get('volume'),
-                                  'timestamp': time.time()
-                              }
-                          }
-                          
-                          # Cache in Redis
-                          redis_client.hset(f'market:{symbol}', mapping=market_data['data'])
-                          redis_client.expire(f'market:{symbol}', 300)  # 5 min expiry
-                          
-                          # Broadcast to subscribers
-                          message = json.dumps(market_data)
-                          
-                          for connection_id in subscribers:
-                              try:
-                                  apigateway.post_to_connection(
-                                      ConnectionId=connection_id,
-                                      Data=message
-                                  )
-                              except Exception as e:
-                                  # Remove stale connection
-                                  redis_client.srem('active_connections', connection_id)
-                                  redis_client.srem(f'subscribers:{symbol}', connection_id)
-                                  logger.warning(f"Removed stale connection: {connection_id}")
+                  subscriptions = response.get('Items', [])
+                  logger.info(f"Found {len(subscriptions)} active subscriptions")
                   
-                  logger.info(f"Broadcasted data for {len(stocks_data)} symbols")
-                  return {'statusCode': 200}
+                  if not subscriptions:
+                      return {'statusCode': 200, 'body': 'No active subscriptions'}
+                  
+                  # Get unique symbols from subscriptions
+                  symbols = set()
+                  for sub in subscriptions:
+                      if 'symbols' in sub and isinstance(sub['symbols'], list):
+                          for symbol in sub['symbols']:
+                              # Only include real stock symbols, not portfolio pseudo-symbols
+                              if not symbol.startswith('PORTFOLIO_') and len(symbol) <= 5 and symbol.isalpha():
+                                  symbols.add(symbol.upper())
+                  
+                  symbols_list = list(symbols)
+                  logger.info(f"Fetching REAL data for {len(symbols_list)} symbols: {symbols_list}")
+                  
+                  if not symbols_list:
+                      return {'statusCode': 200, 'body': 'No valid symbols to fetch'}
+                  
+                  # Use external real market data broadcaster
+                  # Call the dedicated real broadcaster that fetches from Alpaca/Polygon APIs
+                  import boto3
+                  
+                  lambda_client = boto3.client('lambda')
+                  
+                  try:
+                      # Invoke the real market data broadcaster
+                      response = lambda_client.invoke(
+                          FunctionName=f"{os.environ.get('AWS_LAMBDA_FUNCTION_NAME', '').split('-')[0]}-market-data-broadcaster-real",
+                          InvocationType='RequestResponse',
+                          Payload=json.dumps({
+                              'symbols': symbols_list,
+                              'requestId': context.aws_request_id if context else 'manual'
+                          })
+                      )
+                      
+                      result = json.loads(response['Payload'].read())
+                      
+                      if response['StatusCode'] == 200 and 'body' in result:
+                          broadcaster_result = json.loads(result['body'])
+                          market_data = broadcaster_result.get('marketData', [])
+                          
+                          if not market_data:
+                              logger.error("Real broadcaster returned no market data")
+                              return {'statusCode': 200, 'body': 'No market data from real broadcaster'}
+                      else:
+                          logger.error(f"Real broadcaster failed: {result}")
+                          return {'statusCode': 500, 'body': 'Real broadcaster failed'}
+                          
+                  except Exception as broadcaster_error:
+                      logger.error(f"Failed to call real broadcaster: {broadcaster_error}")
+                      return {'statusCode': 500, 'body': 'Real broadcaster invocation failed'}
+                  
+                  logger.info(f"Retrieved {len(market_data)} market data points")
+                  
+                  if not market_data:
+                      return {'statusCode': 200, 'body': 'No market data retrieved'}
+                  
+                  # Store market data in DynamoDB
+                  market_data_table = dynamodb.Table(os.environ['MARKET_DATA_TABLE'])
+                  timestamp = int(datetime.now().timestamp())
+                  
+                  for data in market_data:
+                      try:
+                          market_data_table.put_item(Item={
+                              'symbol': data['symbol'],
+                              'timestamp': timestamp,
+                              'sortKey': f"{timestamp}-{data['source']}",
+                              'price': data['price'],
+                              'volume': data['volume'],
+                              'change': data['change'],
+                              'changePercent': data['changePercent'],
+                              'source': data['source'],
+                              'rawData': data,
+                              'ttl': timestamp + 86400  # 24 hours TTL
+                          })
+                      except Exception as store_error:
+                          logger.warning(f"Failed to store data for {data['symbol']}: {store_error}")
+                  
+                  # Broadcast to WebSocket connections
+                  broadcast_count = 0
+                  
+                  for data in market_data:
+                      symbol = data['symbol']
+                      
+                      # Find connections subscribed to this symbol
+                      subscribed_connections = [
+                          sub for sub in subscriptions 
+                          if 'symbols' in sub and symbol in sub['symbols']
+                      ]
+                      
+                      if not subscribed_connections:
+                          continue
+                      
+                      message = json.dumps({
+                          'type': 'market_data_update',
+                          'symbol': symbol,
+                          'data': {
+                              'price': data['price'],
+                              'change': data['change'],
+                              'changePercent': data['changePercent'],
+                              'volume': data['volume'],
+                              'timestamp': data['timestamp'],
+                              'source': data['source']
+                          },
+                          'timestamp': datetime.now().isoformat()
+                      })
+                      
+                      for subscription in subscribed_connections:
+                          try:
+                              apigateway.post_to_connection(
+                                  ConnectionId=subscription['connectionId'],
+                                  Data=message
+                              )
+                              broadcast_count += 1
+                          except Exception as broadcast_error:
+                              if hasattr(broadcast_error, 'response') and broadcast_error.response.get('Error', {}).get('Code') == 'GoneException':
+                                  # Remove stale connection
+                                  logger.info(f"Removing stale connection: {subscription['connectionId']}")
+                                  try:
+                                      subscriptions_table.delete_item(
+                                          Key={'subscriptionId': subscription['subscriptionId']}
+                                      )
+                                  except Exception:
+                                      pass
+                              else:
+                                  logger.warning(f"Broadcast error for {subscription['connectionId']}: {broadcast_error}")
+                  
+                  logger.info(f"REAL market data broadcast completed: {broadcast_count} messages sent")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'REAL market data broadcast completed',
+                          'symbolsProcessed': len(symbols_list),
+                          'dataPointsRetrieved': len(market_data),
+                          'messagesSent': broadcast_count,
+                          'subscriptions': len(subscriptions)
+                      })
+                  }
                   
               except Exception as e:
-                  logger.error(f"Broadcast failed: {str(e)}")
-                  return {'statusCode': 500, 'body': str(e)}
+                  logger.error(f"REAL broadcast failed: {str(e)}")
+                  return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-market-data-broadcaster'
 
   #############################################################################
-  # WEBSOCKET ROUTES
+  # WEBSOCKET ROUTES - Updated for Real-time Handler
   #############################################################################
   
   ConnectRoute:
@@ -645,7 +1000,7 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: $connect
       AuthorizationType: NONE
-      Target: !Sub 'integrations/${ConnectIntegration}'
+      Target: !Sub 'integrations/${RealTimeConnectIntegration}'
 
   DisconnectRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -653,7 +1008,31 @@ Resources:
       ApiId: !Ref WebSocketApi
       RouteKey: $disconnect
       AuthorizationType: NONE
-      Target: !Sub 'integrations/${DisconnectIntegration}'
+      Target: !Sub 'integrations/${RealTimeDisconnectIntegration}'
+
+  SubscribeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: subscribe
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${RealTimeSubscribeIntegration}'
+
+  UnsubscribeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: unsubscribe
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${RealTimeUnsubscribeIntegration}'
+
+  PingRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: ping
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${RealTimePingIntegration}'
 
   MessageRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -663,6 +1042,43 @@ Resources:
       AuthorizationType: NONE
       Target: !Sub 'integrations/${MessageIntegration}'
 
+  # Real-time WebSocket integrations
+  RealTimeConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeWebSocketHandler.Arn}/invocations'
+
+  RealTimeDisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeWebSocketHandler.Arn}/invocations'
+
+  RealTimeSubscribeIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeWebSocketHandler.Arn}/invocations'
+
+  RealTimeUnsubscribeIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeWebSocketHandler.Arn}/invocations'
+
+  RealTimePingIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealTimeWebSocketHandler.Arn}/invocations'
+
+  # Legacy integrations for compatibility
   ConnectIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
@@ -685,9 +1101,19 @@ Resources:
       IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MessageFunction.Arn}/invocations'
 
   #############################################################################
-  # LAMBDA PERMISSIONS
+  # LAMBDA PERMISSIONS - Updated for Real-time Handler
   #############################################################################
   
+  # Real-time WebSocket handler permissions
+  RealTimeWebSocketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RealTimeWebSocketHandler
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*'
+  
+  # Legacy permissions for compatibility
   ConnectPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -734,6 +1160,14 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt BroadcastScheduleRule.Arn
+
+  RealBroadcasterInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RealMarketDataBroadcaster
+      Action: lambda:InvokeFunction
+      Principal: lambda.amazonaws.com
+      SourceArn: !GetAtt MarketDataBroadcaster.Arn
 
 #############################################################################
 # OUTPUTS

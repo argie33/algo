@@ -21,11 +21,14 @@ describe('Settings Tabs Components - Real Implementation Tests', () => {
     },
     trading: {
       defaultOrderType: 'market',
-      riskManagement: {
-        maxPositionSize: 10000,
-        stopLossPercent: 5,
-        takeProfitPercent: 15
-      },
+      maxPositionSize: 0.10, // 10%
+      maxDailyLoss: 0.02, // 2%  
+      riskPerTrade: 0.01, // 1%
+      maxOpenPositions: 8,
+      autoStopLoss: true,
+      defaultStopLoss: 0.03, // 3%
+      autoTakeProfit: true,
+      defaultTakeProfit: 0.15, // 15%
       preferences: {
         confirmOrders: true,
         autoRebalance: false
@@ -166,16 +169,17 @@ describe('Settings Tabs Components - Real Implementation Tests', () => {
     test('displays current trading settings', () => {
       render(<TradingTab {...tradingProps} />);
       
-      expect(screen.getByDisplayValue('10000')).toBeInTheDocument(); // maxPositionSize
-      expect(screen.getByDisplayValue('5')).toBeInTheDocument(); // stopLossPercent
-      expect(screen.getByDisplayValue('15')).toBeInTheDocument(); // takeProfitPercent
+      expect(screen.getByDisplayValue('10')).toBeInTheDocument(); // maxPositionSize (10% * 100)
+      expect(screen.getByDisplayValue('2')).toBeInTheDocument(); // maxDailyLoss (2% * 100)
+      expect(screen.getByDisplayValue('1')).toBeInTheDocument(); // riskPerTrade (1% * 100)
+      expect(screen.getByDisplayValue('8')).toBeInTheDocument(); // maxOpenPositions
     });
 
     test('handles risk management updates', () => {
       render(<TradingTab {...tradingProps} />);
       
-      const maxPositionInput = screen.getByDisplayValue('10000');
-      fireEvent.change(maxPositionInput, { target: { value: '15000' } });
+      const maxPositionInput = screen.getByDisplayValue('10');
+      fireEvent.change(maxPositionInput, { target: { value: '15' } });
       
       expect(mockCallbacks.updateSettings).toHaveBeenCalled();
     });
@@ -183,8 +187,8 @@ describe('Settings Tabs Components - Real Implementation Tests', () => {
     test('handles trading preference toggles', () => {
       render(<TradingTab {...tradingProps} />);
       
-      const confirmOrdersSwitch = screen.getByRole('checkbox', { name: /confirm orders/i });
-      fireEvent.click(confirmOrdersSwitch);
+      const afterHoursSwitch = screen.getByRole('checkbox', { name: /Enable After Hours Trading/i });
+      fireEvent.click(afterHoursSwitch);
       
       expect(mockCallbacks.updateSettings).toHaveBeenCalled();
     });
@@ -192,7 +196,7 @@ describe('Settings Tabs Components - Real Implementation Tests', () => {
     test('validates risk management percentages', () => {
       render(<TradingTab {...tradingProps} />);
       
-      const stopLossInput = screen.getByDisplayValue('5');
+      const stopLossInput = screen.getByDisplayValue('3'); // defaultStopLoss
       fireEvent.change(stopLossInput, { target: { value: '101' } });
       
       // Should show validation error or prevent invalid input
@@ -206,21 +210,22 @@ describe('Settings Tabs Components - Real Implementation Tests', () => {
       // Should have market/limit/stop options
     });
 
-    test('handles auto-rebalance settings', () => {
+    test('handles auto stop loss settings', () => {
       render(<TradingTab {...tradingProps} />);
       
-      const autoRebalanceSwitch = screen.getByRole('checkbox', { name: /auto.rebalance/i });
-      expect(autoRebalanceSwitch).not.toBeChecked();
+      const autoStopLossSwitch = screen.getByRole('checkbox', { name: /Auto Stop Loss/i });
+      expect(autoStopLossSwitch).toBeChecked(); // Should be checked based on test data
       
-      fireEvent.click(autoRebalanceSwitch);
+      fireEvent.click(autoStopLossSwitch);
       expect(mockCallbacks.updateSettings).toHaveBeenCalled();
     });
 
-    test('displays risk level indicators', () => {
+    test('displays stop loss and take profit settings', () => {
       render(<TradingTab {...tradingProps} />);
       
-      // Should show risk level based on stop loss percentage
-      expect(screen.getByText(/Risk Level/)).toBeInTheDocument();
+      // Should show stop loss and take profit settings
+      expect(screen.getByText(/Stop Loss & Take Profit/)).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Auto Take Profit/i })).toBeInTheDocument();
     });
   });
 

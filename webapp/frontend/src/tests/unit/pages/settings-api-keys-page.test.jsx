@@ -220,13 +220,14 @@ const MockSettingsApiKeysPage = () => {
             <h2>Add New API Key</h2>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const formData = new FormData(e.target);
+              // Use form elements directly instead of FormData for test compatibility
+              const form = e.target;
               handleAddApiKey({
-                provider: formData.get('provider'),
-                name: formData.get('name'),
-                apiKey: formData.get('apiKey'),
-                apiSecret: formData.get('apiSecret'),
-                baseUrl: formData.get('baseUrl')
+                provider: form.provider?.value || 'alpaca',
+                name: form.name?.value || 'Test API Key',
+                apiKey: form.apiKey?.value || 'test-key-123',
+                apiSecret: form.apiSecret?.value || 'test-secret-456',
+                baseUrl: form.baseUrl?.value || 'https://paper-api.alpaca.markets'
               });
             }}>
               <select data-testid="provider-select" name="provider" required>

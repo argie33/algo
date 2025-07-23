@@ -1,6 +1,8 @@
 // Enhanced Live Data Service for HFT-ready WebSocket connections
 // Integrates with AWS API Gateway WebSocket API
 
+import { PERFORMANCE_CONFIG } from '../config/environment.js';
+
 class EventEmitter {
   constructor() {
     this.events = {};
@@ -56,19 +58,21 @@ class LiveDataService extends EventEmitter {
     this.reconnectDelay = 1000;
     this.maxReconnectDelay = 30000;
     
-    // Enhanced Configuration
+    // Enhanced Configuration from centralized config
     this.config = {
-      wsUrl: import.meta.env.VITE_WS_URL || process.env.REACT_APP_WS_URL || null, // Support both Vite and React env vars
-      heartbeatInterval: 30000, // 30 seconds
-      connectionTimeout: 10000,  // 10 seconds
-      messageTimeout: 5000,      // 5 seconds
+      wsUrl: PERFORMANCE_CONFIG.websocket.url,
+      heartbeatInterval: PERFORMANCE_CONFIG.websocket.heartbeatInterval,
+      connectionTimeout: PERFORMANCE_CONFIG.websocket.connectionTimeout,
+      messageTimeout: PERFORMANCE_CONFIG.websocket.messageTimeout,
       maxRetries: 3,
-      connectionHealthInterval: 5000, // Check connection health every 5 seconds
+      connectionHealthInterval: PERFORMANCE_CONFIG.websocket.healthCheckInterval,
       staleDataTimeout: 120000, // 2 minutes - consider data stale
       maxMessageQueueSize: 100, // Prevent memory issues
-      enableAutoReconnect: true,
-      enableConnectionHealthCheck: true,
-      enableMetricsCollection: true
+      enableAutoReconnect: PERFORMANCE_CONFIG.websocket.autoConnect,
+      enableConnectionHealthCheck: PERFORMANCE_CONFIG.websocket.enableHealthCheck,
+      enableMetricsCollection: true,
+      maxReconnectAttempts: PERFORMANCE_CONFIG.websocket.maxReconnectAttempts,
+      reconnectInterval: PERFORMANCE_CONFIG.websocket.reconnectInterval
     };
     
     // Data management
@@ -100,7 +104,7 @@ class LiveDataService extends EventEmitter {
     this.connectionQualityHistory = [];
     
     // Auto-connect if configured and WebSocket URL is available
-    if (process.env.REACT_APP_AUTO_CONNECT_WS !== 'false' && this.config.wsUrl) {
+    if (this.config.enableAutoReconnect && this.config.wsUrl && PERFORMANCE_CONFIG.websocket.enabled) {
       this.connect();
     }
     
@@ -120,7 +124,15 @@ class LiveDataService extends EventEmitter {
     // Check if WebSocket URL is configured
     if (!this.config.wsUrl) {
       console.warn('⚠️ WebSocket URL not configured. Live data service disabled.');
+      console.info('💡 To enable WebSocket connection, set VITE_WS_URL environment variable or configure WEBSOCKET.URL in runtime config.');
       this.emit('configurationError', 'WebSocket URL not configured');
+      return;
+    }
+
+    // Check if WebSocket is enabled
+    if (!PERFORMANCE_CONFIG.websocket.enabled) {
+      console.warn('⚠️ WebSocket functionality is disabled in configuration.');
+      this.emit('configurationError', 'WebSocket functionality disabled');
       return;
     }
 
@@ -307,31 +319,25 @@ class LiveDataService extends EventEmitter {
         this.updateAverageLatency(latency);
       }
       
-      // Route message based on type
+      // Route REAL message types from backend Lambda
       switch (data.type) {
-        case 'market_data':
-          this.handleMarketData(data);
-          break;
-        case 'portfolio_update':
-          this.handlePortfolioUpdate(data);
-          break;
-        case 'portfolio_holdings':
-          this.handlePortfolioHoldings(data);
-          break;
-        case 'position_update':
-          this.handlePositionUpdate(data);
+        case 'market_data_update':
+          this.handleMarketDataUpdate(data);
           break;
         case 'pong':
           this.handlePong(data);
           break;
+        case 'subscription_confirmed':
+          this.handleSubscriptionConfirm(data);
+          break;
+        case 'unsubscribe_confirmed':
+          this.handleUnsubscribeConfirm(data);
+          break;
         case 'error':
           this.handleServerError(data);
           break;
-        case 'subscribed':
-          this.handleSubscriptionConfirm(data);
-          break;
         default:
-          console.warn('Unknown message type:', data.type);
+          console.warn('Unknown message type from backend:', data.type);
       }
       
     } catch (error) {
@@ -340,19 +346,6 @@ class LiveDataService extends EventEmitter {
     }
   }
 
-  handleMarketData(data) {
-    const { symbol, data: marketData } = data;
-    
-    // Update local cache
-    this.marketData.set(symbol, {
-      ...marketData,
-      receivedAt: Date.now()
-    });
-    
-    // Emit to subscribers
-    this.emit('marketData', { symbol, data: marketData });
-    this.emit(`marketData:${symbol}`, marketData);
-  }
 
   handlePong(data) {
     this.metrics.lastPongTime = Date.now();
@@ -381,130 +374,64 @@ class LiveDataService extends EventEmitter {
     this.emit('subscribed', data);
   }
 
-  handlePortfolioUpdate(data) {
-    const { userId, apiKeyId, portfolio } = data;
-    console.log('📊 Portfolio update received:', portfolio);
-    
-    // Emit to specific portfolio subscription
-    this.emit(`portfolio:${userId}:${apiKeyId}`, {
-      type: 'portfolio_update',
-      data: portfolio
-    });
-    
-    // Emit to general portfolio listeners
-    this.emit('portfolioUpdate', { userId, apiKeyId, portfolio });
+  handleUnsubscribeConfirm(data) {
+    this.emit('unsubscribed', data);
   }
 
-  handlePortfolioHoldings(data) {
-    const { userId, apiKeyId, holdings } = data;
-    console.log('📊 Portfolio holdings received:', holdings);
+  // Real market data handling only - no fake portfolio stuff
+  handleMarketDataUpdate(data) {
+    const { symbol, data: marketData } = data;
     
-    // Emit to specific portfolio subscription
-    this.emit(`portfolio:${userId}:${apiKeyId}`, {
-      type: 'holdings_update',
-      data: holdings
+    if (!symbol || !marketData) {
+      console.warn('Invalid market data received:', data);
+      return;
+    }
+    
+    // Update local cache with real data
+    this.marketData.set(symbol, {
+      ...marketData,
+      receivedAt: Date.now()
     });
     
-    // Emit to general portfolio listeners
-    this.emit('portfolioHoldings', { userId, apiKeyId, holdings });
+    // Emit real market data events
+    this.emit('marketData', { symbol, data: marketData });
+    this.emit(`marketData:${symbol}`, marketData);
+    
+    // Log real data reception
+    console.log(`📈 Real market data for ${symbol}: $${marketData.price} (${marketData.source})`);
   }
 
-  handlePositionUpdate(data) {
-    const { userId, apiKeyId, position } = data;
-    console.log('📊 Position update received:', position);
-    
-    // Emit to specific portfolio subscription
-    this.emit(`portfolio:${userId}:${apiKeyId}`, {
-      type: 'position_update',
-      data: position
-    });
-    
-    // Emit to general portfolio listeners
-    this.emit('positionUpdate', { userId, apiKeyId, position });
-  }
-
-  // Subscription Management
-  subscribe(symbols, channel = 'market_data') {
+  // Subscription Management - Backend Lambda compatible
+  subscribe(symbols, channels = ['trades', 'quotes', 'bars']) {
     if (!Array.isArray(symbols)) {
       symbols = [symbols];
     }
     
     symbols.forEach(symbol => this.subscriptions.add(symbol));
     
+    // Backend Lambda-compatible message format
     const message = {
       action: 'subscribe',
-      channel: channel,
-      symbols: symbols
+      symbols: symbols,
+      channels: Array.isArray(channels) ? channels : [channels]
     };
     
     this.sendMessage(message);
     return this;
   }
 
-  // Portfolio-specific subscription
-  subscribeToPortfolio(userId, apiKeyId, callback) {
-    const subscriptionKey = `portfolio:${userId}:${apiKeyId}`;
-    
-    if (this.subscriptions.has(subscriptionKey)) {
-      console.log('📊 Already subscribed to portfolio live data');
-      return this;
-    }
+  // REAL market data subscription only - no fake portfolio stuff
 
-    console.log('📊 Subscribing to portfolio live data...');
-    
-    // Add to subscriptions and set up callback
-    this.subscriptions.add(subscriptionKey);
-    this.on(`portfolio:${userId}:${apiKeyId}`, callback);
-    
-    const message = {
-      action: 'subscribe',
-      channel: 'portfolio',
-      userId: userId,
-      apiKeyId: apiKeyId,
-      subscriptionKey: subscriptionKey
-    };
-    
-    this.sendMessage(message);
-    return this;
-  }
-
-  // Unsubscribe from portfolio
-  unsubscribeFromPortfolio(userId, apiKeyId) {
-    const subscriptionKey = `portfolio:${userId}:${apiKeyId}`;
-    
-    if (!this.subscriptions.has(subscriptionKey)) {
-      console.log('📊 Not subscribed to portfolio live data');
-      return this;
-    }
-
-    console.log('📊 Unsubscribing from portfolio live data...');
-    
-    // Remove from subscriptions and callbacks
-    this.subscriptions.delete(subscriptionKey);
-    this.removeAllListeners(`portfolio:${userId}:${apiKeyId}`);
-    
-    const message = {
-      action: 'unsubscribe',
-      channel: 'portfolio',
-      userId: userId,
-      apiKeyId: apiKeyId,
-      subscriptionKey: subscriptionKey
-    };
-    
-    this.sendMessage(message);
-    return this;
-  }
-
-  unsubscribe(symbols, channel = 'market_data') {
+  unsubscribe(symbols) {
     if (!Array.isArray(symbols)) {
       symbols = [symbols];
     }
     
     symbols.forEach(symbol => this.subscriptions.delete(symbol));
     
+    // Backend Lambda-compatible message format
     const message = {
       action: 'unsubscribe',
-      channel: channel,
       symbols: symbols
     };
     
@@ -804,6 +731,67 @@ class LiveDataService extends EventEmitter {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+  }
+
+  // Portfolio subscription methods
+  subscribeToPortfolio(portfolioId, callback) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('⚠️ WebSocket not connected, cannot subscribe to portfolio');
+      return false;
+    }
+
+    const subscription = {
+      type: 'subscribe',
+      channel: 'portfolio',
+      portfolioId: portfolioId,
+      timestamp: Date.now()
+    };
+
+    this.ws.send(JSON.stringify(subscription));
+    
+    // Store callback for portfolio updates
+    if (!this.portfolioCallbacks) {
+      this.portfolioCallbacks = new Map();
+    }
+    this.portfolioCallbacks.set(portfolioId, callback);
+
+    console.log(`📈 Subscribed to portfolio: ${portfolioId}`);
+    return true;
+  }
+
+  unsubscribeFromPortfolio(portfolioId) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('⚠️ WebSocket not connected, cannot unsubscribe from portfolio');
+      return false;
+    }
+
+    const unsubscription = {
+      type: 'unsubscribe',
+      channel: 'portfolio',
+      portfolioId: portfolioId,
+      timestamp: Date.now()
+    };
+
+    this.ws.send(JSON.stringify(unsubscription));
+
+    // Remove callback
+    if (this.portfolioCallbacks) {
+      this.portfolioCallbacks.delete(portfolioId);
+    }
+
+    console.log(`📉 Unsubscribed from portfolio: ${portfolioId}`);
+    return true;
+  }
+
+  handlePortfolioUpdate(data) {
+    if (this.portfolioCallbacks && data.portfolioId) {
+      const callback = this.portfolioCallbacks.get(data.portfolioId);
+      if (callback && typeof callback === 'function') {
+        callback(data);
+      }
+    }
+    
+    this.emit('portfolioUpdate', data);
   }
 }
 

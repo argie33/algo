@@ -75,6 +75,34 @@ function StockDetail() {
   
   const { symbol } = useParams()
   const [tabValue, setTabValue] = React.useState(0)
+  
+  // Market intelligence state
+  const [marketIntelligence, setMarketIntelligence] = React.useState(null)
+  const [marketIntelligenceLoading, setMarketIntelligenceLoading] = React.useState(false)
+  const [marketIntelligenceError, setMarketIntelligenceError] = React.useState(null)
+  
+  // Fetch market intelligence data
+  React.useEffect(() => {
+    if (!symbol) return
+    
+    const fetchMarketIntelligence = async () => {
+      setMarketIntelligenceLoading(true)
+      setMarketIntelligenceError(null)
+      
+      try {
+        const data = await marketIntelligenceService.getMarketIntelligence(symbol)
+        setMarketIntelligence(data)
+        logger.info('Market intelligence data loaded', { symbol, dataKeys: Object.keys(data) })
+      } catch (error) {
+        setMarketIntelligenceError(error)
+        logger.error('Failed to load market intelligence', error, { symbol })
+      } finally {
+        setMarketIntelligenceLoading(false)
+      }
+    }
+    
+    fetchMarketIntelligence()
+  }, [symbol, logger])
   // Fetch stock profile data
   const { data: profile, isLoading: profileLoading, error: profileError } = useSimpleFetch({
     queryKey: ['stockProfile', symbol],
@@ -851,9 +879,24 @@ function StockDetail() {
           <Grid item xs={12}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Multi-Factor Quantitative Analysis
-                </Typography>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                  <Typography variant="h6" gutterBottom>
+                    Multi-Factor Quantitative Analysis
+                  </Typography>
+                  {marketIntelligenceLoading && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <CircularProgress size={16} />
+                      <Typography variant="caption" color="text.secondary">
+                        Loading market intelligence...
+                      </Typography>
+                    </Box>
+                  )}
+                  {marketIntelligenceError && (
+                    <Typography variant="caption" color="error">
+                      Market intelligence unavailable
+                    </Typography>
+                  )}
+                </Box>
                 <Divider sx={{ mb: 3 }} />
                 <Grid container spacing={3}>
                   {(() => {
@@ -873,14 +916,14 @@ function StockDetail() {
                       100 - Math.min(100, (currentMetrics.pe_ratio || 20) * 3)
                     ));
                     
-                    // Use mock scores for now (real implementation would use async useEffect)
-                    const momentumScore = 50;
-                    const sentimentScore = 50;
-                    const positioningScore = 50;
+                    // Use real market intelligence data when available
+                    const momentumScore = marketIntelligence?.momentum?.score || 50;
+                    const sentimentScore = marketIntelligence?.sentiment?.score || 50;
+                    const positioningScore = marketIntelligence?.positioning?.score || 50;
                     
                     return [
                       { 
-                        isMockData: marketIntelligence.isMockData || false,
+                        isMockData: !marketIntelligence || marketIntelligence.isMockData || false,
                         factor: 'Quality', 
                         score: Math.round(qualityScore), 
                         color: 'primary', 
@@ -923,45 +966,45 @@ function StockDetail() {
                         ]
                       },
                       { 
-                        isMockData: marketIntelligence.momentum ? false : true,
+                        isMockData: !marketIntelligence?.momentum,
                         factor: 'Momentum', 
                         score: Math.round(momentumScore), 
                         color: 'info', 
                         description: 'Price trends, earnings revisions, estimate changes',
-                        trend: 'improving',
-                        percentile: 72,
+                        trend: marketIntelligence?.momentum?.trend || 'improving',
+                        percentile: marketIntelligence?.momentum?.percentile || 72,
                         components: [
-                          { name: '3M Price Return', value: 0.08, weight: 0.3 },
-                          { name: '12M Price Return', value: 0.15, weight: 0.3 },
-                          { name: 'Earnings Revisions', value: 0.05, weight: 0.4 }
+                          { name: '3M Price Return', value: marketIntelligence?.momentum?.priceReturn3M || 0.08, weight: 0.3 },
+                          { name: '12M Price Return', value: marketIntelligence?.momentum?.priceReturn12M || 0.15, weight: 0.3 },
+                          { name: 'Earnings Revisions', value: marketIntelligence?.momentum?.earningsRevisions || 0.05, weight: 0.4 }
                         ]
                       },
                       { 
-                        isMockData: marketIntelligence.sentiment ? false : true,
+                        isMockData: !marketIntelligence?.sentiment,
                         factor: 'Sentiment', 
                         score: Math.round(sentimentScore), 
                         color: 'secondary', 
                         description: 'Analyst ratings, social sentiment, media coverage',
-                        trend: 'stable',
-                        percentile: 58,
+                        trend: marketIntelligence?.sentiment?.trend || 'stable',
+                        percentile: marketIntelligence?.sentiment?.percentile || 58,
                         components: [
-                          { name: 'Analyst Rating', value: 3.2, weight: 0.4 },
-                          { name: 'Social Sentiment', value: 0.15, weight: 0.3 },
-                          { name: 'News Sentiment', value: 0.22, weight: 0.3 }
+                          { name: 'Analyst Rating', value: marketIntelligence?.sentiment?.analystRating || 3.2, weight: 0.4 },
+                          { name: 'Social Sentiment', value: marketIntelligence?.sentiment?.socialSentiment || 0.15, weight: 0.3 },
+                          { name: 'News Sentiment', value: marketIntelligence?.sentiment?.newsSentiment || 0.22, weight: 0.3 }
                         ]
                       },
                       { 
-                        isMockData: marketIntelligence.positioning ? false : true,
+                        isMockData: !marketIntelligence?.positioning,
                         factor: 'Positioning', 
                         score: Math.round(positioningScore), 
                         color: 'error', 
                         description: 'Institutional flows, short interest, options activity',
-                        trend: 'stable',
-                        percentile: 51,
+                        trend: marketIntelligence?.positioning?.trend || 'stable',
+                        percentile: marketIntelligence?.positioning?.percentile || 51,
                         components: [
-                          { name: 'Institutional Flow', value: currentMetrics.institutional_ownership || 0.65, weight: 0.4 },
-                          { name: 'Short Interest', value: currentMetrics.short_interest || 0.03, weight: 0.3 },
-                          { name: 'Options Skew', value: 0.12, weight: 0.3 }
+                          { name: 'Institutional Flow', value: marketIntelligence?.positioning?.institutionalFlow || currentMetrics.institutional_ownership || 0.65, weight: 0.4 },
+                          { name: 'Short Interest', value: marketIntelligence?.positioning?.shortInterest || currentMetrics.short_interest || 0.03, weight: 0.3 },
+                          { name: 'Options Skew', value: marketIntelligence?.positioning?.optionsSkew || 0.12, weight: 0.3 }
                         ]
                       }
                     ];
@@ -1146,14 +1189,14 @@ function StockDetail() {
                         <TableCell>Revenue CAGR (5Y)</TableCell>
                         <TableCell align="right">
                           <Chip 
-                            label={currentMetrics.revenue_growth ? `${formatPercent(currentMetrics.revenue_growth)}` : '7.2%' /* ⚠️ MOCK DATA */} 
+                            label={currentMetrics.revenue_growth ? `${formatPercent(currentMetrics.revenue_growth)}` : marketIntelligence?.growth?.revenueCagr5Y ? `${formatPercent(marketIntelligence.growth.revenueCagr5Y)}` : '7.2%'} 
                             color="success"
                             size="small"
                           />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 5% sector avg {/* ⚠️ MOCK DATA */}
+                            vs {marketIntelligence?.growth?.sectorAvgRevenue ? `${formatPercent(marketIntelligence.growth.sectorAvgRevenue)}` : '5%'} sector avg
                           </Typography>
                         </TableCell>
                       </TableRow>

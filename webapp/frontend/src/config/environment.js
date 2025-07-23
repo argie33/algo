@@ -23,34 +23,57 @@ export const APP_CONFIG = {
   }
 };
 
-// AWS Configuration
+// Initialize CloudFormation configuration service
+let cloudFormationConfig = null;
+const initCloudFormationConfig = async () => {
+  if (!cloudFormationConfig) {
+    try {
+      const { default: CloudFormationConfigService } = await import('../services/cloudFormationConfigService');
+      cloudFormationConfig = await CloudFormationConfigService.getRealConfig();
+      console.log('✅ Loaded real CloudFormation configuration');
+    } catch (error) {
+      console.warn('⚠️ CloudFormation config not available, using fallback:', error.message);
+      cloudFormationConfig = null;
+    }
+  }
+  return cloudFormationConfig;
+};
+
+// AWS Configuration - with real CloudFormation integration
 export const AWS_CONFIG = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
   
-  // API Gateway Configuration
+  // API Gateway Configuration - uses real CloudFormation outputs when available
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 
              window.__CONFIG__?.API?.BASE_URL ||
-             'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
+             window.__CLOUDFORMATION_CONFIG__?.ApiGatewayUrl ||
+             (cloudFormationConfig?.api?.baseUrl) ||
+             'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev', // Real AWS API Gateway for fallback
     version: import.meta.env.VITE_API_VERSION || 'v1',
     timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
     retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 3,
     retryDelay: parseInt(import.meta.env.VITE_API_RETRY_DELAY) || 1000
   },
   
-  // Cognito Configuration - will be loaded dynamically from runtime API
+  // Cognito Configuration - loaded from CloudFormation outputs
   cognito: {
     userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || 
                window.__CONFIG__?.COGNITO?.USER_POOL_ID ||
+               window.__CLOUDFORMATION_CONFIG__?.UserPoolId ||
                window.__RUNTIME_CONFIG__?.cognito?.userPoolId ||
-               null, // No fallback - must be configured
+               (cloudFormationConfig?.cognito?.userPoolId) ||
+               null, // Will be populated by CloudFormation service
     clientId: import.meta.env.VITE_COGNITO_CLIENT_ID || 
               window.__CONFIG__?.COGNITO?.CLIENT_ID ||
+              window.__CLOUDFORMATION_CONFIG__?.UserPoolClientId ||
               window.__RUNTIME_CONFIG__?.cognito?.clientId ||
-              null, // No fallback - must be configured
+              (cloudFormationConfig?.cognito?.clientId) ||
+              null, // Will be populated by CloudFormation service
     domain: import.meta.env.VITE_COGNITO_DOMAIN || 
             window.__CONFIG__?.COGNITO?.DOMAIN ||
             window.__RUNTIME_CONFIG__?.cognito?.domain ||
+            (cloudFormationConfig?.cognito?.domain) ||
             '',
     redirectSignIn: import.meta.env.VITE_COGNITO_REDIRECT_SIGN_IN || 
                     window.__CONFIG__?.COGNITO?.REDIRECT_SIGN_IN ||
@@ -360,13 +383,40 @@ export const validateConfig = () => {
   return { errors, warnings };
 };
 
-// Helper Functions
+// Helper Functions with real CloudFormation integration
+// Synchronous version for immediate use (backward compatibility)
 export const getApiUrl = (endpoint = '') => {
+  // Use CloudFormation config if available and cached
+  if (cloudFormationConfig?.api?.baseUrl) {
+    const baseUrl = cloudFormationConfig.api.baseUrl.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.replace(/^\//, '');
+    return `${baseUrl}/${cleanEndpoint}`;
+  }
+  
+  // Fallback to environment configuration
   const baseUrl = AWS_CONFIG.api.baseUrl.replace(/\/$/, ''); // Remove trailing slash
   const cleanEndpoint = endpoint.replace(/^\//, ''); // Remove leading slash
   
   // Don't add version prefix - AWS API Gateway already includes it in the base URL
   return `${baseUrl}/${cleanEndpoint}`;
+};
+
+// Async version for CloudFormation initialization
+export const getApiUrlAsync = async (endpoint = '') => {
+  // Try to get real API URL from CloudFormation first
+  try {
+    const cfConfig = await initCloudFormationConfig();
+    if (cfConfig?.api?.baseUrl) {
+      const baseUrl = cfConfig.api.baseUrl.replace(/\/$/, '');
+      const cleanEndpoint = endpoint.replace(/^\//, '');
+      return `${baseUrl}/${cleanEndpoint}`;
+    }
+  } catch (error) {
+    console.warn('⚠️ CloudFormation API URL not available, using fallback');
+  }
+  
+  // Fallback to synchronous version
+  return getApiUrl(endpoint);
 };
 
 // Get WebSocket URL with proper fallback to real AWS WebSocket API
@@ -378,7 +428,18 @@ export const getWebSocketUrl = () => {
 };
 
 // Real email functionality using AWS SES
-export const getSupportEmail = () => {
+export const getSupportEmail = async () => {
+  // Try to get real domain from CloudFormation
+  try {
+    const cfConfig = await initCloudFormationConfig();
+    if (cfConfig?.frontend?.websiteUrl) {
+      const url = new URL(cfConfig.frontend.websiteUrl);
+      return `support@${url.hostname}`;
+    }
+  } catch (error) {
+    console.warn('⚠️ CloudFormation domain not available for email');
+  }
+  
   const domain = import.meta.env.VITE_DOMAIN_NAME || window.__CONFIG__?.DOMAIN_NAME;
   if (domain) {
     return `support@${domain}`;
@@ -386,6 +447,55 @@ export const getSupportEmail = () => {
   
   // Fallback to AWS SES verified domain
   return import.meta.env.VITE_SUPPORT_EMAIL || 'support@aws-verified-domain.com';
+};
+
+// Get real Cognito configuration from CloudFormation
+export const getRealCognitoConfig = async () => {
+  try {
+    const cfConfig = await initCloudFormationConfig();
+    if (cfConfig?.cognito) {
+      return cfConfig.cognito;
+    }
+  } catch (error) {
+    console.warn('⚠️ CloudFormation Cognito config not available, using fallback');
+  }
+  
+  // Fallback to environment configuration
+  return AWS_CONFIG.cognito;
+};
+
+// Initialize and update configuration with real CloudFormation values
+export const initializeRealConfiguration = async () => {
+  try {
+    console.log('🔄 Initializing real CloudFormation configuration...');
+    
+    const cfConfig = await initCloudFormationConfig();
+    if (cfConfig) {
+      // Update AWS_CONFIG with real values
+      if (cfConfig.api?.baseUrl) {
+        AWS_CONFIG.api.baseUrl = cfConfig.api.baseUrl;
+      }
+      
+      if (cfConfig.cognito?.userPoolId) {
+        AWS_CONFIG.cognito.userPoolId = cfConfig.cognito.userPoolId;
+      }
+      
+      if (cfConfig.cognito?.clientId) {
+        AWS_CONFIG.cognito.clientId = cfConfig.cognito.clientId;
+      }
+      
+      if (cfConfig.cognito?.domain) {
+        AWS_CONFIG.cognito.domain = cfConfig.cognito.domain;
+      }
+      
+      console.log('✅ AWS_CONFIG updated with real CloudFormation values');
+      return cfConfig;
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize real configuration:', error);
+  }
+  
+  return null;
 };
 
 export const getExternalApiUrl = (provider, endpoint = '') => {
@@ -462,8 +572,11 @@ export default {
   MONITORING_CONFIG,
   validateConfig,
   getApiUrl,
+  getApiUrlAsync,
   getWebSocketUrl,
   getSupportEmail,
+  getRealCognitoConfig,
+  initializeRealConfiguration,
   getExternalApiUrl,
   isFeatureEnabled,
   logConfig

@@ -7,6 +7,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { BrowserRouter } from 'react-router-dom';
 
 // Mock Material-UI components
 vi.mock('@mui/material', () => ({
@@ -596,10 +597,12 @@ describe('🎨 UI Components', () => {
 
     it('should render navigation items correctly', () => {
       render(
-        <Navigation 
-          items={mockNavItems}
-          currentPath="/"
-        />
+        <BrowserRouter>
+          <Navigation 
+            items={mockNavItems}
+            currentPath="/"
+          />
+        </BrowserRouter>
       );
 
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
@@ -612,10 +615,12 @@ describe('🎨 UI Components', () => {
       const onNavigate = vi.fn();
 
       render(
-        <Navigation 
-          items={mockNavItems}
-          onNavigate={onNavigate}
-        />
+        <BrowserRouter>
+          <Navigation 
+            items={mockNavItems}
+            onNavigate={onNavigate}
+          />
+        </BrowserRouter>
       );
 
       await user.click(screen.getByText('Portfolio'));
@@ -626,11 +631,13 @@ describe('🎨 UI Components', () => {
       const user = userEvent.setup();
 
       render(
-        <Navigation 
-          items={mockNavItems}
-          collapsible={true}
-          collapsed={false}
-        />
+        <BrowserRouter>
+          <Navigation 
+            items={mockNavItems}
+            collapsible={true}
+            collapsed={false}
+          />
+        </BrowserRouter>
       );
 
       const collapseButton = screen.getByRole('button');
@@ -639,10 +646,12 @@ describe('🎨 UI Components', () => {
 
     it('should show active item', () => {
       render(
-        <Navigation 
-          items={mockNavItems}
-          currentPath="/portfolio"
-        />
+        <BrowserRouter>
+          <Navigation 
+            items={mockNavItems}
+            currentPath="/portfolio"
+          />
+        </BrowserRouter>
       );
 
       // Active item would be highlighted
@@ -661,7 +670,9 @@ describe('🎨 UI Components', () => {
       ];
 
       render(
-        <Navigation items={nestedItems} />
+        <BrowserRouter>
+          <Navigation items={nestedItems} />
+        </BrowserRouter>
       );
 
       expect(screen.getByText('Analytics')).toBeInTheDocument();

@@ -279,7 +279,7 @@ describe('💼 Portfolio Services - Real Implementation Tests', () => {
         return sum + (weight * expectedReturns[i]);
       }, 0);
       
-      expect(portfolioReturn).toBeCloseTo(0.098, 3); // 4%*10% + 3%*8% + 3%*12%
+      expect(portfolioReturn).toBeCloseTo(0.100, 3); // 40%*10% + 30%*8% + 30%*12% = 0.04 + 0.024 + 0.036 = 0.100
       expect(typeof portfolioReturn).toBe('number');
     });
   });

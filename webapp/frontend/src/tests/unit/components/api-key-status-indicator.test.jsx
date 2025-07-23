@@ -382,7 +382,7 @@ describe('ApiKeyStatusIndicator Component - Real Implementation Tests', () => {
       renderComponent({ compact: true });
       
       await waitFor(() => {
-        const chipElement = screen.getByText('No API keys').closest('[data-testid], [title]');
+        const chipElement = screen.getByText('No API keys');
         expect(chipElement).toBeInTheDocument();
       });
     });

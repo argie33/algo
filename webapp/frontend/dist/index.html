@@ -11,17 +11,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Ensure config is always available with safe defaults
+      // Initialize empty config - will be populated by config.js
       window.__CONFIG__ = window.__CONFIG__ || {
-        API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
-        ENVIRONMENT: 'dev',
+        ENVIRONMENT: 'development',
         VERSION: 'fallback',
         BUILD_TIME: new Date().toISOString(),
+        API: {
+          BASE_URL: null // Will be set by config.js based on environment
+        },
         COGNITO: {
-          USER_POOL_ID: 'us-east-1_ZqooNeQtV',
-          CLIENT_ID: '243r98prucoickch12djkahrhk',
+          USER_POOL_ID: null, // Must be configured via deployment
+          CLIENT_ID: null,    // Must be configured via deployment
           REGION: 'us-east-1',
-          DOMAIN: '',
+          DOMAIN: null,
           REDIRECT_SIGN_IN: window.location.origin,
           REDIRECT_SIGN_OUT: window.location.origin
         }
@@ -35,53 +37,54 @@
       };
       document.head.appendChild(script);
     </script>
-    <script type="module" crossorigin src="/assets/index-Cpjui54v.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/date-utils-CwXgIo9R.js">
-    <link rel="modulepreload" crossorigin href="/assets/lodash-B9SqXtMe.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-dBF6dPE4.js">
-    <link rel="modulepreload" crossorigin href="/assets/react-router-CunNwmDe.js">
-    <link rel="modulepreload" crossorigin href="/assets/mui-BOGupP7t.js">
+    <script type="module" crossorigin src="/assets/index-D27Ort4U.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/date-utils-D1HvlFo3.js">
+    <link rel="modulepreload" crossorigin href="/assets/lodash-CxUykNYU.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-TjPfYURa.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-router-BYkPbZRL.js">
+    <link rel="modulepreload" crossorigin href="/assets/mui-Bf747NDx.js">
     <link rel="modulepreload" crossorigin href="/assets/http-Dq7h7Pqt.js">
-    <link rel="modulepreload" crossorigin href="/assets/app-utils-XuVccjnD.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-AdvancedScreener-CFSOp7oa.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-SettingsApiKeys-BlYZf0pV.js">
-    <link rel="modulepreload" crossorigin href="/assets/services-Bj6JHv4g.js">
-    <link rel="modulepreload" crossorigin href="/assets/aws-WwL7iJSv.js">
-    <link rel="modulepreload" crossorigin href="/assets/components-BNV3oHum.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-AnalystInsights-Bx4Iw9F-.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-MarketOverview-BrVJEWEx.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-StockExplorer-BiCj-mEr.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-StockDetail-DJVrJgdM.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-MetricsDashboard-SAanqc0x.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-TechnicalAnalysis-BlEgqCXX.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-EarningsCalendar-Dtoc3uRU.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-FinancialData-DaXqZ3cB.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-ServiceHealth-CegmViuc.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-TechnicalHistory-zISr7PYZ.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-Backtest-CwS73_JB.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-TradingSignals-J56sSsRT.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-Portfolio-CMAJSUJ6.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-PortfolioPerformance-CQjwpdEn.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-PortfolioOptimization-BWAizUYK.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-TradeHistory-BClbcEHE.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-SentimentAnalysis-QPqY76C7.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-EconomicModeling-Dz5iARu3.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-Settings-BYZRSlDv.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-ScoresDashboard-Ca7Q6wEy.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-SectorAnalysis-D0Z58dsJ.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-SocialMediaSentiment-Djv4hCat.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-NewsSentiment-DAnrrIEa.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-Watchlist-CWPpeSmy.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-MarketCommentary-CJz9lAVP.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-EducationalContent-By7DIpGH.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-PatternRecognition-DzhLXYAS.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-AIAssistant-CpI1vJYd.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-Commodities-Wej1VDwk.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-options-CPt_-q3i.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-CryptoMarketOverview-BsmAfOep.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-LiveDataEnhanced-DFGPRtVI.js">
-    <link rel="modulepreload" crossorigin href="/assets/page-LiveData-0z5YhgWg.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BjQgZiCm.css">
+    <link rel="modulepreload" crossorigin href="/assets/page-SettingsApiKeys-Cv8OyQdD.js">
+    <link rel="modulepreload" crossorigin href="/assets/services-Cio5bvDQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/app-utils-FBFr4-DD.js">
+    <link rel="modulepreload" crossorigin href="/assets/aws-2jlWXhGq.js">
+    <link rel="modulepreload" crossorigin href="/assets/components-BvbUp01g.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Dashboard-DkxrHUkO.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-MarketOverview-vek2TLv7.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-StockExplorer-DPxNePxA.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-StockDetail-CLr4Ww8R.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-MetricsDashboard-lJQ_9T6O.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-TechnicalAnalysis-BvGhYqvb.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-AnalystInsights-YLJ58mHn.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-EarningsCalendar-CiOe5tmS.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-FinancialData-Y6cQucgh.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-ServiceHealth-DkEKYcxy.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-TechnicalHistory-B_l-jc3c.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Backtest-CNRzoy-i.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-TradingSignals-BcH3k5s_.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Portfolio-2quPRSvj.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-PortfolioPerformance-Ci8jPJm6.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-PortfolioOptimization-DAQ1Czkb.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-TradeHistory-C_oPHSmK.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-SentimentAnalysis-CpWgcJqY.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-AdvancedScreener-B-tlVqlr.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-EconomicModeling-46VOkDun.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Settings-DFeUPFEH.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-ScoresDashboard-Hlhzv_Ob.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-SectorAnalysis-BSPboTCj.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-SocialMediaSentiment-DjBT_vHv.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-NewsSentiment-BT51E3KY.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Watchlist-BncjmG5-.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-MarketCommentary-CtTyYH_a.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-EducationalContent-BAr3lXnx.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-PatternRecognition-Cy4b3ZrG.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-AIAssistant-C536GTWy.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-Commodities-BBJiGULs.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-options-Q2nG-omU.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-CryptoMarketOverview-BtVThUED.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-LiveDataEnhanced-DE16ykZu.js">
+    <link rel="modulepreload" crossorigin href="/assets/page-LiveData-DFzHKpAd.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-XY-fDTJq.css">
   </head>
   <body>
     <div id="root">

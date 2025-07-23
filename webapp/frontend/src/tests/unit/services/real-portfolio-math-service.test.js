@@ -6,8 +6,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Matrix } from 'ml-matrix';
 
-// Import the REAL PortfolioMathService
-import PortfolioMathService from '../../../services/portfolioMathService';
+// Import the REAL PortfolioMathService (singleton instance)
+import portfolioMathService from '../../../services/portfolioMathService';
 
 // Mock console methods to avoid noise during tests
 const originalConsole = console;
@@ -24,12 +24,9 @@ afterEach(() => {
 });
 
 describe('📊 Real Portfolio Math Service', () => {
-  let portfolioMathService;
-
   beforeEach(() => {
-    portfolioMathService = new PortfolioMathService();
     // Clear cache before each test
-    portfolioMathService.cache.clear();
+    portfolioMathService.clearCache();
   });
 
   describe('Service Initialization', () => {
@@ -67,25 +64,34 @@ describe('📊 Real Portfolio Math Service', () => {
 
     const mockHistoricalData = {
       'AAPL': [
-        { date: '2024-01-01', close: 180.00 },
-        { date: '2024-01-02', close: 185.00 },
-        { date: '2024-01-03', close: 182.00 },
-        { date: '2024-01-04', close: 188.00 },
-        { date: '2024-01-05', close: 185.50 }
+        { date: '2024-01-01', close: 180.00 }, { date: '2024-01-02', close: 185.00 },
+        { date: '2024-01-03', close: 182.00 }, { date: '2024-01-04', close: 188.00 },
+        { date: '2024-01-05', close: 185.50 }, { date: '2024-01-06', close: 187.00 },
+        { date: '2024-01-07', close: 184.50 }, { date: '2024-01-08', close: 186.75 },
+        { date: '2024-01-09', close: 189.25 }, { date: '2024-01-10', close: 185.75 },
+        { date: '2024-01-11', close: 188.50 }, { date: '2024-01-12', close: 190.25 },
+        { date: '2024-01-13', close: 187.50 }, { date: '2024-01-14', close: 192.00 },
+        { date: '2024-01-15', close: 189.75 }
       ],
       'GOOGL': [
-        { date: '2024-01-01', close: 2800.00 },
-        { date: '2024-01-02', close: 2850.00 },
-        { date: '2024-01-03', close: 2820.00 },
-        { date: '2024-01-04', close: 2880.00 },
-        { date: '2024-01-05', close: 2855.00 }
+        { date: '2024-01-01', close: 2800.00 }, { date: '2024-01-02', close: 2850.00 },
+        { date: '2024-01-03', close: 2820.00 }, { date: '2024-01-04', close: 2880.00 },
+        { date: '2024-01-05', close: 2855.00 }, { date: '2024-01-06', close: 2875.00 },
+        { date: '2024-01-07', close: 2845.00 }, { date: '2024-01-08', close: 2865.00 },
+        { date: '2024-01-09', close: 2895.00 }, { date: '2024-01-10', close: 2860.00 },
+        { date: '2024-01-11', close: 2885.00 }, { date: '2024-01-12', close: 2910.00 },
+        { date: '2024-01-13', close: 2870.00 }, { date: '2024-01-14', close: 2920.00 },
+        { date: '2024-01-15', close: 2890.00 }
       ],
       'MSFT': [
-        { date: '2024-01-01', close: 270.00 },
-        { date: '2024-01-02', close: 275.00 },
-        { date: '2024-01-03', close: 272.00 },
-        { date: '2024-01-04', close: 278.00 },
-        { date: '2024-01-05', close: 276.50 }
+        { date: '2024-01-01', close: 270.00 }, { date: '2024-01-02', close: 275.00 },
+        { date: '2024-01-03', close: 272.00 }, { date: '2024-01-04', close: 278.00 },
+        { date: '2024-01-05', close: 276.50 }, { date: '2024-01-06', close: 279.00 },
+        { date: '2024-01-07', close: 274.50 }, { date: '2024-01-08', close: 277.25 },
+        { date: '2024-01-09', close: 281.00 }, { date: '2024-01-10', close: 276.75 },
+        { date: '2024-01-11', close: 280.50 }, { date: '2024-01-12', close: 283.25 },
+        { date: '2024-01-13', close: 278.50 }, { date: '2024-01-14', close: 285.00 },
+        { date: '2024-01-15', close: 281.75 }
       ]
     };
 
@@ -97,15 +103,15 @@ describe('📊 Real Portfolio Math Service', () => {
         1
       );
 
-      expect(result).toHaveProperty('varAmount');
-      expect(result).toHaveProperty('varPercent');
+      expect(result).toHaveProperty('vaR');
+      expect(result).toHaveProperty('confidenceLevel');
       expect(result).toHaveProperty('portfolioValue');
       expect(result).toHaveProperty('confidenceLevel');
       expect(result).toHaveProperty('timeHorizon');
-      expect(result).toHaveProperty('portfolioVolatility');
+      expect(result).toHaveProperty('volatility');
 
-      expect(typeof result.varAmount).toBe('number');
-      expect(typeof result.varPercent).toBe('number');
+      expect(typeof result.vaR).toBe('number');
+      expect(typeof result.confidenceLevel).toBe('number');
       expect(result.portfolioValue).toBe(131000); // 18500 + 71250 + 41250
       expect(result.confidenceLevel).toBe(0.95);
       expect(result.timeHorizon).toBe(1);
@@ -119,11 +125,10 @@ describe('📊 Real Portfolio Math Service', () => {
         1
       );
 
-      expect(result).toHaveProperty('varAmount');
-      expect(result).toHaveProperty('varPercent');
+      expect(result).toHaveProperty('vaR');
+      expect(result).toHaveProperty('confidenceLevel');
       expect(result.portfolioValue).toBe(0);
-      expect(result.varAmount).toBe(0);
-      expect(result.varPercent).toBe(0);
+      expect(result.vaR).toBe(0);
     });
 
     it('should handle portfolio with zero value', () => {
@@ -139,7 +144,7 @@ describe('📊 Real Portfolio Math Service', () => {
       );
 
       expect(result.portfolioValue).toBe(0);
-      expect(result.varAmount).toBe(0);
+      expect(result.vaR).toBe(0);
     });
 
     it('should handle missing historical data', () => {
@@ -150,10 +155,9 @@ describe('📊 Real Portfolio Math Service', () => {
         1
       );
 
-      expect(result).toHaveProperty('varAmount');
-      expect(result).toHaveProperty('varPercent');
-      expect(result.varAmount).toBe(0);
-      expect(result.varPercent).toBe(0);
+      expect(result).toHaveProperty('vaR');
+      expect(result).toHaveProperty('confidenceLevel');
+      expect(result.vaR).toBe(0);
     });
 
     it('should calculate different confidence levels correctly', () => {
@@ -171,7 +175,7 @@ describe('📊 Real Portfolio Math Service', () => {
         1
       );
 
-      expect(var99.varAmount).toBeGreaterThan(var95.varAmount);
+      expect(var99.vaR).toBeGreaterThan(var95.vaR);
       expect(var99.confidenceLevel).toBe(0.99);
       expect(var95.confidenceLevel).toBe(0.95);
     });
@@ -191,7 +195,7 @@ describe('📊 Real Portfolio Math Service', () => {
         10
       );
 
-      expect(var10Days.varAmount).toBeGreaterThan(var1Day.varAmount);
+      expect(var10Days.vaR).toBeGreaterThan(var1Day.vaR);
       expect(var10Days.timeHorizon).toBe(10);
       expect(var1Day.timeHorizon).toBe(1);
     });
@@ -479,8 +483,8 @@ describe('📊 Real Portfolio Math Service', () => {
         1
       );
 
-      expect(result).toHaveProperty('varAmount');
-      expect(result).toHaveProperty('varPercent');
+      expect(result).toHaveProperty('vaR');
+      expect(result).toHaveProperty('confidenceLevel');
     });
 
     it('should handle NaN values in calculations', () => {
@@ -511,8 +515,8 @@ describe('📊 Real Portfolio Math Service', () => {
       );
 
       // Should handle negative values (short positions)
-      expect(typeof result.varAmount).toBe('number');
-      expect(typeof result.varPercent).toBe('number');
+      expect(typeof result.vaR).toBe('number');
+      expect(typeof result.confidenceLevel).toBe('number');
     });
 
     it('should validate confidence level bounds', () => {
@@ -529,7 +533,7 @@ describe('📊 Real Portfolio Math Service', () => {
       );
 
       // Should handle gracefully or clamp to valid range
-      expect(typeof result.varAmount).toBe('number');
+      expect(typeof result.vaR).toBe('number');
     });
 
     it('should validate time horizon', () => {
@@ -546,7 +550,7 @@ describe('📊 Real Portfolio Math Service', () => {
       );
 
       // Should handle gracefully
-      expect(typeof result.varAmount).toBe('number');
+      expect(typeof result.vaR).toBe('number');
     });
   });
 
@@ -578,7 +582,7 @@ describe('📊 Real Portfolio Math Service', () => {
       
       const executionTime = performance.now() - startTime;
       
-      expect(result).toHaveProperty('varAmount');
+      expect(result).toHaveProperty('vaR');
       expect(executionTime).toBeLessThan(1000); // Should complete within 1 second
     });
 

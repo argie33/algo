@@ -5,6 +5,7 @@
  */
 
 import { Matrix } from 'ml-matrix';
+import React from 'react';
 
 class PortfolioMathService {
   constructor() {

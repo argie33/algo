@@ -8,33 +8,71 @@ set -e
 
 # Configuration parameters
 ENVIRONMENT=${1:-production}
-API_GATEWAY_URL=${2:-""}
-COGNITO_USER_POOL_ID=${3:-""}
-COGNITO_CLIENT_ID=${4:-""}
+STACK_NAME=${2:-"stocks-webapp-${1:-production}"}
+API_GATEWAY_URL=${3:-""}
+COGNITO_USER_POOL_ID=${4:-""}
+COGNITO_CLIENT_ID=${5:-""}
+AUTO_FETCH_FROM_CF=${6:-"true"}
 
-# Validate required parameters
+# Auto-fetch from CloudFormation if enabled and values not provided
+if [ "$AUTO_FETCH_FROM_CF" = "true" ]; then
+    echo "🔍 Auto-fetching configuration from CloudFormation stack: $STACK_NAME"
+    
+    # Check if stack exists
+    if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+        echo "❌ Error: CloudFormation stack '$STACK_NAME' not found"
+        echo "Available stacks:"
+        aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query 'StackSummaries[].StackName' --output table
+        exit 1
+    fi
+    
+    # Fetch real values from CloudFormation outputs
+    if [ -z "$API_GATEWAY_URL" ]; then
+        API_GATEWAY_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" --output text)
+        echo "📡 Fetched API Gateway URL: $API_GATEWAY_URL"
+    fi
+    
+    if [ -z "$COGNITO_USER_POOL_ID" ]; then
+        COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+        echo "🔐 Fetched Cognito User Pool ID: ${COGNITO_USER_POOL_ID:0:15}..."
+    fi
+    
+    if [ -z "$COGNITO_CLIENT_ID" ]; then
+        COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
+        echo "🔑 Fetched Cognito Client ID: ${COGNITO_CLIENT_ID:0:8}..."
+    fi
+fi
+
+# Validate required parameters after auto-fetch
 if [ -z "$API_GATEWAY_URL" ]; then
     echo "❌ Error: API Gateway URL is required"
-    echo "Usage: $0 <environment> <api-gateway-url> <cognito-user-pool-id> <cognito-client-id>"
+    echo "Usage: $0 <environment> [stack-name] [api-gateway-url] [cognito-user-pool-id] [cognito-client-id] [auto-fetch]"
+    echo "Example: $0 dev stocks-webapp-dev"  
+    echo "Example: $0 prod stocks-webapp-prod https://abc123.execute-api.us-east-1.amazonaws.com/prod us-east-1_ABC123 xyz789"
     exit 1
 fi
 
 if [ -z "$COGNITO_USER_POOL_ID" ]; then
     echo "❌ Error: Cognito User Pool ID is required"
-    echo "Usage: $0 <environment> <api-gateway-url> <cognito-user-pool-id> <cognito-client-id>"
+    echo "Set AUTO_FETCH_FROM_CF=false if providing manually"
     exit 1
 fi
 
 if [ -z "$COGNITO_CLIENT_ID" ]; then
     echo "❌ Error: Cognito Client ID is required"
-    echo "Usage: $0 <environment> <api-gateway-url> <cognito-user-pool-id> <cognito-client-id>"
+    echo "Set AUTO_FETCH_FROM_CF=false if providing manually"
     exit 1
 fi
 
 echo "🚀 Configuring deployment for environment: $ENVIRONMENT"
+echo "🏗️ CloudFormation Stack: $STACK_NAME"
 echo "📡 API Gateway URL: $API_GATEWAY_URL"
 echo "🔐 Cognito User Pool ID: ${COGNITO_USER_POOL_ID:0:15}..."
 echo "🔑 Cognito Client ID: ${COGNITO_CLIENT_ID:0:8}..."
+echo "⚙️ Auto-fetch from CF: $AUTO_FETCH_FROM_CF"
 
 # Path to config file
 CONFIG_FILE="public/config.js"

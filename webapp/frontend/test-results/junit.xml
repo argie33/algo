@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="45" failures="5" errors="0" time="1.441">
+    <testsuite name="src/tests/unit/services/real-settings-service.test.js" timestamp="2025-07-23T06:42:20.641Z" hostname="LAPTOP-J9NJ3854" tests="45" failures="5" errors="0" skipped="0" time="0.083">
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Service Initialization &gt; should initialize with correct base URL" time="0.013">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should fetch API keys successfully" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should throw error when API response is not successful" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should return empty array for 404 errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should return empty array for 422 errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should throw error for other HTTP status codes" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get API Keys &gt; should handle network errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Add API Key &gt; should add API key successfully" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Add API Key &gt; should use default description when not provided" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Add API Key &gt; should handle API response without success flag" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Add API Key &gt; should handle network errors during addition" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Update API Key &gt; should update API key successfully" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Update API Key &gt; should handle update failures" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Update API Key &gt; should handle network errors during update" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Delete API Key &gt; should delete API key successfully" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Delete API Key &gt; should handle deletion failures" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Delete API Key &gt; should handle network errors during deletion" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate API Key &gt; should validate API key successfully" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate API Key &gt; should handle validation failures" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate API Key &gt; should handle validation errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Validation Status &gt; should get validation status for specific provider" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Validation Status &gt; should get validation status for all providers" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Validation Status &gt; should return default status on errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate All API Keys &gt; should validate all API keys successfully" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate All API Keys &gt; should handle validation failures" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Validate All API Keys &gt; should handle validation errors" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Provider Credentials &gt; should get provider credentials successfully" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Provider Credentials &gt; should handle credential retrieval failures" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Get Provider Credentials &gt; should handle credential retrieval errors" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Format API Keys for Frontend &gt; should format backend API keys correctly" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Format API Keys for Frontend &gt; should handle empty backend API keys array" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Format API Keys for Frontend &gt; should handle null/undefined backend API keys" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Format API Keys for Frontend &gt; should handle backend API keys with missing fields" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should migrate localStorage settings successfully" time="0.021">
+            <failure message="expected &quot;spy&quot; to be called 3 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;spy&quot; to be called 3 times, but got 0 times
+ ❯ src/tests/unit/services/real-settings-service.test.js:770:28
+            </failure>
+            <failure message="expected &quot;spy&quot; to be called 3 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;spy&quot; to be called 3 times, but got 0 times
+ ❯ src/tests/unit/services/real-settings-service.test.js:770:28
+            </failure>
+            <failure message="expected &quot;spy&quot; to be called 3 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;spy&quot; to be called 3 times, but got 0 times
+ ❯ src/tests/unit/services/real-settings-service.test.js:770:28
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should handle no localStorage settings" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should handle localStorage settings without API keys" time="0.006">
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_api_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:808:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_api_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:808:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_api_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:808:22
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should handle partial migration failures gracefully" time="0.003">
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;keys&quot;: Array [
+-     &quot;alpaca&quot;,
+-   ],
+-   &quot;migrated&quot;: true,
++   &quot;migrated&quot;: false,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:845:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;keys&quot;: Array [
+-     &quot;alpaca&quot;,
+-   ],
+-   &quot;migrated&quot;: true,
++   &quot;migrated&quot;: false,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:845:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: true, keys: [ &apos;alpaca&apos; ] }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;keys&quot;: Array [
+-     &quot;alpaca&quot;,
+-   ],
+-   &quot;migrated&quot;: true,
++   &quot;migrated&quot;: false,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:845:22
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should handle malformed localStorage data" time="0.003">
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;error&quot;: Any&lt;String&gt;,
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;migration_error&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:866:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;error&quot;: Any&lt;String&gt;,
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;migration_error&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:866:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(2) }
+
+- Expected
++ Received
+
+  Object {
+-   &quot;error&quot;: Any&lt;String&gt;,
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;migration_error&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:866:22
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Migrate localStorage to Backend &gt; should not clear localStorage if no successful migrations" time="0.002">
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_valid_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:901:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_valid_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:901:22
+            </failure>
+            <failure message="expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }" type="AssertionError">
+AssertionError: expected { migrated: false, …(1) } to deeply equal { migrated: false, …(1) }
+
+- Expected
++ Received
+
+  Object {
+    &quot;migrated&quot;: false,
+-   &quot;reason&quot;: &quot;no_valid_keys&quot;,
++   &quot;reason&quot;: &quot;no_local_settings&quot;,
+  }
+
+ ❯ src/tests/unit/services/real-settings-service.test.js:901:22
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Error Handling and Edge Cases &gt; should handle concurrent API calls safely" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Error Handling and Edge Cases &gt; should handle malformed API responses gracefully" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Error Handling and Edge Cases &gt; should handle very large API key lists efficiently" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Security Considerations &gt; should never log sensitive API key data" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Security Considerations &gt; should mask secrets in formatted output" time="0">
+        </testcase>
+        <testcase classname="src/tests/unit/services/real-settings-service.test.js" name="⚙️ Real Settings Service &gt; Security Considerations &gt; should handle authentication errors appropriately" time="0.001">
+        </testcase>
+    </testsuite>
+</testsuites>

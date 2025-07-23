@@ -4,28 +4,28 @@
  */
 
 import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import Dashboard from '../../../pages/Dashboard';
 import { AuthContext } from '../../../contexts/AuthContext';
 
 // Mock the API module
-jest.mock('../../../services/api', () => ({
+vi.mock('../../../services/api', () => ({
   getApiConfig: () => ({
     apiUrl: 'https://test-api.com',
     isServerless: true,
     isConfigured: true
   }),
-  getStockPrices: jest.fn().mockResolvedValue({
+  getStockPrices: vi.fn().mockResolvedValue({
     data: [
       { date: '2025-01-01', close: 150, price: 150 },
       { date: '2025-01-02', close: 155, price: 155 }
     ],
     success: true
   }),
-  getStockMetrics: jest.fn().mockResolvedValue({
+  getStockMetrics: vi.fn().mockResolvedValue({
     data: {
       beta: 1.2,
       volatility: 0.15,
@@ -34,13 +34,13 @@ jest.mock('../../../services/api', () => ({
     },
     success: true
   }),
-  getBuySignals: jest.fn().mockResolvedValue({
+  getBuySignals: vi.fn().mockResolvedValue({
     data: [
       { symbol: 'AAPL', signal: 'BUY', confidence: 0.85, timestamp: '2025-01-01' }
     ],
     success: true
   }),
-  getSellSignals: jest.fn().mockResolvedValue({
+  getSellSignals: vi.fn().mockResolvedValue({
     data: [
       { symbol: 'MSFT', signal: 'SELL', confidence: 0.75, timestamp: '2025-01-01' }
     ],
@@ -49,63 +49,70 @@ jest.mock('../../../services/api', () => ({
 }));
 
 // Mock components that might cause issues
-jest.mock('../../../components/MarketStatusBar', () => {
+vi.mock('../../../components/MarketStatusBar', () => {
   return function MockMarketStatusBar() {
     return <div data-testid="market-status-bar">Market Status Bar</div>;
   };
 });
 
-jest.mock('../../../components/HistoricalPriceChart', () => {
+vi.mock('../../../components/HistoricalPriceChart', () => {
   return function MockHistoricalPriceChart({ data }) {
     return <div data-testid="historical-price-chart">Chart with {data?.length || 0} points</div>;
   };
 });
 
-jest.mock('../../../components/RealTimePriceWidget', () => {
+vi.mock('../../../components/RealTimePriceWidget', () => {
   return function MockRealTimePriceWidget({ symbol }) {
     return <div data-testid="real-time-price-widget">Price for {symbol}</div>;
   };
 });
 
+// Mock useSimpleFetch hook
+vi.mock('../../../hooks/useSimpleFetch', () => ({
+  useSimpleFetch: vi.fn(() => ({
+    data: {
+      portfolio: { value: 50000, pnl: { daily: 1250, mtd: 3750, ytd: 18500 } },
+      market: { sp500: 4500, nasdaq: 14200, dow: 34800 },
+      watchlist: [
+        { symbol: 'AAPL', price: 175.25, change: 2.45, changePercent: 1.42 }
+      ]
+    },
+    loading: false,
+    error: null,
+    isLoading: false,
+    isError: false,
+    isSuccess: true,
+    refetch: vi.fn()
+  }))
+}));
+
 const theme = createTheme();
 
 // Test wrapper component
-const TestWrapper = ({ children, isAuthenticated = false }) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        staleTime: 0,
-        cacheTime: 0
-      }
-    }
-  });
-
+const TestWrapper = ({ children }) => {
   const mockAuthContextValue = {
-    isAuthenticated,
-    user: isAuthenticated ? { id: 'test-user', email: 'test@example.com' } : null,
-    login: jest.fn(),
-    logout: jest.fn(),
+    isAuthenticated: true,
+    user: { id: 'test-user', email: 'test@example.com' },
+    login: vi.fn(),
+    logout: vi.fn(),
     loading: false,
     error: null
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ThemeProvider theme={theme}>
-          <AuthContext.Provider value={mockAuthContextValue}>
-            {children}
-          </AuthContext.Provider>
-        </ThemeProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <BrowserRouter>
+      <ThemeProvider theme={theme}>
+        <AuthContext.Provider value={mockAuthContextValue}>
+          {children}
+        </AuthContext.Provider>
+      </ThemeProvider>
+    </BrowserRouter>
   );
 };
 
 describe('Dashboard Component', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -364,7 +371,7 @@ describe('Dashboard Component', () => {
   describe('Error Boundaries', () => {
     test('handles component errors gracefully', async () => {
       // Spy on console.error to suppress error logs during test
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       render(
         <TestWrapper>

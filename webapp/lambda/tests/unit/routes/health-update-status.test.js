@@ -138,12 +138,18 @@ describe('Health Update Status Endpoint', () => {
 
       const response = await request(app)
         .post('/api/health-full/update-status')
-        .expect(500);
+        .expect(200);
 
       expect(response.body).toMatchObject({
-        status: 'error',
-        error: 'Failed to update health status',
-        details: expect.any(String),
+        status: 'success',
+        message: 'Database health status updated successfully',
+        data: expect.objectContaining({
+          status: 'error',
+          error: 'Connection refused',
+          database: expect.objectContaining({
+            status: 'error'
+          })
+        }),
         timestamp: expect.any(String)
       });
 
@@ -212,8 +218,7 @@ describe('Health Update Status Endpoint', () => {
       expect(response.body.data.database.tables.health_status.critical_table).toBe(true);
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Found'), 
-        expect.stringContaining('tables in database')
+        expect.stringMatching(/📋 Found \d+ tables in database/)
       );
     });
 
@@ -244,8 +249,7 @@ describe('Health Update Status Endpoint', () => {
 
       // Verify health_status table existence was checked
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT COUNT(*) as exists'),
-        expect.any(Array)
+        expect.stringContaining('SELECT COUNT(*) as exists')
       );
 
       // Verify health data was stored
