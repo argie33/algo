@@ -1,10 +1,18 @@
 /**
  * User Management Routes
  * Provides /api/user/* endpoints that proxy to existing /api/settings/* functionality
- * Plus additional user-specific features like password management
+ * Plus additional user-specific features like password management and MFA
  */
 
 const express = require('express');
+const { CognitoIdentityProviderClient, 
+        AssociateSoftwareTokenCommand,
+        VerifySoftwareTokenCommand,
+        SetUserMFAPreferenceCommand,
+        AdminSetUserMFAPreferenceCommand,
+        AdminGetUserCommand,
+        GetUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
+
 // AWS Amplify functions will be loaded conditionally to avoid import errors
 let changePassword, getCurrentUser;
 try {
@@ -17,6 +25,11 @@ try {
   getCurrentUser = null;
 }
 const { authenticateToken } = require('../middleware/auth');
+
+// Initialize Cognito client
+const cognitoClient = new CognitoIdentityProviderClient({ 
+  region: process.env.WEBAPP_AWS_REGION || 'us-east-1' 
+});
 
 const router = express.Router();
 
@@ -64,6 +77,7 @@ router.post('/two-factor/enable', async (req, res) => {
     console.log('🔐 2FA Enable requested');
     const userId = req.user.sub;
     const { method, phoneNumber } = req.body;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
     // Validate input
     if (!method || !['sms', 'totp'].includes(method)) {
@@ -80,7 +94,13 @@ router.post('/two-factor/enable', async (req, res) => {
       });
     }
 
-    // Simulate MFA setup for development
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
     const response = {
       success: true,
       method: method,
@@ -88,12 +108,79 @@ router.post('/two-factor/enable', async (req, res) => {
     };
 
     if (method === 'totp') {
-      // Simulate TOTP setup with QR code
-      response.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/TradingApp:${userId}?secret=JBSWY3DPEHPK3PXP&issuer=TradingApp`;
-      response.secret = 'JBSWY3DPEHPK3PXP'; // Demo secret
+      try {
+        // Associate software token with the user
+        const associateCommand = new AssociateSoftwareTokenCommand({
+          AccessToken: accessToken
+        });
+        
+        const associateResult = await cognitoClient.send(associateCommand);
+        
+        if (associateResult.SecretCode) {
+          const secretCode = associateResult.SecretCode;
+          const issuer = 'TradingApp';
+          const accountName = req.user.email || userId;
+          
+          // Generate QR code URL for authenticator apps
+          const otpAuthUrl = `otpauth://totp/${issuer}:${accountName}?secret=${secretCode}&issuer=${issuer}`;
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpAuthUrl)}`;
+          
+          response.qrCodeUrl = qrCodeUrl;
+          response.secret = secretCode;
+          response.setupRequired = true;
+          response.message = 'TOTP setup initiated. Scan the QR code with your authenticator app and verify with a code.';
+          
+          console.log(`✅ TOTP secret associated for user ${userId}`);
+        } else {
+          throw new Error('Failed to associate software token');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error associating software token:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to setup TOTP authentication',
+          message: error.message
+        });
+      }
+    } else if (method === 'sms') {
+      try {
+        // For SMS MFA, we need to set the phone number and enable SMS MFA
+        // First verify phone number is in correct format
+        const phoneRegex = /^\+[1-9]\d{1,14}$/;
+        if (!phoneRegex.test(phoneNumber)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Phone number must be in E.164 format (e.g., +1234567890)'
+          });
+        }
+
+        // Enable SMS MFA preference for the user
+        const setMfaCommand = new SetUserMFAPreferenceCommand({
+          AccessToken: accessToken,
+          SMSMfaSettings: {
+            Enabled: true,
+            PreferredMfa: true
+          }
+        });
+        
+        await cognitoClient.send(setMfaCommand);
+        
+        response.phoneNumber = phoneNumber;
+        response.message = `SMS two-factor authentication has been enabled for ${phoneNumber}`;
+        
+        console.log(`✅ SMS MFA enabled for user ${userId} with phone ${phoneNumber}`);
+        
+      } catch (error) {
+        console.error('❌ Error enabling SMS MFA:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to enable SMS authentication',
+          message: error.message
+        });
+      }
     }
 
-    console.log(`✅ 2FA enabled for user ${userId} using ${method}`);
     res.json(response);
     
   } catch (error) {
@@ -110,15 +197,48 @@ router.post('/two-factor/disable', async (req, res) => {
   try {
     console.log('🔐 2FA Disable requested');
     const userId = req.user.sub;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
-    // Simulate 2FA disable
-    console.log(`✅ 2FA disabled for user ${userId}`);
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
+    try {
+      // Disable both SMS and TOTP MFA
+      const disableMfaCommand = new SetUserMFAPreferenceCommand({
+        AccessToken: accessToken,
+        SMSMfaSettings: {
+          Enabled: false,
+          PreferredMfa: false
+        },
+        SoftwareTokenMfaSettings: {
+          Enabled: false,
+          PreferredMfa: false
+        }
+      });
+      
+      await cognitoClient.send(disableMfaCommand);
+      
+      console.log(`✅ 2FA disabled for user ${userId}`);
+      
+      res.json({
+        success: true,
+        message: 'Two-factor authentication has been disabled',
+        mfaEnabled: false
+      });
+      
+    } catch (error) {
+      console.error('❌ Error disabling MFA via Cognito:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to disable MFA',
+        message: error.message
+      });
+    }
     
-    res.json({
-      success: true,
-      message: 'Two-factor authentication has been disabled',
-      mfaEnabled: false
-    });
   } catch (error) {
     console.error('❌ Error disabling 2FA:', error);
     res.status(500).json({
@@ -134,6 +254,7 @@ router.post('/two-factor/verify', async (req, res) => {
     console.log('🔐 2FA Verify requested');
     const userId = req.user.sub;
     const { method, code } = req.body;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
     // Validate input
     if (!method || !code) {
@@ -150,7 +271,13 @@ router.post('/two-factor/verify', async (req, res) => {
       });
     }
 
-    // Simulate verification (accept any 6-digit code for demo)
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
     const isValidCode = /^\d{6}$/.test(code);
     
     if (!isValidCode) {
@@ -160,20 +287,79 @@ router.post('/two-factor/verify', async (req, res) => {
       });
     }
 
-    // Generate demo backup codes
-    const backupCodes = Array.from({ length: 8 }, () => 
-      Math.random().toString(36).substring(2, 10).toUpperCase()
-    );
+    try {
+      if (method === 'totp') {
+        // Verify TOTP code
+        const verifyCommand = new VerifySoftwareTokenCommand({
+          AccessToken: accessToken,
+          UserCode: code
+        });
+        
+        const verifyResult = await cognitoClient.send(verifyCommand);
+        
+        if (verifyResult.Status === 'SUCCESS') {
+          // Enable TOTP MFA after successful verification
+          const enableMfaCommand = new SetUserMFAPreferenceCommand({
+            AccessToken: accessToken,
+            SoftwareTokenMfaSettings: {
+              Enabled: true,
+              PreferredMfa: true
+            }
+          });
+          
+          await cognitoClient.send(enableMfaCommand);
+          
+          // Generate backup codes
+          const backupCodes = Array.from({ length: 8 }, () => 
+            Math.random().toString(36).substring(2, 10).toUpperCase()
+          );
 
-    console.log(`✅ 2FA verified for user ${userId} using ${method}`);
+          console.log(`✅ TOTP verified and enabled for user ${userId}`);
+          
+          res.json({
+            success: true,
+            message: 'TOTP authentication verified and enabled successfully',
+            mfaEnabled: true,
+            method: method,
+            backupCodes: backupCodes
+          });
+        } else {
+          res.status(400).json({
+            success: false,
+            error: 'Invalid verification code'
+          });
+        }
+      } else {
+        // For SMS, we can't directly verify since the code comes during sign-in
+        // This endpoint is mainly for TOTP verification after setup
+        res.status(400).json({
+          success: false,
+          error: 'SMS verification should happen during sign-in flow'
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error verifying MFA code:', error);
+      
+      if (error.name === 'CodeMismatchException') {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid verification code'
+        });
+      } else if (error.name === 'ExpiredCodeException') {
+        res.status(400).json({
+          success: false,
+          error: 'Verification code has expired'
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: 'Failed to verify MFA code',
+          message: error.message
+        });
+      }
+    }
     
-    res.json({
-      success: true,
-      message: 'Two-factor authentication verified successfully',
-      mfaEnabled: true,
-      method: method,
-      backupCodes: backupCodes
-    });
   } catch (error) {
     console.error('❌ Error verifying 2FA:', error);
     res.status(500).json({
@@ -187,17 +373,48 @@ router.post('/two-factor/verify', async (req, res) => {
 router.get('/two-factor/status', async (req, res) => {
   try {
     console.log('🔐 2FA Status requested');
+    const userId = req.user.sub;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
-    res.json({
-      success: true,
-      data: {
-        enabled: false,
-        setupRequired: true,
-        backupCodes: 0,
-        lastUsed: null
-      },
-      message: 'Two-factor authentication is not yet configured'
-    });
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
+    try {
+      // Get user details including MFA preferences
+      const getUserCommand = new GetUserCommand({
+        AccessToken: accessToken
+      });
+      
+      const userResult = await cognitoClient.send(getUserCommand);
+      
+      // Check MFA preferences from user attributes
+      const mfaPrefs = userResult.MFAOptions || [];
+      const enabled = mfaPrefs.length > 0;
+      
+      res.json({
+        success: true,
+        data: {
+          enabled: enabled,
+          setupRequired: !enabled,
+          methods: mfaPrefs.map(pref => pref.DeliveryMedium?.toLowerCase() || 'unknown'),
+          backupCodes: enabled ? 8 : 0, // Assume 8 backup codes if MFA is enabled
+          lastUsed: null // Cognito doesn't provide this info easily
+        },
+        message: enabled ? 'Two-factor authentication is configured' : 'Two-factor authentication is not yet configured'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error getting user MFA status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get 2FA status',
+        message: error.message
+      });
+    }
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -212,15 +429,50 @@ router.get('/mfa-status', async (req, res) => {
   try {
     console.log('🔐 MFA Status requested for SecurityTab');
     const userId = req.user.sub;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
-    // Simulate MFA status check
-    res.json({
-      success: true,
-      mfaEnabled: false,
-      mfaMethods: [],
-      backupCodes: [],
-      message: 'MFA status retrieved successfully'
-    });
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
+    try {
+      // Get user details including MFA preferences
+      const getUserCommand = new GetUserCommand({
+        AccessToken: accessToken
+      });
+      
+      const userResult = await cognitoClient.send(getUserCommand);
+      
+      // Check MFA preferences from user attributes
+      const mfaPrefs = userResult.MFAOptions || [];
+      const mfaEnabled = mfaPrefs.length > 0;
+      
+      // Extract enabled methods
+      const mfaMethods = mfaPrefs.map(pref => ({
+        type: pref.DeliveryMedium?.toLowerCase() === 'sms' ? 'sms' : 'totp',
+        enabled: true,
+        verified: true
+      }));
+      
+      res.json({
+        success: true,
+        mfaEnabled: mfaEnabled,
+        mfaMethods: mfaMethods,
+        backupCodes: mfaEnabled ? Array.from({ length: 8 }, () => '********') : [],
+        message: 'MFA status retrieved successfully'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error getting MFA status from Cognito:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get MFA status',
+        message: error.message
+      });
+    }
   } catch (error) {
     console.error('❌ Error getting MFA status:', error);
     res.status(500).json({
@@ -237,6 +489,7 @@ router.post('/two-factor/setup/:method', async (req, res) => {
     const { method } = req.params;
     const { phoneNumber } = req.body;
     const userId = req.user.sub;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     
     console.log(`🔐 Setting up ${method} for user ${userId}`);
     
@@ -247,28 +500,79 @@ router.post('/two-factor/setup/:method', async (req, res) => {
       });
     }
 
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
     const response = {
       success: true,
       method: method,
       message: `${method.toUpperCase()} setup initiated`
     };
 
-    if (method === 'totp') {
-      // Generate QR code for TOTP
-      response.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/TradingApp:${userId}?secret=JBSWY3DPEHPK3PXP&issuer=TradingApp`;
-      response.secret = 'JBSWY3DPEHPK3PXP';
-    } else if (method === 'sms') {
-      if (!phoneNumber) {
-        return res.status(400).json({
-          success: false,
-          error: 'Phone number is required for SMS setup'
+    try {
+      if (method === 'totp') {
+        // Associate software token with the user  
+        const associateCommand = new AssociateSoftwareTokenCommand({
+          AccessToken: accessToken
         });
+        
+        const associateResult = await cognitoClient.send(associateCommand);
+        
+        if (associateResult.SecretCode) {
+          const secretCode = associateResult.SecretCode;
+          const issuer = 'TradingApp';
+          const accountName = req.user.email || userId;
+          
+          // Generate QR code URL for authenticator apps
+          const otpAuthUrl = `otpauth://totp/${issuer}:${accountName}?secret=${secretCode}&issuer=${issuer}`;
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpAuthUrl)}`;
+          
+          response.qrCodeUrl = qrCodeUrl;
+          response.secret = secretCode;
+          response.message = 'TOTP setup initiated. Scan the QR code with your authenticator app.';
+          
+          console.log(`✅ TOTP setup initiated for user ${userId}`);
+        } else {
+          throw new Error('Failed to associate software token');
+        }
+        
+      } else if (method === 'sms') {
+        if (!phoneNumber) {
+          return res.status(400).json({
+            success: false,
+            error: 'Phone number is required for SMS setup'
+          });
+        }
+        
+        // Validate phone number format
+        const phoneRegex = /^\+[1-9]\d{1,14}$/;
+        if (!phoneRegex.test(phoneNumber)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Phone number must be in E.164 format (e.g., +1234567890)'
+          });
+        }
+        
+        response.phoneNumber = phoneNumber;
+        response.message = `SMS MFA setup initiated for ${phoneNumber}. Enable SMS MFA to complete setup.`;
+        
+        console.log(`✅ SMS MFA setup initiated for user ${userId} with phone ${phoneNumber}`);
       }
-      response.phoneNumber = phoneNumber;
-      response.message = `SMS verification code sent to ${phoneNumber}`;
-    }
 
-    res.json(response);
+      res.json(response);
+      
+    } catch (error) {
+      console.error('❌ Error setting up MFA with Cognito:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to setup MFA',
+        message: error.message
+      });
+    }
     
   } catch (error) {
     console.error('❌ Error setting up MFA:', error);

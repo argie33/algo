@@ -131,9 +131,7 @@ function TechnicalAnalysis() {
       console.error('TechnicalAnalysis: API Error:', err);
       logger.error('technicalAnalysis', err, { timeframe, symbolFilter, page });
       setError(err);
-      
-      // Set empty data on error
-      setTechnicalData({ data: [], total: 0, page: 1, limit: rowsPerPage });
+      setTechnicalData(null);
     } finally {
       setIsLoading(false);
     }

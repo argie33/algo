@@ -2037,7 +2037,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 export const screenStocks = async (params) => {
   try {
     // Use the stocks screening endpoint
-    const endpoint = '/stocks/screen';
+    const endpoint = '/api/stocks/screen';
     
     // Properly serialize params to query string
     const queryParams = new URLSearchParams(params);
@@ -2045,10 +2045,10 @@ export const screenStocks = async (params) => {
     
     console.log('🔍 [API] Screening stocks with params:', params);
     console.log(`🔍 [API] Using screener endpoint: ${endpoint}?${queryString}`);
+    console.log('🔍 [API] Current API config:', currentConfig);
+    console.log('🔍 [API] Full URL will be:', currentConfig?.baseURL + endpoint + '?' + queryString);
     
-    const response = await initializeApi().get(`${endpoint}?${queryString}`, {
-      baseURL: currentConfig.baseURL
-    });
+    const response = await initializeApi().get(`${endpoint}?${queryString}`);
     
     console.log(`✅ [API] Raw backend response:`, response.data);
     
@@ -2782,7 +2782,7 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
     });
     
     // Use the correct single endpoint structure as confirmed by backend analysis
-    const endpoint = `/technical/${timeframe}?${queryParams.toString()}`;
+    const endpoint = `/api/technical/${timeframe}?${queryParams.toString()}`;
     
     console.log(`📊 [API] Calling technical endpoint: ${endpoint}`);
     
