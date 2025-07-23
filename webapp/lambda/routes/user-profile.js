@@ -231,7 +231,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // PUT /api/user/profile - Update user profile
-router.put('/profile', validateProfileData(['firstName', 'lastName', 'email', 'phone', 'timezone', 'currency']), async (req, res) => {
+router.put('/profile', validateProfileData, async (req, res) => {
   try {
     console.log('📝 PUT /api/user/profile - Updating user profile');
     
@@ -390,7 +390,7 @@ router.get('/notifications', async (req, res) => {
 });
 
 // PUT /api/user/notifications - Update notification preferences
-router.put('/notifications', validateNotificationData(['email', 'push', 'priceAlerts', 'portfolioUpdates', 'marketNews', 'weeklyReports']), async (req, res) => {
+router.put('/notifications', validateNotificationData, async (req, res) => {
   try {
     console.log('📝 PUT /api/user/notifications - Updating notification preferences');
     
@@ -545,7 +545,7 @@ router.get('/theme', async (req, res) => {
 });
 
 // PUT /api/user/theme - Update theme preferences
-router.put('/theme', validateThemeData(['darkMode', 'primaryColor', 'chartStyle', 'layout']), async (req, res) => {
+router.put('/theme', validateThemeData, async (req, res) => {
   try {
     console.log('📝 PUT /api/user/theme - Updating theme preferences');
     

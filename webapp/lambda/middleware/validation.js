@@ -290,7 +290,11 @@ function createValidationMiddleware(schema, options = {}) {
 
         // If there are validation errors, return them using standardized format
         if (errors.length > 0) {
-            return res.validationError(errors);
+            return res.status(400).json({
+                success: false,
+                error: 'Validation failed',
+                errors: errors
+            });
         }
 
         // Attach sanitized data to request
