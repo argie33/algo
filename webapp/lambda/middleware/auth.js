@@ -25,18 +25,9 @@ function isDevelopment() {
 }
 
 function allowDevBypass() {
-  // Only allow dev bypass if explicitly enabled OR in actual development mode
-  // Note: NODE_ENV === 'test' should respect ALLOW_DEV_AUTH_BYPASS setting
-  if (process.env.ALLOW_DEV_AUTH_BYPASS === 'true') {
-    return true;
-  }
-  
-  if (process.env.ALLOW_DEV_AUTH_BYPASS === 'false') {
-    return false;
-  }
-  
-  // If ALLOW_DEV_AUTH_BYPASS is not set, only allow bypass in development mode
-  return isDevelopment();
+  // DISABLED: No automatic authentication bypass allowed
+  // This prevents random user login and forces proper authentication
+  return false;
 }
 
 /**

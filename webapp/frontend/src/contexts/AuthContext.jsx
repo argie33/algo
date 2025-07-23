@@ -155,6 +155,13 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.INCREMENT_RETRY });
       
+      // SECURITY: Clear any existing demo/fallback authentication sessions
+      localStorage.removeItem('demo-user');
+      localStorage.removeItem('demo-session');
+      localStorage.removeItem('fallback-auth');
+      sessionStorage.removeItem('demo-user');
+      sessionStorage.removeItem('demo-session');
+      
       // Initialize runtime configuration first
       try {
         const { initializeRuntimeConfig } = await import('../services/runtimeConfig');
@@ -175,33 +182,10 @@ export function AuthProvider({ children }) {
       }
       
       if (!FEATURES.authentication.methods.cognito || !isCognitoConfigured()) {
-        console.warn('⚠️ Cognito misconfigured, checking for demo session');
-        const demoUser = localStorage.getItem('demo-user');
-        if (demoUser) {
-          const user = JSON.parse(demoUser);
-          dispatch({
-            type: AUTH_ACTIONS.LOGIN_SUCCESS,
-            payload: {
-              user: {
-                username: user.name || user.email,
-                userId: user.id,
-                email: user.email,
-                firstName: user.name?.split(' ')[0] || '',
-                lastName: user.name?.split(' ')[1] || '',
-                isDemoUser: true
-              },
-              tokens: {
-                accessToken: user.signInUserSession?.accessToken?.jwtToken || 'demo-token',
-                idToken: user.signInUserSession?.idToken?.jwtToken || 'demo-token'
-              }
-            }
-          });
-          return;
-        } else {
-          // No demo session, user needs to authenticate via fallback
-          dispatch({ type: AUTH_ACTIONS.LOGOUT });
-          return;
-        }
+        console.error('❌ Cognito not configured - authentication required');
+        // DISABLED: No automatic demo user login
+        dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        return;
       }
       
       // COGNITO ONLY - Use real authentication
