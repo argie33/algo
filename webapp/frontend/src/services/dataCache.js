@@ -173,9 +173,9 @@ class DataCacheService {
       console.log('[Cache] Preloading common data during off-hours');
       
       const commonEndpoints = [
-        { endpoint: '/market/overview', cacheType: 'marketData' },
-        { endpoint: '/stocks?limit=10', cacheType: 'stockData' },
-        { endpoint: '/metrics', cacheType: 'metricsData' }
+        { endpoint: '/api/market/overview', cacheType: 'marketData' },
+        { endpoint: '/api/stocks?limit=10', cacheType: 'stockData' },
+        { endpoint: '/api/metrics', cacheType: 'metricsData' }
       ];
       
       // Stagger requests to avoid spike

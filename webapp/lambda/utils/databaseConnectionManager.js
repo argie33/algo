@@ -201,8 +201,9 @@ class DatabaseConnectionManager {
   
   async healthCheck() {
     try {
+      // Initialize database if not already done
       if (!this.isInitialized || !this.pool) {
-        return { healthy: false, error: 'Database not initialized' };
+        await this.initialize();
       }
       
       await this.testConnection();
