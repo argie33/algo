@@ -158,24 +158,12 @@ const theme = createTheme();
 
 // Test wrapper component
 const TestWrapper = ({ children, symbol = 'AAPL' }) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        staleTime: 0,
-        cacheTime: 0
-      }
-    }
-  });
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/stock/${symbol}`]}>
-        <ThemeProvider theme={theme}>
-          {children}
-        </ThemeProvider>
-      </MemoryRouter>
-    </QueryClientProvider>
+    <MemoryRouter initialEntries={[`/stock/${symbol}`]}>
+      <ThemeProvider theme={theme}>
+        {children}
+      </ThemeProvider>
+    </MemoryRouter>
   );
 };
 
