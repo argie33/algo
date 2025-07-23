@@ -275,6 +275,88 @@ async function runSpecificErrorTests() {
   }
 }
 
+async function storePreDeployResults(runtimeResult, specificResult, buildResult) {
+  try {
+    const deploymentData = {
+      validationType: 'pre_deploy',
+      results: {
+        runtime: {
+          success: runtimeResult.success,
+          runtimeErrors: runtimeResult.runtimeErrors || [],
+          consoleErrors: runtimeResult.consoleErrors || [],  
+          apiErrors: runtimeResult.apiErrors || [],
+          timestamp: new Date().toISOString()
+        },
+        specific: {
+          success: specificResult.success,
+          failures: specificResult.failures || [],
+          testResults: specificResult.testResults || [],
+          timestamp: new Date().toISOString()
+        },
+        build: {
+          success: buildResult.success,
+          output: buildResult.output,
+          error: buildResult.error,
+          timestamp: new Date().toISOString()
+        }
+      },
+      environment: 'pre_deploy',
+      metadata: {
+        script: 'pre-deploy-validation',
+        totalErrors: errors.length,
+        totalWarnings: warnings.length,
+        validationStatus: errors.length === 0 ? 'passed' : 'failed'
+      }
+    };
+
+    // Store results via page analysis API (if available)
+    try {
+      const response = await fetch('/api/page-analysis/html-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEV_TOKEN || 'dev-token'}`
+        },
+        body: JSON.stringify({
+          pagePath: '/pre-deploy-validation',
+          pageHtml: JSON.stringify(deploymentData),
+          pageTitle: 'Pre-Deploy Validation Results',
+          analysisType: 'pre_deploy_validation',
+          metadata: deploymentData.metadata
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(chalk.green(`✅ Pre-deploy results stored with analysis ID: ${result.data.analysisId}`));
+      }
+    } catch (apiError) {
+      console.log(chalk.yellow(`⚠️  API storage failed: ${apiError.message}`));
+    }
+
+    // Also store via validation API for consistency
+    try {
+      const response = await fetch('/api/validation/results', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEV_TOKEN || 'dev-token'}`
+        },
+        body: JSON.stringify(deploymentData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(chalk.green(`✅ Pre-deploy results stored with validation ID: ${result.data.validationId}`));
+      }
+    } catch (apiError) {
+      console.log(chalk.yellow(`⚠️  Validation API storage failed: ${apiError.message}`));
+    }
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Result storage failed: ${error.message}`));
+  }
+}
+
 async function main() {
   console.log(chalk.blue.bold('\n🚀 Pre-Deploy Validation - Catch All Runtime Errors\n'));
   console.log(chalk.gray('This script catches the errors you saw in F12 console!\n'));
@@ -296,6 +378,9 @@ async function main() {
   console.log(chalk.blue('\n🧪 Specific Error Pattern Tests\n'));
   
   const specificResult = await runSpecificErrorTests();
+
+  // Store validation results using the previously dead variables
+  await storePreDeployResults(runtimeResult, specificResult, buildResult);
   
   // 4. Generate comprehensive report
   console.log(chalk.blue.bold('\n📊 Pre-Deploy Validation Results\n'));
