@@ -240,67 +240,85 @@ const validationSchemas = {
 
 /**
  * Generic validation middleware factory
+ * Supports both patterns:
+ * 1. Direct usage: createValidationMiddleware(schema)
+ * 2. Field array usage: createValidationMiddleware(schema)(fields)
  */
 function createValidationMiddleware(schema, options = {}) {
-    return (req, res, next) => {
-        const errors = [];
-        const sanitized = {};
+    const middlewareFunction = (fieldsToValidate = null) => {
+        return (req, res, next) => {
+            const errors = [];
+            const sanitized = {};
 
-        // Determine source of data (query, body, params)
-        const sources = ['query', 'body', 'params'];
-        
-        for (const [fieldName, rules] of Object.entries(schema)) {
-            let value = null;
-            let found = false;
+            // Determine which fields to validate
+            const fieldsToCheck = fieldsToValidate ? 
+                Object.keys(schema).filter(field => fieldsToValidate.includes(field)) :
+                Object.keys(schema);
 
-            // Find the field in request sources
-            for (const source of sources) {
-                if (req[source] && req[source][fieldName] !== undefined) {
-                    value = req[source][fieldName];
-                    found = true;
-                    break;
+            // Determine source of data (query, body, params)
+            const sources = ['query', 'body', 'params'];
+            
+            for (const fieldName of fieldsToCheck) {
+                const rules = schema[fieldName];
+                if (!rules) continue;
+
+                let value = null;
+                let found = false;
+
+                // Find the field in request sources
+                for (const source of sources) {
+                    if (req[source] && req[source][fieldName] !== undefined) {
+                        value = req[source][fieldName];
+                        found = true;
+                        break;
+                    }
                 }
+
+                // Check if required field is missing
+                if (rules.required && (!found || value === null || value === undefined || value === '')) {
+                    errors.push(`${fieldName} is required`);
+                    continue;
+                }
+
+                // Skip validation if field is not required and not provided
+                if (!found && !rules.required) {
+                    continue;
+                }
+
+                // Sanitize the value
+                if (rules.sanitizer) {
+                    value = rules.sanitizer(value);
+                }
+
+                // Validate the sanitized value
+                if (rules.validator && !rules.validator(value)) {
+                    errors.push(rules.errorMessage || `${fieldName} is invalid`);
+                    continue;
+                }
+
+                // Store sanitized value
+                sanitized[fieldName] = value;
             }
 
-            // Check if required field is missing
-            if (rules.required && (!found || value === null || value === undefined || value === '')) {
-                errors.push(`${fieldName} is required`);
-                continue;
+            // If there are validation errors, return them using standardized format
+            if (errors.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Validation failed',
+                    errors: errors
+                });
             }
 
-            // Skip validation if field is not required and not provided
-            if (!found && !rules.required) {
-                continue;
-            }
-
-            // Sanitize the value
-            if (rules.sanitizer) {
-                value = rules.sanitizer(value);
-            }
-
-            // Validate the sanitized value
-            if (rules.validator && !rules.validator(value)) {
-                errors.push(rules.errorMessage || `${fieldName} is invalid`);
-                continue;
-            }
-
-            // Store sanitized value
-            sanitized[fieldName] = value;
-        }
-
-        // If there are validation errors, return them using standardized format
-        if (errors.length > 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Validation failed',
-                errors: errors
-            });
-        }
-
-        // Attach sanitized data to request
-        req.validated = sanitized;
-        next();
+            // Attach sanitized data to request
+            req.validated = sanitized;
+            next();
+        };
     };
+
+    // Support both usage patterns
+    // If called without arguments, return middleware for all fields
+    middlewareFunction.default = middlewareFunction();
+    return middlewareFunction;
 }
 
 /**

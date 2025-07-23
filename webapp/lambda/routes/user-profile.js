@@ -136,9 +136,9 @@ const themeValidationSchemas = {
   }
 };
 
-const validateProfileData = createValidationMiddleware(profileValidationSchemas);
-const validateNotificationData = createValidationMiddleware(notificationValidationSchemas);
-const validateThemeData = createValidationMiddleware(themeValidationSchemas);
+const validateProfileData = createValidationMiddleware(profileValidationSchemas).default;
+const validateNotificationData = createValidationMiddleware(notificationValidationSchemas).default;
+const validateThemeData = createValidationMiddleware(themeValidationSchemas).default;
 
 // GET /api/user/profile - Get user profile
 router.get('/profile', async (req, res) => {

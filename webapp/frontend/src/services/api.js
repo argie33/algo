@@ -850,7 +850,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
 // API Keys management
 export const getApiKeys = async () => {
   return apiWrapper.execute('getApiKeys', async () => {
-    const response = await initializeApi().get('/settings/api-keys');
+    const response = await initializeApi().get('/api/settings/api-keys');
     return response.data;
   }, {
     context: {
@@ -873,7 +873,7 @@ export const addApiKey = async (apiKeyData) => {
       throw new Error('API key data must include name and key');
     }
     
-    const response = await initializeApi().post('/settings/api-keys', apiKeyData);
+    const response = await initializeApi().post('/api/settings/api-keys', apiKeyData);
     return response.data;
   }, {
     context: {
@@ -895,7 +895,7 @@ export const updateApiKey = async (keyId, apiKeyData) => {
       throw new Error('API key data is required');
     }
     
-    const response = await initializeApi().put(`/settings/api-keys/${keyId}`, apiKeyData);
+    const response = await initializeApi().put(`/api/settings/api-keys/${keyId}`, apiKeyData);
     return response.data;
   }, {
     context: {
