@@ -145,8 +145,28 @@ async function getDbConfig() {
 
         // Fallback to Secrets Manager if environment variables not available
         const secretArn = process.env.DB_SECRET_ARN;
-        if (!secretArn) {
-            throw new Error(`Database configuration incomplete. Available: DB_HOST="${process.env.DB_HOST || 'undefined'}", DB_USER="${process.env.DB_USER || 'undefined'}", DB_PASSWORD="${process.env.DB_PASSWORD ? '[SET]' : 'undefined'}", DB_SECRET_ARN="${process.env.DB_SECRET_ARN || 'undefined'}". Need either complete env vars or DB_SECRET_ARN.`);
+        if (!secretArn || secretArn.includes('${') || secretArn === '${DB_SECRET_ARN}') {
+            // Handle common deployment issues with placeholder values
+            const errorMsg = `Database configuration incomplete. DB_SECRET_ARN is invalid or placeholder: "${secretArn}". Available: DB_HOST="${process.env.DB_HOST || 'undefined'}", DB_USER="${process.env.DB_USER || 'undefined'}", DB_PASSWORD="${process.env.DB_PASSWORD ? '[SET]' : 'undefined'}". Need either complete env vars or valid DB_SECRET_ARN.`;
+            console.error('❌ Database configuration error:', errorMsg);
+            
+            // Return a stub configuration that allows health route to load but reports unhealthy status
+            dbConfig = {
+                host: 'localhost',
+                port: 5432,
+                database: 'unavailable',
+                user: 'unavailable',
+                password: 'unavailable',
+                ssl: false,
+                max: 1,
+                idleTimeoutMillis: 1000,
+                connectionTimeoutMillis: 1000,
+                __isStub: true,
+                __error: errorMsg
+            };
+            
+            console.log('⚠️ Using stub database configuration - health checks will report service unavailable');
+            return dbConfig;
         }
 
         console.log(`🔑 Getting DB credentials from Secrets Manager: ${secretArn}`);
@@ -763,6 +783,18 @@ async function transaction(callback) {
  */
 async function healthCheck() {
     try {
+        // Check if we're using stub configuration due to invalid DB_SECRET_ARN
+        const config = await getDbConfig();
+        if (config.__isStub) {
+            return {
+                status: 'configuration_error',
+                error: 'Database configuration incomplete',
+                details: config.__error,
+                note: 'Database credentials are not properly configured. Check DB_SECRET_ARN environment variable.',
+                configurationIssue: true
+            };
+        }
+        
         // Use new database manager with circuit breaker protection
         const result = await databaseManager.query('SELECT NOW() as timestamp, current_database() as db, version() as version');
         

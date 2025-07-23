@@ -41,8 +41,12 @@ class DatabaseConnectionManager {
         keepAliveInitialDelayMillis: 10000
       });
       
-      // Test initial connection
-      await this.testConnection();
+      // Test initial connection (skip for stub configuration)
+      if (!this.config.__isStub) {
+        await this.testConnection();
+      } else {
+        console.log('⚠️ Skipping connection test for stub configuration');
+      }
       
       this.isInitialized = true;
       console.log('✅ Database connection initialized successfully');
@@ -70,8 +74,11 @@ class DatabaseConnectionManager {
       };
     }
     
-    // Fallback to AWS Secrets Manager (skip in test environment)
-    if (process.env.DB_SECRET_ARN && process.env.NODE_ENV !== 'test') {
+    // Fallback to AWS Secrets Manager (skip in test environment and invalid ARNs)
+    if (process.env.DB_SECRET_ARN && 
+        process.env.NODE_ENV !== 'test' && 
+        !process.env.DB_SECRET_ARN.includes('${') && 
+        process.env.DB_SECRET_ARN !== '${DB_SECRET_ARN}') {
       console.log('🔧 Using AWS Secrets Manager fallback');
       const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
       
@@ -109,13 +116,27 @@ class DatabaseConnectionManager {
       }
     }
     
-    // Final fallback for test environment
+    // Final fallback for test environment or misconfigured production
+    const isConfigurationError = process.env.DB_SECRET_ARN && process.env.DB_SECRET_ARN.includes('${');
+    if (isConfigurationError) {
+      console.error('❌ Invalid DB_SECRET_ARN detected - returning stub configuration');
+      return {
+        host: 'localhost',
+        port: 5432,
+        database: 'unavailable',
+        user: 'unavailable',
+        password: 'unavailable',
+        __isStub: true,
+        __error: `Invalid DB_SECRET_ARN: ${process.env.DB_SECRET_ARN}`
+      };
+    }
+    
     console.log('🔧 Using test environment database fallback');
     return {
       host: 'localhost',
       port: 5432,
       database: 'financial_platform_test',
-      username: 'postgres',
+      user: 'postgres',
       password: ''
     };
   }
@@ -136,6 +157,11 @@ class DatabaseConnectionManager {
     // Initialize if needed
     if (!this.isInitialized) {
       await this.initialize();
+    }
+    
+    // Handle stub configuration
+    if (this.config.__isStub) {
+      throw new Error(`Database unavailable: ${this.config.__error}`);
     }
     
     // Periodic health check
