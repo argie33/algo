@@ -33,8 +33,22 @@ const useRealTimeWebSocket = () => {
       return window.__CONFIG__.WS_URL.replace('https://', 'wss://').replace('/api/websocket', '');
     }
     
-    // Use the real deployed API Gateway endpoint
-    return 'wss://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+    // Derive from API URL
+    if (window.__CONFIG__?.API?.BASE_URL) {
+      return window.__CONFIG__.API.BASE_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    }
+    
+    // Environment variable fallback
+    if (import.meta.env.VITE_WS_URL) {
+      return import.meta.env.VITE_WS_URL;
+    }
+    
+    // Localhost fallback for development
+    if (window.location.hostname === 'localhost') {
+      return 'ws://localhost:3001';
+    }
+    
+    throw new Error('WebSocket URL not configured - set VITE_WS_URL or configure API.BASE_URL');
   }, []);
 
   // Add error to list with timestamp

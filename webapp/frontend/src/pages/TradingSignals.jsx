@@ -347,6 +347,7 @@ const TradingSignals = () => {
   const [aggregateSignals, setAggregateSignals] = useState([]);
   const [signalType, setSignalType] = useState('all');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [buySignals, setBuySignals] = useState([]);
   const [sellSignals, setSellSignals] = useState([]);
   const [allSignals, setAllSignals] = useState([]);

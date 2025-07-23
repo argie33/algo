@@ -133,8 +133,8 @@ export const getApiConfig = () => {
         // In tests, if no explicit config is provided or it's a placeholder, error out
         throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
       } else if (!isExplicitPlaceholder && !shouldThrowInTest) {
-        // Use default in production/development only if not explicitly set to placeholder
-        apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+        // No hardcoded fallback - must be explicitly configured
+        throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
       }
     }
     

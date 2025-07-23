@@ -69,8 +69,8 @@ class ConfigService extends StandardService {
    * Apply default configuration values
    */
   applyDefaults(config) {
-    // API Configuration
-    config.API_URL = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+    // API Configuration - no hardcoded fallback
+    config.API_URL = null; // Must be configured via environment or runtime config
     config.API_TIMEOUT = 30000;
     config.API_RETRIES = 3;
 

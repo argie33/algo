@@ -11,17 +11,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Ensure config is always available with safe defaults
+      // Initialize empty config - will be populated by config.js
       window.__CONFIG__ = window.__CONFIG__ || {
-        API_URL: 'https://jh28jhdp01.execute-api.us-east-1.amazonaws.com/dev',
-        ENVIRONMENT: 'dev',
+        ENVIRONMENT: 'development',
         VERSION: 'fallback',
         BUILD_TIME: new Date().toISOString(),
+        API: {
+          BASE_URL: null // Will be set by config.js based on environment
+        },
         COGNITO: {
-          USER_POOL_ID: 'us-east-1_ZqooNeQtV',
-          CLIENT_ID: '243r98prucoickch12djkahrhk',
+          USER_POOL_ID: null, // Must be configured via deployment
+          CLIENT_ID: null,    // Must be configured via deployment
           REGION: 'us-east-1',
-          DOMAIN: '',
+          DOMAIN: null,
           REDIRECT_SIGN_IN: window.location.origin,
           REDIRECT_SIGN_OUT: window.location.origin
         }

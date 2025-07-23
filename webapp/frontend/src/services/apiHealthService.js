@@ -364,8 +364,8 @@ class ApiHealthService {
       
       if (envApiUrl) return envApiUrl;
       
-      // 3. Defaults (lowest priority) - same as unified system
-      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+      // 3. No hardcoded fallback - must be explicitly configured
+      throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
       
     } catch (error) {
       console.warn('⚠️ [HEALTH] Failed to get unified config, using fallback:', error.message);
@@ -385,8 +385,8 @@ class ApiHealthService {
         console.warn('⚠️ [HEALTH] Could not access env vars:', envError.message);
       }
       
-      // 3. Defaults (lowest priority)
-      return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+      // 3. No hardcoded fallback - must be explicitly configured
+      throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
     }
     return 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
   }

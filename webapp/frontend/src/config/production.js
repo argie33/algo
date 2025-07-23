@@ -2,7 +2,8 @@
 // This file contains production-ready settings for enterprise deployment
 
 // API Base URL Configuration
-export const API_BASE = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+// Production API configuration - use environment variables or runtime config
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || window.__CONFIG__?.API?.BASE_URL || null;
 
 export const PRODUCTION_CONFIG = {
   // Application Information
