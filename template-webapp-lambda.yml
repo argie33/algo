@@ -298,17 +298,11 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          # Direct database environment variables (primary method)
-          DB_HOST: !Ref DatabaseEndpoint
-          DB_ENDPOINT: !Ref DatabaseEndpoint
+          # Database configuration via Secrets Manager
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
           DB_NAME: 'stocks'
-          DB_DATABASE: 'stocks'
-          DB_USER: !ImportValue StocksApp-DBUsername
-          DB_USERNAME: !ImportValue StocksApp-DBUsername
           DB_PORT: '5432'
           DB_SSL: 'false'
-          # Secrets Manager fallback
-          DB_SECRET_ARN: !Ref DatabaseSecretArn
           # Application settings
           ENVIRONMENT: !Ref EnvironmentName
           NODE_ENV: !Ref EnvironmentName
