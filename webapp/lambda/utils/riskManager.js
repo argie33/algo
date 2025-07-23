@@ -44,8 +44,20 @@ class RiskManager {
       });
 
       // Validate inputs
-      if (!userId || !symbol || !portfolioValue || portfolioValue <= 0) {
-        throw new Error('Invalid position sizing parameters');
+      if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+        throw new Error('Invalid userId: must be a non-empty string');
+      }
+      if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
+        throw new Error('Invalid symbol: must be a non-empty string');
+      }
+      if (!portfolioValue || typeof portfolioValue !== 'number' || portfolioValue <= 0) {
+        throw new Error('Invalid portfolioValue: must be a positive number');
+      }
+      if (riskPerTrade && (typeof riskPerTrade !== 'number' || riskPerTrade <= 0 || riskPerTrade > 1)) {
+        throw new Error('Invalid riskPerTrade: must be between 0 and 1');
+      }
+      if (maxPositionSize && (typeof maxPositionSize !== 'number' || maxPositionSize <= 0 || maxPositionSize > 1)) {
+        throw new Error('Invalid maxPositionSize: must be between 0 and 1');
       }
 
       // Get current portfolio composition

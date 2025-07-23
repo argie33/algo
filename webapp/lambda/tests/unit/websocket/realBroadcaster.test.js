@@ -2,17 +2,18 @@
 // Real Implementation Standard - NO MOCKS for business logic
 // Tests real WebSocket functionality and Alpaca integration
 
-const { describe, test, expect, vi, beforeEach, afterEach } = require('vitest');
+const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
+const { jest } = require('@jest/globals');
 
 // Mock AWS SDK for Lambda environment
 const mockApiGatewayManagementApi = {
-  postToConnection: vi.fn().mockReturnValue({
-    promise: vi.fn().mockResolvedValue({})
+  postToConnection: jest.fn().mockReturnValue({
+    promise: jest.fn().mockResolvedValue({})
   })
 };
 
 const AWS = {
-  APIGatewayManagementApi: vi.fn().mockImplementation(() => mockApiGatewayManagementApi)
+  APIGatewayManagementApi: jest.fn().mockImplementation(() => mockApiGatewayManagementApi)
 };
 
 // Mock WebSocket for testing
@@ -78,7 +79,7 @@ class MockWebSocket {
 
 // Mock jwt
 const jwt = {
-  decode: vi.fn().mockImplementation((token) => {
+  decode: jest.fn().mockImplementation((token) => {
     if (token === 'valid-token') {
       return { sub: 'user-123', email: 'test@example.com' };
     }
@@ -87,9 +88,9 @@ const jwt = {
 };
 
 // Set up mocks
-vi.mock('aws-sdk', () => ({ default: AWS }));
-vi.mock('ws', () => ({ default: MockWebSocket }));
-vi.mock('jsonwebtoken', () => ({ default: jwt }));
+jest.mock('aws-sdk', () => ({ default: AWS }));
+jest.mock('ws', () => ({ default: MockWebSocket }));
+jest.mock('jsonwebtoken', () => ({ default: jwt }));
 
 // Set environment variables for testing
 process.env.AWS_REGION = 'us-east-1';
@@ -101,9 +102,9 @@ describe('WebSocket Lambda Handler - Real Implementation Tests', () => {
   
   beforeEach(async () => {
     // Clear all mocks
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     mockApiGatewayManagementApi.postToConnection.mockReturnValue({
-      promise: vi.fn().mockResolvedValue({})
+      promise: jest.fn().mockResolvedValue({})
     });
     
     // Import handler after mocks are set up
@@ -112,7 +113,7 @@ describe('WebSocket Lambda Handler - Real Implementation Tests', () => {
   });
   
   afterEach(() => {
-    vi.resetAllMocks();
+    jest.resetAllMocks();
   });
 
   describe('Connection Management', () => {
@@ -402,7 +403,7 @@ describe('WebSocket Lambda Handler - Real Implementation Tests', () => {
     test('handles API Gateway Management API failures', async () => {
       // Mock API Gateway failure
       mockApiGatewayManagementApi.postToConnection.mockReturnValue({
-        promise: vi.fn().mockRejectedValue(new Error('API Gateway error'))
+        promise: jest.fn().mockRejectedValue(new Error('API Gateway error'))
       });
       
       const connectEvent = {

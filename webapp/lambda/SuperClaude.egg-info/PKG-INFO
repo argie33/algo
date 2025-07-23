@@ -1,0 +1,25 @@
+Metadata-Version: 2.1
+Name: SuperClaude
+Version: 3.0.0
+Summary: SuperClaude Framework Management Hub
+Home-page: https://github.com/NomenAK/SuperClaude
+Author: Mithun Gowda B, NomenAK
+Author-email: contact@superclaude.dev
+Project-URL: GitHub, https://github.com/NomenAK/SuperClaude
+Project-URL: Mithun Gowda B, https://github.com/mithun50
+Project-URL: NomenAK, https://github.com/NomenAK
+Project-URL: Bug Tracker, https://github.com/NomenAK/SuperClaude/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+SuperClaude Framework Management Hub

@@ -1,0 +1,3 @@
+[console_scripts]
+SuperClaude = SuperClaude.__main__:main
+superclaude = SuperClaude.__main__:main

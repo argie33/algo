@@ -1,0 +1,6 @@
+SuperClaude.egg-info/PKG-INFO
+SuperClaude.egg-info/SOURCES.txt
+SuperClaude.egg-info/dependency_links.txt
+SuperClaude.egg-info/entry_points.txt
+SuperClaude.egg-info/requires.txt
+SuperClaude.egg-info/top_level.txt
