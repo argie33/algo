@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { fetchAuthSession, signIn, signUp, confirmSignUp, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
+import { fetchAuthSession, signIn, signUp, confirmSignUp, confirmSignIn, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
 import SessionManager from '../components/auth/SessionManager';
 
 // Initial auth state
@@ -11,7 +11,9 @@ const initialState = {
   tokens: null,
   retryCount: 0,
   maxRetries: 3,
-  lastRetryTime: 0
+  lastRetryTime: 0,
+  mfaChallenge: null,
+  mfaChallengeSession: null
 };
 
 // Auth actions
@@ -24,7 +26,10 @@ const AUTH_ACTIONS = {
   CLEAR_ERROR: 'CLEAR_ERROR',
   UPDATE_TOKENS: 'UPDATE_TOKENS',
   INCREMENT_RETRY: 'INCREMENT_RETRY',
-  RESET_RETRIES: 'RESET_RETRIES'
+  RESET_RETRIES: 'RESET_RETRIES',
+  MFA_CHALLENGE: 'MFA_CHALLENGE',
+  MFA_SUCCESS: 'MFA_SUCCESS',
+  CLEAR_MFA: 'CLEAR_MFA'
 };
 
 // Auth reducer
@@ -89,6 +94,27 @@ function authReducer(state, action) {
         ...state,
         retryCount: 0,
         lastRetryTime: 0
+      };
+    case AUTH_ACTIONS.MFA_CHALLENGE:
+      return {
+        ...state,
+        mfaChallenge: action.payload.challenge,
+        mfaChallengeSession: action.payload.session,
+        isLoading: false,
+        error: null
+      };
+    case AUTH_ACTIONS.MFA_SUCCESS:
+      return {
+        ...state,
+        mfaChallenge: null,
+        mfaChallengeSession: null
+      };
+    case AUTH_ACTIONS.CLEAR_MFA:
+      return {
+        ...state,
+        mfaChallenge: null,
+        mfaChallengeSession: null,
+        error: null
       };
     default:
       return state;
@@ -269,14 +295,71 @@ export function AuthProvider({ children }) {
           nextStep: 'CONFIRM_SIGN_UP',
           message: 'Please confirm your account with the verification code sent to your email.'
         };
+      } else if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_SMS_MFA_CODE') {
+        dispatch({ 
+          type: AUTH_ACTIONS.MFA_CHALLENGE, 
+          payload: { 
+            challenge: 'SMS_MFA',
+            session: nextStep,
+            destination: nextStep.additionalInfo?.destination || 'your phone'
+          }
+        });
+        return { 
+          success: false, 
+          nextStep: 'MFA_CHALLENGE',
+          challengeType: 'SMS_MFA',
+          message: `Enter the verification code sent to ${nextStep.additionalInfo?.destination || 'your phone'}.`
+        };
+      } else if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_TOTP_MFA_CODE') {
+        dispatch({ 
+          type: AUTH_ACTIONS.MFA_CHALLENGE, 
+          payload: { 
+            challenge: 'TOTP_MFA',
+            session: nextStep
+          }
+        });
+        return { 
+          success: false, 
+          nextStep: 'MFA_CHALLENGE',
+          challengeType: 'TOTP_MFA',
+          message: 'Enter the code from your authenticator app.'
+        };
       } else {
         return { 
           success: false, 
-          message: 'Additional steps required for sign in.'
+          message: `Additional steps required for sign in: ${nextStep.signInStep}`
         };
       }
     } catch (error) {
       console.error('❌ Login error:', error);
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
+      return { success: false, message: error.message };
+    }
+  };
+
+  const confirmMFA = async (challengeResponse) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
+      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+
+      console.log('🔐 Confirming MFA challenge...');
+      const { isSignedIn, nextStep } = await confirmSignIn({ challengeResponse });
+
+      if (isSignedIn) {
+        console.log('✅ MFA verification successful');
+        dispatch({ type: AUTH_ACTIONS.MFA_SUCCESS });
+        dispatch({ type: AUTH_ACTIONS.RESET_RETRIES });
+        await checkAuthState(true); // Force retry for successful login
+        return { success: true };
+      } else {
+        console.log('❌ MFA verification failed, additional steps required:', nextStep);
+        return { 
+          success: false, 
+          message: `Additional verification required: ${nextStep.signInStep}`
+        };
+      }
+    } catch (error) {
+      console.error('❌ MFA confirmation error:', error);
       dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: error.message });
       return { success: false, message: error.message };
     }
@@ -439,7 +522,10 @@ export function AuthProvider({ children }) {
     isLoading: state.isLoading,
     error: state.error,
     tokens: state.tokens,
+    mfaChallenge: state.mfaChallenge,
+    mfaChallengeSession: state.mfaChallengeSession,
     login,
+    confirmMFA,
     register,
     confirmRegistration,
     logout,

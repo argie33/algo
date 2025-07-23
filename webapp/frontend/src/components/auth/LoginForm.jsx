@@ -18,6 +18,7 @@ import { Visibility, VisibilityOff, Login as LoginIcon, Security } from '@mui/ic
 import { useAuth } from '../../contexts/AuthContext';
 import BiometricAuth from './BiometricAuth';
 import MFASetupModal from './MFASetupModal';
+import MFAChallenge from './MFAChallenge';
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const [formData, setFormData] = useState({
@@ -30,7 +31,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const [showBiometric, setShowBiometric] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
 
-  const { login, isLoading, error, clearError, user } = useAuth();
+  const { login, isLoading, error, clearError, user, mfaChallenge } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -67,8 +68,13 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
     const result = await login(formData.username, formData.password);
     
-    if (!result.success && result.error) {
-      setLocalError(result.error);
+    if (!result.success) {
+      if (result.nextStep === 'MFA_CHALLENGE') {
+        // MFA challenge is now active, component will show MFAChallenge
+        console.log('🔐 MFA challenge required:', result.challengeType);
+      } else if (result.message) {
+        setLocalError(result.message);
+      }
     }
   };
 
@@ -91,7 +97,34 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     setShowMFASetup(false);
   };
 
+  const handleMFAChallengeSuccess = () => {
+    // MFA challenge verification successful - user will be authenticated
+    console.log('✅ MFA challenge completed successfully');
+  };
+
+  const handleMFAChallengeCancel = () => {
+    // Reset form and clear any MFA challenge state
+    setFormData({ username: '', password: '' });
+    setLocalError('');
+    // The AuthContext should handle clearing MFA challenge state
+  };
+
   const displayError = error || localError;
+
+  // Show MFA challenge if one is active
+  if (mfaChallenge) {
+    return (
+      <MFAChallenge
+        challengeType={mfaChallenge.challenge}
+        message={mfaChallenge.challenge === 'SMS_MFA' 
+          ? `Enter the verification code sent to ${mfaChallenge.destination}.`
+          : 'Enter the code from your authenticator app.'
+        }
+        onSuccess={handleMFAChallengeSuccess}
+        onCancel={handleMFAChallengeCancel}
+      />
+    );
+  }
 
   return (
     <Card sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
