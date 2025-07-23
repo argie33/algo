@@ -395,6 +395,87 @@ class ApiWrapper {
   }
 
   /**
+   * Execute method for backward compatibility
+   * This method provides a simpler interface similar to the original execute pattern
+   */
+  async execute(operationName, apiFunction, options = {}) {
+    const {
+      context = {},
+      successMessage = null,
+      errorMessage = null,
+      timeout = 30000,
+      handleErrors = {}
+    } = options;
+
+    const requestId = `req_${++this.requestCount}_${Date.now()}`;
+    const startTime = performance.now();
+    
+    try {
+      // Log request start
+      console.log(`🚀 [API] ${operationName} started`, {
+        requestId,
+        timestamp: new Date().toISOString(),
+        context,
+        requestCount: this.requestCount
+      });
+
+      // Execute the API function with timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Request timeout after ${timeout}ms`)), timeout);
+      });
+
+      const result = await Promise.race([apiFunction(), timeoutPromise]);
+      
+      // Calculate performance metrics
+      const duration = performance.now() - startTime;
+      this.recordPerformanceMetric(operationName, duration);
+
+      // Log successful completion
+      const responseSize = this.calculateResponseSize(result);
+      console.log(`✅ [API] ${operationName} completed successfully`, {
+        requestId,
+        duration: `${duration.toFixed(2)}ms`,
+        responseSize,
+        timestamp: new Date().toISOString()
+      });
+
+      if (successMessage) {
+        console.log(`📢 ${successMessage}`);
+      }
+
+      return result;
+
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      
+      // Check if we have a custom error handler
+      if (handleErrors && error.response?.status && handleErrors[error.response.status]) {
+        console.log(`🔧 [API] ${operationName} - Using custom error handler for status ${error.response.status}`);
+        return handleErrors[error.response.status](error);
+      }
+
+      // Enhanced error handling
+      const enhancedError = this.handleApiError(error, {
+        operation: operationName,
+        requestId,
+        duration,
+        args: [context],
+        category: ErrorManager.CATEGORIES.API,
+        retryable: true
+      });
+
+      // Record error patterns
+      this.recordErrorPattern(operationName, error);
+
+      if (errorMessage) {
+        console.error(`📢 ${errorMessage}: ${error.message}`);
+      }
+
+      throw enhancedError;
+    }
+  }
+
+  /**
    * Reset all statistics
    */
   resetStats() {
