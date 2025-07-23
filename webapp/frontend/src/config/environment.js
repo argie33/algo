@@ -31,7 +31,7 @@ export const AWS_CONFIG = {
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 
              window.__CONFIG__?.API?.BASE_URL ||
-             'https://api.protrade.com',
+             'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
     version: import.meta.env.VITE_API_VERSION || 'v1',
     timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
     retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 3,
@@ -245,9 +245,19 @@ export const PERFORMANCE_CONFIG = {
   // WebSocket Configuration
   websocket: {
     enabled: import.meta.env.VITE_WEBSOCKET_ENABLED !== 'false',
+    url: import.meta.env.VITE_WS_URL || 
+         import.meta.env.VITE_WEBSOCKET_URL ||
+         process.env.REACT_APP_WS_URL ||
+         window.__CONFIG__?.WEBSOCKET?.URL ||
+         'wss://ckzvfd1ds3.execute-api.us-east-1.amazonaws.com/dev', // Real AWS WebSocket API
     reconnectInterval: parseInt(import.meta.env.VITE_WS_RECONNECT_INTERVAL) || 5000,
     maxReconnectAttempts: parseInt(import.meta.env.VITE_WS_MAX_RECONNECT) || 10,
-    heartbeatInterval: parseInt(import.meta.env.VITE_WS_HEARTBEAT_INTERVAL) || 30000
+    heartbeatInterval: parseInt(import.meta.env.VITE_WS_HEARTBEAT_INTERVAL) || 30000,
+    connectionTimeout: parseInt(import.meta.env.VITE_WS_CONNECTION_TIMEOUT) || 10000,
+    messageTimeout: parseInt(import.meta.env.VITE_WS_MESSAGE_TIMEOUT) || 5000,
+    autoConnect: import.meta.env.VITE_WS_AUTO_CONNECT !== 'false',
+    enableHealthCheck: import.meta.env.VITE_WS_HEALTH_CHECK !== 'false',
+    healthCheckInterval: parseInt(import.meta.env.VITE_WS_HEALTH_CHECK_INTERVAL) || 5000
   }
 };
 
@@ -325,16 +335,25 @@ export const validateConfig = () => {
     warnings.push('Polygon API key not configured - real-time data may not work');
   }
   
+  // WebSocket Configuration
+  if (PERFORMANCE_CONFIG.websocket.enabled && PERFORMANCE_CONFIG.websocket.url === 'wss://api.protrade.com/ws') {
+    warnings.push('Using default WebSocket URL - set VITE_WS_URL for production');
+  }
+  
+  if (PERFORMANCE_CONFIG.websocket.enabled && !PERFORMANCE_CONFIG.websocket.url) {
+    errors.push('WebSocket is enabled but URL is not configured (VITE_WS_URL)');
+  }
+  
   return { errors, warnings };
 };
 
 // Helper Functions
 export const getApiUrl = (endpoint = '') => {
   const baseUrl = AWS_CONFIG.api.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-  const version = AWS_CONFIG.api.version;
   const cleanEndpoint = endpoint.replace(/^\//, ''); // Remove leading slash
   
-  return `${baseUrl}/${version}/${cleanEndpoint}`;
+  // Don't add version prefix - AWS API Gateway already includes it in the base URL
+  return `${baseUrl}/${cleanEndpoint}`;
 };
 
 export const getExternalApiUrl = (provider, endpoint = '') => {
