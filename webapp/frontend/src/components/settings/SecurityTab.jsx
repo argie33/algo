@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -26,7 +26,12 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  CircularProgress,
+  Paper,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   Security,
@@ -44,14 +49,18 @@ import {
   Delete,
   Refresh,
   VpnKey,
-  Schedule
+  Schedule,
+  Sms,
+  PhoneAndroid,
+  ExpandMore,
+  Backup
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import SecurityDashboard from '../auth/SecurityDashboard';
 import PasswordStrengthValidator from '../auth/PasswordStrengthValidator';
 
 const SecurityTab = ({ settings, updateSettings }) => {
-  const { user, updatePassword, logout } = useAuth();
+  const { user, updatePassword, logout, updateUserMfaStatus } = useAuth();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -64,6 +73,63 @@ const SecurityTab = ({ settings, updateSettings }) => {
   const [passwordChangeError, setPasswordChangeError] = useState('');
   const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
   const [deleteAccountDialog, setDeleteAccountDialog] = useState(false);
+
+  // MFA Management State
+  const [mfaStatus, setMfaStatus] = useState({
+    enabled: false,
+    methods: [],
+    loading: true,
+    backupCodes: []
+  });
+  const [showMfaDialog, setShowMfaDialog] = useState(false);
+  const [mfaSetupStep, setMfaSetupStep] = useState(1);
+  const [selectedMfaMethod, setSelectedMfaMethod] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [showBackupCodes, setShowBackupCodes] = useState(false);
+
+  // Load actual MFA status from backend
+  useEffect(() => {
+    loadMfaStatus();
+  }, [user]);
+
+  const loadMfaStatus = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch('/api/user/mfa-status', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMfaStatus({
+          enabled: data.mfaEnabled || false,
+          methods: data.mfaMethods || [],
+          backupCodes: data.backupCodes || [],
+          loading: false
+        });
+      } else {
+        // Fallback if endpoint not available
+        setMfaStatus(prev => ({
+          ...prev,
+          enabled: settings?.security?.twoFactorAuth || false,
+          loading: false
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load MFA status:', error);
+      setMfaStatus(prev => ({
+        ...prev,
+        enabled: settings?.security?.twoFactorAuth || false,
+        loading: false
+      }));
+    }
+  };
 
   const handlePasswordChange = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -96,6 +162,116 @@ const SecurityTab = ({ settings, updateSettings }) => {
 
   const handleSecuritySettingChange = (key, value) => {
     updateSettings('security', key, value);
+  };
+
+  // MFA Management Functions
+  const handleMfaToggle = async (enabled) => {
+    if (enabled) {
+      setShowMfaDialog(true);
+      setMfaSetupStep(1);
+    } else {
+      // Disable MFA
+      try {
+        const response = await fetch('/api/user/two-factor/disable', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          setMfaStatus(prev => ({
+            ...prev,
+            enabled: false,
+            methods: []
+          }));
+          // Update settings to keep UI in sync
+          handleSecuritySettingChange('twoFactorAuth', false);
+          // Update AuthContext to prevent inappropriate MFA prompts
+          updateUserMfaStatus(false);
+        }
+      } catch (error) {
+        console.error('Failed to disable MFA:', error);
+      }
+    }
+  };
+
+  const setupMfaMethod = async (method) => {
+    setSelectedMfaMethod(method);
+    
+    try {
+      const response = await fetch(`/api/user/two-factor/setup/${method}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: method === 'sms' ? phoneNumber : undefined
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (method === 'totp' && result.qrCodeUrl) {
+          setQrCodeUrl(result.qrCodeUrl);
+        }
+        setMfaSetupStep(2);
+      } else {
+        console.error('MFA setup failed:', result.message);
+      }
+    } catch (error) {
+      console.error('Failed to setup MFA:', error);
+    }
+  };
+
+  const verifyMfaSetup = async () => {
+    try {
+      const response = await fetch('/api/user/two-factor/verify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          method: selectedMfaMethod,
+          code: verificationCode
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setMfaStatus(prev => ({
+          ...prev,
+          enabled: true,
+          methods: [...prev.methods, selectedMfaMethod],
+          backupCodes: result.backupCodes || prev.backupCodes
+        }));
+        
+        // Update settings to keep UI in sync
+        handleSecuritySettingChange('twoFactorAuth', true);
+        // Update AuthContext so MFA challenges work properly
+        updateUserMfaStatus(true);
+        
+        setShowMfaDialog(false);
+        resetMfaDialog();
+      } else {
+        console.error('MFA verification failed:', result.message);
+      }
+    } catch (error) {
+      console.error('Failed to verify MFA setup:', error);
+    }
+  };
+
+  const resetMfaDialog = () => {
+    setMfaSetupStep(1);
+    setSelectedMfaMethod('');
+    setQrCodeUrl('');
+    setVerificationCode('');
+    setPhoneNumber('');
   };
 
   return (
@@ -215,77 +391,148 @@ const SecurityTab = ({ settings, updateSettings }) => {
         </Card>
       </Grid>
 
-      {/* Security Settings */}
+      {/* Two-Factor Authentication */}
       <Grid item xs={12} md={6}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               <Shield sx={{ mr: 1, verticalAlign: 'middle' }} />
-              Security Settings
+              Two-Factor Authentication
+              {mfaStatus.enabled && (
+                <Chip 
+                  label="Active" 
+                  color="success" 
+                  size="small" 
+                  sx={{ ml: 2 }} 
+                />
+              )}
             </Typography>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Configure your account security preferences
+              Add an extra layer of security to your account
             </Typography>
             <Divider sx={{ my: 2 }} />
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings?.security?.twoFactorAuth || false}
-                    onChange={(e) => handleSecuritySettingChange('twoFactorAuth', e.target.checked)}
-                  />
-                }
-                label="Two-Factor Authentication"
-              />
+            {mfaStatus.loading ? (
+              <Box display="flex" justifyContent="center" py={2}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={mfaStatus.enabled}
+                      onChange={(e) => handleMfaToggle(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Enable Two-Factor Authentication"
+                />
 
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings?.security?.requirePasswordForTrades || false}
-                    onChange={(e) => handleSecuritySettingChange('requirePasswordForTrades', e.target.checked)}
-                  />
-                }
-                label="Require Password for Trading"
-              />
+                {mfaStatus.enabled && mfaStatus.methods.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Active Methods:
+                    </Typography>
+                    <List dense>
+                      {mfaStatus.methods.map((method) => (
+                        <ListItem key={method} sx={{ px: 0 }}>
+                          <ListItemIcon>
+                            {method === 'sms' ? <Sms /> : <PhoneAndroid />}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={method === 'sms' ? 'SMS Authentication' : 'Authenticator App'}
+                            secondary={method === 'sms' ? 'Verification codes via text message' : 'Time-based codes from authenticator app'}
+                          />
+                          <ListItemSecondaryAction>
+                            <Button size="small" color="error">
+                              Remove
+                            </Button>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                      ))}
+                    </List>
 
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings?.security?.auditLog || false}
-                    onChange={(e) => handleSecuritySettingChange('auditLog', e.target.checked)}
-                  />
-                }
-                label="Enable Audit Logging"
-              />
+                    {mfaStatus.backupCodes.length > 0 && (
+                      <Box mt={2}>
+                        <Button
+                          startIcon={<Backup />}
+                          onClick={() => setShowBackupCodes(!showBackupCodes)}
+                          variant="outlined"
+                          size="small"
+                        >
+                          {showBackupCodes ? 'Hide' : 'Show'} Backup Codes
+                        </Button>
+                        
+                        {showBackupCodes && (
+                          <Paper sx={{ p: 2, mt: 1, bgcolor: 'grey.50' }}>
+                            <Typography variant="body2" gutterBottom>
+                              Keep these backup codes safe. Each can only be used once:
+                            </Typography>
+                            <Grid container spacing={1}>
+                              {mfaStatus.backupCodes.map((code, index) => (
+                                <Grid item xs={6} sm={4} key={index}>
+                                  <Typography variant="body2" fontFamily="monospace">
+                                    {code}
+                                  </Typography>
+                                </Grid>
+                              ))}
+                            </Grid>
+                          </Paper>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
 
-              <FormControl fullWidth>
-                <InputLabel>Session Timeout</InputLabel>
-                <Select
-                  value={settings?.security?.sessionTimeout || 30}
-                  label="Session Timeout"
-                  onChange={(e) => handleSecuritySettingChange('sessionTimeout', e.target.value)}
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings?.security?.requirePasswordForTrades || false}
+                      onChange={(e) => handleSecuritySettingChange('requirePasswordForTrades', e.target.checked)}
+                    />
+                  }
+                  label="Require Password for Trading"
+                />
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings?.security?.auditLog || false}
+                      onChange={(e) => handleSecuritySettingChange('auditLog', e.target.checked)}
+                    />
+                  }
+                  label="Enable Audit Logging"
+                />
+
+                <FormControl fullWidth>
+                  <InputLabel>Session Timeout</InputLabel>
+                  <Select
+                    value={settings?.security?.sessionTimeout || 30}
+                    label="Session Timeout"
+                    onChange={(e) => handleSecuritySettingChange('sessionTimeout', e.target.value)}
+                  >
+                    <MenuItem value={15}>15 minutes</MenuItem>
+                    <MenuItem value={30}>30 minutes</MenuItem>
+                    <MenuItem value={60}>1 hour</MenuItem>
+                    <MenuItem value={120}>2 hours</MenuItem>
+                    <MenuItem value={480}>8 hours</MenuItem>
+                    <MenuItem value={0}>Never</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Button
+                  variant="outlined"
+                  startIcon={<Fingerprint />}
+                  onClick={() => {
+                    // TODO: Implement biometric setup
+                    alert('Biometric authentication setup coming soon');
+                  }}
                 >
-                  <MenuItem value={15}>15 minutes</MenuItem>
-                  <MenuItem value={30}>30 minutes</MenuItem>
-                  <MenuItem value={60}>1 hour</MenuItem>
-                  <MenuItem value={120}>2 hours</MenuItem>
-                  <MenuItem value={480}>8 hours</MenuItem>
-                  <MenuItem value={0}>Never</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Button
-                variant="outlined"
-                startIcon={<Fingerprint />}
-                onClick={() => {
-                  // TODO: Implement biometric setup
-                  alert('Biometric authentication setup coming soon');
-                }}
-              >
-                Setup Biometric Authentication
-              </Button>
-            </Box>
+                  Setup Biometric Authentication
+                </Button>
+              </Box>
+            )}
           </CardContent>
         </Card>
       </Grid>
@@ -413,6 +660,124 @@ const SecurityTab = ({ settings, updateSettings }) => {
             }}
           >
             Delete Account
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MFA Setup Dialog */}
+      <Dialog 
+        open={showMfaDialog} 
+        onClose={() => {
+          setShowMfaDialog(false);
+          resetMfaDialog();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
+        <DialogContent>
+          {mfaSetupStep === 1 && (
+            <Box>
+              <Typography variant="body2" paragraph>
+                Choose how you'd like to receive verification codes:
+              </Typography>
+              
+              <List>
+                <ListItem 
+                  button 
+                  onClick={() => setupMfaMethod('totp')}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 1 }}
+                >
+                  <ListItemIcon>
+                    <PhoneAndroid />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="Authenticator App"
+                    secondary="Use apps like Google Authenticator or Authy (Recommended)"
+                  />
+                </ListItem>
+                
+                <ListItem 
+                  button 
+                  onClick={() => setSelectedMfaMethod('sms')}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}
+                >
+                  <ListItemIcon>
+                    <Sms />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="SMS Text Message"
+                    secondary="Receive codes via text message"
+                  />
+                </ListItem>
+              </List>
+
+              {selectedMfaMethod === 'sms' && (
+                <Box mt={2}>
+                  <TextField
+                    fullWidth
+                    label="Phone Number"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    helperText="Enter your phone number with country code"
+                  />
+                  <Box mt={2}>
+                    <Button 
+                      variant="contained" 
+                      onClick={() => setupMfaMethod('sms')}
+                      disabled={!phoneNumber}
+                    >
+                      Continue
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {mfaSetupStep === 2 && (
+            <Box>
+              <Typography variant="body2" paragraph>
+                {selectedMfaMethod === 'totp' 
+                  ? 'Scan this QR code with your authenticator app, then enter the verification code:'
+                  : 'Enter the verification code sent to your phone:'
+                }
+              </Typography>
+
+              {selectedMfaMethod === 'totp' && qrCodeUrl && (
+                <Box textAlign="center" mb={2}>
+                  <img src={qrCodeUrl} alt="QR Code" style={{ maxWidth: '200px' }} />
+                </Box>
+              )}
+
+              <TextField
+                fullWidth
+                label="Verification Code"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                inputProps={{ maxLength: 6 }}
+              />
+
+              <Box mt={2}>
+                <Button 
+                  variant="contained" 
+                  onClick={verifyMfaSetup}
+                  disabled={verificationCode.length !== 6}
+                >
+                  Verify & Enable
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setShowMfaDialog(false);
+            resetMfaDialog();
+          }}>
+            Cancel
           </Button>
         </DialogActions>
       </Dialog>

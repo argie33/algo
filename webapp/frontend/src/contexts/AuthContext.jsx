@@ -224,6 +224,11 @@ export function AuthProvider({ children }) {
           // Store access token for API requests
           localStorage.setItem('accessToken', tokens.accessToken);
           
+          // Check if user has MFA enabled by checking user attributes
+          const mfaEnabled = user.userAttributes?.['custom:mfa_enabled'] === 'true' || 
+                             user.userAttributes?.phone_number_verified === 'true' ||
+                             false; // Default to false if not set
+
           dispatch({
             type: AUTH_ACTIONS.LOGIN_SUCCESS,
             payload: {
@@ -233,7 +238,8 @@ export function AuthProvider({ children }) {
                 email: user.signInDetails?.loginId || user.username,
                 firstName: user.userAttributes?.given_name || '',
                 lastName: user.userAttributes?.family_name || '',
-                signInDetails: user.signInDetails
+                signInDetails: user.signInDetails,
+                mfaEnabled: mfaEnabled
               },
               tokens
             }
@@ -516,6 +522,21 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUserMfaStatus = (mfaEnabled) => {
+    if (state.user) {
+      dispatch({
+        type: AUTH_ACTIONS.LOGIN_SUCCESS,
+        payload: {
+          user: {
+            ...state.user,
+            mfaEnabled: mfaEnabled
+          },
+          tokens: state.tokens
+        }
+      });
+    }
+  };
+
   const value = {
     user: state.user,
     isAuthenticated: state.isAuthenticated,
@@ -535,6 +556,7 @@ export function AuthProvider({ children }) {
     clearError,
     refreshTokens,
     checkAuthState,
+    updateUserMfaStatus,
     retryCount: state.retryCount,
     maxRetries: state.maxRetries
   };

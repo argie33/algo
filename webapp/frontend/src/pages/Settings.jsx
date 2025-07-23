@@ -470,8 +470,109 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
-    // TODO: Implement password change dialog
-    showSnackbar('Password change functionality will be available soon', 'info');
+    // Create a simple password change dialog
+    const result = await new Promise(resolve => {
+      let currentPassword = '';
+      let newPassword = '';
+      let confirmPassword = '';
+
+      const dialog = document.createElement('div');
+      dialog.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999;">
+          <div style="background: white; padding: 24px; border-radius: 8px; min-width: 400px; max-width: 500px;">
+            <h3 style="margin: 0 0 16px 0;">Change Password</h3>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 4px;">Current Password:</label>
+              <input type="password" id="currentPassword" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 4px;">New Password:</label>
+              <input type="password" id="newPassword" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+              <small style="color: #666;">Must be at least 8 characters with uppercase, lowercase, number, and special character</small>
+            </div>
+            <div style="margin-bottom: 24px;">
+              <label style="display: block; margin-bottom: 4px;">Confirm New Password:</label>
+              <input type="password" id="confirmPassword" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+              <button id="cancelBtn" style="padding: 8px 16px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+              <button id="changeBtn" style="padding: 8px 16px; border: none; background: #1976d2; color: white; border-radius: 4px; cursor: pointer;">Change Password</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(dialog);
+
+      const handleSubmit = () => {
+        currentPassword = document.getElementById('currentPassword').value;
+        newPassword = document.getElementById('newPassword').value;
+        confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          alert('Please fill in all fields');
+          return;
+        }
+
+        if (newPassword !== confirmPassword) {
+          alert('New passwords do not match');
+          return;
+        }
+
+        if (newPassword.length < 8) {
+          alert('New password must be at least 8 characters long');
+          return;
+        }
+
+        document.body.removeChild(dialog);
+        resolve({ currentPassword, newPassword });
+      };
+
+      const handleCancel = () => {
+        document.body.removeChild(dialog);
+        resolve(null);
+      };
+
+      document.getElementById('changeBtn').onclick = handleSubmit;
+      document.getElementById('cancelBtn').onclick = handleCancel;
+      document.getElementById('currentPassword').focus();
+
+      // Handle Enter key
+      dialog.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSubmit();
+        if (e.key === 'Escape') handleCancel();
+      });
+    });
+
+    if (!result) return; // User cancelled
+
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${apiUrl}/api/user/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+        },
+        body: JSON.stringify({
+          currentPassword: result.currentPassword,
+          newPassword: result.newPassword
+        })
+      });
+
+      if (response.ok) {
+        showSnackbar('Password changed successfully', 'success');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to change password', 'error');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      showSnackbar('Failed to change password', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleToggleTwoFactor = async () => {

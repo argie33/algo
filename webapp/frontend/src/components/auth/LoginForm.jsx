@@ -17,7 +17,6 @@ import {
 import { Visibility, VisibilityOff, Login as LoginIcon, Security } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import BiometricAuth from './BiometricAuth';
-import MFASetupModal from './MFASetupModal';
 import MFAChallenge from './MFAChallenge';
 
 function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
@@ -27,7 +26,6 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [showMFASetup, setShowMFASetup] = useState(false);
   const [showBiometric, setShowBiometric] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
 
@@ -44,15 +42,11 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     if (localError) setLocalError('');
   };
 
-  // Check for user authentication success and show MFA setup
+  // Check for user authentication success - MFA setup removed per user feedback
   useEffect(() => {
     if (user && !loginSuccess) {
       setLoginSuccess(true);
-      // Check if user should set up MFA (could check user attributes)
-      const shouldSetupMFA = !user.mfaEnabled; // This would come from user attributes
-      if (shouldSetupMFA) {
-        setShowMFASetup(true);
-      }
+      // MFA setup is now only available through Settings page
       setShowBiometric(true);
     }
   }, [user, loginSuccess]);
@@ -92,10 +86,6 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
     // Biometric error handled
   };
 
-  const handleMFASetupComplete = (method) => {
-    // MFA setup completed
-    setShowMFASetup(false);
-  };
 
   const handleMFAChallengeSuccess = () => {
     // MFA challenge verification successful - user will be authenticated
@@ -111,8 +101,9 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
 
   const displayError = error || localError;
 
-  // Show MFA challenge if one is active
-  if (mfaChallenge) {
+  // Only show MFA challenge if one is active AND user has MFA enabled
+  // This fixes the inappropriate MFA prompt showing for all users
+  if (mfaChallenge && user?.mfaEnabled) {
     return (
       <MFAChallenge
         challengeType={mfaChallenge.challenge}
@@ -250,13 +241,6 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }) {
           </Box>
         </Box>
 
-        {/* MFA Setup Modal */}
-        <MFASetupModal
-          open={showMFASetup}
-          onClose={() => setShowMFASetup(false)}
-          onSetupComplete={handleMFASetupComplete}
-          userPhoneNumber={user?.phoneNumber}
-        />
       </CardContent>
     </Card>
   );
