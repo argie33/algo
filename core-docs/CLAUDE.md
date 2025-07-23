@@ -1,5 +1,95 @@
 # Project Context: World-Class Finance Application
 
+## ⚗️ TEST-DRIVEN DEVELOPMENT (TDD) - OUR CORE PRINCIPLE ⚗️
+
+**ABSOLUTE RULE**: Test-Driven Development is our principle to live by. Everything we build or update requires corresponding coverage in unit tests and integration tests.
+
+### 🧪 **MANDATORY TDD WORKFLOW**
+
+#### **EVERY feature, bug fix, or modification MUST follow this sequence:**
+
+1. **📝 WRITE TESTS FIRST**
+   - Write unit tests for individual functions and components
+   - Write integration tests for API endpoints and service interactions
+   - Define test cases with expected inputs, outputs, and edge cases
+   - Include error handling and validation scenarios
+
+2. **❌ WATCH TESTS FAIL**
+   - Run tests to confirm they fail (proving they test real functionality)
+   - Verify test coverage captures the intended behavior
+   - Ensure tests are meaningful and not just passing by accident
+
+3. **✅ IMPLEMENT TO MAKE TESTS PASS**
+   - Write minimal code to make tests pass
+   - Focus on meeting test requirements precisely
+   - Avoid over-engineering beyond test specifications
+
+4. **🔄 REFACTOR WITH TEST SAFETY**
+   - Improve code quality while tests remain green
+   - Optimize performance with test validation
+   - Clean up implementation with test confidence
+
+### 🎯 **TEST COVERAGE REQUIREMENTS**
+
+#### **For EVERY new feature or change, you MUST create:**
+- **Unit Tests**: Test individual functions, components, and modules in isolation
+- **Integration Tests**: Test API endpoints, database interactions, and service integrations
+- **Error Handling Tests**: Test all error conditions and edge cases
+- **Performance Tests**: Validate response times and resource usage
+- **Security Tests**: Test authentication, authorization, and input validation
+
+#### **Test File Locations:**
+```
+src/tests/unit/           # Unit tests for components, services, utilities
+src/tests/integration/    # Integration tests for APIs, databases, workflows
+src/tests/e2e/           # End-to-end user workflow tests
+```
+
+### 🚨 **ENFORCEMENT - NO EXCEPTIONS**
+
+#### **BEFORE any code changes:**
+- **✅ REQUIRED**: Write corresponding tests first
+- **✅ REQUIRED**: Ensure tests fail initially (red phase)
+- **✅ REQUIRED**: Implement code to make tests pass (green phase)
+- **✅ REQUIRED**: Refactor with test coverage (refactor phase)
+
+#### **AFTER any code changes:**
+- **✅ REQUIRED**: Run full test suite to ensure no regressions
+- **✅ REQUIRED**: Update existing tests if behavior changes
+- **✅ REQUIRED**: Achieve minimum 90% test coverage for new code
+- **✅ REQUIRED**: All tests must pass before code review/merge
+
+### 📊 **CURRENT TEST INFRASTRUCTURE STATUS**
+- **Total Test Files**: 309 comprehensive test files
+- **Test Coverage**: 70% overall (target: 95%+)
+- **Testing Framework**: Jest, Vitest, React Testing Library
+- **CI/CD Integration**: GitHub Actions with quality gates
+- **Real Integration**: Tests against actual AWS infrastructure (no mocks)
+
+### 🔧 **TDD TOOLS & COMMANDS**
+```bash
+# Unit Tests
+npm test                                    # Run all tests
+npm test -- --watch                       # Watch mode for TDD
+npm test -- src/tests/unit/components/    # Run specific test category
+npm test -- --coverage                    # Generate coverage report
+
+# Integration Tests  
+npm test -- src/tests/integration/        # Run integration tests
+npm run test:integration                   # Run with real AWS services
+
+# Test Development
+npm test -- --testNamePattern="specific test"  # Run specific test
+npm test -- --verbose                     # Detailed test output
+```
+
+### 🎯 **TDD SUCCESS METRICS**
+- **Test Coverage**: Must maintain >90% for all new code
+- **Test Quality**: Tests must validate real business logic, not just syntax
+- **Test Speed**: Unit tests <100ms, integration tests <5s
+- **Test Reliability**: 99%+ pass rate in CI/CD pipeline
+- **Test Documentation**: Clear test descriptions and assertions
+
 ## 🚀 PRODUCTION-READY DEPLOYMENT & GITHUB WORKFLOW
 
 ### ⭐ **GITHUB HYGIENE & DEPLOYMENT STRATEGY**
@@ -792,37 +882,47 @@ If you find status mixed into requirements.md, or requirements mixed into tasks.
 
 **NEVER ADD STATUS TO requirements.md OR design.md - THE USER WILL BE EXTREMELY FRUSTRATED**
 
-## Task Management - CRITICAL WORKFLOW
+## Task Management - CRITICAL WORKFLOW (WITH TDD INTEGRATION)
 - **ALWAYS USE TodoRead AND TodoWrite**: Never create new task analyses - use existing todo system
+- **TDD FIRST**: Every todo item must include corresponding test requirements
 - **Update todos continuously**: Mark items complete as you finish them, add new items as discovered
 - **TodoRead frequently**: Check todo list at start of work and regularly during development
 - **Focus on existing todos**: Don't create new research tasks - work on items in the todo list
+- **Test Coverage Tracking**: Each todo item must specify required unit and integration tests
 - **Never forget**: If you start creating new analyses instead of using todos, STOP and use TodoRead/TodoWrite
 - Track lingering items and potential improvements via todo system
 - Focus on infrastructure stability and website functionality first
 
-## Test-Driven Development (TDD) - MANDATORY APPROACH
-**CRITICAL RULE**: All new features MUST follow test-driven development methodology.
+## 🧪 ENHANCED TDD INTEGRATION WITH WORKFLOW
 
-### TDD Workflow Requirements
-1. **Test First**: Before implementing any new feature, write tests in requirements.md acceptance criteria
-2. **Test Definition**: Define test cases, expected behaviors, edge cases, and validation criteria in requirements.md
-3. **Implementation**: Only after tests are defined, implement the feature to pass the tests
-4. **Validation**: Run tests to ensure feature works as expected
-5. **Refactor**: Improve code quality while maintaining test compliance
+### **TDD + TODO INTEGRATION REQUIREMENTS**
+- **Every todo item** must specify what tests need to be written
+- **Test status tracking** in todo items (tests written ✅, tests passing ✅, implementation ✅)
+- **Test-first mindset** in all todo descriptions and planning
+- **Coverage validation** before marking any todo as complete
 
-### Test Coverage Requirements
-- **Unit Tests**: Individual function and component testing
-- **Integration Tests**: API endpoint and service integration testing
-- **End-to-End Tests**: Complete user workflow testing
-- **Performance Tests**: Load testing and response time validation
-- **Security Tests**: Authentication, authorization, and input validation testing
+### **TDD TODO TEMPLATE**
+```
+TodoWrite: "Fix component X behavior"
+Required Tests:
+- Unit: Test component X with props A, B, C
+- Integration: Test component X with API endpoint Y
+- Error: Test component X with invalid data Z
+Implementation Steps:
+1. Write failing tests for expected behavior
+2. Implement minimal code to pass tests  
+3. Refactor while maintaining green tests
+4. Validate test coverage >90%
+```
 
-### Test Documentation in requirements.md
-- Each new feature must have corresponding test requirements in requirements.md acceptance criteria
-- Test cases must be detailed with input data, expected output, and validation steps
-- Performance benchmarks and acceptance criteria must be defined in requirements.md
-- Error handling and edge case testing must be specified in requirements.md
+### **MANDATORY TDD CHECKLIST FOR EVERY TODO ITEM**
+- [ ] **Tests Written First**: Unit and integration tests written before implementation
+- [ ] **Tests Initially Fail**: Confirmed tests fail before implementation (red phase)
+- [ ] **Implementation Passes Tests**: Code written to make tests pass (green phase)  
+- [ ] **Refactored Safely**: Code improved while maintaining test coverage (refactor phase)
+- [ ] **Coverage Validated**: >90% test coverage achieved for new/modified code
+- [ ] **Integration Tested**: Real API/database integration tests passing
+- [ ] **No Regressions**: Full test suite passes after changes
 
 ## Comprehensive Logging Strategy - TROUBLESHOOTING CRITICAL
 **MANDATORY**: Implement thorough logging for all system components to enable effective troubleshooting.
