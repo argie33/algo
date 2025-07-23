@@ -1,21 +1,9 @@
 import { Amplify } from 'aws-amplify';
+import { AWS_CONFIG, FEATURES, IS_DEVELOPMENT } from './environment';
 
 // Check if Cognito is configured
 const isCognitoConfigured = () => {
-  // First check runtime config
-  const runtimeConfig = window.__CONFIG__?.COGNITO;
-  if (runtimeConfig?.USER_POOL_ID && runtimeConfig?.CLIENT_ID) {
-    const isValid = !!(runtimeConfig.USER_POOL_ID !== 'us-east-1_DUMMY' && 
-                      runtimeConfig.CLIENT_ID !== 'dummy-client-id' &&
-                      runtimeConfig.USER_POOL_ID !== 'undefined' &&
-                      runtimeConfig.CLIENT_ID !== 'undefined');
-    console.log('Runtime Cognito config check:', { isValid, userPoolId: runtimeConfig.USER_POOL_ID, clientId: runtimeConfig.CLIENT_ID });
-    return isValid;
-  }
-  
-  // Check environment variables
-  const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
-  const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const { userPoolId, clientId } = AWS_CONFIG.cognito;
   
   const isValid = !!(userPoolId && 
                     clientId && 
@@ -24,23 +12,28 @@ const isCognitoConfigured = () => {
                     userPoolId !== 'us-east-1_DUMMY' &&
                     clientId !== 'dummy-client-id' &&
                     userPoolId !== 'undefined' &&
-                    clientId !== 'undefined');
+                    clientId !== 'undefined' &&
+                    userPoolId !== null &&
+                    clientId !== null);
   
-  console.log('Environment Cognito config check:', { isValid, userPoolId, clientId });
+  console.log('Cognito config check:', { 
+    isValid, 
+    userPoolId: userPoolId ? `${userPoolId.substring(0, 15)}...` : 'null',
+    clientId: clientId ? `${clientId.substring(0, 8)}...` : 'null'
+  });
+  
   return isValid;
 };
 
-// Get configuration from runtime config or environment variables
+// Get Cognito configuration from centralized config
 const getCognitoConfig = () => {
-  const runtimeConfig = window.__CONFIG__?.COGNITO;
-  
   return {
-    userPoolId: runtimeConfig?.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID || 'us-east-1_DUMMY',
-    userPoolClientId: runtimeConfig?.CLIENT_ID || import.meta.env.VITE_COGNITO_CLIENT_ID || 'dummy-client-id',
-    region: runtimeConfig?.REGION || import.meta.env.VITE_AWS_REGION || 'us-east-1',
-    domain: runtimeConfig?.DOMAIN || import.meta.env.VITE_COGNITO_DOMAIN || '',
-    redirectSignIn: runtimeConfig?.REDIRECT_SIGN_IN || import.meta.env.VITE_COGNITO_REDIRECT_SIGN_IN || window.location.origin,
-    redirectSignOut: runtimeConfig?.REDIRECT_SIGN_OUT || import.meta.env.VITE_COGNITO_REDIRECT_SIGN_OUT || window.location.origin
+    userPoolId: AWS_CONFIG.cognito.userPoolId,
+    userPoolClientId: AWS_CONFIG.cognito.clientId,
+    region: AWS_CONFIG.region,
+    domain: AWS_CONFIG.cognito.domain,
+    redirectSignIn: AWS_CONFIG.cognito.redirectSignIn,
+    redirectSignOut: AWS_CONFIG.cognito.redirectSignOut
   };
 };
 
@@ -79,18 +72,38 @@ export function configureAmplify() {
     const amplifyConfig = getAmplifyConfig();
     const cognitoConfig = getCognitoConfig();
     
-    console.log('🔧 Configuring Amplify with:', {
-      userPoolId: cognitoConfig.userPoolId,
-      clientId: cognitoConfig.userPoolClientId,
-      region: cognitoConfig.region
+    console.log('🔧 Configuring Amplify with centralized config:', {
+      userPoolId: cognitoConfig.userPoolId ? `${cognitoConfig.userPoolId.substring(0, 15)}...` : 'null',
+      clientId: cognitoConfig.userPoolClientId ? `${cognitoConfig.userPoolClientId.substring(0, 8)}...` : 'null',
+      region: cognitoConfig.region,
+      authEnabled: FEATURES.authentication.enabled,
+      cognitoEnabled: FEATURES.authentication.methods.cognito
     });
+    
+    // Check if authentication is required and properly configured
+    if (!FEATURES.authentication.enabled) {
+      console.warn('⚠️ Authentication is disabled via feature flags');
+      return false;
+    }
+    
+    if (!FEATURES.authentication.methods.cognito) {
+      console.warn('⚠️ Cognito authentication is disabled via feature flags');
+      return false;
+    }
     
     if (!isCognitoConfigured()) {
       console.error('❌ Cognito REQUIRED - AWS deployment must have valid Cognito configuration');
-      console.error('Authentication is required for all functionality');
-      throw new Error('Cognito configuration required for AWS deployment');
+      console.error('Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID environment variables');
+      
+      // In production, fail fast
+      if (!IS_DEVELOPMENT) {
+        throw new Error('Cognito configuration required for production deployment');
+      } else {
+        console.warn('⚠️ Development mode - continuing without Cognito authentication');
+        return false;
+      }
     } else {
-      console.log('✅ Cognito configured with real AWS values');
+      console.log('✅ Cognito configured with valid AWS values');
     }
     
     Amplify.configure(amplifyConfig);
@@ -98,11 +111,13 @@ export function configureAmplify() {
     return true;
   } catch (error) {
     console.error('❌ Failed to configure Amplify:', error);
-    // Don't allow app to continue without proper AWS authentication
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      throw error; // Fail fast on AWS deployment
+    
+    // Don't allow app to continue without proper AWS authentication in production
+    if (!IS_DEVELOPMENT) {
+      throw error; // Fail fast on production deployment
     }
-    console.warn('⚠️  Development mode fallback - authentication disabled');
+    
+    console.warn('⚠️ Development mode fallback - authentication disabled');
     return false;
   }
 }
