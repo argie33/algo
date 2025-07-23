@@ -123,26 +123,11 @@ export const getApiConfig = () => {
     const hasExplicitConfig = windowConfig || envApiUrl;
     const isExplicitPlaceholder = hasExplicitConfig && isPlaceholderUrl(apiUrl);
     
-    // Define test environment detection for consistent usage
-    const isTestEnv = (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') || 
-                      (envInfo.MODE === 'test') ||
-                      (typeof window !== 'undefined' && window.location?.href?.includes('localhost:')) ||
-                      (typeof global !== 'undefined' && global.process?.env?.NODE_ENV === 'test');
-    const shouldThrowInTest = !isTestEnv;
-    
-    // If no explicit config and we're in a test/validation context, don't use defaults
+    // If no API URL found, use development environment fallback
     if (!apiUrl || isExplicitPlaceholder) {
-      if (isTestEnv) {
-        // In test environment, use fallback API URL
-        apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
-        console.warn('[API CONFIG] Using test fallback API configuration');
-      } else if (shouldThrowInTest && (!hasExplicitConfig || isExplicitPlaceholder)) {
-        // In tests, if no explicit config is provided or it's a placeholder, error out
-        throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
-      } else if (!isExplicitPlaceholder && !shouldThrowInTest) {
-        // No hardcoded fallback - must be explicitly configured
-        throw new Error('API URL not configured - set VITE_API_URL environment variable or window.__CONFIG__.API_URL');
-      }
+      // Use development API URL as fallback
+      apiUrl = 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev';
+      console.log('[API CONFIG] Using development API URL fallback');
     }
     
     // For placeholder URLs, always mark as not configured
@@ -2781,6 +2766,13 @@ export const getPriceHistory = async (timeframe = 'daily', params = {}) => {
 export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
   console.log(`📊 [API] Fetching technical data for timeframe: ${timeframe}`, params);
   
+  // Validate timeframe
+  const validTimeframes = ['daily', 'weekly', 'monthly'];
+  if (!validTimeframes.includes(timeframe)) {
+    console.warn(`📊 [API] Invalid timeframe: ${timeframe}, defaulting to 'daily'`);
+    timeframe = 'daily';
+  }
+  
   try {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -2789,36 +2781,21 @@ export const getTechnicalData = async (timeframe = 'daily', params = {}) => {
       }
     });
     
-    // Try multiple endpoint variations - use correct backend routes
-    const endpoints = [
-      `/technical/${timeframe}?${queryParams.toString()}`,
-      `/api/technical/${timeframe}?${queryParams.toString()}`,
-      `/technical?${queryParams.toString()}`,
-      `/api/technical?${queryParams.toString()}`
-    ];
+    // Use the correct single endpoint structure as confirmed by backend analysis
+    const endpoint = `/technical/${timeframe}?${queryParams.toString()}`;
     
-    let response = null;
-    let lastError = null;
+    console.log(`📊 [API] Calling technical endpoint: ${endpoint}`);
     
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📊 [API] Trying technical endpoint: ${endpoint}`);
-        response = await initializeApi().get(endpoint);
-        console.log(`📊 [API] SUCCESS with technical endpoint: ${endpoint}`, response);
-        break;
-      } catch (err) {
-        console.log(`📊 [API] FAILED technical endpoint: ${endpoint}`, err.message);
-        lastError = err;
-        continue;
-      }
-    }
-    
-    if (!response) {
-      console.error('📊 [API] All technical endpoints failed:', lastError);
-      throw lastError;
-    }
+    const response = await initializeApi().get(endpoint);
+    console.log(`📊 [API] SUCCESS with technical endpoint: ${endpoint}`, response);
     
     console.log('📊 [API] Technical data raw response:', response.data);
+    
+    // Check if we got HTML instead of JSON (common error case)
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE')) {
+      console.error('📊 [API] Received HTML instead of JSON - likely 404 or server error');
+      throw new Error(`Technical endpoint returned HTML instead of JSON. This usually means the endpoint ${endpoint} doesn't exist or there's a server error.`);
+    }
     
     // Backend returns: { success: true, data: [...], pagination: {...} }
     // Return the backend response as-is if it has the correct structure
