@@ -1,6 +1,6 @@
 const express = require('express');
 const { healthCheck, query, validateDatabaseSchema, REQUIRED_SCHEMA } = require('../utils/database');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../../lambda/utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const timeoutHelper = require('../utils/timeoutHelper');
 const schemaValidator = require('../utils/schemaValidator');

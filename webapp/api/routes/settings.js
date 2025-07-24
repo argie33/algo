@@ -5,7 +5,7 @@ const schemaValidator = require('../utils/schemaValidator');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../../lambda/utils/apiKeyService');
 
 const router = express.Router();
 
@@ -283,26 +283,8 @@ const require2FA = async (req, res, next) => {
   }
 };
 
-// Use apiKeyService for consistent encryption across the application
-// NOTE: apiKeyService is already imported at the top of the file
-
-async function encryptApiKey(apiKey, userSalt, userId, provider) {
-  try {
-    return await apiKeyService.encryptApiKey(apiKey, userSalt, userId, provider);
-  } catch (error) {
-    console.error('❌ CRITICAL: Encryption failed:', error);
-    throw new Error('Failed to encrypt API key. Check encryption service configuration.');
-  }
-}
-
-async function decryptApiKey(encryptedData, userSalt, userId, provider) {
-  try {
-    return await apiKeyService.decryptApiKey(encryptedData, userSalt, userId, provider);
-  } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt API key');
-  }
-}
+// Simple API Key Service handles encryption automatically via AWS Parameter Store
+// No manual encryption/decryption needed
 
 // Debug endpoint to check API keys table
 router.get('/api-keys/debug', async (req, res) => {
@@ -623,77 +605,26 @@ router.post('/api-keys', async (req, res) => {
   }
 
   try {
-    console.log(`🧂 [${requestId}] Generating user salt after ${Date.now() - startTime}ms...`);
-    // Generate user-specific salt with error handling
-    let userSalt;
+    console.log(`🔐 [${requestId}] Storing API key via AWS Parameter Store after ${Date.now() - startTime}ms...`);
+    
+    // Store API key using simple AWS Parameter Store service
+    const storeStart = Date.now();
     try {
-      userSalt = crypto.randomBytes(16).toString('hex');
-      console.log(`✅ [${requestId}] Salt generated after ${Date.now() - startTime}ms`);
-    } catch (cryptoError) {
-      console.error(`❌ [${requestId}] Failed to generate user salt:`, cryptoError);
+      const success = await apiKeyService.storeApiKey(userId, provider, apiKey, apiSecret);
+      if (!success) {
+        throw new Error('API key storage returned false');
+      }
+      console.log(`✅ [${requestId}] API key stored successfully after ${Date.now() - storeStart}ms`);
+    } catch (storeError) {
+      console.error(`❌ [${requestId}] Failed to store API key:`, storeError);
       return res.status(500).json({
         success: false,
-        error: 'Cryptographic operation failed',
-        message: 'Unable to generate secure salt for API key encryption',
+        error: 'API key storage failed',
+        message: 'Unable to securely store API credentials in AWS Parameter Store',
         requestId,
         timestamp: new Date().toISOString()
       });
     }
-    
-    console.log(`🔐 [${requestId}] Encrypting API credentials after ${Date.now() - startTime}ms...`);
-    // Encrypt API credentials with error handling
-    let encryptedApiKey, encryptedApiSecret;
-    try {
-      const encryptionStart = Date.now();
-      encryptedApiKey = await encryptApiKey(apiKey, userSalt, userId, provider);
-      encryptedApiSecret = apiSecret ? await encryptApiKey(apiSecret, userSalt, userId, provider) : null;
-      console.log(`✅ [${requestId}] Encryption completed after ${Date.now() - encryptionStart}ms`);
-    } catch (encryptError) {
-      console.error(`❌ [${requestId}] Failed to encrypt API credentials:`, encryptError);
-      return res.status(500).json({
-        success: false,
-        error: 'Encryption failed',
-        message: 'Unable to securely encrypt API credentials',
-        requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    console.log(`💾 [${requestId}] Attempting database insert after ${Date.now() - startTime}ms...`);
-    // Insert into database
-    const insertStart = Date.now();
-    const result = await query(`
-      INSERT INTO user_api_keys (
-        user_id, 
-        provider, 
-        encrypted_api_key, 
-        key_iv, 
-        key_auth_tag,
-        encrypted_api_secret,
-        secret_iv,
-        secret_auth_tag,
-        user_salt,
-        is_sandbox, 
-        description,
-        is_active,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW())
-      RETURNING id, provider, description, is_sandbox as "isSandbox", created_at as "createdAt"
-    `, [
-      userId,
-      provider,
-      encryptedApiKey.encrypted,
-      encryptedApiKey.iv,
-      encryptedApiKey.authTag,
-      encryptedApiSecret?.encrypted || null,
-      encryptedApiSecret?.iv || null,
-      encryptedApiSecret?.authTag || null,
-      userSalt,
-      isSandbox,
-      description
-    ], 15000); // 15 second timeout for insert
-    
-    console.log(`✅ [${requestId}] Database insert completed after ${Date.now() - insertStart}ms`);
     
     // Trigger portfolio data refresh for this user's portfolio symbols
     console.log(`🔄 [${requestId}] Triggering portfolio data refresh after ${Date.now() - startTime}ms...`);
@@ -710,7 +641,10 @@ router.post('/api-keys', async (req, res) => {
     res.json({
       success: true,
       message: 'API key added successfully',
-      apiKey: result.rows[0]
+      provider: provider,
+      isSandbox: isSandbox,
+      description: description,
+      storedAt: new Date().toISOString()
     });
   } catch (error) {
     console.error(`❌ [${requestId}] Error after ${Date.now() - startTime}ms:`, error.message);

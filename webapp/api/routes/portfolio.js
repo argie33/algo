@@ -3,7 +3,7 @@ const { query, healthCheck, initializeDatabase, tablesExist, safeQuery, transact
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const { getUserApiKey, validateUserAuthentication, sendApiKeyError } = require('../utils/userApiKeyHelper');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../../lambda/utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 const logger = require('../utils/logger');
@@ -3348,7 +3348,7 @@ router.post('/sync', createValidationMiddleware({
 
     // Import sync service
     const { PortfolioSyncService } = require('../utils/portfolioSyncService');
-    const apiKeyService = require('../utils/apiKeyServiceResilient');
+    const apiKeyService = require('../../lambda/utils/apiKeyService');
     
     // Initialize sync service
     const syncService = new PortfolioSyncService({

@@ -5,7 +5,7 @@ const { createValidationMiddleware, sanitizers } = require('../middleware/valida
 const SignalProcessor = require('../utils/signalProcessor');
 const AdvancedSignalProcessor = require('../utils/advancedSignalProcessor');
 const AlpacaService = require('../utils/alpacaService');
-const apiKeyService = require('../utils/apiKeyServiceResilient');
+const apiKeyService = require('../../lambda/utils/apiKeyService');
 const logger = require('../utils/logger');
 const { success, error } = require('../utils/responseFormatter');
 
