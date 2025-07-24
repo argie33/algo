@@ -100,71 +100,65 @@ const generatePortfolioFromMarketData = (priceData, selectedSymbol = DEFAULT_TIC
   };
 };
 
-// ⚠️ MOCK DATA - Replace with real sentiment API when available
-const mockMarketSentiment = {
-  fearGreed: 72,
-  aaii: { bullish: 45, bearish: 28, neutral: 27 },
-  naaim: 65,
-  vix: 18.5,
-  status: 'Bullish',
-  isMockData: true
-};
+// Live sentiment data hook
+function useLiveSentiment() {
+  return useSimpleFetch(`${API_BASE}/api/market/sentiment`, {
+    fallback: null,
+    errorMessage: 'Failed to load market sentiment'
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real sector performance API when available
-const mockSectorPerformance = [
-  { sector: 'Technology', performance: 2.1, color: '#00C49F', isMockData: true },
-  { sector: 'Healthcare', performance: 1.8, color: '#0088FE', isMockData: true },
-  { sector: 'Finance', performance: -0.5, color: '#FF8042', isMockData: true },
-  { sector: 'Energy', performance: 3.2, color: '#FFBB28', isMockData: true },
-  { sector: 'Consumer', performance: 0.9, color: '#8884D8', isMockData: true }
-];
+// Live sector performance data hook
+function useLiveSectorPerformance() {
+  return useSimpleFetch(`${API_BASE}/api/market/sectors/performance`, {
+    fallback: [],
+    errorMessage: 'Failed to load sector performance'
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real stock scoring API when available
-const mockTopStocks = [
-  { symbol: 'NVDA', score: 95, quality: 92, value: 85, growth: 98, momentum: 94, isMockData: true },
-  { symbol: 'MSFT', score: 88, quality: 95, value: 78, growth: 87, momentum: 92, isMockData: true },
-  { symbol: 'GOOGL', score: 85, quality: 88, value: 92, growth: 82, momentum: 78, isMockData: true },
-  { symbol: 'AAPL', score: 82, quality: 90, value: 72, growth: 85, momentum: 82, isMockData: true }
-];
+// Live top stocks data (already implemented via useTopStocks hook)
 
-// ⚠️ MOCK DATA - Replace with real economic data API when available
-const mockEconomicIndicators = [
-  { name: 'GDP Growth', value: 2.4, trend: 'stable', isMockData: true },
-  { name: 'Inflation', value: 3.1, trend: 'down', isMockData: true },
-  { name: 'Unemployment', value: 3.8, trend: 'stable', isMockData: true },
-  { name: 'Fed Funds Rate', value: 5.25, trend: 'stable', isMockData: true }
-];
+// Live economic indicators data hook
+function useLiveEconomicIndicators() {
+  return useSimpleFetch(`${API_BASE}/api/market/economic`, {
+    fallback: [],
+    errorMessage: 'Failed to load economic indicators'
+  });
+}
 
-// ⚠️ MOCK DATA - Replace with real watchlist API when available
-const mockWatchlist = [
-  { symbol: 'AAPL', price: 195.12, change: 2.1, score: 82, isMockData: true },
-  { symbol: 'TSLA', price: 710.22, change: -1.8, score: 78, isMockData: true },
-  { symbol: 'NVDA', price: 1200, change: 3.5, score: 95, isMockData: true },
-  { symbol: 'MSFT', price: 420.5, change: 0.7, score: 88, isMockData: true }
-];
+// Live watchlist data hook
+function useLiveWatchlist() {
+  return useSimpleFetch(`${API_BASE}/api/portfolio/watchlist`, {
+    fallback: [],
+    errorMessage: 'Failed to load watchlist'
+  });
+}
 
-const mockActivity = [
-  { type: 'Trade', desc: 'Bought 100 AAPL', date: '2025-06-21', amount: 19500 },
-  { type: 'Alert', desc: 'TSLA price alert triggered', date: '2025-06-20', amount: null },
-  { type: 'Trade', desc: 'Sold 50 NVDA', date: '2025-06-19', amount: 60000 }
-];
+// Live activity data hook
+function useLiveActivity() {
+  return useSimpleFetch(`${API_BASE}/api/portfolio/activity`, {
+    fallback: [],
+    errorMessage: 'Failed to load activity'
+  });
+}
 
-const mockCalendar = [
-  { event: 'FOMC Rate Decision', date: '2025-06-25', impact: 'High' },
-  { event: 'AAPL Earnings', date: '2025-07-01', impact: 'Medium' },
-  { event: 'Nonfarm Payrolls', date: '2025-07-05', impact: 'High' }
-];
+// Live calendar data hook
+function useLiveCalendar() {
+  return useSimpleFetch(`${API_BASE}/api/market/calendar`, {
+    fallback: [],
+    errorMessage: 'Failed to load economic calendar'
+  });
+}
 
-const mockSignals = [
-  { symbol: 'AAPL', action: 'Buy', confidence: 0.92, type: 'Technical' },
-  { symbol: 'TSLA', action: 'Sell', confidence: 0.87, type: 'Momentum' }
-];
+// Live signals data hook (already implemented via useTradingSignals hook)
 
-const mockNews = [
-  { title: 'Fed Holds Rates Steady, Signals Caution', date: '2025-06-21', sentiment: 'Neutral' },
-  { title: 'AAPL Surges on Strong Earnings', date: '2025-06-20', sentiment: 'Positive' },
-  { title: 'Global Markets Mixed Ahead of FOMC', date: '2025-06-19', sentiment: 'Neutral' }
-];
+// Live news data hook
+function useLiveNews() {
+  return useSimpleFetch(`${API_BASE}/api/market/news?limit=5`, {
+    fallback: [],
+    errorMessage: 'Failed to load market news'
+  });
+}
 
 const BRAND_NAME = 'ProTrade Analytics';
 
@@ -282,8 +276,8 @@ function TechnicalSignalsWidget() {
 
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
-  const { data: marketData, loading: isLoading } = useMarketOverview();
-  const sentiment = marketData?.data?.sentiment || mockMarketSentiment;
+  const { data: sentimentData, loading: isLoading } = useLiveSentiment();
+  const sentiment = sentimentData?.data || null;
   
   const getSentimentColor = (value) => {
     if (value > 75) return 'success';
@@ -302,16 +296,16 @@ function MarketSentimentWidget() {
         <Grid container spacing={2}>
           <Grid item xs={6}>
             <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment.fearGreed)}>
-                {sentiment.fearGreed}
+              <Typography variant="h4" color={getSentimentColor(sentiment?.fearGreed || 0)}>
+                {sentiment?.fearGreed || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">Fear & Greed</Typography>
             </Box>
           </Grid>
           <Grid item xs={6}>
             <Box textAlign="center">
-              <Typography variant="h4" color={getSentimentColor(sentiment.naaim)}>
-                {sentiment.naaim}
+              <Typography variant="h4" color={getSentimentColor(sentiment?.naaim || 0)}>
+                {sentiment?.naaim || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">NAAIM</Typography>
             </Box>
@@ -320,17 +314,17 @@ function MarketSentimentWidget() {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
               <Box>
                 <Typography variant="body2" color="success.main">
-                  Bulls: {sentiment.aaii?.bullish || 45}%
+                  Bulls: {sentiment?.aaii?.bullish || '--'}%
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  Neutral: {sentiment.aaii?.neutral || 27}%
+                  Neutral: {sentiment?.aaii?.neutral || '--'}%
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="body2" color="error.main">
-                  Bears: {sentiment.aaii?.bearish || 28}%
+                  Bears: {sentiment?.aaii?.bearish || '--'}%
                 </Typography>
               </Box>
             </Box>
@@ -339,13 +333,13 @@ function MarketSentimentWidget() {
         
         <Box sx={{ mt: 2 }}>
           <Chip 
-            label={`${sentiment.status} Market`} 
-            color={getSentimentColor(sentiment.fearGreed)}
+            label={`${sentiment?.status || 'Unknown'} Market`} 
+            color={getSentimentColor(sentiment?.fearGreed || 0)}
             size="small"
           />
           <Chip 
-            label={`VIX: ${sentiment.vix}`} 
-            color={sentiment.vix < 20 ? 'success' : 'warning'}
+            label={`VIX: ${sentiment?.vix || '--'}`} 
+            color={(sentiment?.vix || 0) < 20 ? 'success' : 'warning'}
             size="small"
             sx={{ ml: 1 }}
           />
@@ -356,8 +350,8 @@ function MarketSentimentWidget() {
 }
 
 function SectorPerformanceWidget() {
-  const { data: marketData, loading: isLoading } = useMarketOverview();
-  const sectors = marketData?.data?.sectors || mockSectorPerformance;
+  const { data: sectorsData, loading: isLoading } = useLiveSectorPerformance();
+  const sectors = sectorsData?.data || [];
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -387,7 +381,7 @@ function SectorPerformanceWidget() {
 
 function TopStocksWidget() {
   const { data: stocksData, loading: isLoading } = useTopStocks();
-  const stocks = Array.isArray(stocksData?.data) ? stocksData.data : mockTopStocks;
+  const stocks = Array.isArray(stocksData?.data) ? stocksData.data : [];
   
   return (
     <Card sx={{ height: '100%' }}>
@@ -435,8 +429,8 @@ function TopStocksWidget() {
 }
 
 function EconomicIndicatorsWidget() {
-  const { data: marketData, loading: isLoading } = useMarketOverview();
-  const indicators = marketData?.data?.economic || mockEconomicIndicators;
+  const { data: indicatorsData, loading: isLoading } = useLiveEconomicIndicators();
+  const indicators = indicatorsData?.data || [];
   
   const getTrendIcon = (trend) => {
     if (trend === 'up') return <ArrowUpward sx={{ color: 'success.main', fontSize: 16 }} />;
@@ -498,11 +492,17 @@ const Dashboard = () => {
     pnl: { daily: 0, mtd: 0, ytd: 0 },
     allocation: []
   };
-  const safeWatchlist = mockWatchlist;
-  const safeNews = mockNews;
-  const safeActivity = mockActivity;
-  const safeCalendar = mockCalendar;
-  const safeSignals = mockSignals;
+  const { data: watchlistData } = useLiveWatchlist();
+  const { data: newsData } = useLiveNews();
+  const { data: activityData } = useLiveActivity();
+  const { data: calendarData } = useLiveCalendar();
+  const { data: signalsData } = useTradingSignals();
+  
+  const safeWatchlist = watchlistData?.data || [];
+  const safeNews = newsData?.data || [];
+  const safeActivity = activityData?.data || [];
+  const safeCalendar = calendarData?.data || [];
+  const safeSignals = signalsData?.data || [];
   
   const equityCurve = Array.isArray(priceData?.data)
     ? priceData.data.map(p => ({ date: p.date || p.timestamp, equity: p.close || p.price })).reverse()
