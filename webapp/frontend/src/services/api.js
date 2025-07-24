@@ -3005,11 +3005,11 @@ export const getDiagnosticInfo = () => {
 // Database health (full details)
 export const getDatabaseHealthFull = async () => {
   try {
-    const response = await initializeApi().get('/api/health/database', {
+    const response = await initializeApi().get('/api/health', {
       baseURL: currentConfig.baseURL
     })
-    // Return the full response (healthSummary, tables, etc.)
-    return { data: response.data }
+    // Return the database section from health response
+    return { data: response.data?.database || response.data }
   } catch (error) {
     const errorMessage = handleApiError(error, 'get database health')
     return { data: null, error: errorMessage }
