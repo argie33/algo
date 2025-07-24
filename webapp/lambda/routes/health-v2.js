@@ -376,4 +376,156 @@ setInterval(() => {
   }
 }, 300000); // Every 5 minutes
 
+/**
+ * Additional endpoints for frontend compatibility
+ */
+
+// Ready endpoint - similar to connection but returns simple status
+router.get('/ready', async (req, res) => {
+  try {
+    // Quick connection test
+    const result = await query('SELECT 1 as test');
+    res.json({
+      status: 'ready',
+      healthy: true,
+      timestamp: new Date().toISOString(),
+      database: { connected: true }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'not_ready',
+      healthy: false,
+      timestamp: new Date().toISOString(),
+      database: { connected: false, error: error.message }
+    });
+  }
+});
+
+// Update status endpoint for frontend health management
+router.post('/update-status', async (req, res) => {
+  try {
+    console.log('Health status update requested');
+    
+    // Trigger fresh health scans
+    healthCache.connection.timestamp = 0;
+    healthCache.critical.timestamp = 0;
+    healthCache.full.timestamp = 0;
+    
+    // Trigger background scan
+    backgroundFullHealthScan();
+    
+    res.json({
+      status: 'update_triggered',
+      message: 'Health caches cleared and background scan initiated',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'update_failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoints for troubleshooting
+router.get('/debug/db-test', async (req, res) => {
+  try {
+    const result = await query('SELECT 1 as test, NOW() as timestamp');
+    res.json({
+      status: 'success',
+      database: { connected: true, test_result: result.rows[0] },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      database: { connected: false, error: error.message },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.get('/debug/tables', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT table_name, table_rows 
+      FROM information_schema.tables 
+      WHERE table_schema = DATABASE()
+      ORDER BY table_name
+    `);
+    res.json({
+      status: 'success',
+      tables: result.rows,
+      count: result.rows.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.get('/debug/test-query', async (req, res) => {
+  try {
+    const result = await query('SELECT COUNT(*) as total FROM symbols LIMIT 1');
+    res.json({
+      status: 'success',
+      query_result: result.rows[0],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.get('/debug/env', async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        AWS_REGION: process.env.AWS_REGION,
+        DB_ENDPOINT: !!process.env.DB_ENDPOINT,
+        DB_SECRET_ARN: !!process.env.DB_SECRET_ARN,
+        ENVIRONMENT: process.env.ENVIRONMENT
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.get('/debug/cors-test', async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      cors: {
+        origin: req.headers.origin || 'none',
+        method: req.method,
+        headers: Object.keys(req.headers)
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

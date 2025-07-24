@@ -448,8 +448,8 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
 console.log('📦 Loading routes...');
 const routes = [
   // Essential Infrastructure Routes
-  { path: './routes/health', name: 'Health', mount: '/api/health' },
-  { path: './routes/health', name: 'Health Direct', mount: '/health' },
+  { path: './routes/health-v2', name: 'Health V2', mount: '/api/health' },
+  { path: './routes/health-v2', name: 'Health V2 Direct', mount: '/health' },
   { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/emergency' },
   { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
   { path: './routes/configuration', name: 'Configuration Service', mount: '/api/config' },
