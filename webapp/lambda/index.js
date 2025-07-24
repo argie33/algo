@@ -464,6 +464,7 @@ const routes = [
   // Core Financial Data Routes  
   { path: './routes/stocks', name: 'Stocks', mount: '/api/stocks' },
   { path: './routes/portfolio', name: 'Portfolio', mount: '/api/portfolio' },
+  { path: './routes/portfolio-api-keys', name: 'Portfolio API Keys', mount: '/api/portfolio/api-keys' },
   { path: './routes/portfolioOptimization', name: 'Portfolio Optimization', mount: '/api/portfolio-optimization' },
   { path: './routes/market', name: 'Market', mount: '/api/market' },
   { path: './routes/market-data', name: 'Market Data', mount: '/api/market-data' },
@@ -476,6 +477,7 @@ const routes = [
   { path: './routes/unified-api-keys-debug', name: 'Unified API Keys Debug', mount: '/api/api-keys-debug' },
   { path: './routes/unified-api-keys', name: 'Unified API Keys', mount: '/api/api-keys' },
   { path: './routes/user', name: 'User Management', mount: '/api/user' },
+  { path: './routes/user-profile', name: 'User Profile', mount: '/api/user' },
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
   { path: './routes/auth-status', name: 'Auth Status', mount: '/api/auth-status' },

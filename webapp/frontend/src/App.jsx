@@ -92,6 +92,9 @@ import OptionsFlow from './pages/options/OptionsFlow'
 import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
+import CryptoPortfolio from './pages/CryptoPortfolio'
+import CryptoRealTimeTracker from './pages/CryptoRealTimeTracker'
+import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
 import LiveData from './pages/LiveData'
 import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
@@ -110,6 +113,9 @@ const menuItems = [
   
   // Cryptocurrency Section
   { text: 'Crypto Market', icon: <TrendingUpIcon />, path: '/crypto', category: 'crypto' },
+  { text: 'Crypto Portfolio', icon: <AccountBalanceIcon />, path: '/crypto/portfolio', category: 'crypto' },
+  { text: 'Real-Time Tracker', icon: <ShowChartIcon />, path: '/crypto/realtime', category: 'crypto' },
+  { text: 'Advanced Analytics', icon: <AnalyticsIcon />, path: '/crypto/analytics', category: 'crypto', premium: true },
   
   // Stocks Section
   { text: 'Stock Screener', icon: <SearchIcon />, path: '/screener-advanced', category: 'stocks' },
@@ -514,6 +520,9 @@ function App() {
             
             {/* Cryptocurrency Routes */}
             <Route path="/crypto" element={<CryptoMarketOverview />} />
+            <Route path="/crypto/portfolio" element={<CryptoPortfolio />} />
+            <Route path="/crypto/realtime" element={<CryptoRealTimeTracker />} />
+            <Route path="/crypto/analytics" element={<CryptoAdvancedAnalytics />} />
           </Routes>
         </Container>
       </Box>

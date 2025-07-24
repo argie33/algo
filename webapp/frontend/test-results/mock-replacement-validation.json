@@ -1,0 +1,4 @@
+
+> financial-dashboard-frontend@1.0.10 test
+> vitest --config vitest.config.local.js --run --reporter=json
+

@@ -159,9 +159,8 @@ router.get('/events', async (req, res) => {
         ce.start_date,
         ce.end_date,
         ce.title,
-        s.short_name as company_name
+        ce.symbol as company_name
       FROM calendar_events ce
-      LEFT JOIN symbols s ON ce.symbol = s.ticker
       ${whereClause}
       ORDER BY ce.start_date ASC
       LIMIT $1 OFFSET $2
