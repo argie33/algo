@@ -27,6 +27,25 @@ const TradeAnalyticsService = require('../services/tradeAnalyticsService');
 const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 
+// Helper function to get user API key with proper format
+const getUserApiKey = async (userId, provider) => {
+  try {
+    const credentials = await apiKeyService.getApiKey(userId, provider);
+    if (!credentials) {
+      return null;
+    }
+    
+    return {
+      apiKey: credentials.keyId,
+      apiSecret: credentials.secretKey,
+      isSandbox: credentials.version === '1.0' // Default to sandbox for v1.0
+    };
+  } catch (error) {
+    console.error(`Failed to get API key for ${provider}:`, error);
+    return null;
+  }
+};
+
 // Initialize trade analytics service
 let tradeAnalyticsService;
 

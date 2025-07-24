@@ -3550,27 +3550,57 @@ export const getMarketIndicators = async () => {
 export const getMarketSentiment = async () => {
   console.log('😊 [API] Fetching market sentiment...');
   try {
-    // Mock data for now since backend endpoint might not exist
-    const mockSentiment = {
-      sentiment: 'greed',
-      value: 65,
-      classification: 'Greed',
-      timestamp: new Date().toISOString(),
-      indicators: {
-        vix: 18.5,
-        put_call_ratio: 0.85,
-        market_momentum: 0.7,
-        stock_price_strength: 0.8,
-        stock_price_breadth: 0.6,
-        junk_bond_demand: 0.5,
-        market_volatility: 0.4
-      }
-    };
-    console.log('😊 [API] Returning mock market sentiment:', mockSentiment);
-    return { data: mockSentiment };
+    // Use live market sentiment endpoint
+    const response = await initializeApi().get('/api/market/sentiment');
+    
+    if (response.data?.success && response.data?.data) {
+      const sentimentData = response.data.data;
+      
+      console.log('😊 [API] Returning live sentiment data:', sentimentData);
+      return { data: sentimentData };
+    } else {
+      console.warn('⚠️ [API] Market sentiment API returned unexpected format, using fallback');
+      // Fallback to neutral sentiment
+      return {
+        data: {
+          sentiment: 'neutral',
+          value: 50,
+          classification: 'Neutral',
+          timestamp: new Date().toISOString(),
+          indicators: {
+            vix: 0,
+            put_call_ratio: 0,
+            market_momentum: 0,
+            stock_price_strength: 0,
+            stock_price_breadth: 0,
+            junk_bond_demand: 0,
+            market_volatility: 0
+          }
+        }
+      };
+    }
   } catch (error) {
     console.error('❌ [API] Market sentiment error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch market sentiment'));
+    console.warn('⚠️ [API] Falling back to neutral sentiment');
+    
+    // Return neutral sentiment instead of mock data
+    return {
+      data: {
+        sentiment: 'neutral',
+        value: 50,
+        classification: 'Neutral',
+        timestamp: new Date().toISOString(),
+        indicators: {
+          vix: 0,
+          put_call_ratio: 0,
+          market_momentum: 0,
+          stock_price_strength: 0,
+          stock_price_breadth: 0,
+          junk_bond_demand: 0,
+          market_volatility: 0
+        }
+      }
+    };
   }
 };
 
@@ -3659,64 +3689,143 @@ export const getDashboardWatchlist = async () => {
 export const getDashboardPortfolio = async () => {
   console.log('💼 [API] Fetching dashboard portfolio...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockPortfolio = {
-      value: 1250000,
-      pnl: {
-        daily: 12500,
-        mtd: 45000,
-        ytd: 180000
-      },
-      positions: [
-        { symbol: 'AAPL', shares: 100, avgPrice: 145.00, currentPrice: 150.25, marketValue: 15025, pnl: 525, pnlPercent: 3.62 },
-        { symbol: 'MSFT', shares: 50, avgPrice: 315.00, currentPrice: 320.50, marketValue: 16025, pnl: 275, pnlPercent: 1.75 },
-        { symbol: 'GOOGL', shares: 25, avgPrice: 2700.00, currentPrice: 2750.00, marketValue: 68750, pnl: 1250, pnlPercent: 1.85 }
-      ]
-    };
-    console.log('💼 [API] Returning mock portfolio data:', mockPortfolio);
-    return { data: mockPortfolio };
+    // Use live portfolio API endpoint
+    const response = await initializeApi().get('/api/portfolio/holdings');
+    
+    if (response.data?.success && response.data?.data?.holdings) {
+      const holdings = response.data.data.holdings;
+      const account = response.data.data.account || {};
+      
+      // Transform backend data to dashboard format
+      const dashboardPortfolio = {
+        value: account.totalValue || account.total_value || 0,
+        pnl: {
+          daily: account.dailyPnL || account.daily_pnl || 0,
+          mtd: account.monthlyPnL || account.monthly_pnl || 0,
+          ytd: account.yearlyPnL || account.yearly_pnl || 0
+        },
+        positions: holdings.slice(0, 5).map(holding => ({
+          symbol: holding.symbol,
+          shares: holding.quantity || holding.qty || 0,
+          avgPrice: holding.avg_entry_price || holding.avg_cost || 0,
+          currentPrice: holding.current_price || holding.market_price || 0,
+          marketValue: holding.market_value || 0,
+          pnl: holding.unrealized_pl || holding.unrealized_pnl || 0,
+          pnlPercent: holding.unrealized_plpc || holding.unrealized_pnl_percent || 0
+        }))
+      };
+      
+      console.log('💼 [API] Returning live portfolio data:', dashboardPortfolio);
+      return { data: dashboardPortfolio };
+    } else {
+      console.warn('⚠️ [API] Portfolio API returned unexpected format, using fallback');
+      // Fallback to empty portfolio
+      return { 
+        data: { 
+          value: 0, 
+          pnl: { daily: 0, mtd: 0, ytd: 0 }, 
+          positions: [] 
+        } 
+      };
+    }
   } catch (error) {
     console.error('❌ [API] Dashboard portfolio error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch dashboard portfolio'));
+    console.warn('⚠️ [API] Falling back to empty portfolio data');
+    
+    // Return empty portfolio instead of mock data
+    return { 
+      data: { 
+        value: 0, 
+        pnl: { daily: 0, mtd: 0, ytd: 0 }, 
+        positions: [] 
+      } 
+    };
   }
 };
 
 export const getDashboardPortfolioMetrics = async () => {
   console.log('📊 [API] Fetching dashboard portfolio metrics...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockMetrics = {
-      sharpe: 1.85,
-      beta: 0.92,
-      maxDrawdown: 0.08,
-      volatility: 0.15,
-      alpha: 0.045,
-      informationRatio: 1.2
-    };
-    console.log('📊 [API] Returning mock portfolio metrics:', mockMetrics);
-    return { data: mockMetrics };
+    // Use live portfolio analytics endpoint
+    const response = await initializeApi().get('/api/portfolio/analytics');
+    
+    if (response.data?.success && response.data?.data) {
+      const analytics = response.data.data;
+      
+      // Transform backend analytics to dashboard metrics format
+      const metrics = {
+        sharpe: analytics.sharpeRatio || analytics.sharpe_ratio || 0,
+        beta: analytics.beta || 0,
+        maxDrawdown: analytics.maxDrawdown || analytics.max_drawdown || 0,
+        volatility: analytics.volatility || analytics.annualized_volatility || 0,
+        alpha: analytics.alpha || 0,
+        informationRatio: analytics.informationRatio || analytics.information_ratio || 0
+      };
+      
+      console.log('📊 [API] Returning live portfolio metrics:', metrics);
+      return { data: metrics };
+    } else {
+      console.warn('⚠️ [API] Portfolio analytics API returned unexpected format, using fallback');
+      // Fallback to zero metrics
+      return { 
+        data: { 
+          sharpe: 0, 
+          beta: 0, 
+          maxDrawdown: 0, 
+          volatility: 0, 
+          alpha: 0, 
+          informationRatio: 0 
+        } 
+      };
+    }
   } catch (error) {
     console.error('❌ [API] Dashboard portfolio metrics error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch dashboard portfolio metrics'));
+    console.warn('⚠️ [API] Falling back to zero metrics');
+    
+    // Return zero metrics instead of mock data
+    return { 
+      data: { 
+        sharpe: 0, 
+        beta: 0, 
+        maxDrawdown: 0, 
+        volatility: 0, 
+        alpha: 0, 
+        informationRatio: 0 
+      } 
+    };
   }
 };
 
 export const getDashboardHoldings = async () => {
   console.log('📈 [API] Fetching dashboard holdings...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockHoldings = [
-      { symbol: 'AAPL', shares: 100, avgPrice: 145.00, currentPrice: 150.25, marketValue: 15025, pnl: 525, pnlPercent: 3.62 },
-      { symbol: 'MSFT', shares: 50, avgPrice: 315.00, currentPrice: 320.50, marketValue: 16025, pnl: 275, pnlPercent: 1.75 },
-      { symbol: 'GOOGL', shares: 25, avgPrice: 2700.00, currentPrice: 2750.00, marketValue: 68750, pnl: 1250, pnlPercent: 1.85 },
-      { symbol: 'TSLA', shares: 75, avgPrice: 800.00, currentPrice: 850.75, marketValue: 63806, pnl: 3806, pnlPercent: 6.34 },
-      { symbol: 'NVDA', shares: 30, avgPrice: 420.00, currentPrice: 450.25, marketValue: 13508, pnl: 908, pnlPercent: 7.21 }
-    ];
-    console.log('📈 [API] Returning mock holdings data:', mockHoldings);
-    return { data: mockHoldings };
+    // Use live portfolio holdings endpoint
+    const response = await initializeApi().get('/api/portfolio/holdings');
+    
+    if (response.data?.success && response.data?.data?.holdings) {
+      const holdings = response.data.data.holdings;
+      
+      // Transform backend holdings to dashboard format
+      const dashboardHoldings = holdings.map(holding => ({
+        symbol: holding.symbol,
+        shares: holding.quantity || holding.qty || 0,
+        avgPrice: holding.avg_entry_price || holding.avg_cost || 0,
+        currentPrice: holding.current_price || holding.market_price || 0,
+        marketValue: holding.market_value || 0,
+        pnl: holding.unrealized_pl || holding.unrealized_pnl || 0,
+        pnlPercent: holding.unrealized_plpc || holding.unrealized_pnl_percent || 0
+      }));
+      
+      console.log('📈 [API] Returning live holdings data:', dashboardHoldings);
+      return { data: dashboardHoldings };
+    } else {
+      console.warn('⚠️ [API] Portfolio holdings API returned unexpected format, using fallback');
+      return { data: [] };
+    }
   } catch (error) {
     console.error('❌ [API] Dashboard holdings error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch dashboard holdings'));
+    console.warn('⚠️ [API] Falling back to empty holdings');
+    return { data: [] };
   }
 };
 
@@ -3743,24 +3852,40 @@ export const getDashboardUserSettings = async () => {
 export const getDashboardMarketSummary = async () => {
   console.log('📈 [API] Fetching dashboard market summary...');
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockMarketSummary = {
-      indices: [
-        { symbol: 'SPY', name: 'S&P 500', value: 4500.25, change: 15.50, changePercent: 0.35 },
-        { symbol: 'QQQ', name: 'NASDAQ 100', value: 3800.75, change: 25.30, changePercent: 0.67 },
-        { symbol: 'DIA', name: 'Dow Jones', value: 35000.50, change: 125.75, changePercent: 0.36 }
-      ],
-      indicators: [
-        { name: 'VIX', value: 18.5, change: -0.5 },
-        { name: 'Put/Call Ratio', value: 0.85, change: 0.05 },
-        { name: 'Advance/Decline', value: 1.2, change: 0.1 }
-      ]
-    };
-    console.log('📈 [API] Returning mock market summary:', mockMarketSummary);
-    return { data: mockMarketSummary };
+    // Use live market overview endpoint
+    const response = await initializeApi().get('/api/market/overview');
+    
+    if (response.data?.success && response.data?.data) {
+      const marketData = response.data.data;
+      
+      // Transform backend data to dashboard format
+      const marketSummary = {
+        indices: marketData.indices || [],
+        indicators: marketData.indicators || []
+      };
+      
+      console.log('📈 [API] Returning live market summary:', marketSummary);
+      return { data: marketSummary };
+    } else {
+      console.warn('⚠️ [API] Market overview API returned unexpected format, using fallback');
+      return {
+        data: {
+          indices: [],
+          indicators: []
+        }
+      };
+    }
   } catch (error) {
     console.error('❌ [API] Dashboard market summary error:', error);
-    throw new Error(handleApiError(error, 'Failed to fetch dashboard market summary'));
+    console.warn('⚠️ [API] Falling back to empty market data');
+    
+    // Return empty market data instead of mock data
+    return {
+      data: {
+        indices: [],
+        indicators: []
+      }
+    };
   }
 };
 

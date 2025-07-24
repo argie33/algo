@@ -524,6 +524,8 @@ const routes = [
   { path: './routes/crypto-signals', name: 'Crypto Trading Signals', mount: '/api/crypto-signals' },
   { path: './routes/crypto-risk', name: 'Crypto Risk Management', mount: '/api/crypto-risk' },
   { path: './routes/crypto-analytics', name: 'Crypto Market Analytics', mount: '/api/crypto-analytics' },
+  { path: './routes/crypto-realtime', name: 'Crypto Real-Time Data', mount: '/api/crypto-realtime' },
+  { path: './routes/crypto-portfolio', name: 'Crypto Portfolio Management', mount: '/api/crypto-portfolio' },
   
   // Database & Infrastructure Management
   { path: './routes/database-optimization', name: 'Database Optimization', mount: '/api/database-optimization' },

@@ -816,38 +816,27 @@ router.get('/screen', async (req, res) => {
   try {
     console.log('🔍 Stock screening endpoint called with params:', req.query);
     
-    // Check if we're in development mode and database is unavailable
-    if (process.env.NODE_ENV === 'development' || !process.env.DB_ENDPOINT) {
-      console.log('🔧 Development mode: Using mock data for stock screening');
-      
-      const mockStocks = [
-        { symbol: 'AAPL', security_name: 'Apple Inc.', current_price: 150.25, market_cap: 2500000000000, sector: 'Technology', volume: 75000000 },
-        { symbol: 'MSFT', security_name: 'Microsoft Corporation', current_price: 280.50, market_cap: 2100000000000, sector: 'Technology', volume: 45000000 },
-        { symbol: 'GOOGL', security_name: 'Alphabet Inc.', current_price: 120.75, market_cap: 1600000000000, sector: 'Technology', volume: 30000000 },
-        { symbol: 'AMZN', security_name: 'Amazon.com Inc.', current_price: 95.30, market_cap: 1000000000000, sector: 'Consumer Discretionary', volume: 55000000 },
-        { symbol: 'TSLA', security_name: 'Tesla Inc.', current_price: 250.80, market_cap: 800000000000, sector: 'Automotive', volume: 80000000 }
-      ];
-      
+    // Try database connection first, fallback to sample data if database unavailable
+    const { query: dbQuery } = require('../utils/database');
+    let usingSampleData = false;
+    
+    // Test database connectivity
+    try {
+      await dbQuery('SELECT 1 as test', [], 5000); // 5 second timeout
+      console.log('✅ Database connection successful, using real data');
+    } catch (dbError) {
+      console.log('⚠️ Database unavailable, using comprehensive sample data:', dbError.message);
+      usingSampleData = true;
+    }
+    
+    if (usingSampleData) {
+      const { getScreenerResults } = require('../utils/sample-data-store');
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 25;
       
-      return res.json({
-        success: true,
-        data: mockStocks.slice(0, limit),
-        pagination: {
-          page,
-          limit,
-          total: mockStocks.length,
-          totalPages: 1,
-          hasNext: false,
-          hasPrev: false
-        },
-        metadata: {
-          total_matching_stocks: mockStocks.length,
-          development_mode: true
-        },
-        timestamp: new Date().toISOString()
-      });
+      const result = getScreenerResults(req.query, page, limit);
+      console.log(`📊 Returning ${result.data.length} stocks from sample data`);
+      return res.json(result);
     }
     
     const {

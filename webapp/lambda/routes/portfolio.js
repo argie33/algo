@@ -5,6 +5,25 @@ const { createValidationMiddleware, sanitizers } = require('../middleware/valida
 const { createAdvancedSecurityMiddleware } = require('../middleware/advancedSecurityEnhancements');
 const apiKeyService = require('../utils/simpleApiKeyService');
 const AlpacaService = require('../utils/alpacaService');
+
+// Helper function to get user API key with proper format
+const getUserApiKey = async (userId, provider) => {
+  try {
+    const credentials = await apiKeyService.getApiKey(userId, provider);
+    if (!credentials) {
+      return null;
+    }
+    
+    return {
+      apiKey: credentials.keyId,
+      apiSecret: credentials.secretKey,
+      isSandbox: credentials.version === '1.0' // Default to sandbox for v1.0
+    };
+  } catch (error) {
+    console.error(`Failed to get API key for ${provider}:`, error);
+    return null;
+  }
+};
 const portfolioDataRefreshService = require('../utils/portfolioDataRefresh');
 const logger = require('../utils/logger');
 const portfolioAnalytics = require('../utils/portfolioAnalytics');
@@ -1475,7 +1494,7 @@ router.get('/accounts', authenticateToken, async (req, res) => {
     console.log(`🏦 Available accounts endpoint called for user: ${userId}`);
     
     // Get user's API keys to determine available account types
-    const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+    const credentials = await getUserApiKey(userId, 'alpaca');
     
     const availableAccounts = [];
     
@@ -1539,7 +1558,7 @@ router.get('/analytics', async (req, res) => {
     // Main analytics logic try block
     // First, try to get real-time data from broker API
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         console.log('📡 Fetching analytics from Alpaca API...');
@@ -1924,7 +1943,7 @@ router.get('/performance',
         // Try to get live performance data from broker API
         let livePerformanceData = null;
         try {
-          const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+          const credentials = await getUserApiKey(userId, 'alpaca');
           
           if (credentials) {
             console.log(`📡 [${requestId}] Fetching live performance data from Alpaca...`);
@@ -2862,7 +2881,7 @@ router.get('/optimization', async (req, res) => {
     // Get current portfolio from live API
     let currentPortfolio = null;
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         const alpaca = new AlpacaService(
@@ -2943,7 +2962,7 @@ router.get('/optimization/recommendations', async (req, res) => {
     // Get current portfolio from live API to base recommendations on
     let currentPortfolio = null;
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         console.log('📡 Fetching current portfolio for optimization analysis...');
@@ -3138,7 +3157,7 @@ router.get('/risk-analysis', async (req, res) => {
     let portfolioHistory = null;
     
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         console.log('📡 Fetching live portfolio data for risk analysis...');
@@ -5099,7 +5118,7 @@ router.get('/correlation-analysis', async (req, res) => {
     let historicalData = null;
     
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         const alpaca = new AlpacaService(
@@ -5323,7 +5342,7 @@ router.get('/stress-test', async (req, res) => {
     let portfolioData = null;
     
     try {
-      const credentials = await apiKeyService.getDecryptedApiKey(userId, 'alpaca');
+      const credentials = await getUserApiKey(userId, 'alpaca');
       
       if (credentials) {
         const alpaca = new AlpacaService(
