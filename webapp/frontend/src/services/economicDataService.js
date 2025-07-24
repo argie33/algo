@@ -6,8 +6,15 @@ import cacheService, { CacheConfigs } from './cacheService';
 
 class EconomicDataService {
   constructor() {
-    this.fredApiKey = process.env.REACT_APP_FRED_API_KEY || 'demo';
+    this.fredApiKey = process.env.REACT_APP_FRED_API_KEY;
     this.fredBaseUrl = 'https://api.stlouisfed.org/fred';
+    
+    // Warn if using demo key
+    if (!this.fredApiKey || this.fredApiKey === 'demo') {
+      console.warn('🚨 FRED API key not configured - economic data may be limited');
+      console.info('💡 Set REACT_APP_FRED_API_KEY environment variable for full access');
+      this.fredApiKey = 'demo'; // FRED allows limited demo access
+    }
     
     // Key economic indicators with FRED series IDs
     this.indicators = {
@@ -156,6 +163,7 @@ class EconomicDataService {
   // Get multiple indicators
   async getIndicators(indicatorKeys = [], options = {}) {
     const results = {};
+    const { allowMockFallback = false } = options;
     
     // Use Promise.all for parallel fetching
     await Promise.all(
@@ -164,8 +172,22 @@ class EconomicDataService {
           const data = await this.getIndicator(key, options);
           results[key] = data;
         } catch (error) {
-          console.error(`Failed to fetch ${key}:`, error);
-          results[key] = this.getMockIndicatorData(key);
+          console.error(`Failed to fetch live data for ${key}:`, error);
+          
+          if (allowMockFallback) {
+            console.warn(`Using mock data fallback for ${key}`);
+            results[key] = this.getMockIndicatorData(key);
+          } else {
+            // Return error information instead of mock data
+            results[key] = {
+              indicator: key,
+              name: this.indicators[key]?.name || key,
+              error: 'Live data unavailable',
+              message: error.message,
+              source: 'error',
+              lastUpdated: new Date().toISOString()
+            };
+          }
         }
       })
     );
@@ -292,7 +314,7 @@ class EconomicDataService {
     return 'stable';
   }
 
-  // Get yield curve data
+  // Get yield curve data with improved error handling
   async getYieldCurve() {
     const cacheKey = 'yield_curve';
     
@@ -311,25 +333,37 @@ class EconomicDataService {
         ];
         
         const yieldData = [];
+        let failedCount = 0;
         
         for (const maturity of maturities) {
           try {
             const data = await this.getIndicator(maturity.key, { limit: 1 });
             const latest = data.data[data.data.length - 1];
             
-            yieldData.push({
-              maturity: maturity.name,
-              months: maturity.months,
-              yield: latest?.value || 0,
-              date: latest?.date || new Date().toISOString()
-            });
+            if (latest && latest.value > 0) {
+              yieldData.push({
+                maturity: maturity.name,
+                months: maturity.months,
+                yield: latest.value,
+                date: latest.date,
+                source: 'FRED'
+              });
+            } else {
+              throw new Error('No valid yield data');
+            }
           } catch (error) {
-            // Use mock data if fetch fails
+            failedCount++;
+            console.warn(`Failed to fetch live yield data for ${maturity.name}:`, error.message);
+            
+            // Only use estimated values if FRED API is completely unavailable
+            const estimatedYield = 2.0 + (maturity.months / 100); // Simple curve estimation
             yieldData.push({
               maturity: maturity.name,
               months: maturity.months,
-              yield: 3.5 + (maturity.months / 120), // Simple mock curve
-              date: new Date().toISOString()
+              yield: estimatedYield,
+              date: new Date().toISOString(),
+              source: 'estimated',
+              error: 'Live data unavailable'
             });
           }
         }
@@ -343,78 +377,145 @@ class EconomicDataService {
           curve: yieldData,
           spread,
           isInverted: spread < 0,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          dataQuality: failedCount === 0 ? 'excellent' : 
+                       failedCount < 3 ? 'good' : 'poor',
+          liveDataPoints: maturities.length - failedCount,
+          totalDataPoints: maturities.length
         };
       },
       600000 // 10 minutes
     );
   }
 
-  // Get economic calendar
+  // Get economic calendar - prioritize backend API
   async getEconomicCalendar(days = 7) {
-    // For now, return mock calendar data
-    // In production, this would fetch from an economic calendar API
-    const events = [];
-    const now = new Date();
-    
-    for (let i = 0; i < days; i++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() + i);
+    try {
+      // Try to fetch from backend API first
+      const fromDate = new Date().toISOString().split('T')[0];
+      const toDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // Add some random events
-      if (i === 0 || i === 3) {
-        events.push({
-          date: date.toISOString(),
-          time: '08:30',
-          event: 'Initial Jobless Claims',
-          actual: null,
-          forecast: '215K',
-          previous: '220K',
-          impact: 'medium'
-        });
+      const response = await fetch(`/api/economic/calendar?from_date=${fromDate}&to_date=${toDate}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data.events.length > 0) {
+          return data.data.events;
+        }
       }
       
-      if (i === 5) {
-        events.push({
-          date: date.toISOString(),
-          time: '10:00',
-          event: 'Consumer Sentiment',
-          actual: null,
-          forecast: '69.5',
-          previous: '68.1',
-          impact: 'medium'
-        });
+      // If backend unavailable, return structured placeholder with warning
+      console.warn('📅 Economic calendar backend unavailable - using placeholder events');
+      
+      const events = [];
+      const now = new Date();
+      
+      // Generate realistic upcoming events based on typical economic calendar
+      const typicalEvents = [
+        { name: 'Initial Jobless Claims', time: '08:30', frequency: 'weekly', impact: 'medium' },
+        { name: 'Consumer Price Index (CPI)', time: '08:30', frequency: 'monthly', impact: 'high' },
+        { name: 'Nonfarm Payrolls', time: '08:30', frequency: 'monthly', impact: 'high' },
+        { name: 'Consumer Sentiment', time: '10:00', frequency: 'monthly', impact: 'medium' },
+        { name: 'Federal Reserve Meeting', time: '14:00', frequency: 'scheduled', impact: 'high' }
+      ];
+      
+      for (let i = 0; i < days; i++) {
+        const date = new Date(now);
+        date.setDate(date.getDate() + i);
+        
+        // Add events based on day patterns
+        if (i % 7 === 4) { // Fridays - typical for jobs data
+          events.push({
+            date: date.toISOString(),
+            time: '08:30',
+            event: 'Initial Jobless Claims',
+            actual: null,
+            forecast: 'TBD',
+            previous: 'TBD',
+            impact: 'medium',
+            country: 'US',
+            source: 'placeholder'
+          });
+        }
       }
+      
+      return events;
+      
+    } catch (error) {
+      console.error('Error fetching economic calendar:', error);
+      return [];
     }
-    
-    return events;
   }
 
   // Get market correlations with economic data
   async getMarketCorrelations() {
-    // This would calculate correlations between economic indicators and market indices
-    // For now, return mock correlations
-    return {
-      'S&P 500': {
-        gdp: 0.75,
-        unemployment: -0.68,
-        fedFunds: -0.45,
-        vix: -0.82
-      },
-      'US Dollar': {
-        fedFunds: 0.72,
-        treasury10Y: 0.65,
-        cpi: 0.38
-      },
-      'Gold': {
-        fedFunds: -0.58,
-        dollarIndex: -0.71,
-        vix: 0.45
+    try {
+      // Try backend API first for real correlations
+      const response = await fetch(`/api/economic/correlations?indicators=GDP,UNRATE,DFF,VIXCLS`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          return data.data.correlations;
+        }
       }
-    };
+      
+      // If backend correlation service unavailable, return service unavailable indicator
+      console.warn('📊 Market correlations service unavailable');
+      return {
+        error: 'Correlation analysis temporarily unavailable',
+        message: 'Real-time correlation calculations require backend modeling service',
+        estimatedCorrelations: {
+          'S&P 500': {
+            gdp: 0.75,
+            unemployment: -0.68,
+            fedFunds: -0.45,
+            vix: -0.82
+          },
+          'US Dollar': {
+            fedFunds: 0.72,
+            treasury10Y: 0.65,
+            cpi: 0.38
+          },
+          'Gold': {
+            fedFunds: -0.58,
+            dollarIndex: -0.71,
+            vix: 0.45
+          }
+        },
+        note: 'Estimated correlations shown - actual correlations require live modeling service'
+      };
+    } catch (error) {
+      console.error('Error fetching market correlations:', error);
+      return {
+        error: 'Failed to fetch correlation data',
+        message: error.message
+      };
+    }
   }
 
-  // Mock data for development/demo
+  // Validate live data quality
+  validateLiveData(data) {
+    if (!data || !data.observations || data.observations.length === 0) {
+      return { valid: false, reason: 'No data points available' };
+    }
+    
+    const validObservations = data.observations.filter(obs => 
+      obs.value && obs.value !== '.' && !isNaN(parseFloat(obs.value))
+    );
+    
+    if (validObservations.length === 0) {
+      return { valid: false, reason: 'No valid numeric data points' };
+    }
+    
+    if (validObservations.length < data.observations.length * 0.5) {
+      return { valid: false, reason: 'Too many missing data points' };
+    }
+    
+    return { valid: true, validObservations };
+  }
+
+  // Mock data for development/demo (only used when explicitly requested)
   getMockIndicatorData(indicatorKey) {
     const indicator = this.indicators[indicatorKey];
     const data = [];

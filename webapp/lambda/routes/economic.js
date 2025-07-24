@@ -180,35 +180,27 @@ router.get('/models', async (req, res) => {
         data: models
       });
     } else {
-      // Fallback mock data
-      const mockModels = [
-        {
-          id: 'arima_gdp',
-          name: 'ARIMA GDP Model',
-          type: 'arima',
-          target: 'GDP Growth',
-          accuracy: 0.85,
-          horizon: horizon,
-          last_updated: new Date().toISOString(),
-          parameters: { p: 2, d: 1, q: 2 }
-        },
-        {
-          id: 'var_inflation',
-          name: 'VAR Inflation Model',
-          type: 'var',
-          target: 'Core CPI',
-          accuracy: 0.78,
-          horizon: horizon,
-          last_updated: new Date().toISOString(),
-          parameters: { lags: 4, variables: ['cpi', 'unemployment', 'fed_rate'] }
-        }
-      ];
-
-      res.json({
-        success: true,
-        data: mockModels,
-        note: 'Mock economic models - modeling engine not available'
-      });
+      // Initialize economic engine if not available
+      try {
+        const EconomicModelingEngine = require('../utils/economicModelingEngine');
+        economicEngine = new EconomicModelingEngine();
+        
+        const models = await economicEngine.getEconomicModels(model_type, horizon);
+        res.json({
+          success: true,
+          data: models
+        });
+      } catch (initError) {
+        console.error('Failed to initialize EconomicModelingEngine:', initError);
+        
+        // Return service unavailable instead of mock data
+        res.status(503).json({
+          success: false,
+          error: 'Economic modeling service temporarily unavailable',
+          message: 'Real economic models not accessible - please try again later',
+          retry_after: 300 // 5 minutes
+        });
+      }
     }
   } catch (error) {
     console.error('Error fetching economic models:', error);
@@ -279,23 +271,12 @@ router.get('/correlations', async (req, res) => {
         }
       });
     } else {
-      // Fallback mock correlations
-      const mockCorrelations = {
-        matrix: {
-          'GDP': { 'GDP': 1.0, 'CPI': 0.23, 'UNEMPLOYMENT': -0.67, 'FED_RATE': 0.45 },
-          'CPI': { 'GDP': 0.23, 'CPI': 1.0, 'UNEMPLOYMENT': -0.12, 'FED_RATE': 0.78 },
-          'UNEMPLOYMENT': { 'GDP': -0.67, 'CPI': -0.12, 'UNEMPLOYMENT': 1.0, 'FED_RATE': -0.34 },
-          'FED_RATE': { 'GDP': 0.45, 'CPI': 0.78, 'UNEMPLOYMENT': -0.34, 'FED_RATE': 1.0 }
-        },
-        period: period,
-        method: method,
-        last_updated: new Date().toISOString()
-      };
-
-      res.json({
-        success: true,
-        data: mockCorrelations,
-        note: 'Mock correlations - modeling engine not available'
+      // Service unavailable instead of mock data
+      res.status(503).json({
+        success: false,
+        error: 'Economic modeling service temporarily unavailable',
+        message: 'Correlation analysis requires modeling engine - please try again later',
+        retry_after: 300
       });
     }
   } catch (error) {
