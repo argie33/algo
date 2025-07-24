@@ -132,7 +132,7 @@ const UnifiedDataManagement = () => {
 
   const loadApiKeyStats = async () => {
     try {
-      const response = await fetch('/api/data-management/api-keys', {
+      const response = await fetch('/api/data-management/api/api-keys', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         }

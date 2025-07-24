@@ -1,0 +1,469 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Enhanced Session Management Infrastructure for Financial Dashboard'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Deployment environment'
+  
+  ProjectName:
+    Type: String
+    Default: 'stocks-webapp'
+    Description: 'Project name for resource naming'
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID for resources'
+  
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Private subnet IDs for Lambda and RDS'
+  
+  PublicSubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Public subnet IDs for ALB'
+
+Resources:
+  # Enhanced Session Store using ElastiCache Redis
+  SessionStoreSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: 'Subnet group for session store'
+      SubnetIds: !Ref PrivateSubnetIds
+      CacheSubnetGroupName: !Sub '${ProjectName}-${Environment}-session-store-subnet-group'
+
+  SessionStoreSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for session store'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: 'Redis access from Lambda'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-session-store-sg'
+
+  SessionStoreCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub '${ProjectName}-${Environment}-session-store'
+      Description: 'Redis cluster for session management'
+      NodeType: cache.t3.micro
+      Port: 6379
+      NumCacheClusters: 1
+      Engine: redis
+      EngineVersion: '7.0'
+      CacheSubnetGroupName: !Ref SessionStoreSubnetGroup
+      SecurityGroupIds:
+        - !Ref SessionStoreSecurityGroup
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      MultiAZEnabled: false
+      AutomaticFailoverEnabled: false
+      LogDeliveryConfigurations:
+        - DestinationType: cloudwatch-logs
+          DestinationDetails:
+            LogGroup: !Ref SessionStoreLogGroup
+          LogFormat: text
+          LogType: slow-log
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # CloudWatch Log Group for Session Store
+  SessionStoreLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/elasticache/${ProjectName}-${Environment}-session-store'
+      RetentionInDays: 14
+
+  # Lambda Security Group
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for Lambda functions'
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: 'HTTPS outbound'
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          DestinationSecurityGroupId: !Ref SessionStoreSecurityGroup
+          Description: 'Redis access'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-lambda-sg'
+
+  # Enhanced Secrets for Session Management
+  SessionManagementSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-session-management'
+      Description: 'Session management configuration and encryption keys'
+      GenerateSecretString:
+        SecretStringTemplate: !Sub |
+          {
+            "redis_endpoint": "",
+            "environment": "${Environment}",
+            "project_name": "${ProjectName}"
+          }
+        GenerateStringKey: 'encryption_key'
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Lambda Execution Role with Enhanced Permissions
+  SessionLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-session-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SessionManagementPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref SessionManagementSecrets
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminListGroupsForUser
+                  - cognito-idp:AdminUserGlobalSignOut
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - elasticache:DescribeReplicationGroups
+                  - elasticache:DescribeCacheClusters
+                Resource: '*'
+
+  # Session Management Lambda Function
+  SessionManagementFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-session-management'
+      Runtime: nodejs18.x
+      Handler: sessionManagement.handler
+      Role: !GetAtt SessionLambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const Redis = require('ioredis');
+          
+          let redis;
+          let secretsManager = new AWS.SecretsManager();
+          
+          async function getRedisClient() {
+            if (!redis) {
+              try {
+                const secret = await secretsManager.getSecretValue({
+                  SecretId: process.env.SESSION_SECRETS_ARN
+                }).promise();
+                
+                const config = JSON.parse(secret.SecretString);
+                redis = new Redis({
+                  host: process.env.REDIS_ENDPOINT,
+                  port: 6379,
+                  tls: true,
+                  retryDelayOnFailover: 100,
+                  maxRetriesPerRequest: 3
+                });
+                
+                redis.on('error', (err) => {
+                  console.error('Redis connection error:', err);
+                });
+              } catch (error) {
+                console.error('Failed to initialize Redis:', error);
+                throw error;
+              }
+            }
+            return redis;
+          }
+          
+          exports.handler = async (event) => {
+            const { httpMethod, path, body, headers } = event;
+            
+            try {
+              const redisClient = await getRedisClient();
+              
+              switch (httpMethod) {
+                case 'POST':
+                  if (path === '/session/create') {
+                    return await createSession(redisClient, JSON.parse(body));
+                  } else if (path === '/session/validate') {
+                    return await validateSession(redisClient, JSON.parse(body));
+                  }
+                  break;
+                  
+                case 'PUT':
+                  if (path === '/session/update') {
+                    return await updateSession(redisClient, JSON.parse(body));
+                  }
+                  break;
+                  
+                case 'DELETE':
+                  if (path === '/session/revoke') {
+                    return await revokeSession(redisClient, JSON.parse(body));
+                  }
+                  break;
+                  
+                default:
+                  return {
+                    statusCode: 405,
+                    body: JSON.stringify({ error: 'Method not allowed' })
+                  };
+              }
+            } catch (error) {
+              console.error('Session management error:', error);
+              return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Internal server error' })
+              };
+            }
+          };
+          
+          async function createSession(redis, { userId, sessionId, metadata }) {
+            const sessionKey = `session:${userId}:${sessionId}`;
+            const userSessionsKey = `user:${userId}:sessions`;
+            
+            await redis.setex(sessionKey, 86400, JSON.stringify({
+              ...metadata,
+              createdAt: Date.now(),
+              lastActivity: Date.now()
+            }));
+            
+            await redis.sadd(userSessionsKey, sessionId);
+            await redis.expire(userSessionsKey, 86400);
+            
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ success: true, sessionId })
+            };
+          }
+          
+          async function validateSession(redis, { userId, sessionId }) {
+            const sessionKey = `session:${userId}:${sessionId}`;
+            const sessionData = await redis.get(sessionKey);
+            
+            if (!sessionData) {
+              return {
+                statusCode: 401,
+                body: JSON.stringify({ valid: false, reason: 'Session not found' })
+              };
+            }
+            
+            const session = JSON.parse(sessionData);
+            const now = Date.now();
+            const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+            const idleTimeout = 30 * 60 * 1000; // 30 minutes
+            
+            if (now - session.createdAt > maxAge) {
+              await redis.del(sessionKey);
+              return {
+                statusCode: 401,
+                body: JSON.stringify({ valid: false, reason: 'Session expired' })
+              };
+            }
+            
+            if (now - session.lastActivity > idleTimeout) {
+              await redis.del(sessionKey);
+              return {
+                statusCode: 401,
+                body: JSON.stringify({ valid: false, reason: 'Session idle timeout' })
+              };
+            }
+            
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ valid: true, session })
+            };
+          }
+          
+          async function updateSession(redis, { userId, sessionId, metadata }) {
+            const sessionKey = `session:${userId}:${sessionId}`;
+            const sessionData = await redis.get(sessionKey);
+            
+            if (!sessionData) {
+              return {
+                statusCode: 404,
+                body: JSON.stringify({ error: 'Session not found' })
+              };
+            }
+            
+            const session = JSON.parse(sessionData);
+            const updatedSession = {
+              ...session,
+              ...metadata,
+              lastActivity: Date.now()
+            };
+            
+            await redis.setex(sessionKey, 86400, JSON.stringify(updatedSession));
+            
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ success: true })
+            };
+          }
+          
+          async function revokeSession(redis, { userId, sessionId }) {
+            const sessionKey = `session:${userId}:${sessionId}`;
+            const userSessionsKey = `user:${userId}:sessions`;
+            
+            await redis.del(sessionKey);
+            await redis.srem(userSessionsKey, sessionId);
+            
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ success: true })
+            };
+          }
+      Environment:
+        Variables:
+          REDIS_ENDPOINT: !GetAtt SessionStoreCluster.PrimaryEndpoint.Address
+          SESSION_SECRETS_ARN: !Ref SessionManagementSecrets
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref PrivateSubnetIds
+      Timeout: 30
+      MemorySize: 256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # API Gateway for Session Management
+  SessionManagementApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-session-management-api'
+      Description: 'API for enhanced session management'
+      EndpointConfiguration:
+        Types: [REGIONAL]
+
+  SessionManagementApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: 
+      - SessionManagementApiMethod
+    Properties:
+      RestApiId: !Ref SessionManagementApi
+      StageName: !Ref Environment
+
+  SessionManagementApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SessionManagementApi
+      ParentId: !GetAtt SessionManagementApi.RootResourceId
+      PathPart: session
+
+  SessionManagementApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SessionManagementApi
+      ResourceId: !Ref SessionManagementApiResource
+      HttpMethod: ANY
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SessionManagementFunction.Arn}/invocations'
+
+  # Lambda Permission for API Gateway
+  SessionManagementApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SessionManagementFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${SessionManagementApi}/*/ANY/session'
+
+  # CloudWatch Alarms for Monitoring
+  SessionStoreConnectionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-session-store-connections'
+      AlarmDescription: 'Monitor Redis connection count'
+      MetricName: CurrConnections
+      Namespace: AWS/ElastiCache
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: CacheClusterId
+          Value: !Sub '${SessionStoreCluster}-001'
+
+  SessionLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-session-lambda-errors'
+      AlarmDescription: 'Monitor Lambda function errors'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SessionManagementFunction
+
+Outputs:
+  SessionStoreEndpoint:
+    Description: 'Redis endpoint for session storage'
+    Value: !GetAtt SessionStoreCluster.PrimaryEndpoint.Address
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-session-store-endpoint'
+
+  SessionManagementApiUrl:
+    Description: 'API Gateway URL for session management'
+    Value: !Sub 'https://${SessionManagementApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-session-api-url'
+
+  SessionSecretsArn:
+    Description: 'ARN of session management secrets'
+    Value: !Ref SessionManagementSecrets
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-session-secrets-arn'
+
+  LambdaSecurityGroupId:
+    Description: 'Security group ID for Lambda functions'
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-lambda-sg-id'

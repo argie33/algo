@@ -119,7 +119,7 @@ const featureFlags = {
   enhancedCors: true,
   circuitBreaker: true,
   requestQueuing: true,
-  memoryMonitoring = true,
+  memoryMonitoring: true,
   performanceLogging: environment !== 'production'
 };
 

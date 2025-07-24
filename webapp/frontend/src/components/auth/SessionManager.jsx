@@ -300,6 +300,8 @@ function SessionManager({ children }) {
     timeToExpiry,
     isRefreshing,
     isIdle,
+    crossTabSync,
+    sessionPersistent,
     refreshSession: handleTokenRefresh,
     extendSession,
     getSessionProgress,

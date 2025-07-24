@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { fetchAuthSession, signIn, signUp, confirmSignUp, confirmSignIn, signOut, resetPassword, confirmResetPassword, getCurrentUser } from '@aws-amplify/auth';
 import SessionManager from '../components/auth/SessionManager';
+import secureSessionStorage from '../utils/secureSessionStorage';
 
 // Initial auth state
 const initialState = {
@@ -205,7 +206,16 @@ export function AuthProvider({ children }) {
             refreshToken: session.tokens.refreshToken?.toString()
           };
           
-          // Store access token for API requests
+          // Store tokens securely
+          const tokenData = {
+            ...tokens,
+            userId: user.userId,
+            username: user.username,
+            email: user.signInDetails?.loginId || user.username
+          };
+          secureSessionStorage.storeTokens(tokenData);
+          
+          // Legacy support - store access token for API requests
           localStorage.setItem('accessToken', tokens.accessToken);
           
           // Check if user has MFA enabled by checking user attributes
@@ -425,6 +435,9 @@ export function AuthProvider({ children }) {
     try {
       console.log('🚪 Signing out...');
       
+      // Clear secure session storage
+      secureSessionStorage.clearSession();
+      
       // Clear local storage first
       localStorage.removeItem('accessToken');
       
@@ -494,6 +507,15 @@ export function AuthProvider({ children }) {
           idToken: session.tokens.idToken?.toString(),
           refreshToken: session.tokens.refreshToken?.toString()
         };
+        
+        // Update secure storage
+        const tokenData = {
+          ...tokens,
+          userId: state.user?.userId,
+          username: state.user?.username,
+          email: state.user?.email
+        };
+        secureSessionStorage.storeTokens(tokenData);
         
         localStorage.setItem('accessToken', tokens.accessToken);
         dispatch({ type: AUTH_ACTIONS.UPDATE_TOKENS, payload: tokens });

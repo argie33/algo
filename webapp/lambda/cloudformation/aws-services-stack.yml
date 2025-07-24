@@ -102,6 +102,27 @@ Resources:
         - Key: Service
           Value: 'stocks-webapp'
 
+  DatabaseCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'database-credentials-${EnvironmentName}'
+      Description: 'PostgreSQL database connection credentials for stocks webapp'
+      SecretString: !Sub |
+        {
+          "host": "PLACEHOLDER_DB_HOST_REPLACE_MANUALLY",
+          "port": "5432",
+          "dbname": "stocks",
+          "username": "PLACEHOLDER_DB_USERNAME_REPLACE_MANUALLY",
+          "password": "PLACEHOLDER_DB_PASSWORD_REPLACE_MANUALLY"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: 'stocks-webapp'
+        - Key: Purpose
+          Value: 'database-connection'
+
   #############################################################################
   # ElastiCache Redis Cluster
   #############################################################################
@@ -288,6 +309,7 @@ Resources:
                   - !Ref AlpacaApiCredentials
                   - !Ref ExternalApiKeys
                   - !Ref SessionEncryption
+                  - !Ref DatabaseCredentials
         - PolicyName: ElastiCacheAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -340,6 +362,12 @@ Outputs:
     Value: !Ref SessionEncryption
     Export:
       Name: !Sub '${AWS::StackName}-SessionEncryptionArn'
+
+  DatabaseCredentialsArn:
+    Description: 'ARN of database credentials secret'
+    Value: !Ref DatabaseCredentials
+    Export:
+      Name: !Sub '${AWS::StackName}-DatabaseCredentialsArn'
 
   #############################################################################
   # Service Endpoints

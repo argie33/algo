@@ -98,6 +98,8 @@ import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
 import LiveData from './pages/LiveData'
 import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
+import WelcomeLanding from './pages/WelcomeLanding'
+import SmartRouting from './components/SmartRouting'
 
 const drawerWidth = 240
 
@@ -470,12 +472,16 @@ function App() {
         <Toolbar />
         <Container maxWidth="xl">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<SmartRouting onSignInClick={() => setAuthModalOpen(true)} />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/portfolio/trade-history" element={<TradeHistory />} />
             <Route path="/portfolio/performance" element={<PortfolioPerformance />} />
             <Route path="/portfolio/optimize" element={<PortfolioOptimization />} />
-            <Route path="/market" element={<MarketOverview />} />
+            <Route path="/market" element={
+              !isAuthenticated ? 
+                <WelcomeLanding onSignInClick={() => setAuthModalOpen(true)} /> : 
+                <MarketOverview />
+            } />
             <Route path="/screener-advanced" element={<AdvancedScreener />} />
             <Route path="/scores" element={<ScoresDashboard />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />
