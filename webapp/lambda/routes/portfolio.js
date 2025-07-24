@@ -81,7 +81,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Portfolio holdings endpoint - simplified for syntax stability
+// Portfolio holdings endpoint - integrated with API keys
 router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.holdings), async (req, res) => {
   try {
     const accountType = req.query.accountType || 'paper';
@@ -91,9 +91,49 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       throw new Error('User authentication required');
     }
     
-    console.log('Portfolio holdings request for user:', userId);
+    console.log('🔄 Portfolio holdings request for user:', userId, 'accountType:', accountType);
 
-    // Simplified fallback to sample data to avoid API complications
+    // Try to get user's API keys first
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (alpacaCredentials) {
+      try {
+        console.log('📡 Using user API keys for portfolio data');
+        const isPaper = accountType === 'paper' || alpacaCredentials.isSandbox;
+        const alpacaService = new AlpacaService(
+          alpacaCredentials.apiKey,
+          alpacaCredentials.apiSecret,
+          isPaper
+        );
+        
+        // Get real portfolio data from Alpaca
+        const [account, positions] = await Promise.all([
+          alpacaService.getAccount(),
+          alpacaService.getPositions()
+        ]);
+        
+        console.log('✅ Successfully fetched portfolio data from Alpaca API');
+        
+        res.json({
+          success: true,
+          data: {
+            account,
+            holdings: positions,
+            accountType: isPaper ? 'paper' : 'live',
+            dataSource: 'live'
+          },
+          message: `Portfolio data from ${isPaper ? 'paper' : 'live'} trading account`
+        });
+        return;
+        
+      } catch (apiError) {
+        console.error('❌ API call failed, falling back to sample data:', apiError.message);
+      }
+    } else {
+      console.log('⚠️ No API keys found for user, using sample data');
+    }
+
+    // Fallback to sample data if API keys not available or API call failed
     const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
     const sampleData = getSamplePortfolioData(accountType);
     
@@ -139,7 +179,7 @@ router.get('/api-keys', async (req, res) => {
   }
 });
 
-// Accounts endpoint - provides available trading accounts
+// Accounts endpoint - provides available trading accounts based on API keys
 router.get('/accounts', async (req, res) => {
   try {
     const userId = req.user?.sub;
@@ -147,29 +187,54 @@ router.get('/accounts', async (req, res) => {
       throw new Error('User authentication required');
     }
 
-    console.log('Available accounts request for user:', userId);
+    console.log('🔄 Available accounts request for user:', userId);
     
-    // Return available account types
-    res.json({
-      success: true,
-      accounts: [
+    // Check if user has API keys configured
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    const accounts = [];
+    
+    if (alpacaCredentials) {
+      // User has API keys - provide both paper and live options
+      accounts.push(
         {
           id: 'paper',
           name: 'Paper Trading',
           type: 'paper',
           provider: 'alpaca',
           isActive: true,
-          balance: 100000
+          balance: 100000, // Default paper balance
+          hasApiKey: true
         },
         {
           id: 'live',
-          name: 'Live Trading',
-          type: 'live', 
+          name: 'Live Trading', 
+          type: 'live',
           provider: 'alpaca',
-          isActive: false,
-          balance: 0
+          isActive: !alpacaCredentials.isSandbox, // Only active if not sandbox-only key
+          balance: 0,
+          hasApiKey: true
         }
-      ]
+      );
+    } else {
+      // No API keys - provide demo account only
+      accounts.push({
+        id: 'demo',
+        name: 'Demo Account',
+        type: 'demo',
+        provider: 'demo',
+        isActive: true,
+        balance: 10000,
+        hasApiKey: false
+      });
+    }
+    
+    res.json({
+      success: true,
+      accounts,
+      totalAccounts: accounts.length,
+      hasApiKeys: alpacaCredentials ? true : false,
+      message: alpacaCredentials ? 'API keys configured' : 'No API keys found - using demo account'
     });
     
   } catch (error) {
@@ -181,7 +246,7 @@ router.get('/accounts', async (req, res) => {
   }
 });
 
-// Account info endpoint - specific account details
+// Account info endpoint - specific account details with API integration
 router.get('/account', async (req, res) => {
   try {
     const accountType = req.query.accountType || 'paper';
@@ -191,9 +256,41 @@ router.get('/account', async (req, res) => {
       throw new Error('User authentication required');
     }
     
-    console.log('Account info request for user:', userId, 'type:', accountType);
+    console.log('🔄 Account info request for user:', userId, 'type:', accountType);
 
-    // Return account information
+    // Try to get real account data from API keys
+    const alpacaCredentials = await getUserApiKey(userId, 'alpaca');
+    
+    if (alpacaCredentials && accountType !== 'demo') {
+      try {
+        const isPaper = accountType === 'paper' || alpacaCredentials.isSandbox;
+        const alpacaService = new AlpacaService(
+          alpacaCredentials.apiKey,
+          alpacaCredentials.apiSecret,
+          isPaper
+        );
+        
+        const accountData = await alpacaService.getAccount();
+        console.log('✅ Retrieved real account data from Alpaca API');
+        
+        res.json({
+          success: true,
+          data: {
+            ...accountData,
+            accountType: isPaper ? 'paper' : 'live',
+            dataSource: 'live',
+            provider: 'alpaca'
+          },
+          message: `Account data from ${isPaper ? 'paper' : 'live'} trading account`
+        });
+        return;
+        
+      } catch (apiError) {
+        console.error('❌ Account API call failed:', apiError.message);
+      }
+    }
+
+    // Fallback to mock account data
     res.json({
       success: true,
       data: {
@@ -201,13 +298,83 @@ router.get('/account', async (req, res) => {
         balance: accountType === 'paper' ? 100000 : 0,
         buyingPower: accountType === 'paper' ? 100000 : 0,
         isActive: accountType === 'paper',
-        provider: 'alpaca'
-      }
+        provider: 'alpaca',
+        dataSource: 'demo'
+      },
+      message: 'Using demo account data - no API keys configured'
     });
 
   } catch (error) {
     console.error('Error in account info endpoint:', error);
     res.status(500).json({ error: 'Failed to fetch account info' });
+  }
+});
+
+// Portfolio import endpoint - import real data from broker using API keys
+router.post('/import', async (req, res) => {
+  try {
+    const { provider = 'alpaca', accountType = 'paper' } = req.body;
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    
+    console.log('🔄 Portfolio import request for user:', userId, 'provider:', provider);
+
+    const alpacaCredentials = await getUserApiKey(userId, provider);
+    
+    if (!alpacaCredentials) {
+      return res.status(400).json({
+        success: false,
+        error: `No API keys configured for ${provider}. Please set up your API keys in Settings.`
+      });
+    }
+
+    try {
+      const isPaper = accountType === 'paper' || alpacaCredentials.isSandbox;
+      const alpacaService = new AlpacaService(
+        alpacaCredentials.apiKey,
+        alpacaCredentials.apiSecret,
+        isPaper
+      );
+      
+      // Import portfolio data
+      const [account, positions, activities] = await Promise.all([
+        alpacaService.getAccount(),
+        alpacaService.getPositions(),
+        alpacaService.getActivities(['FILL'], 50)
+      ]);
+      
+      console.log('✅ Successfully imported portfolio data from', provider);
+      
+      res.json({
+        success: true,
+        data: {
+          account,
+          positions,
+          activities,
+          importedAt: new Date().toISOString(),
+          provider,
+          accountType: isPaper ? 'paper' : 'live'
+        },
+        message: `Portfolio successfully imported from ${provider} ${isPaper ? 'paper' : 'live'} account`
+      });
+      
+    } catch (apiError) {
+      console.error('❌ Portfolio import failed:', apiError.message);
+      res.status(500).json({
+        success: false,
+        error: `Failed to import portfolio from ${provider}: ${apiError.message}`
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in portfolio import endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to import portfolio'
+    });
   }
 });
 

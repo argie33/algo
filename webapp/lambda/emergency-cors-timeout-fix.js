@@ -113,29 +113,6 @@ const apiKeyRoutes = (() => {
 
 app.use('/api/api-keys', apiKeyRoutes);
 
-// Watchlist endpoints with authentication
-const watchlistRoutes = (() => {
-  try {
-    return require('./routes/watchlist');
-  } catch (error) {
-    console.error('❌ Watchlist route failed to load, using fallback');
-    const express = require('express');
-    const router = express.Router();
-    
-    router.all('*', (req, res) => {
-      res.status(503).json({
-        success: false,
-        error: 'Watchlist service temporarily unavailable',
-        message: 'Database connection required for watchlist functionality'
-      });
-    });
-    
-    return router;
-  }
-})();
-
-app.use('/api/watchlist', watchlistRoutes);
-
 // Stocks endpoint with fallback
 app.get('/api/stocks', (req, res) => {
   const limit = parseInt(req.query.limit) || 10;

@@ -96,6 +96,7 @@ import CryptoPortfolio from './pages/CryptoPortfolio'
 import CryptoRealTimeTracker from './pages/CryptoRealTimeTracker'
 import CryptoAdvancedAnalytics from './pages/CryptoAdvancedAnalytics'
 import LiveData from './pages/LiveData'
+import LiveDataAdmin from './pages/LiveDataAdmin'
 import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 import WelcomeLanding from './pages/WelcomeLanding'
@@ -521,7 +522,8 @@ function App() {
             <Route path="/options/greeks" element={<GreeksMonitor />} />
             
             {/* Live Data Routes */}
-            <Route path="/live-data" element={<LiveData />} />
+            <Route path="/live-data" element={<LiveDataAdmin />} />
+            <Route path="/live-data-legacy" element={<LiveData />} />
             <Route path="/hft-trading" element={<HFTTrading />} />
             
             {/* Cryptocurrency Routes */}

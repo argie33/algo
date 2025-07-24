@@ -830,13 +830,14 @@ router.get('/screen', async (req, res) => {
     }
     
     if (usingSampleData) {
-      const { getScreenerResults } = require('../utils/sample-data-store');
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 25;
-      
-      const result = getScreenerResults(req.query, page, limit);
-      console.log(`📊 Returning ${result.data.length} stocks from sample data`);
-      return res.json(result);
+      console.error('❌ Database connection failed for stock screening');
+      return res.status(503).json({
+        success: false,
+        error: 'Database connection failed',
+        message: 'Stock screening requires database connection. Please ensure the database is running and accessible.',
+        code: 'DATABASE_UNAVAILABLE',
+        timestamp: new Date().toISOString()
+      });
     }
     
     const {
@@ -1000,15 +1001,16 @@ router.get('/screen', async (req, res) => {
       query_params: req.query
     });
     
-    // Fallback to sample data on any error
-    console.log('🔄 Falling back to sample data due to database error');
-    const { getScreenerResults } = require('../utils/sample-data-store');
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    
-    const result = getScreenerResults(req.query, page, limit);
-    console.log(`📊 Returning ${result.data.length} stocks from sample data (fallback)`);
-    return res.json(result);
+    // Return error instead of fake data
+    console.error('❌ Stock screening failed with database error');
+    return res.status(500).json({
+      success: false,
+      error: 'Stock screening failed',
+      message: 'Database query failed. Please check database connection and try again.',
+      code: 'DATABASE_QUERY_FAILED',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

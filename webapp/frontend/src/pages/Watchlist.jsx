@@ -555,7 +555,9 @@ const Watchlist = () => {
         description: newWatchlistDescription.trim() || null
       });
       
-      setWatchlists([...watchlists, response]);
+      // Ensure response is properly handled - it might be wrapped in data
+      const newWatchlist = response?.data || response;
+      setWatchlists([...watchlists, newWatchlist]);
       setNewWatchlistName('');
       setNewWatchlistDescription('');
       setCreateDialogOpen(false);
