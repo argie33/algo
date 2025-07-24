@@ -63,6 +63,27 @@ Resources:
               Resource: 
                 - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-webapp-dev/*'
                 - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-*'
+            # SSM Parameter Store permissions for API key management
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:PutParameter
+                - ssm:DeleteParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+                - ssm:DescribeParameters
+              Resource: 
+                - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/financial-platform/users/*'
+            # KMS permissions for Parameter Store encryption
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:Encrypt
+                - kms:GenerateDataKey
+                - kms:CreateGrant
+                - kms:DescribeKey
+              Resource: 
+                - !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*'
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue StocksCore-LambdaSecurityGroupId

@@ -1,37 +1,160 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="11" failures="0" errors="0" time="1.591">
-  <testsuite name="Comprehensive Health Check System" errors="0" failures="0" skipped="10" timestamp="2025-07-24T11:29:03" time="1.566" tests="11">
-    <testcase classname="Comprehensive Health Check System › GET /api/health/ - Basic Health Check" name="should return quick health check without database when quick=true" time="0.041">
+<testsuites name="jest tests" tests="8" failures="7" errors="0" time="1.653">
+  <testsuite name="Comprehensive Health Check System - RESTORED" errors="0" failures="7" skipped="0" timestamp="2025-07-24T11:30:03" time="1.625" tests="8">
+    <testcase classname="Comprehensive Health Check System - RESTORED › Basic Health Check (GET /)" name="should return quick health check without database when quick=true" time="0.037">
     </testcase>
-    <testcase classname="Comprehensive Health Check System › GET /api/health/ - Basic Health Check" name="should perform full health check with database connection" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Basic Health Check (GET /)" name="should perform comprehensive health check with database connection" time="0.016">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 1
++ Received  + 0
+
+  Object {
+    &quot;healthy&quot;: true,
+-   &quot;service&quot;: &quot;Financial Dashboard API&quot;,
+    &quot;status&quot;: &quot;healthy&quot;,
+    &quot;timestamp&quot;: Any&lt;String&gt;,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:99:29)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › GET /api/health/ - Basic Health Check" name="should handle database initialization failure" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Database Health Check (GET /database)" name="should return comprehensive database analysis with table categorization" time="0.005">
+      <failure>Error: expected 200 &quot;OK&quot;, got 503 &quot;Service Unavailable&quot;
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:154:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+----
+    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
+    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
+    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
+    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
+    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:517:28)
+    at emitCloseNT (node:net:2215:8)
+    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › GET /api/health/database - Comprehensive Database Health" name="should return comprehensive database analysis with multi-tier health checks" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Database Health Check (GET /database)" name="should handle database connection failure gracefully" time="0.005">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 4
++ Received  + 5
+
+  Object {
+-   &quot;database&quot;: ObjectContaining {
+-     &quot;error&quot;: &quot;Connection refused&quot;,
+-     &quot;status&quot;: &quot;error&quot;,
++   &quot;database&quot;: Object {
++     &quot;error&quot;: &quot;Cannot read properties of undefined (reading &apos;totalCount&apos;)&quot;,
++     &quot;level&quot;: &quot;basic&quot;,
++     &quot;response_time_ms&quot;: 2000,
++     &quot;status&quot;: &quot;disconnected&quot;,
+    },
+    &quot;healthy&quot;: false,
+-   &quot;service&quot;: &quot;Financial Dashboard API&quot;,
+    &quot;status&quot;: &quot;unhealthy&quot;,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:182:29)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should successfully update health status with comprehensive database analysis" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Health Status Update (POST /update-status)" name="should successfully update health status with comprehensive analysis" time="0.006">
+      <failure>Error: expect(received).toMatchObject(expected)
+
+- Expected  - 12
++ Received  +  1
+
+  Object {
+-   &quot;data&quot;: ObjectContaining {
+-     &quot;database&quot;: ObjectContaining {
+-       &quot;status&quot;: &quot;connected&quot;,
+-       &quot;summary&quot;: ObjectContaining {
+-         &quot;healthy_tables&quot;: 3,
+-         &quot;total_records&quot;: Any&lt;Number&gt;,
+-         &quot;total_tables&quot;: 3,
+-       },
+-     },
+-     &quot;status&quot;: &quot;connected&quot;,
+-   },
+-   &quot;message&quot;: &quot;Database health status updated successfully&quot;,
++   &quot;message&quot;: &quot;Health status updated successfully&quot;,
+    &quot;status&quot;: &quot;success&quot;,
+    &quot;timestamp&quot;: Any&lt;String&gt;,
+  }
+    at Object.toMatchObject (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:250:29)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should handle database connection failure gracefully" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Health Status Update (POST /update-status)" name="should categorize tables according to the comprehensive system" time="0.006">
+      <failure>TypeError: Cannot read properties of undefined (reading &apos;database&apos;)
+    at Object.database (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:323:33)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should measure all tables across database as requested by user" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Additional Endpoints" name="should provide database diagnostics endpoint" time="0.004">
+      <failure>Error: expected 200 &quot;OK&quot;, got 500 &quot;Internal Server Error&quot;
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:357:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+----
+    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
+    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
+    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
+    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
+    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:517:28)
+    at emitCloseNT (node:net:2215:8)
+    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should store health data in health_status table when it exists" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should handle health_status table storage failure gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should skip storage when health_status table does not exist" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="Comprehensive Health Check System › POST /api/health/update-status - Health Status Updates" name="should provide performance information in response" time="0">
-      <skipped/>
+    <testcase classname="Comprehensive Health Check System - RESTORED › Additional Endpoints" name="should provide status summary endpoint" time="0.004">
+      <failure>Error: expected 200 &quot;OK&quot;, got 500 &quot;Internal Server Error&quot;
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/unit/routes/comprehensive-health-check.test.js:371:10)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+----
+    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
+    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
+    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
+    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
+    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:517:28)
+    at emitCloseNT (node:net:2215:8)
+    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
   </testsuite>
 </testsuites>
