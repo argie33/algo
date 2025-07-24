@@ -318,6 +318,15 @@ Resources:
                 Action:
                   - elasticache:Describe*
                 Resource: '*'
+        - PolicyName: CloudFormationAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStacks
+                Resource: '*'
         - PolicyName: SESAccess
           PolicyDocument:
             Version: '2012-10-17'
