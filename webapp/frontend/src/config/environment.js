@@ -157,7 +157,7 @@ export const DATABASE_CONFIG = {
   rds: {
     host: import.meta.env.VITE_RDS_HOST || 
           window.__CONFIG__?.DATABASE?.HOST ||
-          'localhost',
+          null, // No localhost fallback - fail gracefully if not configured
     port: parseInt(import.meta.env.VITE_RDS_PORT) || 
           parseInt(window.__CONFIG__?.DATABASE?.PORT) || 
           5432,

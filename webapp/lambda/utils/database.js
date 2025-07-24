@@ -68,9 +68,52 @@ async function getDbConfig() {
     console.log('⏱️ Starting database config retrieval...');
     
     try {
-        // First try direct environment variables (full set)
-        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
-            console.log('🔧 Using complete direct database environment variables');
+        // First try AWS Secrets Manager in production/AWS environments
+        if (process.env.DB_SECRET_ARN && process.env.NODE_ENV !== 'test' && !process.env.DB_SECRET_ARN.includes('${')) {
+            console.log('🔐 Using AWS Secrets Manager for database configuration (PRIORITY)');
+            
+            const secretArn = process.env.DB_SECRET_ARN;
+            console.log(`🔑 Getting credentials from Secrets Manager: ${secretArn}`);
+            
+            let secret;
+            try {
+                // Try diagnostic tool first
+                const SecretsManagerDiagnostic = require('./secretsManagerDiagnostic');
+                const diagnostic = new SecretsManagerDiagnostic();
+                secret = await diagnostic.getSecret(secretArn);
+            } catch (diagError) {
+                console.warn('⚠️ Diagnostic tool failed, using direct AWS SDK:', diagError.message);
+                
+                const command = new GetSecretValueCommand({ SecretId: secretArn });
+                const response = await secretsManager.send(command);
+                secret = JSON.parse(response.SecretString);
+            }
+
+            dbConfig = {
+                host: secret.host || secret.endpoint,
+                port: parseInt(secret.port) || 5432,
+                database: secret.dbname || secret.database || 'stocks',
+                user: secret.username || secret.user,
+                password: secret.password,
+                ssl: { rejectUnauthorized: false },
+                max: parseInt(process.env.DB_POOL_MAX) || 3,
+                idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000,
+                connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT) || 20000
+            };
+
+            const configDuration = Date.now() - configStart;
+            console.log(`✅ Database config loaded from AWS Secrets Manager (${configDuration}ms)`);
+            console.log(`   🏗️ Host: ${dbConfig.host}:${dbConfig.port}`);
+            console.log(`   📚 Database: ${dbConfig.database}`);
+            console.log(`   👤 User: ${dbConfig.user}`);
+            console.log(`   🔒 SSL: enabled`);
+
+            return dbConfig;
+        }
+
+        // Fallback: try direct environment variables (for local development only)
+        if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.NODE_ENV === 'development') {
+            console.log('🔧 Using direct database environment variables (LOCAL DEVELOPMENT ONLY)');
             
             dbConfig = {
                 host: process.env.DB_HOST || process.env.DB_ENDPOINT,
