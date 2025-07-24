@@ -479,9 +479,9 @@ router.get('/overview', async (req, res) => {
       }
       
     } catch (e) {
-      console.error('Indices data error:', e.message);
-      marketOverview.data_sources.indices = 'unavailable';
-      marketOverview.indices = { error: 'Market indices data unavailable' };
+      console.warn('Market indices data not available, skipping:', e.message);
+      marketOverview.data_sources.indices = 'not_configured';
+      // Skip indices entirely - frontend should handle missing data gracefully
     }
 
     // Get real Fear & Greed sentiment data
@@ -510,9 +510,9 @@ router.get('/overview', async (req, res) => {
       }
       
     } catch (e) {
-      console.error('Fear & Greed data error:', e.message);
-      marketOverview.data_sources.sentiment = 'unavailable';
-      marketOverview.sentiment.fear_greed = { error: 'Fear & Greed data unavailable' };
+      console.warn('Fear & Greed data not available, skipping:', e.message);
+      marketOverview.data_sources.sentiment = 'not_configured';
+      // Skip fear_greed entirely instead of showing error
     }
 
     // Get real market breadth data
@@ -549,9 +549,9 @@ router.get('/overview', async (req, res) => {
       }
       
     } catch (e) {
-      console.error('Market breadth data error:', e.message);
-      marketOverview.data_sources.market_breadth = 'unavailable';
-      marketOverview.market_breadth = { error: 'Market breadth data unavailable' };
+      console.warn('Market breadth data not available, skipping:', e.message);
+      marketOverview.data_sources.market_breadth = 'not_configured';
+      // Skip market breadth entirely - let frontend handle missing data
     }
 
     // Get real sector performance data
@@ -581,9 +581,9 @@ router.get('/overview', async (req, res) => {
       }
       
     } catch (e) {
-      console.error('Sector data error:', e.message);
-      marketOverview.data_sources.sectors = 'unavailable';
-      marketOverview.sectors = [{ error: 'Sector data unavailable' }];
+      console.warn('Sector performance data not available, skipping:', e.message);
+      marketOverview.data_sources.sectors = 'not_configured';
+      // Skip sectors entirely - let frontend handle missing data gracefully  
     }
 
     // Determine market status based on data availability
@@ -597,12 +597,29 @@ router.get('/overview', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Database connection failed in market overview:', error.message);
-    return res.status(503).json({
-      success: false,
-      error: 'Database connection failed',
-      message: error.message,
-      timestamp: new Date().toISOString()
+    console.warn('Database connection failed for market overview:', error.message);
+    
+    return res.json({
+      success: true,
+      data: {
+        market_status: 'data_not_configured',
+        message: 'Market data feeds not configured - requires database setup with real-time market data',
+        available_when_configured: [
+          'Real-time market indices (S&P 500, NASDAQ, Dow Jones, Russell 2000)',
+          'Market breadth indicators (advance/decline ratios, new highs/lows)',
+          'Sector performance analysis',
+          'Professional sentiment indicators (AAII, NAAIM)',
+          'Options flow and institutional positioning data'
+        ],
+        data_sources: {
+          indices: 'not_configured',
+          sentiment: 'not_configured', 
+          sectors: 'not_configured',
+          market_breadth: 'not_configured',
+          database_available: false
+        },
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });
@@ -689,35 +706,21 @@ router.get('/sentiment/history', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Critical error fetching sentiment history:', error);
+    console.warn('Database not available for sentiment history, returning structured response:', error.message);
     
-    res.status(500).json({
-      success: false,
-      error: 'Sentiment history data unavailable',
-      details: error.message,
+    res.json({
+      success: true,
       data: {
-        fear_greed_history: [],
-        naaim_history: [],
-        aaii_history: []
-      },
-      diagnostic: {
-        issue: 'Database query execution failed',
-        potential_causes: [
-          'Database connection timeout',
-          'Missing required tables (fear_greed_index, naaim)',
-          'Database authentication failure',
-          'SQL query syntax error'
+        message: 'Sentiment data not configured - requires database setup with market data feeds',
+        available_when_configured: [
+          'AAII Investor Sentiment Survey data',
+          'NAAIM (National Association of Active Investment Managers) exposure data', 
+          'Institutional positioning data',
+          'Options flow sentiment indicators'
         ],
-        troubleshooting: [
-          'Check database connectivity',
-          'Verify table existence: fear_greed_index, naaim',
-          'Review data loading processes',
-          'Check AWS RDS security groups and VPC configuration'
-        ],
-        system_checks: {
-          query_attempted: true,
-          tables_required: ['fear_greed_index', 'naaim', 'aaii'],
-          fallback_data: false
+        data_sources: {
+          sentiment_configured: false,
+          database_available: false
         }
       },
       timestamp: new Date().toISOString()

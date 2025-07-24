@@ -253,7 +253,7 @@ router.get('/earnings-estimates', async (req, res) => {
     const estimatesQuery = `
       SELECT 
         ee.symbol,
-        s.short_name as company_name,
+        ee.symbol as company_name,
         ee.period,
         ee.avg_estimate,
         ee.low_estimate,
@@ -261,7 +261,6 @@ router.get('/earnings-estimates', async (req, res) => {
         ee.number_of_analysts,
         ee.growth
       FROM earnings_estimates ee
-      LEFT JOIN symbols s ON ee.symbol = s.ticker
       ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
@@ -346,14 +345,13 @@ router.get('/earnings-history', async (req, res) => {
     const historyQuery = `
       SELECT 
         eh.symbol,
-        s.short_name as company_name,
+        eh.symbol as company_name,
         eh.quarter,
         eh.eps_actual,
         eh.eps_estimate,
         eh.eps_difference,
         eh.surprise_percent
       FROM earnings_history eh
-      LEFT JOIN symbols s ON eh.symbol = s.ticker
       ORDER BY eh.symbol ASC, eh.quarter DESC
       LIMIT $1 OFFSET $2
     `;
@@ -444,7 +442,7 @@ router.get('/earnings-metrics', async (req, res) => {
     const metricsQuery = `
       SELECT 
         em.symbol,
-        s.short_name as company_name,
+        em.symbol as company_name,
         em.report_date,
         em.eps_growth_1q,
         em.eps_growth_2q,
@@ -461,7 +459,6 @@ router.get('/earnings-metrics', async (req, res) => {
         em.consecutive_eps_growth_years,
         em.eps_estimated_change_this_year
       FROM earnings_metrics em
-      LEFT JOIN symbols s ON em.symbol = s.ticker
       ORDER BY em.symbol ASC, em.report_date DESC
       LIMIT $1 OFFSET $2
     `;

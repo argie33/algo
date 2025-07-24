@@ -9,7 +9,7 @@ const { query, healthCheck } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { createValidationMiddleware, sanitizers } = require('../middleware/validation');
 const crypto = require('crypto');
-const AWS = require('aws-sdk');
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Initialize AWS Secrets Manager for key encryption
-const secretsManager = new AWS.SecretsManager({
+const secretsManagerClient = new SecretsManagerClient({
   region: process.env.AWS_REGION || 'us-east-1'
 });
 
@@ -66,7 +66,8 @@ const encryptApiKey = async (plaintext) => {
     
     let encryptionKey;
     try {
-      const secretResponse = await secretsManager.getSecretValue({ SecretId: secretName }).promise();
+      const command = new GetSecretValueCommand({ SecretId: secretName });
+      const secretResponse = await secretsManagerClient.send(command);
       encryptionKey = JSON.parse(secretResponse.SecretString).key;
     } catch (secretError) {
       console.warn('⚠️ AWS Secrets Manager not available, using fallback encryption');
@@ -102,7 +103,8 @@ const decryptApiKey = async (encryptedObj) => {
     
     let encryptionKey;
     try {
-      const secretResponse = await secretsManager.getSecretValue({ SecretId: secretName }).promise();
+      const command = new GetSecretValueCommand({ SecretId: secretName });
+      const secretResponse = await secretsManagerClient.send(command);
       encryptionKey = JSON.parse(secretResponse.SecretString).key;
     } catch (secretError) {
       encryptionKey = process.env.FALLBACK_ENCRYPTION_KEY || 'fallback-key-for-development-only';
