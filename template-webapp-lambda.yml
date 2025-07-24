@@ -302,7 +302,7 @@ Resources:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
           DB_NAME: 'stocks'
           DB_PORT: '5432'
-          DB_SSL: 'false'
+          DB_SSL: 'true'
           # Application settings
           ENVIRONMENT: !Ref EnvironmentName
           NODE_ENV: !Ref EnvironmentName

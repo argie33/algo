@@ -189,7 +189,19 @@ class DataCacheService {
                 const fullUrl = getApiUrl(endpoint.endpoint);
                 
                 console.log(`[DataCache] Fetching ${fullUrl}`);
-                const response = await fetch(fullUrl);
+                
+                // Get authentication token
+                const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
+                const headers = {
+                  'Content-Type': 'application/json'
+                };
+                
+                // Add authentication header if token exists
+                if (token) {
+                  headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch(fullUrl, { headers });
                 
                 if (response.status === 500 || response.status === 404) {
                   console.warn(`${response.status} error for ${endpoint.endpoint}, using mock data`);

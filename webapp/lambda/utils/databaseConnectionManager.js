@@ -108,7 +108,7 @@ class DatabaseConnectionManager {
           database: secret.dbname || secret.database || 'stocks',
           user: secret.username || secret.user,
           password: secret.password,
-          ssl: false // Public subnet RDS typically doesn't use SSL
+          ssl: secret.ssl || process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
         };
       } catch (error) {
         console.error('❌ Failed to get secret from AWS Secrets Manager:', error);

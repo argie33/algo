@@ -26,15 +26,24 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
     actualOptions = options;
   } else if (typeof urlOrOptions === 'object' && urlOrOptions !== null) {
     // React Query style object
-    url = JSON.stringify(urlOrOptions.queryKey || 'unknown');
-    queryFn = urlOrOptions.queryFn;
-    actualOptions = { ...options, ...urlOrOptions };
+    if (urlOrOptions.queryFn && typeof urlOrOptions.queryFn === 'function') {
+      // Valid React Query object with queryFn
+      url = JSON.stringify(urlOrOptions.queryKey || 'query');
+      queryFn = urlOrOptions.queryFn;
+      actualOptions = { ...options, ...urlOrOptions };
+    } else {
+      // Invalid object - disable the hook
+      console.error('useSimpleFetch: Invalid object parameter. Missing queryFn function.', urlOrOptions);
+      url = null;
+      queryFn = null;
+      actualOptions = { ...options, enabled: false };
+    }
   } else {
-    // Invalid input
-    console.error('useSimpleFetch: Invalid first parameter. Expected string URL or options object.');
+    // Invalid input - disable the hook
+    console.error('useSimpleFetch: Invalid first parameter. Expected string URL or options object with queryFn.', urlOrOptions);
     url = null;
     queryFn = null;
-    actualOptions = options;
+    actualOptions = { ...options, enabled: false };
   }
   
   const {
