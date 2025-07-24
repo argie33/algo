@@ -448,8 +448,8 @@ const safeRouteLoader = (routePath, routeName, mountPath) => {
 console.log('📦 Loading routes...');
 const routes = [
   // Essential Infrastructure Routes
-  { path: './routes/health', name: 'Health', mount: '/api/health-full' },
-  { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/health' },
+  { path: './routes/health', name: 'Health', mount: '/api/health' },
+  { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/emergency' },
   { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
   { path: './routes/cloudformation', name: 'CloudFormation Config', mount: '/api/config/cloudformation' },
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
@@ -471,6 +471,7 @@ const routes = [
   { path: './routes/economic', name: 'Economic Data', mount: '/api/economic' },
   
   // User & Settings Routes
+  { path: './routes/unified-api-keys', name: 'Unified API Keys', mount: '/api/api-keys' },
   { path: './routes/user', name: 'User Management', mount: '/api/user' },
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
   { path: './routes/auth', name: 'Authentication', mount: '/api/auth' },
