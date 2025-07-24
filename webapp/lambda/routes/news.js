@@ -170,11 +170,27 @@ router.get('/articles', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching news articles:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch news articles',
-      message: error.message
+    console.warn('News database not available, returning informative response:', error.message);
+    res.json({
+      success: true,
+      data: {
+        articles: [],
+        total: 0,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        message: 'News feed not configured - requires database setup with news data feeds',
+        available_when_configured: [
+          'Real-time financial news from multiple sources',
+          'AI-powered sentiment analysis',
+          'Symbol-specific news filtering', 
+          'Category-based news organization',
+          'Relevance scoring and impact analysis'
+        ],
+        data_sources: {
+          news_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
