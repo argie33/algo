@@ -464,7 +464,6 @@ const routes = [
   // Core Financial Data Routes  
   { path: './routes/stocks', name: 'Stocks', mount: '/api/stocks' },
   { path: './routes/portfolio', name: 'Portfolio', mount: '/api/portfolio' },
-  { path: './routes/portfolio-api-keys', name: 'Portfolio API Keys', mount: '/api/portfolio/api-keys' },
   { path: './routes/portfolioOptimization', name: 'Portfolio Optimization', mount: '/api/portfolio-optimization' },
   { path: './routes/market', name: 'Market', mount: '/api/market' },
   { path: './routes/market-data', name: 'Market Data', mount: '/api/market-data' },

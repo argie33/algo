@@ -23,6 +23,34 @@ class SimpleApiKeyService {
   }
 
   /**
+   * Encode user ID for safe use in Parameter Store paths
+   * Parameter names can only contain: a-zA-Z0-9._-/
+   * This converts email addresses and other special characters safely
+   */
+  encodeUserId(userId) {
+    if (!userId) return userId;
+    
+    // Replace @ with _at_ and other special characters
+    return userId
+      .replace(/@/g, '_at_')
+      .replace(/\+/g, '_plus_')
+      .replace(/\s/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+  
+  /**
+   * Decode user ID from Parameter Store format (for logging/debugging)
+   */
+  decodeUserId(encodedUserId) {
+    if (!encodedUserId) return encodedUserId;
+    
+    return encodedUserId
+      .replace(/_at_/g, '@')
+      .replace(/_plus_/g, '+')
+      .replace(/_/g, ' ');
+  }
+
+  /**
    * Store API key securely using AWS Parameter Store
    * @param {string} userId - User ID
    * @param {string} provider - Provider (alpaca, polygon, finnhub)
@@ -45,8 +73,9 @@ class SimpleApiKeyService {
         throw new Error(`Invalid provider: ${provider}. Must be one of: ${validProviders.join(', ')}`);
       }
 
-      // Create parameter name
-      const parameterName = `${this.parameterPrefix}/${userId}/${provider.toLowerCase()}`;
+      // Create parameter name with encoded user ID
+      const encodedUserId = this.encodeUserId(userId);
+      const parameterName = `${this.parameterPrefix}/${encodedUserId}/${provider.toLowerCase()}`;
       
       // Store as SecureString with KMS encryption
       const command = new PutParameterCommand({
@@ -95,8 +124,9 @@ class SimpleApiKeyService {
         throw new Error('Missing required parameters: userId, provider');
       }
 
-      // Create parameter name
-      const parameterName = `${this.parameterPrefix}/${userId}/${provider.toLowerCase()}`;
+      // Create parameter name with encoded user ID
+      const encodedUserId = this.encodeUserId(userId);
+      const parameterName = `${this.parameterPrefix}/${encodedUserId}/${provider.toLowerCase()}`;
       
       // Get parameter with decryption
       const command = new GetParameterCommand({
@@ -148,8 +178,9 @@ class SimpleApiKeyService {
         throw new Error('Missing required parameters: userId, provider');
       }
 
-      // Create parameter name
-      const parameterName = `${this.parameterPrefix}/${userId}/${provider.toLowerCase()}`;
+      // Create parameter name with encoded user ID
+      const encodedUserId = this.encodeUserId(userId);
+      const parameterName = `${this.parameterPrefix}/${encodedUserId}/${provider.toLowerCase()}`;
       
       // Delete parameter
       const command = new DeleteParameterCommand({
