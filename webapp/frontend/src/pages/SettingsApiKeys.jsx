@@ -284,6 +284,12 @@ const SettingsApiKeys = () => {
 
   const handleDeleteApiKey = async (keyId, provider) => {
     try {
+      console.log('🗑️ Deleting API key:', { keyId, provider, userEmail: user?.email, userId: user?.id });
+      
+      if (!provider) {
+        throw new Error('Provider is required for API key deletion');
+      }
+      
       // Use new settings API if user is available
       if (user?.email || user?.id) {
         const userId = user.email || user.id;
@@ -558,7 +564,7 @@ const SettingsApiKeys = () => {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleDeleteApiKey(key.id)}
+                              onClick={() => handleDeleteApiKey(key.id, key.provider)}
                             >
                               <Delete />
                             </IconButton>
