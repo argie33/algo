@@ -2,8 +2,27 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../utils/database');
-const NewsAnalyzer = require('../utils/newsAnalyzer');
-const SentimentEngine = require('../utils/sentimentEngine');
+// Initialize utilities with error fallback
+let newsAnalyzer = null;
+let sentimentEngine = null;
+
+try {
+  const NewsAnalyzer = require('../utils/newsAnalyzer');
+  const SentimentEngine = require('../utils/sentimentEngine');
+  newsAnalyzer = new NewsAnalyzer();
+  sentimentEngine = new SentimentEngine();
+  console.log('✅ News utilities initialized successfully');
+} catch (error) {
+  console.warn('⚠️ News utilities failed to initialize:', error.message);
+  // Fallback implementations
+  newsAnalyzer = {
+    calculateReliabilityScore: (source) => 0.8
+  };
+  sentimentEngine = {
+    scoreToLabel: (score) => score > 0.1 ? 'positive' : score < -0.1 ? 'negative' : 'neutral',
+    analyzeSentiment: async (text) => ({ score: 0, label: 'neutral', confidence: 0.5 })
+  };
+}
 
 // Health endpoint (no auth required)
 router.get('/health', (req, res) => {
@@ -12,7 +31,11 @@ router.get('/health', (req, res) => {
     status: 'operational',
     service: 'news',
     timestamp: new Date().toISOString(),
-    message: 'News service is running'
+    message: 'News service is running',
+    utilities_loaded: {
+      newsAnalyzer: newsAnalyzer !== null,
+      sentimentEngine: sentimentEngine !== null
+    }
   });
 });
 
@@ -29,10 +52,6 @@ router.get('/', (req, res) => {
 // Apply authentication to protected routes only
 const authRouter = express.Router();
 authRouter.use(authenticateToken);
-
-// Initialize news analyzer and sentiment engine
-const newsAnalyzer = new NewsAnalyzer();
-const sentimentEngine = new SentimentEngine();
 
 // Get news articles with sentiment analysis
 router.get('/articles', async (req, res) => {

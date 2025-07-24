@@ -1,0 +1,547 @@
+name: Integration Tests with Real AWS Services
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'integration-test'
+        type: choice
+        options:
+          - integration-test
+          - staging
+      test_suite:
+        description: 'Test suite to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - aws-services
+          - database
+          - api
+          - performance
+      cleanup_resources:
+        description: 'Cleanup resources after tests'
+        required: true
+        default: true
+        type: boolean
+  
+  schedule:
+    # Run integration tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'webapp/lambda/**'
+      - 'cloudformation/**'
+      - '.github/workflows/**'
+    types: [opened, synchronize, ready_for_review]
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  # Pre-flight checks
+  pre-flight:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run-tests: ${{ steps.check.outputs.should-run }}
+      test-environment: ${{ steps.check.outputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check if tests should run
+        id: check
+        run: |
+          # Skip integration tests on draft PRs unless explicitly requested
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.draft }}" == "true" && "${{ github.event.inputs.test_suite }}" == "" ]]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "Skipping integration tests for draft PR"
+          else
+            echo "should-run=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Determine environment
+          if [[ "${{ github.event.inputs.environment }}" != "" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=integration-test" >> $GITHUB_OUTPUT
+          fi
+
+  # Deploy test infrastructure
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-run-tests == 'true'
+    
+    outputs:
+      stack-name: ${{ steps.deploy.outputs.stack-name }}
+      infrastructure-outputs: ${{ steps.deploy.outputs.infrastructure-outputs }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq postgresql-client
+      
+      - name: Deploy integration test infrastructure
+        id: deploy
+        run: |
+          cd scripts
+          chmod +x deploy-integration-test-infrastructure.sh
+          
+          # Deploy infrastructure with unique stack name for PR
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            export STACK_NAME="algo-integration-test-pr-${{ github.event.number }}"
+          else
+            export STACK_NAME="algo-integration-test-${{ needs.pre-flight.outputs.test-environment }}"
+          fi
+          
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+          
+          # Deploy with error handling
+          if ./deploy-integration-test-infrastructure.sh deploy; then
+            echo "Infrastructure deployment successful"
+            
+            # Capture outputs
+            aws cloudformation describe-stacks \
+              --stack-name $STACK_NAME \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].Outputs' > infrastructure-outputs.json
+            
+            echo "infrastructure-outputs=$(cat infrastructure-outputs.json | jq -c .)" >> $GITHUB_OUTPUT
+          else
+            echo "Infrastructure deployment failed"
+            exit 1
+          fi
+      
+      - name: Wait for infrastructure readiness
+        run: |
+          echo "Waiting for infrastructure to be fully ready..."
+          sleep 30
+          
+          # Test database connectivity
+          DB_ENDPOINT=$(echo '${{ steps.deploy.outputs.infrastructure-outputs }}' | jq -r '.[] | select(.OutputKey=="TestDatabaseEndpoint") | .OutputValue')
+          
+          if [[ -n "$DB_ENDPOINT" ]]; then
+            echo "Testing database connectivity..."
+            for i in {1..12}; do  # Wait up to 2 minutes
+              if timeout 10 bash -c "</dev/tcp/$DB_ENDPOINT/5432"; then
+                echo "Database is ready"
+                break
+              else
+                echo "Database not ready, waiting... (attempt $i/12)"
+                sleep 10
+              fi
+            done
+          fi
+
+  # Run integration tests
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [pre-flight, deploy-infrastructure]
+    if: needs.pre-flight.outputs.should-run-tests == 'true'
+    
+    strategy:
+      matrix:
+        test-suite: 
+          - ${{ github.event.inputs.test_suite == 'all' && 'aws-services' || github.event.inputs.test_suite }}
+          - ${{ github.event.inputs.test_suite == 'all' && 'database' || '' }}
+          - ${{ github.event.inputs.test_suite == 'all' && 'api' || '' }}
+          - ${{ github.event.inputs.test_suite == 'all' && 'performance' || '' }}
+        exclude:
+          - test-suite: ''
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Install dependencies
+        run: |
+          cd webapp/lambda
+          npm ci
+          
+          # Install additional testing dependencies
+          npm install --save-dev mocha chai axios uuid pg redis
+      
+      - name: Setup test environment
+        run: |
+          # Create environment variables from infrastructure outputs
+          echo '${{ needs.deploy-infrastructure.outputs.infrastructure-outputs }}' | jq -r '
+            .[] | 
+            "INTEGRATION_TEST_" + (.OutputKey | ascii_upcase) + "=" + .OutputValue
+          ' > integration-test.env
+          
+          # Add additional environment variables
+          cat >> integration-test.env << EOF
+          NODE_ENV=integration-test
+          AWS_REGION=${{ env.AWS_REGION }}
+          ENVIRONMENT=${{ needs.pre-flight.outputs.test-environment }}
+          TEST_SUITE=${{ matrix.test-suite }}
+          EOF
+          
+          echo "Environment configuration:"
+          cat integration-test.env
+      
+      - name: Run integration tests
+        run: |
+          cd webapp/lambda
+          source ../integration-test.env
+          
+          # Determine which tests to run based on test suite
+          case "${{ matrix.test-suite }}" in
+            "aws-services")
+              TEST_PATTERN="tests/integration/real-aws-services.test.js"
+              ;;
+            "database")
+              TEST_PATTERN="tests/integration/*database*.test.js"
+              ;;
+            "api")
+              TEST_PATTERN="tests/integration/*api*.test.js"
+              ;;
+            "performance")
+              TEST_PATTERN="tests/integration/*performance*.test.js"
+              ;;
+            *)
+              TEST_PATTERN="tests/integration/*.test.js"
+              ;;
+          esac
+          
+          echo "Running test pattern: $TEST_PATTERN"
+          
+          # Run tests with detailed output
+          npx mocha $TEST_PATTERN \
+            --timeout 120000 \
+            --reporter spec \
+            --grep "Real AWS Services" \
+            --exit
+        
+        env:
+          # Load environment from file
+          NODE_ENV: integration-test
+      
+      - name: Generate test report
+        if: always()
+        run: |
+          cd webapp/lambda
+          
+          # Generate JUnit XML report for GitHub
+          npx mocha tests/integration/real-aws-services.test.js \
+            --timeout 120000 \
+            --reporter xunit \
+            --grep "Real AWS Services" \
+            --exit > test-results-${{ matrix.test-suite }}.xml || true
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-suite }}
+          path: webapp/lambda/test-results-*.xml
+          retention-days: 30
+
+  # Performance benchmarking
+  performance-benchmarks:
+    runs-on: ubuntu-latest
+    needs: [pre-flight, deploy-infrastructure]
+    if: needs.pre-flight.outputs.should-run-tests == 'true' && (github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'performance')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Install artillery for load testing
+        run: npm install -g artillery@latest
+      
+      - name: Setup performance test environment
+        run: |
+          # Create environment variables from infrastructure outputs
+          echo '${{ needs.deploy-infrastructure.outputs.infrastructure-outputs }}' | jq -r '
+            .[] | 
+            "INTEGRATION_TEST_" + (.OutputKey | ascii_upcase) + "=" + .OutputValue
+          ' > performance-test.env
+          
+          source performance-test.env
+          
+          # Create artillery configuration
+          cat > artillery-config.yml << EOF
+          config:
+            target: '${{ env.API_BASE_URL || 'http://localhost:3000' }}'
+            phases:
+              - duration: 60
+                arrivalRate: 5
+                name: "Warm up"
+              - duration: 120
+                arrivalRate: 10
+                name: "Sustained load"
+              - duration: 60
+                arrivalRate: 20
+                name: "Spike test"
+            payload:
+              path: "test-data.csv"
+              fields:
+                - "userId"
+                - "portfolioId"
+          
+          scenarios:
+            - name: "Database operations"
+              weight: 40
+              flow:
+                - get:
+                    url: "/api/health"
+                - post:
+                    url: "/api/portfolios"
+                    json:
+                      userId: "{{ userId }}"
+                      name: "Load Test Portfolio"
+                      value: 10000
+            
+            - name: "S3 operations"
+              weight: 30
+              flow:
+                - post:
+                    url: "/api/files/upload"
+                    json:
+                      fileName: "test-{{ \$randomString() }}.json"
+                      data: "{{ \$randomString() }}"
+            
+            - name: "Cache operations"
+              weight: 30
+              flow:
+                - get:
+                    url: "/api/cache/{{ portfolioId }}"
+                - post:
+                    url: "/api/cache/{{ portfolioId }}"
+                    json:
+                      data: "cached-data-{{ \$timestamp() }}"
+          EOF
+          
+          # Generate test data
+          echo "userId,portfolioId" > test-data.csv
+          for i in {1..100}; do
+            echo "test-user-$i,portfolio-$i" >> test-data.csv
+          done
+      
+      - name: Run performance tests
+        run: |
+          source performance-test.env
+          
+          # Run artillery performance tests
+          artillery run artillery-config.yml \
+            --output performance-results.json
+      
+      - name: Generate performance report
+        run: |
+          # Generate HTML report
+          artillery report performance-results.json \
+            --output performance-report.html
+          
+          # Extract key metrics
+          echo "## Performance Test Results" > performance-summary.md
+          echo "" >> performance-summary.md
+          echo "- Test Duration: $(jq -r '.aggregate.phases[].duration' performance-results.json | awk '{sum+=$1} END {print sum}') seconds" >> performance-summary.md
+          echo "- Total Requests: $(jq -r '.aggregate.counters."http.requests"' performance-results.json)" >> performance-summary.md
+          echo "- Success Rate: $(jq -r '.aggregate.counters."http.responses" / .aggregate.counters."http.requests" * 100' performance-results.json)%" >> performance-summary.md
+          echo "- Average Response Time: $(jq -r '.aggregate.latency.mean' performance-results.json)ms" >> performance-summary.md
+          echo "- 95th Percentile: $(jq -r '.aggregate.latency.p95' performance-results.json)ms" >> performance-summary.md
+          echo "- 99th Percentile: $(jq -r '.aggregate.latency.p99' performance-results.json)ms" >> performance-summary.md
+      
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            performance-results.json
+            performance-report.html
+            performance-summary.md
+          retention-days: 30
+
+  # Cleanup resources
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [pre-flight, deploy-infrastructure, integration-tests, performance-benchmarks]
+    if: always() && needs.deploy-infrastructure.result != 'skipped' && (github.event.inputs.cleanup_resources == 'true' || github.event.inputs.cleanup_resources == '')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Cleanup integration test infrastructure
+        run: |
+          STACK_NAME="${{ needs.deploy-infrastructure.outputs.stack-name }}"
+          
+          if [[ -n "$STACK_NAME" ]]; then
+            echo "Cleaning up stack: $STACK_NAME"
+            
+            cd scripts
+            chmod +x deploy-integration-test-infrastructure.sh
+            
+            # Delete infrastructure
+            ./deploy-integration-test-infrastructure.sh delete || {
+              echo "Cleanup script failed, attempting direct deletion..."
+              aws cloudformation delete-stack \
+                --stack-name $STACK_NAME \
+                --region ${{ env.AWS_REGION }}
+              
+              # Wait for deletion (with timeout)
+              timeout 1200 aws cloudformation wait stack-delete-complete \
+                --stack-name $STACK_NAME \
+                --region ${{ env.AWS_REGION }} || {
+                echo "Stack deletion timed out or failed"
+                
+                # Show stack events for debugging
+                aws cloudformation describe-stack-events \
+                  --stack-name $STACK_NAME \
+                  --region ${{ env.AWS_REGION }} \
+                  --max-items 20 || true
+              }
+            }
+            
+            echo "Cleanup completed"
+          else
+            echo "No stack name provided, skipping cleanup"
+          fi
+
+  # Report results
+  report-results:
+    runs-on: ubuntu-latest
+    needs: [pre-flight, deploy-infrastructure, integration-tests, performance-benchmarks, cleanup]
+    if: always() && needs.pre-flight.outputs.should-run-tests == 'true'
+    
+    steps:
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts
+      
+      - name: Generate summary report
+        run: |
+          echo "# Integration Test Results Summary" > integration-test-summary.md
+          echo "" >> integration-test-summary.md
+          echo "**Environment:** ${{ needs.pre-flight.outputs.test-environment }}" >> integration-test-summary.md
+          echo "**Trigger:** ${{ github.event_name }}" >> integration-test-summary.md
+          echo "**Branch:** ${{ github.ref_name }}" >> integration-test-summary.md
+          echo "**Commit:** ${{ github.sha }}" >> integration-test-summary.md
+          echo "" >> integration-test-summary.md
+          
+          # Infrastructure deployment status
+          echo "## Infrastructure Deployment" >> integration-test-summary.md
+          if [[ "${{ needs.deploy-infrastructure.result }}" == "success" ]]; then
+            echo "✅ **Success** - Infrastructure deployed successfully" >> integration-test-summary.md
+          else
+            echo "❌ **Failed** - Infrastructure deployment failed" >> integration-test-summary.md
+          fi
+          echo "" >> integration-test-summary.md
+          
+          # Test results
+          echo "## Test Results" >> integration-test-summary.md
+          if [[ "${{ needs.integration-tests.result }}" == "success" ]]; then
+            echo "✅ **Success** - All integration tests passed" >> integration-test-summary.md
+          else
+            echo "❌ **Failed** - Some integration tests failed" >> integration-test-summary.md
+          fi
+          echo "" >> integration-test-summary.md
+          
+          # Performance results
+          if [[ "${{ needs.performance-benchmarks.result }}" != "skipped" ]]; then
+            echo "## Performance Benchmarks" >> integration-test-summary.md
+            if [[ "${{ needs.performance-benchmarks.result }}" == "success" ]]; then
+              echo "✅ **Success** - Performance benchmarks completed" >> integration-test-summary.md
+              
+              # Include performance summary if available
+              if [[ -f "test-artifacts/performance-results/performance-summary.md" ]]; then
+                cat test-artifacts/performance-results/performance-summary.md >> integration-test-summary.md
+              fi
+            else
+              echo "❌ **Failed** - Performance benchmarks failed" >> integration-test-summary.md
+            fi
+            echo "" >> integration-test-summary.md
+          fi
+          
+          # Cleanup status
+          echo "## Cleanup" >> integration-test-summary.md
+          if [[ "${{ needs.cleanup.result }}" == "success" ]]; then
+            echo "✅ **Success** - Resources cleaned up successfully" >> integration-test-summary.md
+          else
+            echo "⚠️ **Warning** - Resource cleanup may have failed. Please verify manually." >> integration-test-summary.md
+          fi
+      
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('integration-test-summary.md', 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+      
+      - name: Upload summary report
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-summary
+          path: integration-test-summary.md
+          retention-days: 90
+      
+      - name: Set job status
+        run: |
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
+            echo "Integration tests failed"
+            exit 1
+          fi

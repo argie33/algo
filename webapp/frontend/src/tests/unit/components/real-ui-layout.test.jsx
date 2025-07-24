@@ -454,8 +454,9 @@ describe('🎨 Real UI Layout Components', () => {
         </PageLayout>
       );
 
-      // Check for heading hierarchy
-      const pageTitle = screen.getByText('Dashboard');
+      // Check for heading hierarchy - use role to find the h1 specifically
+      const pageTitle = screen.getByRole('heading', { level: 1 });
+      expect(pageTitle).toHaveTextContent('Dashboard');
       expect(pageTitle.tagName).toBe('H1');
     });
   });

@@ -1,0 +1,460 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Enhanced Integration Test Infrastructure with Real AWS Services'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'integration-test'
+    Description: 'Environment name for integration testing'
+  
+  TestDataBucket:
+    Type: String
+    Default: 'algo-integration-test-data'
+    Description: 'S3 bucket for test data management'
+
+Resources:
+  # Test-specific VPC for isolation
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.2.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-vpc'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Public subnet for integration test resources
+  TestPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.2.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-public-subnet'
+
+  # Private subnet for database and sensitive resources
+  TestPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.2.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-private-subnet'
+
+  # Internet Gateway for test environment
+  TestInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-igw'
+
+  TestVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestInternetGateway
+
+  # Route table for public subnet
+  TestPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-public-rt'
+
+  TestPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: TestVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref TestPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref TestInternetGateway
+
+  TestPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TestPublicSubnet
+      RouteTableId: !Ref TestPublicRouteTable
+
+  # Security groups for integration testing
+  TestLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for integration test Lambda functions'
+      VpcId: !Ref TestVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-lambda-sg'
+
+  TestDatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for integration test database'
+      VpcId: !Ref TestVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref TestLambdaSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-db-sg'
+
+  # Test database subnet group
+  TestDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Subnet group for integration test database'
+      SubnetIds:
+        - !Ref TestPublicSubnet
+        - !Ref TestPrivateSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-db-subnet-group'
+
+  # Integration test database
+  TestDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub '${Environment}-postgres'
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: '13.13'
+      AllocatedStorage: 20
+      StorageType: gp2
+      StorageEncrypted: true
+      DBName: 'integration_test_db'
+      MasterUsername: 'testuser'
+      ManageMasterUserPassword: true
+      MasterUserSecret:
+        SecretArn: !Ref TestDatabaseSecret
+      VPCSecurityGroups:
+        - !Ref TestDatabaseSecurityGroup
+      DBSubnetGroupName: !Ref TestDBSubnetGroup
+      BackupRetentionPeriod: 0  # No backups for test DB
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-postgres'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Secrets Manager for test database credentials
+  TestDatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${Environment}/database/credentials'
+      Description: 'Integration test database credentials'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "testuser"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+
+  # Cognito User Pool for authentication testing
+  TestCognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${Environment}-user-pool'
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: false
+          RequireLowercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+
+  TestCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref TestCognitoUserPool
+      ClientName: !Sub '${Environment}-client'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+        - USER_PASSWORD_AUTH
+
+  # S3 bucket for test data management
+  TestDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${TestDataBucket}-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteTestDataAfter7Days
+            Status: Enabled
+            ExpirationInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-test-data'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ElastiCache Redis for caching tests
+  TestCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: 'Subnet group for integration test cache'
+      SubnetIds:
+        - !Ref TestPublicSubnet
+        - !Ref TestPrivateSubnet
+
+  TestCacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for integration test cache'
+      VpcId: !Ref TestVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref TestLambdaSecurityGroup
+
+  TestRedisCache:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: cache.t3.micro
+      Engine: redis
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref TestCacheSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref TestCacheSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-redis'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SQS queue for message testing
+  TestMessageQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${Environment}-test-queue'
+      MessageRetentionPeriod: 86400  # 1 day
+      VisibilityTimeoutSeconds: 30
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-queue'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SNS topic for notification testing
+  TestNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${Environment}-notifications'
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-topic'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Group for integration tests
+  TestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Environment}-integration-tests'
+      RetentionInDays: 7
+
+  # IAM role for integration test Lambda functions
+  TestLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Environment}-lambda-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: TestResourceAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - secretsmanager:GetSecretValue
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sns:Publish
+                  - elasticache:DescribeCacheClusters
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminInitiateAuth
+                Resource: '*'
+
+  # Test data initialization Lambda function
+  TestDataInitializerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Environment}-data-initializer'
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt TestLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref TestLambdaSecurityGroup
+        SubnetIds:
+          - !Ref TestPublicSubnet
+          - !Ref TestPrivateSubnet
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref TestDatabaseSecret
+          DB_ENDPOINT: !GetAtt TestDatabase.Endpoint.Address
+          REDIS_ENDPOINT: !GetAtt TestRedisCache.RedisEndpoint.Address
+          S3_BUCKET: !Ref TestDataBucket
+          SQS_QUEUE_URL: !Ref TestMessageQueue
+          SNS_TOPIC_ARN: !Ref TestNotificationTopic
+          COGNITO_USER_POOL_ID: !Ref TestCognitoUserPool
+          COGNITO_CLIENT_ID: !Ref TestCognitoUserPoolClient
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import psycopg2
+          import os
+          
+          def handler(event, context):
+              try:
+                  # Initialize test data in database
+                  db_secret = get_secret(os.environ['DB_SECRET_ARN'])
+                  conn = psycopg2.connect(
+                      host=os.environ['DB_ENDPOINT'],
+                      port=5432,
+                      database='integration_test_db',
+                      user=db_secret['username'],
+                      password=db_secret['password']
+                  )
+                  
+                  # Create test schema and data
+                  with conn.cursor() as cur:
+                      cur.execute("""
+                          CREATE TABLE IF NOT EXISTS test_portfolios (
+                              id SERIAL PRIMARY KEY,
+                              user_id VARCHAR(255) NOT NULL,
+                              portfolio_name VARCHAR(255) NOT NULL,
+                              total_value DECIMAL(15,2) DEFAULT 0.00,
+                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                          )
+                      """)
+                      
+                      cur.execute("""
+                          INSERT INTO test_portfolios (user_id, portfolio_name, total_value)
+                          VALUES ('test-user-1', 'Integration Test Portfolio', 10000.00)
+                          ON CONFLICT DO NOTHING
+                      """)
+                  
+                  conn.commit()
+                  conn.close()
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps('Test data initialized successfully')
+                  }
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps(f'Error: {str(e)}')
+                  }
+          
+          def get_secret(secret_arn):
+              client = boto3.client('secretsmanager')
+              response = client.get_secret_value(SecretId=secret_arn)
+              return json.loads(response['SecretString'])
+
+Outputs:
+  TestVPCId:
+    Description: 'VPC ID for integration testing'
+    Value: !Ref TestVPC
+    Export:
+      Name: !Sub '${Environment}-vpc-id'
+
+  TestDatabaseEndpoint:
+    Description: 'Integration test database endpoint'
+    Value: !GetAtt TestDatabase.Endpoint.Address
+    Export:
+      Name: !Sub '${Environment}-db-endpoint'
+
+  TestDatabaseSecretArn:
+    Description: 'ARN of the database secret'
+    Value: !Ref TestDatabaseSecret
+    Export:
+      Name: !Sub '${Environment}-db-secret-arn'
+
+  TestCognitoUserPoolId:
+    Description: 'Cognito User Pool ID for testing'
+    Value: !Ref TestCognitoUserPool
+    Export:
+      Name: !Sub '${Environment}-cognito-pool-id'
+
+  TestCognitoClientId:
+    Description: 'Cognito Client ID for testing'
+    Value: !Ref TestCognitoUserPoolClient
+    Export:
+      Name: !Sub '${Environment}-cognito-client-id'
+
+  TestS3Bucket:
+    Description: 'S3 bucket for test data'
+    Value: !Ref TestDataBucket
+    Export:
+      Name: !Sub '${Environment}-s3-bucket'
+
+  TestRedisEndpoint:
+    Description: 'Redis endpoint for caching tests'
+    Value: !GetAtt TestRedisCache.RedisEndpoint.Address
+    Export:
+      Name: !Sub '${Environment}-redis-endpoint'
+
+  TestSQSQueueUrl:
+    Description: 'SQS queue URL for message testing'
+    Value: !Ref TestMessageQueue
+    Export:
+      Name: !Sub '${Environment}-sqs-queue-url'
+
+  TestSNSTopicArn:
+    Description: 'SNS topic ARN for notification testing'
+    Value: !Ref TestNotificationTopic
+    Export:
+      Name: !Sub '${Environment}-sns-topic-arn'
+
+  TestLambdaExecutionRoleArn:
+    Description: 'IAM role ARN for test Lambda functions'
+    Value: !GetAtt TestLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${Environment}-lambda-role-arn'

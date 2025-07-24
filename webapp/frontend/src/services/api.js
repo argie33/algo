@@ -847,10 +847,10 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
   });
 };
 
-// API Keys management
+// API Keys management - Using unified API key service
 export const getApiKeys = async () => {
   return apiWrapper.execute('getApiKeys', async () => {
-    const response = await initializeApi().get('/api/settings/api-keys');
+    const response = await initializeApi().get('/api/api-keys');
     return response.data;
   }, {
     context: {
@@ -869,11 +869,11 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   return apiWrapper.execute('addApiKey', async () => {
-    if (!apiKeyData || !apiKeyData.name || !apiKeyData.key) {
-      throw new Error('API key data must include name and key');
+    if (!apiKeyData || !apiKeyData.apiKey || !apiKeyData.secretKey) {
+      throw new Error('API key data must include apiKey and secretKey');
     }
     
-    const response = await initializeApi().post('/api/settings/api-keys', apiKeyData);
+    const response = await initializeApi().post('/api/api-keys', apiKeyData);
     return response.data;
   }, {
     context: {
@@ -886,16 +886,14 @@ export const addApiKey = async (apiKeyData) => {
   });
 };
 
-export const updateApiKey = async (keyId, apiKeyData) => {
+export const updateApiKey = async (apiKeyData) => {
   return apiWrapper.execute('updateApiKey', async () => {
-    if (!keyId) {
-      throw new Error('Key ID is required');
-    }
-    if (!apiKeyData) {
-      throw new Error('API key data is required');
+    if (!apiKeyData || !apiKeyData.apiKey || !apiKeyData.secretKey) {
+      throw new Error('API key data must include apiKey and secretKey');
     }
     
-    const response = await initializeApi().put(`/api/settings/api-keys/${keyId}`, apiKeyData);
+    // Unified service uses POST for both create and update
+    const response = await initializeApi().post('/api/api-keys', apiKeyData);
     return response.data;
   }, {
     context: {
@@ -917,21 +915,17 @@ export const updateApiKey = async (keyId, apiKeyData) => {
   });
 };
 
-export const deleteApiKey = async (keyId) => {
+export const deleteApiKey = async () => {
   return apiWrapper.execute('deleteApiKey', async () => {
-    if (!keyId) {
-      throw new Error('Key ID is required');
-    }
-    
-    const response = await initializeApi().delete(`/settings/api-keys/${keyId}`);
+    // Unified service deletes all API keys for the authenticated user
+    const response = await initializeApi().delete('/api/api-keys');
     return response.data;
   }, {
     context: {
-      keyId,
       operation: 'deleteApiKey'
     },
-    successMessage: `API key ${keyId} deleted successfully`,
-    errorMessage: `Failed to delete API key ${keyId}`,
+    successMessage: 'API keys deleted successfully',
+    errorMessage: 'Failed to delete API keys',
     handleErrors: {
       500: () => {
         console.warn('API key delete endpoint not available, simulating success');

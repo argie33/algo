@@ -54,6 +54,15 @@ Resources:
       Policies:
         - SecretsManagerReadWrite
         - VPCAccessPolicy: {}
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - cloudformation:DescribeStacks
+                - cloudformation:ListStacks
+              Resource: 
+                - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-webapp-dev/*'
+                - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-*'
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue StocksCore-LambdaSecurityGroupId

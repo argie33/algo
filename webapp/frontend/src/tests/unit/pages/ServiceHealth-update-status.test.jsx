@@ -7,15 +7,13 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import ServiceHealth from '../../../pages/ServiceHealth';
+import * as useSimpleFetchModule from '../../../hooks/useSimpleFetch.js';
 
 // Mock the API service
 const mockApi = {
   get: vi.fn(),
   post: vi.fn()
 };
-
-// Mock the useSimpleFetch hook
-const mockUseSimpleFetch = vi.fn();
 
 // Mock all the API functions
 vi.mock('../../../services/api', () => ({
@@ -32,11 +30,14 @@ vi.mock('../../../services/api', () => ({
   getApiConfig: vi.fn(() => ({ apiUrl: 'https://test-api.example.com' })),
   getDiagnosticInfo: vi.fn(),
   getCurrentBaseURL: vi.fn(),
-  api: mockApi
+  api: {
+    get: vi.fn(),
+    post: vi.fn()
+  }
 }));
 
 vi.mock('../../../hooks/useSimpleFetch.js', () => ({
-  useSimpleFetch: mockUseSimpleFetch
+  useSimpleFetch: vi.fn()
 }));
 
 // Mock Material-UI components to simplify testing
@@ -100,6 +101,7 @@ vi.mock('../../../components/ApiKeyStatusIndicator', () => ({
 }));
 
 describe('ServiceHealth Update Status Functionality', () => {
+
   const mockHealthData = {
     status: 'connected',
     database: {
@@ -161,7 +163,7 @@ describe('ServiceHealth Update Status Functionality', () => {
     vi.clearAllMocks();
     
     // Mock useSimpleFetch to return database health data
-    mockUseSimpleFetch.mockReturnValue({
+    vi.spyOn(useSimpleFetchModule, 'useSimpleFetch').mockReturnValue({
       data: mockHealthData,
       loading: false,
       error: null,
@@ -181,7 +183,7 @@ describe('ServiceHealth Update Status Functionality', () => {
     it('should render update status button', () => {
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       expect(updateButton).toBeDefined();
     });
 
@@ -198,7 +200,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -216,7 +218,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -236,7 +238,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       // Should show loading state
@@ -316,7 +318,7 @@ describe('ServiceHealth Update Status Functionality', () => {
         }
       };
 
-      mockUseSimpleFetch.mockReturnValue({
+      vi.spyOn(useSimpleFetchModule, 'useSimpleFetch').mockReturnValue({
         data: mockDataWithCategories,
         loading: false,
         error: null,
@@ -339,7 +341,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -356,7 +358,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -373,7 +375,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -388,7 +390,7 @@ describe('ServiceHealth Update Status Functionality', () => {
   describe('Data Refresh Integration', () => {
     it('should refresh health data after successful update', async () => {
       const mockRefetch = vi.fn();
-      mockUseSimpleFetch.mockReturnValue({
+      vi.spyOn(useSimpleFetchModule, 'useSimpleFetch').mockReturnValue({
         data: mockHealthData,
         loading: false,
         error: null,
@@ -404,7 +406,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -419,7 +421,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
     it('should handle refresh failures gracefully', async () => {
       const mockRefetch = vi.fn().mockRejectedValueOnce(new Error('Refresh failed'));
-      mockUseSimpleFetch.mockReturnValue({
+      vi.spyOn(useSimpleFetchModule, 'useSimpleFetch').mockReturnValue({
         data: mockHealthData,
         loading: false,
         error: null,
@@ -432,7 +434,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       await waitFor(() => {
@@ -453,7 +455,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       
       // Button should be enabled initially
       expect(updateButton).not.toBeDisabled();
@@ -482,7 +484,7 @@ describe('ServiceHealth Update Status Functionality', () => {
 
       render(<ServiceHealth />);
       
-      const updateButton = screen.getByRole('button', { name: /update.*status/i });
+      const updateButton = screen.getByRole('button', { name: /update.*all.*tables/i });
       fireEvent.click(updateButton);
 
       // Should show some form of loading indication

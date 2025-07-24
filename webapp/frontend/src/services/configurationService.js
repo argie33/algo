@@ -114,6 +114,19 @@ class ConfigurationService {
         };
       } else {
         console.warn('⚠️ Failed to fetch CloudFormation config from both main and emergency API:', response.status);
+        
+        // Check if it's a 500 error (likely IAM permissions issue)
+        if (response.status === 500) {
+          try {
+            const errorData = await response.json();
+            if (errorData.message && errorData.message.includes('not authorized to perform: cloudformation:DescribeStacks')) {
+              console.error('🔐 IAM Permission Error: Lambda function needs CloudFormation permissions');
+              console.error('💡 Solution: Update CloudFormation template to add cloudformation:DescribeStacks permission');
+            }
+          } catch (parseError) {
+            // Ignore JSON parse errors
+          }
+        }
       }
     } catch (fetchError) {
       console.warn('⚠️ Error fetching CloudFormation config from API:', fetchError.message);

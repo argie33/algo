@@ -472,6 +472,7 @@ const routes = [
   { path: './routes/economic', name: 'Economic Data', mount: '/api/economic' },
   
   // User & Settings Routes
+  { path: './routes/unified-api-keys-debug', name: 'Unified API Keys Debug', mount: '/api/api-keys-debug' },
   { path: './routes/unified-api-keys', name: 'Unified API Keys', mount: '/api/api-keys' },
   { path: './routes/user', name: 'User Management', mount: '/api/user' },
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
