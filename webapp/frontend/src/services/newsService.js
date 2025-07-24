@@ -38,55 +38,39 @@ class NewsService {
   async getNewsForSymbols(symbols, options = {}) {
     const {
       limit = 50,
-      start = null,
-      end = null,
-      sort = 'desc',
-      includeContent = false,
-      excludeContentless = true
+      timeframe = '24h'
     } = options;
 
     const cacheKey = cacheService.generateKey('news_symbols', { 
       symbols: Array.isArray(symbols) ? symbols.join(',') : symbols,
       limit,
-      sort 
+      timeframe
     });
 
     return cacheService.cacheApiCall(
       cacheKey,
       async () => {
-        const allNews = [];
+        // Try backend API first
+        const params = {
+          limit,
+          timeframe,
+          ...(symbols && symbols.length > 0 && { symbol: Array.isArray(symbols) ? symbols[0] : symbols })
+        };
         
-        // Alpaca News
-        if (this.sources.alpaca.enabled && this.sources.alpaca.apiKey) {
-          try {
-            const alpacaNews = await this.fetchAlpacaNews(symbols, {
-              limit,
-              start,
-              end,
-              sort,
-              includeContent,
-              excludeContentless
-            });
-            allNews.push(...alpacaNews);
-          } catch (error) {
-            console.error('Alpaca news error:', error);
-          }
+        const backendResult = await this.getApiNews('/api/news/articles', params);
+        
+        // If backend returns articles array, use it
+        if (Array.isArray(backendResult)) {
+          return backendResult;
         }
-
-        // Add other news sources here as they become available
-
-        // Sort and deduplicate
-        const uniqueNews = this.deduplicateNews(allNews);
-        const sortedNews = this.sortNews(uniqueNews, sort);
         
-        // Add sentiment analysis
-        const analyzedNews = sortedNews.map(article => ({
-          ...article,
-          sentiment: this.analyzeSentiment(article),
-          relevanceScore: this.calculateRelevance(article, symbols)
-        }));
-
-        return analyzedNews.slice(0, limit);
+        // If backend returns structured response with articles
+        if (backendResult?.articles && Array.isArray(backendResult.articles)) {
+          return backendResult.articles;
+        }
+        
+        // Return the full response structure for NewsWidget to handle
+        return backendResult;
       },
       CacheConfigs.NEWS.ttl,
       CacheConfigs.NEWS.persist
@@ -139,9 +123,13 @@ class NewsService {
     return cacheService.cacheApiCall(
       cacheKey,
       async () => {
-        // For now, get news for major indices
-        const marketSymbols = ['SPY', 'QQQ', 'DIA', 'IWM', 'VIX'];
-        return this.getNewsForSymbols(marketSymbols, options);
+        // Try backend API for general market news
+        const params = {
+          limit: options.limit || 50,
+          timeframe: options.timeframe || '24h'
+        };
+        
+        return this.getApiNews('/api/news/articles', params);
       },
       CacheConfigs.NEWS.ttl
     );
@@ -154,17 +142,14 @@ class NewsService {
     return cacheService.cacheApiCall(
       cacheKey,
       async () => {
-        // Map categories to relevant symbols or keywords
-        const categoryMap = {
-          technology: ['AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA', 'TSLA'],
-          healthcare: ['JNJ', 'UNH', 'PFE', 'ABBV', 'TMO', 'CVS'],
-          energy: ['XOM', 'CVX', 'COP', 'SLB', 'EOG', 'PXD'],
-          finance: ['JPM', 'BAC', 'WFC', 'GS', 'MS', 'C'],
-          crypto: ['BTC-USD', 'ETH-USD', 'BNB-USD', 'XRP-USD']
+        // Try backend API with category filter
+        const params = {
+          category,
+          limit: options.limit || 50,
+          timeframe: options.timeframe || '24h'
         };
-
-        const symbols = categoryMap[category] || [];
-        return this.getNewsForSymbols(symbols, options);
+        
+        return this.getApiNews('/api/news/articles', params);
       },
       CacheConfigs.NEWS.ttl
     );
@@ -337,47 +322,63 @@ class NewsService {
     return common.includes(word);
   }
 
-  // Mock news data for development
+  // Fetch news from backend API
+  async getApiNews(endpoint = '/api/news/articles', params = {}) {
+    try {
+      const queryParams = new URLSearchParams(params);
+      const response = await axios.get(`${endpoint}?${queryParams}`);
+      
+      if (response.data?.success) {
+        // Handle both array format (legacy) and object format (new)
+        if (Array.isArray(response.data.data)) {
+          return response.data.data;
+        } else if (response.data.data?.articles) {
+          return response.data.data;
+        } else {
+          // Return empty format that matches expected structure
+          return {
+            articles: [],
+            total: 0,
+            message: response.data.data?.message || 'No news available',
+            available_when_configured: response.data.data?.available_when_configured || [],
+            data_sources: response.data.data?.data_sources || {}
+          };
+        }
+      }
+      
+      return { articles: [], total: 0, message: 'News service unavailable' };
+    } catch (error) {
+      console.warn('Backend news API unavailable, using Alpaca fallback:', error.message);
+      
+      // Fallback to direct Alpaca API if backend is not available
+      return this.getMockNews([], 5);
+    }
+  }
+
+  // Mock news data for development fallback
   getMockNews(symbols = [], limit = 10) {
     const mockArticles = [
       {
         id: '1',
-        headline: 'Tech Giants Rally on Strong Earnings Reports',
-        summary: 'Major technology companies see significant gains following better-than-expected quarterly results.',
-        symbols: ['AAPL', 'MSFT', 'GOOGL'],
+        headline: 'News API Configuration Required',
+        summary: 'Connect your news data feeds to see real-time financial news with sentiment analysis.',
+        symbols: symbols.length > 0 ? symbols.slice(0, 2) : ['SPY', 'QQQ'],
         createdAt: new Date().toISOString(),
-        source: 'mock',
-        sentiment: { score: 0.8, label: 'positive', confidence: 0.9 }
+        source: 'system',
+        sentiment: { score: 0, label: 'neutral', confidence: 0.5 }
       },
       {
-        id: '2',
-        headline: 'Federal Reserve Signals Potential Rate Pause',
-        summary: 'Fed officials suggest they may hold rates steady in upcoming meetings amid cooling inflation.',
-        symbols: ['SPY', 'QQQ'],
+        id: '2', 
+        headline: 'Professional News Feeds Available',
+        summary: 'Enable comprehensive market news with source tracking, sentiment analysis, and impact scoring.',
+        symbols: symbols.length > 0 ? symbols.slice(0, 2) : ['AAPL', 'MSFT'],
         createdAt: new Date(Date.now() - 3600000).toISOString(),
-        source: 'mock',
-        sentiment: { score: 0.3, label: 'positive', confidence: 0.6 }
-      },
-      {
-        id: '3',
-        headline: 'Energy Sector Faces Headwinds as Oil Prices Decline',
-        summary: 'Oil companies struggle as crude prices fall on increased supply concerns.',
-        symbols: ['XOM', 'CVX'],
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-        source: 'mock',
-        sentiment: { score: -0.6, label: 'negative', confidence: 0.8 }
+        source: 'system',
+        sentiment: { score: 0, label: 'neutral', confidence: 0.5 }
       }
     ];
     
-    // Filter by symbols if provided
-    let filtered = mockArticles;
-    if (symbols.length > 0) {
-      filtered = mockArticles.filter(article => 
-        article.symbols.some(sym => symbols.includes(sym))
-      );
-    }
-    
-    return filtered.slice(0, limit);
+    return mockArticles.slice(0, limit);
   }
 }
 

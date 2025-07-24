@@ -304,12 +304,21 @@ const SettingsApiKeys = () => {
   const handleTestConnection = async (keyId, provider) => {
     try {
       setTesting(prev => ({ ...prev, [keyId]: true }));
-      const result = await testApiKeyConnection(keyId);
+      
+      let result;
+      // Use new settings API if user is available
+      if (user?.email || user?.id) {
+        const userId = user.email || user.id;
+        result = await testSettingsApiKeyConnection(userId, provider);
+      } else {
+        // Fallback to legacy API
+        result = await testApiKeyConnection(keyId);
+      }
       
       if (result.success) {
         setSuccess(`${provider} connection test successful`);
       } else {
-        setError(`${provider} connection test failed: ${result.error}`);
+        setError(`${provider} connection test failed: ${result.message || result.error}`);
       }
     } catch (err) {
       setError(`Connection test failed: ${err.message}`);

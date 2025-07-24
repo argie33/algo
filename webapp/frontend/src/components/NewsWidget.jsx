@@ -176,7 +176,7 @@ const NewsWidget = ({
         {error && (
           <Box sx={{ textAlign: 'center', py: 2 }}>
             <Typography color="error" variant="body2">
-              Failed to load news. Please check your connection.
+              {error.message || 'Failed to load news. Please check your connection.'}
             </Typography>
             <Button onClick={handleRefresh} size="small" sx={{ mt: 1 }}>
               Retry
@@ -186,7 +186,7 @@ const NewsWidget = ({
 
         <Box sx={{ height: '100%', overflow: 'auto' }}>
           <List dense>
-            {(newsData || []).map((article, index) => (
+            {(Array.isArray(newsData) ? newsData : newsData?.articles || []).map((article, index) => (
               <React.Fragment key={article.id || index}>
                 <ListItem 
                   alignItems="flex-start"
@@ -298,15 +298,27 @@ const NewsWidget = ({
                     }
                   />
                 </ListItem>
-                {index < (newsData?.length || 0) - 1 && <Divider variant="inset" />}
+                {index < ((Array.isArray(newsData) ? newsData : newsData?.articles || []).length) - 1 && <Divider variant="inset" />}
               </React.Fragment>
             ))}
             
             {(!newsData || newsData.length === 0) && !isLoading && (
               <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography color="text.secondary">
-                  No news available at the moment
+                <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>
+                  {newsData?.message || 'No news available at the moment'}
                 </Typography>
+                {newsData?.available_when_configured && (
+                  <Box sx={{ mt: 2, textAlign: 'left', bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                      Available when configured:
+                    </Typography>
+                    <Box component="ul" sx={{ m: 0, pl: 2, fontSize: '0.75rem', color: 'text.secondary' }}>
+                      {newsData.available_when_configured.map((feature, idx) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{feature}</li>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
               </Box>
             )}
           </List>

@@ -475,6 +475,7 @@ const routes = [
   // User & Settings Routes
   { path: './routes/unified-api-keys-debug', name: 'Unified API Keys Debug', mount: '/api/api-keys-debug' },
   { path: './routes/unified-api-keys', name: 'Unified API Keys', mount: '/api/api-keys' },
+  { path: './routes/settings-api-keys', name: 'Settings API Keys', mount: '/api/settings/api-keys' },
   { path: './routes/user', name: 'User Management', mount: '/api/user' },
   { path: './routes/user-profile', name: 'User Profile', mount: '/api/user' },
   { path: './routes/settings', name: 'Settings', mount: '/api/settings' },
