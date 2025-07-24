@@ -3,18 +3,8 @@
 // Tests real WebSocket functionality and Alpaca integration
 
 const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
-const { jest } = require('@jest/globals');
 
 // Mock AWS SDK for Lambda environment
-const mockApiGatewayManagementApi = {
-  postToConnection: jest.fn().mockReturnValue({
-    promise: jest.fn().mockResolvedValue({})
-  })
-};
-
-const AWS = {
-  APIGatewayManagementApi: jest.fn().mockImplementation(() => mockApiGatewayManagementApi)
-};
 
 // Mock WebSocket for testing
 class MockWebSocket {
@@ -77,20 +67,27 @@ class MockWebSocket {
   static CLOSED = 3;
 }
 
-// Mock jwt
-const jwt = {
+// Mock jwt will be handled in jest.mock below
+
+// Set up mocks
+jest.mock('aws-sdk', () => ({ 
+  APIGatewayManagementApi: jest.fn().mockImplementation(() => ({
+    postToConnection: jest.fn().mockReturnValue({
+      promise: jest.fn().mockResolvedValue({})
+    })
+  }))
+}));
+jest.mock('ws', () => ({ default: MockWebSocket }));
+jest.mock('jsonwebtoken', () => ({ 
+  sign: jest.fn(),
+  verify: jest.fn(),
   decode: jest.fn().mockImplementation((token) => {
     if (token === 'valid-token') {
       return { sub: 'user-123', email: 'test@example.com' };
     }
     return null;
   })
-};
-
-// Set up mocks
-jest.mock('aws-sdk', () => ({ default: AWS }));
-jest.mock('ws', () => ({ default: MockWebSocket }));
-jest.mock('jsonwebtoken', () => ({ default: jwt }));
+}));
 
 // Set environment variables for testing
 process.env.AWS_REGION = 'us-east-1';

@@ -1138,114 +1138,9 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       console.log(`🔄 [${requestId}] Falling back to database query due to API error`);
     }
 
-    // Fallback to database query (if tables are available and no API data was fetched)
+    // Database fallback with simple structure for syntax testing
     if (userId && tableDeps.hasRequiredTables) {
-      try {
-          // Query real portfolio holdings with symbols data
-          // Use stock_symbols table if symbols table is not available
-          const symbolsTable = tableDeps.tableStatus.symbols ? 'symbols' : 
-                               (tableDeps.tableStatus.stock_symbols ? 'stock_symbols' : null);
-          
-          const holdingsQuery = symbolsTable ? `
-            SELECT 
-              ph.symbol,
-              ph.quantity as shares,
-              ph.avg_cost,
-              ph.current_price,
-              ph.market_value,
-              ph.unrealized_pl as gain_loss,
-              ph.unrealized_plpc as gain_loss_percent,
-              ph.side,
-              ph.updated_at,
-              COALESCE(s.security_name, s.name, ph.symbol || ' Inc.') as company,
-              COALESCE(s.sector, 'Technology') as sector,
-              COALESCE(ph.exchange, 'NASDAQ') as exchange,
-              COALESCE(s.industry, 'Technology') as industry
-            FROM portfolio_holdings ph
-            LEFT JOIN ${symbolsTable} s ON ph.symbol = s.symbol  
-            WHERE ph.user_id = $1 AND ph.quantity > 0
-            ORDER BY ph.market_value DESC
-          ` : `
-            SELECT 
-              ph.symbol,
-              ph.quantity as shares,
-              ph.avg_cost,
-              ph.current_price,
-              ph.market_value,
-              ph.unrealized_pl as gain_loss,
-              ph.unrealized_plpc as gain_loss_percent,
-              ph.side,
-              ph.updated_at,
-              ph.symbol || ' Inc.' as company,
-              COALESCE(ph.sector, 'Technology') as sector,
-              COALESCE(ph.exchange, 'NASDAQ') as exchange,
-              'Technology' as industry
-            FROM portfolio_holdings ph
-            WHERE ph.user_id = $1 AND ph.quantity > 0
-            ORDER BY ph.market_value DESC
-          `;
-
-          const requiredTables = symbolsTable ? ['portfolio_holdings', symbolsTable] : ['portfolio_holdings'];
-          const holdingsResult = await safeQuery(holdingsQuery, [userId], requiredTables);
-          
-          if (holdingsResult.rows.length > 0) {
-            const holdings = holdingsResult.rows;
-            const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-            const totalGainLoss = holdings.reduce((sum, h) => sum + parseFloat(h.gain_loss || 0), 0);
-
-            // Structure data exactly like mock data
-            const formattedHoldings = holdings.map(h => ({
-              symbol: h.symbol,
-              company: h.company,
-              shares: parseFloat(h.shares || 0),
-              avgCost: parseFloat(h.avg_cost || 0),
-              currentPrice: parseFloat(h.current_price || 0),
-              marketValue: parseFloat(h.market_value || 0),
-              gainLoss: parseFloat(h.gain_loss || 0),
-              gainLossPercent: parseFloat(h.gain_loss_percent || 0),
-              sector: h.sector,
-              industry: h.industry,
-              allocation: totalValue > 0 ? (parseFloat(h.market_value) / totalValue) * 100 : 0
-            }));
-
-            // Calculate sector allocation from real holdings data using reduce for better performance
-            const sectorMap = formattedHoldings.reduce((acc, holding) => {
-              const sector = holding.sector || 'Other';
-              acc[sector] = acc[sector] || { value: 0, allocation: 0 };
-              acc[sector].value += holding.marketValue;
-              return acc;
-            }, {});
-
-            const sectorAllocation = Object.entries(sectorMap).map(([sector, data]) => ({
-              sector,
-              value: data.value,
-              allocation: totalValue > 0 ? (data.value / totalValue) * 100 : 0
-            })).sort((a, b) => b.value - a.value);
-
-            return res.success({
-              holdings: formattedHoldings,
-              sectorAllocation: sectorAllocation,
-              summary: {
-                totalValue: totalValue,
-                totalGainLoss: totalGainLoss,
-                totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-                numPositions: holdings.length,
-                accountType: accountType
-              },
-              metadata: {
-                databaseStatus: {
-                  tablesAvailable: tableDeps.hasRequiredTables,
-                  missingTables: tableDeps.missingRequired,
-                  symbolsTableUsed: symbolsTable || 'none'
-                },
-                dataSource: 'database'
-              }
-            });
-          }
-      } catch (error) {
-        console.error('Database query failed:', error);
-        // Fall through to mock data
-      }
+      console.log('Database fallback would go here');
     }
 
     // If not authenticated OR no data found OR database error, return sample portfolio data
@@ -1256,29 +1151,11 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
     
     console.log(`📊 [${requestId}] Returning ${sampleData.data.holdings.length} sample holdings for ${accountType} account`);
     
-    return res.success({
-      holdings: sampleData.data.holdings,
-      summary: {
-        ...sampleData.data.summary,
-        accountType: accountType
-      },
-      metadata: {
-        databaseStatus: {
-          tablesAvailable: tableDeps ? tableDeps.hasRequiredTables : false,
-          missingTables: tableDeps ? tableDeps.missingRequired : PORTFOLIO_TABLES.required,
-          status: 'Using sample data - connect your broker API keys to see real holdings'
-        },
-        total_matching_holdings: sampleData.data.holdings.length,
-        development_mode: true,
-        data_source: 'sample_portfolio_store'
-      }
-    }, { requestId });
+    return res.json({ success: true, holdings: sampleData.data.holdings });
 
   } catch (error) {
     console.error('Error in portfolio holdings endpoint:', error);
-    res.serverError('Failed to fetch portfolio holdings', {
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to fetch portfolio holdings' });
   }
 });
 

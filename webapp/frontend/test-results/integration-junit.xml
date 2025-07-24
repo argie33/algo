@@ -1,7 +1,59 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="19" failures="5" errors="0" time="118.684">
-    <testsuite name="src/tests/integration/api/real-api-endpoints.test.js" timestamp="2025-07-23T02:49:35.098Z" hostname="LAPTOP-J9NJ3854" tests="19" failures="5" errors="0" skipped="0" time="117.962">
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should connect to main health endpoint" time="18.041">
+<testsuites name="vitest tests" tests="27" failures="19" errors="0" time="0.819">
+    <testsuite name="src/tests/integration/aws-session-backend.test.js" timestamp="2025-07-24T16:34:45.699Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/integration/aws-session-backend.test.js" name="src/tests/integration/aws-session-backend.test.js" time="0">
+            <failure message="Failed to resolve import &quot;../../infrastructure/terraform/lambda/session-management.js&quot; from &quot;src/tests/integration/aws-session-backend.test.js&quot;. Does the file exist?" type="Error">
+Error: Failed to resolve import &quot;../../infrastructure/terraform/lambda/session-management.js&quot; from &quot;src/tests/integration/aws-session-backend.test.js&quot;. Does the file exist?
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ normalizeUrl node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64291:23
+ ❯ async file:/home/stocks/algo/webapp/frontend/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64423:39
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64350:7
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/deployment-validation.test.js" timestamp="2025-07-24T16:34:45.701Z" hostname="LAPTOP-J9NJ3854" tests="25" failures="17" errors="0" skipped="0" time="0.061">
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Infrastructure Health Checks &gt; should validate main API Gateway health" time="0.017">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:66:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Infrastructure Health Checks &gt; should validate session management API health" time="0.003">
             <failure message="URL is not a constructor" type="TypeError">
 TypeError: URL is not a constructor
  ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
@@ -14,9 +66,7 @@ TypeError: URL is not a constructor
  ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
  ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
  ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
- ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
- ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
- ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+ ❯ src/tests/integration/deployment-validation.test.js:84:26
             </failure>
             <failure message="URL is not a constructor" type="TypeError">
 TypeError: URL is not a constructor
@@ -30,9 +80,7 @@ TypeError: URL is not a constructor
  ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
  ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
  ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
- ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
- ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
- ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+ ❯ src/tests/integration/deployment-validation.test.js:84:26
             </failure>
             <failure message="URL is not a constructor" type="TypeError">
 TypeError: URL is not a constructor
@@ -46,114 +94,629 @@ TypeError: URL is not a constructor
  ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
  ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
  ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
- ❯ src/tests/integration/api/real-api-endpoints.test.js:53:16
- ❯ retryRequest src/tests/integration/api/real-api-endpoints.test.js:22:22
- ❯ src/tests/integration/api/real-api-endpoints.test.js:52:24
+ ❯ src/tests/integration/deployment-validation.test.js:84:26
             </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should get detailed health status" time="8.266">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🏥 Health Check Endpoints &gt; should handle health check with specific services" time="6.007">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch market overview data" time="6.006">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch stock quotes" time="20.346">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📊 Market Data Endpoints &gt; should fetch market news" time="6.017">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 💼 Portfolio Endpoints &gt; should handle portfolio data requests" time="6.006">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 💼 Portfolio Endpoints &gt; should handle portfolio performance requests" time="6.01">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔐 Authentication Endpoints &gt; should handle authentication status check" time="6.008">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔐 Authentication Endpoints &gt; should handle login endpoint structure" time="6.007">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔧 Configuration Endpoints &gt; should fetch application configuration" time="8.172">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔧 Configuration Endpoints &gt; should fetch API version info" time="6.005">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 📡 WebSocket Connection Info &gt; should get WebSocket connection details" time="6.007">
-        </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle 404 endpoints gracefully" time="0.007">
-            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
-AssertionError: expected undefined to be 404 // Object.is equality
-
-- Expected: 
-404
-
-+ Received: 
-undefined
-
- ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Infrastructure Health Checks &gt; should validate database connectivity" time="0.003">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
             </failure>
-            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
-AssertionError: expected undefined to be 404 // Object.is equality
-
-- Expected: 
-404
-
-+ Received: 
-undefined
-
- ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
             </failure>
-            <failure message="expected undefined to be 404 // Object.is equality" type="AssertionError">
-AssertionError: expected undefined to be 404 // Object.is equality
-
-- Expected: 
-404
-
-+ Received: 
-undefined
-
- ❯ src/tests/integration/api/real-api-endpoints.test.js:295:40
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:110:26
             </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle malformed requests" time="0.004">
-            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
-TypeError: actual value must be number or bigint, received &quot;undefined&quot;
- ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Infrastructure Health Checks &gt; should validate environment configuration" time="0.004">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
             </failure>
-            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
-TypeError: actual value must be number or bigint, received &quot;undefined&quot;
- ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
             </failure>
-            <failure message="actual value must be number or bigint, received &quot;undefined&quot;" type="TypeError">
-TypeError: actual value must be number or bigint, received &quot;undefined&quot;
- ❯ src/tests/integration/api/real-api-endpoints.test.js:305:40
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:134:26
             </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🔍 Error Handling and Edge Cases &gt; should handle timeout scenarios" time="0.001">
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Infrastructure Health Checks &gt; should validate CORS configuration" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as options] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as options] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:159:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as options] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as options] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:159:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as options] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as options] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:159:26
+            </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should measure response times" time="6.006">
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Authentication Integration &gt; should validate authentication endpoints" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:184:26
+            </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should handle concurrent requests" time="0.01">
-            <failure message="expected 0 to be greater than 0" type="AssertionError">
-AssertionError: expected 0 to be greater than 0
- ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Authentication Integration &gt; should validate Cognito integration" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
             </failure>
-            <failure message="expected 0 to be greater than 0" type="AssertionError">
-AssertionError: expected 0 to be greater than 0
- ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
             </failure>
-            <failure message="expected 0 to be greater than 0" type="AssertionError">
-AssertionError: expected 0 to be greater than 0
- ❯ src/tests/integration/api/real-api-endpoints.test.js:357:28
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:204:26
             </failure>
         </testcase>
-        <testcase classname="src/tests/integration/api/real-api-endpoints.test.js" name="🌐 Real API Endpoints Integration Tests &gt; 🎯 Performance and Reliability &gt; should maintain connection stability" time="3.032">
-            <failure message="expected 0 to be greater than 7" type="AssertionError">
-AssertionError: expected 0 to be greater than 7
- ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Session Management Deployment &gt; should validate session API deployment" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:232:32
             </failure>
-            <failure message="expected 0 to be greater than 7" type="AssertionError">
-AssertionError: expected 0 to be greater than 7
- ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:232:32
             </failure>
-            <failure message="expected 0 to be greater than 7" type="AssertionError">
-AssertionError: expected 0 to be greater than 7
- ❯ src/tests/integration/api/real-api-endpoints.test.js:377:28
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:232:32
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Session Management Deployment &gt; should validate Redis integration" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Session Management Deployment &gt; should validate secrets management integration" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:309:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:309:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.httpMethod [as post] node_modules/axios/lib/core/Axios.js:226:19
+ ❯ Function.wrap node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:309:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; API Gateway Integration &gt; should validate API Gateway routing" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:351:28
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; API Gateway Integration &gt; should validate rate limiting" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; API Gateway Integration &gt; should validate error handling" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:402:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Frontend Asset Deployment &gt; should validate CloudFront distribution" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:427:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:427:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios._request node_modules/axios/lib/core/Axios.js:187:33
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:25
+ ❯ Axios.&lt;computed&gt; [as get] node_modules/axios/lib/core/Axios.js:213:17
+ ❯ Function.wrap [as get] node_modules/axios/lib/helpers/bind.js:5:15
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:427:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Frontend Asset Deployment &gt; should validate static asset caching" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Frontend Asset Deployment &gt; should validate configuration loading" time="0">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Monitoring and Logging &gt; should validate CloudWatch integration" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Monitoring and Logging &gt; should validate request correlation IDs" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:511:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Monitoring and Logging &gt; should validate error tracking" time="0.002">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:529:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Security Validation &gt; should validate security headers" time="0.004">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:550:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Security Validation &gt; should validate HTTPS enforcement" time="0.001">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Security Validation &gt; should validate authentication protection" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:585:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Performance Validation &gt; should validate API response times" time="0.001">
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+            </failure>
+            <failure message="URL is not a constructor" type="TypeError">
+TypeError: URL is not a constructor
+ ❯ node_modules/axios/lib/helpers/isURLSameOrigin.js:4:9
+ ❯ default node_modules/axios/lib/helpers/resolveConfig.js:45:54
+ ❯ dispatchXhrRequest node_modules/axios/lib/adapters/xhr.js:16:21
+ ❯ xhr node_modules/axios/lib/adapters/xhr.js:15:10
+ ❯ Axios.dispatchRequest node_modules/axios/lib/core/dispatchRequest.js:51:10
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:40:14
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+ ❯ Axios.request node_modules/axios/lib/core/Axios.js:45:41
+ ❯ src/tests/integration/deployment-validation.test.js:613:26
+            </failure>
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Performance Validation &gt; should validate concurrent request handling" time="0.002">
+        </testcase>
+        <testcase classname="src/tests/integration/deployment-validation.test.js" name="Deployment Validation Integration Tests &gt; Performance Validation &gt; should validate memory usage stability" time="0">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tests/integration/session-management.test.js" timestamp="2025-07-24T16:34:45.741Z" hostname="LAPTOP-J9NJ3854" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/tests/integration/session-management.test.js" name="src/tests/integration/session-management.test.js" time="0">
+            <failure message="Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension." type="Error">
+Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64243:14
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27
             </failure>
         </testcase>
     </testsuite>

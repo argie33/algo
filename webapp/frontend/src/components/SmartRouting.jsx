@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import WelcomeLanding from '../pages/WelcomeLanding';
 import Dashboard from '../pages/Dashboard';
+import LoadingTransition from './LoadingTransition';
 
 const SmartRouting = ({ onSignInClick }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -36,14 +37,11 @@ const SmartRouting = ({ onSignInClick }) => {
   // Show loading while checking authentication
   if (isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
-        <div>Loading...</div>
-      </div>
+      <LoadingTransition 
+        message="Checking authentication..."
+        submessage="Verifying your session and preparing your dashboard"
+        type="auth"
+      />
     );
   }
 

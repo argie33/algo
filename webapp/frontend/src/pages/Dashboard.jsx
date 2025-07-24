@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import WelcomeBanner from '../components/WelcomeBanner';
+import usePostLoginFlow from '../hooks/usePostLoginFlow';
 import {
   Box,
   Grid,
@@ -150,7 +152,13 @@ function useLiveCalendar() {
   });
 }
 
-// Live signals data hook (already implemented via useTradingSignals hook)
+// Live trading signals data hook
+function useTradingSignals() {
+  return useSimpleFetch(`${API_BASE}/api/trading/signals/daily?limit=10`, {
+    fallback: [],
+    errorMessage: 'Failed to load trading signals'
+  });
+}
 
 // Live news data hook
 function useLiveNews() {
@@ -464,6 +472,7 @@ function EconomicIndicatorsWidget() {
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
+  const { showWelcomeMessage, isFirstTimeUser, dismissWelcomeMessage } = usePostLoginFlow();
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [dashboardView, setDashboardView] = useState('overview');
   
@@ -523,6 +532,14 @@ const Dashboard = () => {
       <MarketStatusBar />
       
       <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* Welcome Banner */}
+        {showWelcomeMessage && user && (
+          <WelcomeBanner 
+            user={user}
+            isFirstTimeUser={isFirstTimeUser}
+            onDismiss={dismissWelcomeMessage}
+          />
+        )}
         {/* Award-Winning Header */}
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
         <Box>

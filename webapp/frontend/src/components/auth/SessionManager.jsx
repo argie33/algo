@@ -305,7 +305,7 @@ function SessionManager({ children }) {
     isRefreshing,
     isIdle,
     crossTabSync,
-    sessionPersistent,
+    sessionPersistent: sessionPersistent ?? true,
     refreshSession: handleTokenRefresh,
     extendSession,
     getSessionProgress,

@@ -197,30 +197,12 @@ const Settings = () => {
       }
 
       // Load notification preferences
-      try {
-        const notifResponse = await fetch(`${apiUrl}/api/user/notifications`, {
-          headers: getAuthHeaders()
-        });
-        if (notifResponse.ok) {
-          const notifData = await notifResponse.json();
-          setNotifications(prev => ({ ...prev, ...notifData.preferences }));
-        }
-      } catch (error) {
-        console.log('Failed to load notification preferences, using defaults');
-      }
+      // TODO: Implement /api/user/notifications endpoint
+      console.log('Using default notification preferences (endpoint not implemented)');
 
-      // Load theme preferences
-      try {
-        const themeResponse = await fetch(`${apiUrl}/api/user/theme`, {
-          headers: getAuthHeaders()
-        });
-        if (themeResponse.ok) {
-          const themeData = await themeResponse.json();
-          setThemeSettings(prev => ({ ...prev, ...themeData.preferences }));
-        }
-      } catch (error) {
-        console.log('Failed to load theme preferences, using defaults');
-      }
+      // Load theme preferences  
+      // TODO: Implement /api/user/theme endpoint
+      console.log('Using default theme preferences (endpoint not implemented)');
       
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -242,7 +224,7 @@ const Settings = () => {
 
   const loadApiKeys = async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
+      const response = await fetch(`${apiUrl}/api/settings/api-keys/${user?.email || user?.id}`, {
         headers: getAuthHeaders()
       });
       
