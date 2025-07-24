@@ -295,6 +295,9 @@ function SessionManager({ children }) {
     return Math.max(0, Math.min(100, (timeElapsed / totalSessionTime) * 100));
   };
 
+  // Cross-tab synchronization placeholder (to be implemented)
+  const crossTabSync = false;
+
   const sessionContextValue = {
     sessionInfo,
     timeToExpiry,
