@@ -1133,7 +1133,26 @@ const Settings = () => {
                   <Button
                     variant="outlined"
                     fullWidth
-                    onClick={logout}
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        // Call backend logout first
+                        await fetch(`${apiUrl}/api/user/logout`, {
+                          method: 'POST',
+                          headers: getAuthHeaders()
+                        });
+                        // Then call frontend logout
+                        await logout();
+                        navigate('/login');
+                      } catch (error) {
+                        console.error('Logout error:', error);
+                        // Still logout locally even if backend fails
+                        await logout();
+                        navigate('/login');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
                     sx={{ mb: 2 }}
                     disabled={loading}
                   >

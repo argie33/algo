@@ -452,6 +452,9 @@ Resources:
                   - ssm:PutParameter
                   - ssm:DeleteParameter
                   - ssm:GetParametersByPath
+                  - ssm:AddTagsToResource
+                  - ssm:RemoveTagsFromResource
+                  - ssm:ListTagsForResource
                 Resource: 
                   - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/financial-platform/users/*'
               - Effect: Allow

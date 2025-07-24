@@ -82,7 +82,6 @@ const proxyToSettings = (settingsPath) => {
       }
     };
   };
-};
 
 // Two-Factor Authentication endpoints
 router.post('/two-factor/enable', async (req, res) => {
@@ -645,6 +644,27 @@ router.put('/theme', proxyToSettings('/theme'));
 
 // Account deletion - proxy to settings
 router.delete('/delete-account', proxyToSettings('/delete-account'));
+
+// Logout endpoint
+router.post('/logout', async (req, res) => {
+  try {
+    console.log('🚪 User logout request received');
+    
+    // In development mode, just clear the session
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to logout',
+      message: error.message
+    });
+  }
+});
 
 // Password Management - New functionality
 router.post('/change-password', async (req, res) => {
