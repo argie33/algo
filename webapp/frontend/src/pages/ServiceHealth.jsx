@@ -307,26 +307,22 @@ function ServiceHealth() {
     }
   };
 
-  // Refresh health status background job
+  // Refresh health status using new progressive health system
   const refreshHealthStatus = async () => {
     try {
       setRefreshing(true);
-      // Triggering comprehensive database health update
       
-      // Call the backend to update health status
-      // Using emergency endpoint as fallback since health-full route is temporarily unavailable
-      const response = await api.post('/api/health/update-status', {}, {
-        timeout: 60000 // 1 minute timeout for comprehensive analysis
+      // Force refresh of health cache and trigger background scan
+      const response = await api.post('/health/update-status', {}, {
+        timeout: 10000 // Reduced timeout since this should be fast
       });
       
-      // Health status update completed successfully
-      
-      // Refetch the health data to show updated results
+      // Refetch health data with progressive loading
       await refetchDb();
       
     } catch (error) {
-      // Failed to refresh health status - error handled gracefully
-      // Don't throw - just log the error so UI doesn't break
+      console.error('Failed to refresh health status:', error);
+      // Don't throw - gracefully handle errors
     } finally {
       setRefreshing(false);
     }
@@ -359,93 +355,127 @@ function ServiceHealth() {
     return () => window.removeEventListener('error', handleError);
   }, []);
 
-  // Enhanced comprehensive health checks
-  // Manual database health check state
+  // Progressive database health check state
   const [dbHealth, setDbHealth] = useState(null);
   const [dbLoading, setDbLoading] = useState(false);
   const [dbError, setDbError] = useState(null);
+  const [healthTier, setHealthTier] = useState(0); // 0: none, 1: connection, 2: critical, 3: full
+  const [loadingStatus, setLoadingStatus] = useState('');
   
   const refetchDb = async () => {
     const startTime = Date.now();
     setDbLoading(true);
     setDbError(null);
+    setHealthTier(0);
+    
     try {
-      // Starting enhanced database health check
-      // Request started
+      // Progressive loading: Start with connection health
+      setLoadingStatus('Checking database connection...');
+      setHealthTier(1);
       
-      const response = await api.get('/health', {
-        timeout: 30000, // Reduced from 3 minutes to 30 seconds
-        validateStatus: (status) => status < 500
+      const connectionResponse = await api.get('/health/connection', {
+        timeout: 5000
       });
-        
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        // Database health check completed
-        
-        // Handle case where response has error but is still returned
-        if (response.data && response.data.error) {
-          // Database health check returned error
-          const errorResult = {
-            database: {
-              status: 'error',
-              tables: {},
-              summary: { 
-                total_tables: 0, 
-                healthy_tables: 0, 
-                total_records: 0
+      
+      if (connectionResponse.data.status !== 'connected') {
+        throw new Error('Database connection failed');
+      }
+      
+      // Connection successful, load critical tables
+      setLoadingStatus('Loading critical tables...');
+      setHealthTier(2);
+      
+      const criticalResponse = await api.get('/health/critical', {
+        timeout: 8000
+      });
+      
+      // Merge connection and critical data
+      const healthData = {
+        status: criticalResponse.data.status,
+        healthy: criticalResponse.data.status === 'operational',
+        database: {
+          ...connectionResponse.data.database,
+          critical_tables: criticalResponse.data.critical_tables,
+          summary: criticalResponse.data.summary
+        },
+        connection: connectionResponse.data,
+        critical: criticalResponse.data,
+        full_scan_available: false,
+        responseTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        tier: 'critical'
+      };
+      
+      setDbHealth(healthData);
+      
+      // Start background full scan
+      setLoadingStatus('Loading complete system health...');
+      setHealthTier(3);
+      
+      // Non-blocking full health check
+      api.get('/health/full', { timeout: 10000 })
+        .then(fullResponse => {
+          if (fullResponse.data && fullResponse.data.all_tables) {
+            // Full scan completed, update with complete data
+            const completeHealthData = {
+              ...healthData,
+              database: {
+                ...healthData.database,
+                all_tables: fullResponse.data.all_tables,
+                full_summary: fullResponse.data.summary
               },
-              error: response.data.error
-            },
-            message: response.data.error,
-            usingFallback: true,
-            timestamp: new Date().toISOString()
-          };
-          setDbHealth(errorResult);
-          return errorResult;
-        }
-        
-        // Database health data received and processed
-        setDbHealth(response.data);
-        return response.data;
-    } catch (error) {
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        
-        // Database health check failed - error handled gracefully
-        
-        // Determine likely cause of timeout
-        let timeoutCause = 'Unknown';
-        if (error.code === 'ECONNABORTED' && duration >= 179000) {
-          timeoutCause = 'Request timeout (3 min) - likely slow database query';
-        } else if (error.code === 'ECONNABORTED' && duration < 30000) {
-          timeoutCause = 'Early timeout - likely connection issue';
-        } else if (!error.response && error.code !== 'ECONNABORTED') {
-          timeoutCause = 'Network error - cannot reach server';
-        } else if (error.response?.status >= 500) {
-          timeoutCause = 'Server error - backend issue';
-        }
-        
-        const result = {
-          error: true,
-          message: error.message || 'Unknown database health error',
-          timeoutCause: timeoutCause,
-          requestDuration: duration,
-          errorCode: error.code,
-          httpStatus: error.response?.status,
-          timestamp: new Date().toISOString(),
-          database: { 
-            status: 'error',
-            tables: {},
-            summary: { 
-              total_tables: 0, 
-              healthy_tables: 0, 
-              total_records: 0
-            }
+              full: fullResponse.data,
+              full_scan_available: true,
+              tier: 'full'
+            };
+            setDbHealth(completeHealthData);
+            setLoadingStatus('Complete system health loaded');
           }
-        };
-        setDbError(error);
-        setDbHealth(result);
-        return result;
+        })
+        .catch(fullError => {
+          console.log('Full health scan not available:', fullError.message);
+          setLoadingStatus('Critical health data loaded (full scan unavailable)');
+        });
+      
+      return healthData;
+        
+    } catch (error) {
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      let timeoutCause = 'Unknown';
+      if (error.code === 'ECONNABORTED') {
+        timeoutCause = duration < 5000 ? 'Connection timeout' : 'Query timeout';
+      } else if (!error.response) {
+        timeoutCause = 'Network error - cannot reach server';
+      } else if (error.response?.status >= 500) {
+        timeoutCause = 'Server error - backend issue';
+      }
+      
+      const result = {
+        error: true,
+        message: error.message || 'Database health check failed',
+        timeoutCause: timeoutCause,
+        requestDuration: duration,
+        errorCode: error.code,
+        httpStatus: error.response?.status,
+        timestamp: new Date().toISOString(),
+        database: { 
+          status: 'error',
+          tables: {},
+          summary: { 
+            total_tables: 0, 
+            healthy_tables: 0, 
+            total_records: 0
+          }
+        },
+        tier: 'error'
+      };
+      
+      setDbError(error);
+      setDbHealth(result);
+      setLoadingStatus('Health check failed');
+      return result;
     } finally {
       setDbLoading(false);
     }
@@ -917,7 +947,34 @@ function ServiceHealth() {
               {dbLoading && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                   <CircularProgress size={24} />
-                  <Typography sx={{ ml: 2 }}>Loading database health...</Typography>
+                  <Typography sx={{ ml: 2 }}>{loadingStatus || 'Loading database health...'}</Typography>
+                </Box>
+              )}
+              
+              {/* Progressive loading status indicator */}
+              {healthTier > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>Loading Progress:</Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Chip 
+                      label="Connection" 
+                      color={healthTier >= 1 ? 'success' : 'default'}
+                      size="small"
+                      icon={healthTier >= 1 ? <CheckCircle /> : <CircularProgress size={16} />}
+                    />
+                    <Chip 
+                      label="Critical Tables" 
+                      color={healthTier >= 2 ? 'success' : healthTier === 1 ? 'warning' : 'default'}
+                      size="small"
+                      icon={healthTier >= 2 ? <CheckCircle /> : healthTier === 1 ? <CircularProgress size={16} /> : undefined}
+                    />
+                    <Chip 
+                      label="Full System" 
+                      color={healthTier >= 3 ? 'success' : healthTier === 2 ? 'warning' : 'default'}
+                      size="small"
+                      icon={healthTier >= 3 ? <CheckCircle /> : healthTier === 2 ? <CircularProgress size={16} /> : undefined}
+                    />
+                  </Box>
                 </Box>
               )}
               
@@ -1041,11 +1098,76 @@ function ServiceHealth() {
                     </Card>
                   )}
 
-                  {/* Detailed Table List */}
-                  {safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0 && (
+                  {/* Critical Tables (always shown first) */}
+                  {safeDbHealth.database?.critical_tables && Object.keys(safeDbHealth.database.critical_tables).length > 0 && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        Table Details ({Object.keys(safeDbHealth.database.tables).length} tables monitored):
+                        <span style={{ color: 'red' }}>⚡</span> Critical Tables ({Object.keys(safeDbHealth.database.critical_tables).length} critical tables):
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 400, mb: 2 }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Table</TableCell>
+                              <TableCell>Category</TableCell>
+                              <TableCell align="right">Records</TableCell>
+                              <TableCell>Status</TableCell>
+                              <TableCell>Last Analyzed</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {Object.entries(safeDbHealth.database.critical_tables)
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([tableName, tableData]) => (
+                              <TableRow key={tableName} sx={{ 
+                                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.12)' }
+                              }}>
+                                <TableCell component="th" scope="row">
+                                  <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
+                                    {tableName}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={tableData.category || 'unknown'}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.7rem', height: 20 }}
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {formatNumber(tableData.estimated_rows)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    icon={getStatusIcon(tableData?.status)}
+                                    label={tableData?.status || 'Unknown'}
+                                    color={getStatusColor(tableData?.status)}
+                                    size="small"
+                                    sx={{ minWidth: 80 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {tableData.last_analyzed ? new Date(tableData.last_analyzed).toLocaleDateString() : 'Never'}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+
+                  {/* All Tables (shown when full scan is available) */}
+                  {safeDbHealth.database?.all_tables && Object.keys(safeDbHealth.database.all_tables).length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        📋 All Tables ({Object.keys(safeDbHealth.database.all_tables).length} total tables):
                       </Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
                         <Table size="small" stickyHeader>
@@ -1063,73 +1185,51 @@ function ServiceHealth() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {Object.entries(safeDbHealth.database.tables)
+                            {Object.entries(safeDbHealth.database.all_tables)
                               .sort(([a], [b]) => a.localeCompare(b))
                               .map(([tableName, tableData]) => (
                               <TableRow key={tableName} sx={{ 
-                                backgroundColor: tableData.critical_table ? 'rgba(25, 118, 210, 0.04)' : 'inherit',
+                                backgroundColor: tableData.is_critical ? 'rgba(25, 118, 210, 0.04)' : 'inherit',
                                 '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
                               }}>
                                 <TableCell component="th" scope="row">
-                                  <Box>
-                                    <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
-                                      {tableName}
-                                    </Typography>
-                                    {tableData.table_category && (
-                                      <Typography variant="caption" color="text.secondary">
-                                        {tableData.table_category}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                </TableCell>
-                                <TableCell>
-                                  {tableData.table_category && (
-                                    <Chip
-                                      label={tableData.table_category}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{ 
-                                        fontSize: '0.7rem',
-                                        height: 20,
-                                        backgroundColor: 
-                                          tableData.table_category === 'symbols' ? '#e3f2fd' :
-                                          tableData.table_category === 'prices' ? '#f3e5f5' :
-                                          tableData.table_category === 'technicals' ? '#e8f5e8' :
-                                          tableData.table_category === 'financials' ? '#fff3e0' :
-                                          tableData.table_category === 'company' ? '#e0f2f1' :
-                                          tableData.table_category === 'earnings' ? '#fce4ec' :
-                                          tableData.table_category === 'sentiment' ? '#f1f8e9' :
-                                          tableData.table_category === 'trading' ? '#e8eaf6' :
-                                          '#f5f5f5'
-                                      }}
-                                    />
-                                  )}
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Typography variant="body2" fontWeight={600}>
-                                    {formatNumber(tableData.record_count)}
+                                  <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
+                                    {tableName}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                    <Chip
-                                      icon={getStatusIcon(tableData?.status)}
-                                      label={tableData?.status || 'Unknown'}
-                                      color={getStatusColor(tableData?.status)}
-                                      size="small"
-                                      sx={{ minWidth: 80 }}
-                                    />
-                                    {tableData.is_stale && (
-                                      <Chip
-                                        label="Stale"
-                                        color="warning"
-                                        size="small"
-                                      />
-                                    )}
-                                  </Box>
+                                  <Chip
+                                    label={tableData.category || 'other'}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ 
+                                      fontSize: '0.7rem',
+                                      height: 20,
+                                      backgroundColor: 
+                                        tableData.category === 'symbols' ? '#e3f2fd' :
+                                        tableData.category === 'prices' ? '#f3e5f5' :
+                                        tableData.category === 'portfolio' ? '#e8f5e8' :
+                                        tableData.category === 'system' ? '#fff3e0' :
+                                        '#f5f5f5'
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {formatNumber(tableData.estimated_rows)}
+                                  </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  {tableData.critical_table && (
+                                  <Chip
+                                    icon={getStatusIcon(tableData?.status)}
+                                    label={tableData?.status || 'Unknown'}
+                                    color={getStatusColor(tableData?.status)}
+                                    size="small"
+                                    sx={{ minWidth: 80 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  {tableData.is_critical && (
                                     <Chip
                                       label="Critical"
                                       color="error"
@@ -1139,44 +1239,23 @@ function ServiceHealth() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <Box>
-                                    <Typography variant="body2">
-                                      {formatDate(tableData.last_updated)}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {formatTimeAgo(tableData.last_updated)}
-                                    </Typography>
-                                  </Box>
-                                </TableCell>
-                                <TableCell align="right">
-                                  {tableData.missing_data_count > 0 ? (
-                                    <Typography variant="body2" color="warning.main" fontWeight={600}>
-                                      {formatNumber(tableData.missing_data_count)}
-                                    </Typography>
-                                  ) : (
-                                    <Typography variant="body2" color="success.main">
-                                      0
-                                    </Typography>
-                                  )}
-                                </TableCell>
-                                <TableCell>
                                   <Typography variant="body2">
-                                    {formatDate(tableData.last_checked)}
+                                    {tableData.last_analyzed ? new Date(tableData.last_analyzed).toLocaleDateString() : 'Never'}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  {tableData.error && (
-                                    <Tooltip title={tableData.error}>
-                                      <Typography variant="body2" color="error" sx={{ 
-                                        maxWidth: 200, 
-                                        overflow: 'hidden', 
-                                        textOverflow: 'ellipsis',
-                                        cursor: 'help'
-                                      }}>
-                                        {tableData.error.length > 30 ? `${tableData.error.substring(0, 30)}...` : tableData.error}
-                                      </Typography>
-                                    </Tooltip>
-                                  )}
+                                  <Typography variant="body2" color="text.secondary">
+                                    Activity: {formatNumber(tableData.total_activity || 0)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {tableData.last_vacuum ? new Date(tableData.last_vacuum).toLocaleDateString() : 'Never'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  {/* No specific error field in new structure */}
+                                  -
                                 </TableCell>
                               </TableRow>
                             ))}

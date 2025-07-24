@@ -106,16 +106,8 @@ const PortfolioPerformance = () => {
       setLoading(true);
       setError(null); // Clear any previous errors
       
-      // Add timeout handling for API calls
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API call timeout')), 5000)
-      );
-      
-      // Fetch portfolio performance data with better error handling
-      const performanceResponse = await Promise.race([
-        getPortfolioPerformance(timeframe),
-        timeoutPromise
-      ]);
+      // Fetch portfolio performance data with built-in API timeout handling
+      const performanceResponse = await getPortfolioPerformance(timeframe);
       const perfData = performanceResponse?.data || performanceResponse;
       
       if (perfData) {
@@ -142,14 +134,7 @@ const PortfolioPerformance = () => {
 
       // Fetch analytics
       try {
-        const analyticsTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Analytics API timeout')), 5000)
-        );
-        
-        const analyticsResponse = await Promise.race([
-          getPortfolioAnalytics(timeframe),
-          analyticsTimeoutPromise
-        ]);
+        const analyticsResponse = await getPortfolioAnalytics(timeframe);
         const analyticsData = analyticsResponse?.data || analyticsResponse;
         
         if (analyticsData) {

@@ -395,7 +395,14 @@ Resources:
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
-                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-webapp-${EnvironmentName}/*'
+                  - cloudformation:ListStacks
+                Resource: 
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-webapp-${EnvironmentName}/*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:ListStacks
+                Resource: '*'
 
   # IAM Role for Lambda execution
   LambdaExecutionRole:

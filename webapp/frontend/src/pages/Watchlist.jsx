@@ -469,15 +469,8 @@ const Watchlist = () => {
 
   const loadWatchlists = async () => {
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API timeout')), 5000)
-      );
-      
-      const response = await Promise.race([
-        getWatchlists(),
-        timeoutPromise
-      ]);
+      // Use built-in API timeout handling
+      const response = await getWatchlists();
       
       setWatchlists(response);
       if (response.length > 0) {
@@ -500,14 +493,7 @@ const Watchlist = () => {
   const loadWatchlistItems = async (watchlistId) => {
     setLoading(true);
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API timeout')), 5000)
-      );
-      
-      const response = await Promise.race([
-        getWatchlistItems(watchlistId),
-        timeoutPromise
-      ]);
+      const response = await getWatchlistItems(watchlistId);
       
       // Ensure response is an array before setting state
       if (Array.isArray(response)) {

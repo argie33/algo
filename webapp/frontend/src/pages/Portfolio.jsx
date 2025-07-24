@@ -712,17 +712,9 @@ const Portfolio = () => {
       });
       
       try {
-        // Add timeout handling for API calls
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('API call timeout after 8 seconds')), 8000)
-        );
-        
         console.log(`📊 [PORTFOLIO] Loading holdings for account type: ${accountType}`);
-        // Load real data from API with timeout
-        const portfolioResponse = await Promise.race([
-          getPortfolioData(accountType),
-          timeoutPromise
-        ]);
+        // Load real data from API with built-in timeout handling
+        const portfolioResponse = await getPortfolioData(accountType);
         console.log('✅ [PORTFOLIO] Portfolio API Response:', {
           success: portfolioResponse?.success,
           holdingsCount: portfolioResponse?.holdings?.length || 0,

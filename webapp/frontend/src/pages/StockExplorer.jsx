@@ -185,15 +185,8 @@ function StockExplorer() {
       const params = buildQueryParams();
       logger.success('buildQueryParams', null, { params: params.toString() });
       
-      // Add timeout handling
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API call timeout')), 10000)
-      );
-      
-      const result = await Promise.race([
-        screenStocks(params),
-        timeoutPromise
-      ]);
+      // Use built-in API timeout handling
+      const result = await screenStocks(params);
       
       // Add debug logging to see the actual response structure
       console.log('StockExplorer: Raw API response:', result);

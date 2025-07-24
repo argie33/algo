@@ -5,10 +5,10 @@
  */
 
 const express = require('express');
-const AWS = require('aws-sdk');
+const { CloudFormationClient, DescribeStacksCommand, ListStacksCommand } = require('@aws-sdk/client-cloudformation');
 
-// Initialize AWS SDK
-const cloudformation = new AWS.CloudFormation({ region: process.env.AWS_REGION || 'us-east-1' });
+// Initialize AWS SDK v3
+const cloudformation = new CloudFormationClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Create Express router
 const router = express.Router();
@@ -31,11 +31,11 @@ const getCloudFormationConfig = async (req, res) => {
     console.log(`📋 Fetching CloudFormation outputs for stack: ${stackName}`);
     
     // Get stack description with outputs
-    const describeParams = {
+    const describeCommand = new DescribeStacksCommand({
       StackName: stackName
-    };
+    });
     
-    const stackResult = await cloudformation.describeStacks(describeParams).promise();
+    const stackResult = await cloudformation.send(describeCommand);
     
     if (!stackResult.Stacks || stackResult.Stacks.length === 0) {
       return res.status(404).json({
@@ -137,15 +137,15 @@ const listCloudFormationStacks = async (req, res) => {
   try {
     console.log('📋 Listing CloudFormation stacks...');
     
-    const params = {
+    const listCommand = new ListStacksCommand({
       StackStatusFilter: [
         'CREATE_COMPLETE',
         'UPDATE_COMPLETE',
         'UPDATE_ROLLBACK_COMPLETE'
       ]
-    };
+    });
     
-    const result = await cloudformation.listStacks(params).promise();
+    const result = await cloudformation.send(listCommand);
     
     const stacks = result.StackSummaries.map(stack => ({
       stackName: stack.StackName,

@@ -104,15 +104,8 @@ function TechnicalAnalysis() {
       
       console.log('TechnicalAnalysis: calling getTechnicalData with params:', params);
       
-      // Add timeout handling - use same timeout as API configuration (30 seconds)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API call timeout')), 30000)
-      );
-      
-      const result = await Promise.race([
-        getTechnicalData(timeframe, params),
-        timeoutPromise
-      ]);
+      // Use API's built-in timeout handling (30 seconds from environment configuration)
+      const result = await getTechnicalData(timeframe, params);
       
       console.log('TechnicalAnalysis: getTechnicalData result:', result);
       

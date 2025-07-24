@@ -816,6 +816,40 @@ router.get('/screen', async (req, res) => {
   try {
     console.log('🔍 Stock screening endpoint called with params:', req.query);
     
+    // Check if we're in development mode and database is unavailable
+    if (process.env.NODE_ENV === 'development' || !process.env.DB_ENDPOINT) {
+      console.log('🔧 Development mode: Using mock data for stock screening');
+      
+      const mockStocks = [
+        { symbol: 'AAPL', security_name: 'Apple Inc.', current_price: 150.25, market_cap: 2500000000000, sector: 'Technology', volume: 75000000 },
+        { symbol: 'MSFT', security_name: 'Microsoft Corporation', current_price: 280.50, market_cap: 2100000000000, sector: 'Technology', volume: 45000000 },
+        { symbol: 'GOOGL', security_name: 'Alphabet Inc.', current_price: 120.75, market_cap: 1600000000000, sector: 'Technology', volume: 30000000 },
+        { symbol: 'AMZN', security_name: 'Amazon.com Inc.', current_price: 95.30, market_cap: 1000000000000, sector: 'Consumer Discretionary', volume: 55000000 },
+        { symbol: 'TSLA', security_name: 'Tesla Inc.', current_price: 250.80, market_cap: 800000000000, sector: 'Automotive', volume: 80000000 }
+      ];
+      
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 25;
+      
+      return res.json({
+        success: true,
+        data: mockStocks.slice(0, limit),
+        pagination: {
+          page,
+          limit,
+          total: mockStocks.length,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false
+        },
+        metadata: {
+          total_matching_stocks: mockStocks.length,
+          development_mode: true
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     const {
       sector,
       marketCap,
@@ -950,11 +984,31 @@ router.get('/screen', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Screen endpoint error:', error);
+    console.error('❌ Screen endpoint error:', error);
+    console.error('❌ Screen endpoint error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack?.split('\n')[0],
+      query_params: req.query
+    });
+    
+    // Return more detailed error for debugging
     res.status(500).json({
       success: false,
       error: 'Failed to screen stocks',
-      message: error.message
+      message: error.message,
+      details: {
+        error_type: error.constructor.name,
+        error_code: error.code,
+        query_attempted: 'stock_screening',
+        possible_causes: [
+          'Database connection failure',
+          'Missing stock_symbols table',
+          'Invalid query parameters',
+          'Authentication middleware failure'
+        ]
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });
