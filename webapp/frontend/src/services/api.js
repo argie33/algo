@@ -957,6 +957,83 @@ export const testApiKeyConnection = async (keyId) => {
   });
 };
 
+// Settings API Key Management Functions
+export const getSettingsApiKeys = async (userId) => {
+  return apiWrapper.execute('getSettingsApiKeys', async () => {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+    
+    const response = await initializeApi().get(`/api/settings/api-keys/${userId}`);
+    return response.data;
+  }, {
+    context: {
+      userId,
+      operation: 'getSettingsApiKeys'
+    },
+    successMessage: 'Settings API keys loaded successfully',
+    errorMessage: 'Failed to load settings API keys'
+  });
+};
+
+export const addSettingsApiKey = async (userId, provider, keyData) => {
+  return apiWrapper.execute('addSettingsApiKey', async () => {
+    if (!userId || !provider || !keyData) {
+      throw new Error('User ID, provider, and key data are required');
+    }
+    
+    const response = await initializeApi().post(`/api/settings/api-keys/${userId}/${provider}`, keyData);
+    return response.data;
+  }, {
+    context: {
+      userId,
+      provider,
+      operation: 'addSettingsApiKey'
+    },
+    successMessage: `${provider} API key added successfully`,
+    errorMessage: `Failed to add ${provider} API key`
+  });
+};
+
+export const testSettingsApiKeyConnection = async (userId, provider) => {
+  return apiWrapper.execute('testSettingsApiKeyConnection', async () => {
+    if (!userId || !provider) {
+      throw new Error('User ID and provider are required');
+    }
+    
+    const response = await initializeApi().post(`/api/settings/api-keys/${userId}/${provider}/test`);
+    return response.data;
+  }, {
+    context: {
+      userId,
+      provider,
+      operation: 'testSettingsApiKeyConnection'
+    },
+    successMessage: `${provider} connection test successful`,
+    errorMessage: `${provider} connection test failed`,
+    timeout: 15000
+  });
+};
+
+export const deleteSettingsApiKey = async (userId, provider) => {
+  return apiWrapper.execute('deleteSettingsApiKey', async () => {
+    if (!userId || !provider) {
+      throw new Error('User ID and provider are required');
+    }
+    
+    const response = await initializeApi().delete(`/api/settings/api-keys/${userId}/${provider}`);
+    return response.data;
+  }, {
+    context: {
+      userId,
+      provider,
+      operation: 'deleteSettingsApiKey'
+    },
+    successMessage: `${provider} API key deleted successfully`,
+    errorMessage: `Failed to delete ${provider} API key`
+  });
+};
+
 // Watchlist API functions
 export const getWatchlists = async () => {
   return apiWrapper.execute('getWatchlists', async () => {

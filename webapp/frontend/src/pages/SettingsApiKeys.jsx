@@ -67,6 +67,11 @@ import {
   Refresh
 } from '@mui/icons-material';
 import { 
+  getSettingsApiKeys, 
+  addSettingsApiKey, 
+  testSettingsApiKeyConnection,
+  deleteSettingsApiKey,
+  // Legacy functions for fallback
   getApiKeys, 
   addApiKey, 
   updateApiKey, 
@@ -108,11 +113,35 @@ const SettingsApiKeys = () => {
       color: '#FFD700'
     },
     {
+      id: 'polygon',
+      name: 'Polygon.io',
+      description: 'Real-time and historical market data for stocks and crypto',
+      features: ['Real-time Data', 'Historical Data', 'Crypto Data', 'Market Data'],
+      icon: <TrendingUp />,
+      color: '#4CAF50'
+    },
+    {
+      id: 'finnhub',
+      name: 'Finnhub',
+      description: 'Stock prices, company fundamentals, and financial data',
+      features: ['Real-time Data', 'Company Data', 'Financial Metrics', 'News'],
+      icon: <DataObject />,
+      color: '#2196F3'
+    },
+    {
+      id: 'iex',
+      name: 'IEX Cloud',
+      description: 'Reliable financial data and market information',
+      features: ['Real-time Data', 'Historical Data', 'Company Data', 'Economic Data'],
+      icon: <Api />,
+      color: '#9C27B0'
+    },
+    {
       id: 'td_ameritrade',
       name: 'TD Ameritrade',
       description: 'Professional trading platform with comprehensive API (Legacy - Migrating to Schwab)',
       features: ['Portfolio Import', 'Real-time Data', 'Options Trading', 'Advanced Orders'],
-      icon: <TrendingUp />,
+      icon: <Psychology />,
       color: '#00C851'
     }
   ];
@@ -124,6 +153,21 @@ const SettingsApiKeys = () => {
   const fetchApiKeys = useErrorBoundaryCallback(async () => {
     setLoading(true);
     try {
+      // Try the new settings API first if user is available
+      if (user?.email || user?.id) {
+        const userId = user.email || user.id;
+        const response = await getSettingsApiKeys(userId);
+        setApiKeys(response?.apiKeys || []);
+        
+        if (response?.note) {
+          console.log('Settings API Keys note:', response.note);
+        }
+        
+        setError(null);
+        return;
+      }
+      
+      // Fallback to legacy API if no user info
       const response = await getApiKeys();
       setApiKeys(response?.apiKeys || []);
       
@@ -180,16 +224,28 @@ const SettingsApiKeys = () => {
         return;
       }
 
-      // Transform frontend form data to backend API format
-      const apiKeyData = {
-        name: formData.provider,
-        key: formData.apiKey,
-        secret: formData.apiSecret,
-        isSandbox: formData.isSandbox,
-        description: formData.description
-      };
+      // Use new settings API if user is available
+      if (user?.email || user?.id) {
+        const userId = user.email || user.id;
+        const keyData = {
+          key: formData.apiKey,
+          secret: formData.apiSecret || '',
+          description: formData.description
+        };
 
-      await addApiKey(apiKeyData);
+        await addSettingsApiKey(userId, formData.provider, keyData);
+      } else {
+        // Fallback to legacy API
+        const apiKeyData = {
+          name: formData.provider,
+          key: formData.apiKey,
+          secret: formData.apiSecret,
+          isSandbox: formData.isSandbox,
+          description: formData.description
+        };
+        await addApiKey(apiKeyData);
+      }
+
       setAddDialogOpen(false);
       setFormData({
         provider: '',
@@ -226,9 +282,17 @@ const SettingsApiKeys = () => {
     }
   };
 
-  const handleDeleteApiKey = async (keyId) => {
+  const handleDeleteApiKey = async (keyId, provider) => {
     try {
-      await deleteApiKey(keyId);
+      // Use new settings API if user is available
+      if (user?.email || user?.id) {
+        const userId = user.email || user.id;
+        await deleteSettingsApiKey(userId, provider);
+      } else {
+        // Fallback to legacy API
+        await deleteApiKey(keyId);
+      }
+      
       setSuccess('API key deleted successfully');
       fetchApiKeys();
     } catch (err) {
