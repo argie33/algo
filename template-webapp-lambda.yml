@@ -19,6 +19,27 @@ Parameters:
     Type: String
     Description: RDS database endpoint (imported from stocks app stack)
 
+  # Services stack outputs (to eliminate runtime CloudFormation queries)
+  ServicesStackName:
+    Type: String
+    Description: Name of the AWS services stack to import outputs from
+    Default: stocks-aws-services-dev
+
+  RedisEndpoint:
+    Type: String
+    Description: ElastiCache Redis endpoint (imported from services stack)
+    Default: ''
+
+  RedisPort:
+    Type: String
+    Description: ElastiCache Redis port (imported from services stack)
+    Default: '6379'
+
+  StorageBucketName:
+    Type: String
+    Description: S3 storage bucket name (imported from services stack)
+    Default: ''
+
   # Frontend URL parameters for different environments
   FrontendDevUrl:
     Type: String
@@ -318,6 +339,13 @@ Resources:
           DB_POOL_MAX: '3'
           DB_POOL_IDLE_TIMEOUT: '30000'
           # API key management now uses AWS Parameter Store (no encryption secret needed)
+          # Services stack configuration (eliminates runtime CloudFormation queries)
+          SERVICES_STACK_NAME: !Ref ServicesStackName
+          REDIS_ENDPOINT: !Ref RedisEndpoint
+          REDIS_PORT: !Ref RedisPort
+          STORAGE_BUCKET_NAME: !Ref StorageBucketName
+          # API Gateway URL (from this stack's own output)
+          API_GATEWAY_URL: !Sub 'https://${EnvironmentSpecificApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
       Events:
         ApiProxy:
           Type: Api

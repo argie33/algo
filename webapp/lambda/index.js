@@ -452,7 +452,7 @@ const routes = [
   { path: './routes/health', name: 'Health Direct', mount: '/health' },
   { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/emergency' },
   { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
-  { path: './routes/cloudformation', name: 'CloudFormation Config', mount: '/api/config/cloudformation' },
+  { path: './routes/configuration', name: 'Configuration Service', mount: '/api/config' },
   { path: './routes/diagnostics', name: 'Diagnostics', mount: '/api/diagnostics' },
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },

@@ -80,22 +80,22 @@ class ConfigurationService {
 
     // Try to fetch from API endpoint with emergency fallback
     try {
-      console.log('🔍 Fetching CloudFormation config from API...');
+      console.log('🔍 Fetching configuration from API...');
       const apiUrl = this.getApiBaseUrl();
       
-      // First try the main CloudFormation endpoint
-      let response = await fetch(`${apiUrl}/api/config/cloudformation?stackName=stocks-webapp-dev`);
+      // Fetch from new configuration endpoint (no CloudFormation API calls)
+      let response = await fetch(`${apiUrl}/api/config`);
       
-      // If main endpoint fails, try emergency endpoint
+      // If main endpoint fails, try health endpoint
       if (!response.ok && response.status === 503) {
-        console.log('🔄 Main CloudFormation endpoint failed, trying emergency endpoint...');
-        response = await fetch(`${apiUrl}/api/health/config/cloudformation?stackName=stocks-webapp-dev`);
+        console.log('🔄 Main configuration endpoint failed, trying health endpoint...');
+        response = await fetch(`${apiUrl}/api/config/health`);
       }
       
       if (response.ok) {
         const data = await response.json();
-        const source = data.source === 'emergency_fallback' ? 'emergency_api' : 'api';
-        console.log(`✅ CloudFormation config fetched from ${source}`);
+        const source = data.source === 'environment_variables' ? 'api' : 'health_api';
+        console.log(`✅ Configuration fetched from ${source} (${data.source})`);
         
         return {
           api: {
@@ -107,29 +107,27 @@ class ConfigurationService {
             domain: data.cognito?.domain
           },
           aws: {
-            region: data.cognito?.region || 'us-east-1'
+            region: data.cognito?.region || data.region || 'us-east-1'
           },
           source: source,
-          emergency: data.source === 'emergency_fallback'
+          environment: data.environment
         };
       } else {
-        console.warn('⚠️ Failed to fetch CloudFormation config from both main and emergency API:', response.status);
+        console.warn('⚠️ Failed to fetch configuration from both main and health API:', response.status);
         
-        // Check if it's a 500 error (likely IAM permissions issue)
+        // Log API error for debugging
         if (response.status === 500) {
           try {
             const errorData = await response.json();
-            if (errorData.message && errorData.message.includes('not authorized to perform: cloudformation:DescribeStacks')) {
-              console.error('🔐 IAM Permission Error: Lambda function needs CloudFormation permissions');
-              console.error('💡 Solution: Update CloudFormation template to add cloudformation:DescribeStacks permission');
-            }
+            console.error('🔐 Configuration Service Error:', errorData.message || errorData.error);
+            console.error('💡 Check Lambda environment variables and CloudFormation deployment');
           } catch (parseError) {
-            // Ignore JSON parse errors
+            console.error('🔐 Configuration Service Error: Unable to parse error response');
           }
         }
       }
     } catch (fetchError) {
-      console.warn('⚠️ Error fetching CloudFormation config from API:', fetchError.message);
+      console.warn('⚠️ Error fetching configuration from API:', fetchError.message);
     }
 
     return {};

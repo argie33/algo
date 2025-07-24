@@ -141,8 +141,25 @@ jobs:
           # Export service endpoints for deployment
           OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output text)
           
-          echo "REDIS_ENDPOINT=$(echo "$OUTPUTS" | grep "RedisEndpoint" | cut -f2)" >> $GITHUB_ENV
-          echo "S3_BUCKET=$(echo "$OUTPUTS" | grep "StorageBucketName" | cut -f2)" >> $GITHUB_ENV
+          # Extract all needed services stack outputs for Lambda environment variables
+          REDIS_ENDPOINT=$(echo "$OUTPUTS" | grep "RedisEndpoint" | cut -f2)
+          REDIS_PORT=$(echo "$OUTPUTS" | grep "RedisPort" | cut -f2)
+          STORAGE_BUCKET_NAME=$(echo "$OUTPUTS" | grep "StorageBucketName" | cut -f2)
+          
+          # Set environment variables for downstream jobs
+          echo "REDIS_ENDPOINT=$REDIS_ENDPOINT" >> $GITHUB_ENV
+          echo "REDIS_PORT=$REDIS_PORT" >> $GITHUB_ENV
+          echo "STORAGE_BUCKET_NAME=$STORAGE_BUCKET_NAME" >> $GITHUB_ENV
+          echo "SERVICES_STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+          
+          # Legacy S3_BUCKET for backward compatibility
+          echo "S3_BUCKET=$STORAGE_BUCKET_NAME" >> $GITHUB_ENV
+          
+          echo "📋 Services stack outputs extracted:"
+          echo "  Services Stack: $STACK_NAME"
+          echo "  Redis Endpoint: $REDIS_ENDPOINT"
+          echo "  Redis Port: $REDIS_PORT"
+          echo "  Storage Bucket: $STORAGE_BUCKET_NAME"
           
           echo "services_ready=true" >> $GITHUB_OUTPUT
 
@@ -1317,6 +1334,10 @@ jobs:
               "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
               "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
               "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
+              "ServicesStackName=${{ env.SERVICES_STACK_NAME }}" \
+              "RedisEndpoint=${{ env.REDIS_ENDPOINT }}" \
+              "RedisPort=${{ env.REDIS_PORT }}" \
+              "StorageBucketName=${{ env.STORAGE_BUCKET_NAME }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset; then
             

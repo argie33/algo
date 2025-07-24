@@ -318,15 +318,9 @@ Resources:
                 Action:
                   - elasticache:Describe*
                 Resource: '*'
-        - PolicyName: CloudFormationAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cloudformation:DescribeStacks
-                  - cloudformation:ListStacks
-                Resource: '*'
+        # CloudFormation permissions removed - no longer needed since Lambda
+        # now reads configuration from environment variables instead of 
+        # querying CloudFormation at runtime
         - PolicyName: SESAccess
           PolicyDocument:
             Version: '2012-10-17'
