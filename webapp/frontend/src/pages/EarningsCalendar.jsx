@@ -203,50 +203,83 @@ function EarningsCalendar() {
     return <TrendingUp />;
   };
 
-  const CalendarEventsTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: 'grey.50' }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Event Type</TableCell>
-            <TableCell>Date</TableCell>
-            <TableCell>Title</TableCell>
-            <TableCell>Time to Event</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {calendarData?.data?.map((event, index) => (
-            <TableRow key={`${event.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
-                  {event.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                {getEventTypeChip(event.event_type)}
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {new Date(event.start_date).toLocaleDateString()}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" noWrap>
-                  {event.title}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
-                  {Math.ceil((new Date(event.start_date) - new Date()) / (1000 * 60 * 60 * 24))} days
-                </Typography>
-              </TableCell>
+  const CalendarEventsTable = () => {
+    const events = calendarData?.data || [];
+    const hasEvents = events.length > 0;
+    
+    if (!hasEvents) {
+      return (
+        <Box textAlign="center" py={6}>
+          <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No Calendar Events Available
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400, mx: 'auto' }}>
+            {calendarData?.message || 'Calendar data is not currently available. This may be due to database configuration or network issues.'}
+          </Typography>
+          {calendarData?.available_when_configured && (
+            <Box mt={3}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Available when configured:
+              </Typography>
+              <Box component="ul" sx={{ textAlign: 'left', maxWidth: 400, mx: 'auto', color: 'text.secondary' }}>
+                {calendarData.available_when_configured.map((item, index) => (
+                  <Typography component="li" variant="body2" key={index} sx={{ mb: 0.5 }}>
+                    {item}
+                  </Typography>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      );
+    }
+    
+    return (
+      <TableContainer component={Paper} elevation={0}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: 'grey.50' }}>
+              <TableCell>Symbol</TableCell>
+              <TableCell>Event Type</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Title</TableCell>
+              <TableCell>Time to Event</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
+          </TableHead>
+          <TableBody>
+            {events.map((event, index) => (
+              <TableRow key={`${event.symbol}-${index}`} hover>
+                <TableCell>
+                  <Typography variant="body2" fontWeight="bold">
+                    {event.symbol}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  {getEventTypeChip(event.event_type)}
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">
+                    {new Date(event.start_date).toLocaleDateString()}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" noWrap>
+                    {event.title}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {Math.ceil((new Date(event.start_date) - new Date()) / (1000 * 60 * 60 * 24))} days
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
 
   const EarningsEstimatesTable = () => (
     <TableContainer component={Paper} elevation={0}>
@@ -453,8 +486,11 @@ function EarningsCalendar() {
 
       {/* Error Handling */}
       {calendarError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load calendar data. Please try again later.
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          {calendarError.includes('Circuit breaker') 
+            ? 'Calendar service temporarily unavailable. The system is protecting against overload. Please wait a moment and refresh the page.'
+            : 'Failed to load calendar data. Please try again later.'
+          }
         </Alert>
       )}
 

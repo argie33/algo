@@ -401,12 +401,14 @@ const recordFailure = (error) => {
   if (circuitBreakerState.failures >= circuitBreakerState.threshold) {
     console.error('🚨 Circuit breaker opening due to consecutive failures:', circuitBreakerState.failures);
     circuitBreakerState.isOpen = true;
+    
+    // Only trigger health check occasionally to prevent infinite loops
+    if (circuitBreakerState.failures % 10 === 0) {
+      apiHealthService.forceHealthCheck().catch(err => 
+        console.warn('Failed to trigger health check after API failure:', err)
+      );
+    }
   }
-  
-  // Notify health service
-  apiHealthService.forceHealthCheck().catch(err => 
-    console.warn('Failed to trigger health check after API failure:', err)
-  );
 };
 
 

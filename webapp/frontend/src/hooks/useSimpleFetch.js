@@ -69,6 +69,23 @@ export function useSimpleFetch(urlOrOptions, options = {}) {
         break;
       } catch (err) {
         attempt++;
+        
+        // Stop retrying if circuit breaker is open to prevent infinite loops
+        if (err.message?.includes('Circuit breaker is open')) {
+          console.warn('🚫 Circuit breaker is open, stopping retries');
+          setError('Service temporarily unavailable - please try again in a few moments');
+          setData(null);
+          
+          if (onError) {
+            try {
+              onError(err);
+            } catch (callbackError) {
+              console.error('Error in onError callback:', callbackError);
+            }
+          }
+          break;
+        }
+        
         if (attempt > retry) {
           const errorMessage = err.message || 'Fetch failed';
           setError(errorMessage);

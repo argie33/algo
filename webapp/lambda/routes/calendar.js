@@ -183,7 +183,25 @@ router.get('/events', async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     if (!eventsResult || !Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for this query' });
+      // Return empty data structure instead of 404 to prevent circuit breaker loops
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        summary: {
+          upcoming_events: 0,
+          this_week: 0,
+          filter: timeFilter
+        },
+        message: 'No calendar events found - database may be empty or unavailable'
+      });
     }
 
     res.json({
@@ -204,37 +222,34 @@ router.get('/events', async (req, res) => {
     });
   } catch (error) {
     console.warn('Calendar database not available, returning informative response:', error.message);
+    // Return proper structure to match expected frontend format
     res.json({
       success: true,
-      data: {
-        events: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        },
-        summary: {
-          upcoming_events: 0,
-          this_week: 0,
-          earnings_seasons: 0,
-          total_companies: 0,
-          filter: timeFilter
-        },
-        message: 'Earnings calendar not configured - requires database setup with earnings data feeds',
-        available_when_configured: [
-          'Real-time earnings announcements and dates',
-          'Quarterly earnings estimates and revisions',
-          'Dividend payment schedules and ex-dates',
-          'Stock split and corporate action notifications',
-          'Analyst forecast changes and guidance updates'
-        ],
-        data_sources: {
-          earnings_calendar_configured: false,
-          database_available: false
-        }
+      data: [], // Frontend expects data to be an array, not nested object
+      pagination: {
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 25,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      },
+      summary: {
+        upcoming_events: 0,
+        this_week: 0,
+        filter: req.query.type || 'upcoming'
+      },
+      message: 'Earnings calendar not configured - requires database setup with earnings data feeds',
+      available_when_configured: [
+        'Real-time earnings announcements and dates',
+        'Quarterly earnings estimates and revisions',
+        'Dividend payment schedules and ex-dates',
+        'Stock split and corporate action notifications',
+        'Analyst forecast changes and guidance updates'
+      ],
+      data_sources: {
+        earnings_calendar_configured: false,
+        database_available: false
       }
     });
   }
@@ -571,57 +586,6 @@ router.get('/earnings-metrics', async (req, res) => {
   }
 });
 
-// GET /api/market/calendar - Economic calendar events
-router.get('/events', async (req, res) => {
-  try {
-    const { limit = 10, days = 7 } = req.query;
-    
-    const calendarQuery = `
-      SELECT 
-        event_name as event,
-        event_date as date,
-        impact_level as impact,
-        description
-      FROM calendar_events 
-      WHERE event_date >= CURRENT_DATE 
-        AND event_date <= CURRENT_DATE + INTERVAL '${parseInt(days)} days'
-      ORDER BY event_date ASC, impact_level DESC
-      LIMIT $1
-    `;
-    
-    const result = await query(calendarQuery, [parseInt(limit)]);
-    
-    if (result.rows.length === 0) {
-      // Return sample calendar data as fallback
-      return res.json({
-        success: true,
-        data: [
-          { event: 'FOMC Rate Decision', date: '2025-07-25', impact: 'High' },
-          { event: 'AAPL Earnings', date: '2025-07-28', impact: 'Medium' },
-          { event: 'Nonfarm Payrolls', date: '2025-08-01', impact: 'High' },
-          { event: 'Consumer Price Index', date: '2025-08-05', impact: 'High' }
-        ]
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-    
-  } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    
-    // Return sample data as fallback
-    res.json({
-      success: true,
-      data: [
-        { event: 'FOMC Rate Decision', date: '2025-07-25', impact: 'High' },
-        { event: 'AAPL Earnings', date: '2025-07-28', impact: 'Medium' },
-        { event: 'Nonfarm Payrolls', date: '2025-08-01', impact: 'High' }
-      ]
-    });
-  }
-});
+// Duplicate route removed - using main /events endpoint above
 
 module.exports = router;
