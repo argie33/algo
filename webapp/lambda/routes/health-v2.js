@@ -107,7 +107,33 @@ router.get('/critical', async (req, res) => {
       });
     }
     
-    // Critical tables batch query
+    // Use enhanced critical health data function
+    const criticalData = await getCriticalHealthData();
+    
+    const result = {
+      ...criticalData,
+      responseTime: Date.now() - startTime,
+      cached: false
+    };
+    
+    // Update cache
+    updateCache('critical', result);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Critical health check failed:', error);
+    res.status(503).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Remove the old critical query logic that's now in getCriticalHealthData
+/*
+    // Critical tables batch query (moved to getCriticalHealthData)
     const criticalQuery = `
       SELECT 
         t.table_name,
@@ -244,6 +270,7 @@ router.get('/full', async (req, res) => {
  */
 async function backgroundFullHealthScan() {
   try {
+    const startTime = Date.now();
     console.log('🔄 Starting background full health scan...');
     
     // Get all tables in batches
@@ -311,11 +338,35 @@ async function backgroundFullHealthScan() {
       };
     });
     
+    // Generate missing data analysis
+    const missingDataTables = Object.entries(allTableHealth)
+      .filter(([_, data]) => data.status === 'empty' || data.estimated_rows === 0)
+      .map(([table, _]) => table);
+
+    // Enhanced summary with detailed formatting
+    const enhancedSummary = {
+      ...summary,
+      formatted_summary: {
+        title: "📊 Database Tables Summary:",
+        total_tables: `Total Tables: ${summary.total_tables}`,
+        healthy: `Healthy: ${summary.healthy_tables}`,
+        stale: `Stale: ${summary.stale_tables}`,
+        errors: `Errors: ${summary.error_tables}`,
+        empty: `Empty: ${summary.empty_tables}`,
+        missing: missingDataTables.length > 0 ? `Missing: ${missingDataTables.join(', ')}` : 'Missing: None',
+        total_records: `Total Records: ${summary.total_records.toLocaleString()}`,
+        missing_data: missingDataTables.length > 0 ? `Missing Data: ${missingDataTables.length} tables need data` : 'No missing data detected'
+      },
+      missing_tables: missingDataTables,
+      health_percentage: Math.round((summary.healthy_tables / summary.total_tables) * 100),
+      data_coverage: Math.round(((summary.total_tables - summary.empty_tables) / summary.total_tables) * 100)
+    };
+
     const fullHealth = {
       status: summary.healthy_tables > summary.total_tables * 0.8 ? 'healthy' : 'degraded',
       all_tables: allTableHealth,
-      summary,
-      scan_duration: Date.now() - Date.now(), // Will be calculated properly
+      summary: enhancedSummary,
+      scan_duration: Date.now() - startTime, // Fix duration calculation
       timestamp: new Date().toISOString(),
       cached: false
     };
@@ -354,19 +405,100 @@ function getCategoryForTable(tableName) {
 }
 
 async function getCriticalHealthData() {
-  // Reuse the critical endpoint logic
-  const req = { query: {} };
-  const mockRes = {
-    json: (data) => data,
-    status: () => ({ json: (data) => data })
-  };
-  
-  // This is a simplified version - in real implementation, 
-  // extract the logic to a shared function
-  return {
-    status: 'critical_only',
-    message: 'Returning cached critical tables data'
-  };
+  try {
+    // Check critical tables with detailed analysis
+    const criticalQuery = `
+      SELECT 
+        t.table_name,
+        COALESCE(s.n_live_tup, 0) as estimated_rows,
+        COALESCE(s.n_tup_ins + s.n_tup_upd + s.n_tup_del, 0) as total_activity,
+        s.last_analyze,
+        s.last_autoanalyze,
+        CASE 
+          WHEN s.n_live_tup = 0 THEN 'empty'
+          WHEN s.last_analyze < NOW() - INTERVAL '7 days' OR s.last_autoanalyze < NOW() - INTERVAL '7 days' THEN 'stale'
+          WHEN s.n_live_tup > 0 THEN 'healthy'
+          ELSE 'unknown'
+        END as status
+      FROM information_schema.tables t
+      LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name
+      WHERE t.table_schema = 'public' 
+        AND t.table_type = 'BASE TABLE'
+        AND t.table_name = ANY($1)
+      ORDER BY s.n_live_tup DESC
+    `;
+    
+    const result = await query(criticalQuery, [CRITICAL_TABLES], 15000);
+    
+    // Process critical table results
+    const criticalTableHealth = {};
+    let summary = {
+      total_tables: result.rows.length,
+      healthy_tables: 0,
+      stale_tables: 0,
+      empty_tables: 0,
+      error_tables: 0,
+      total_records: 0
+    };
+    
+    result.rows.forEach(table => {
+      const rows = parseInt(table.estimated_rows) || 0;
+      summary.total_records += rows;
+      
+      if (table.status === 'healthy') summary.healthy_tables++;
+      else if (table.status === 'stale') summary.stale_tables++;
+      else if (table.status === 'empty') summary.empty_tables++;
+      else summary.error_tables++;
+      
+      criticalTableHealth[table.table_name] = {
+        status: table.status,
+        estimated_rows: rows,
+        total_activity: parseInt(table.total_activity) || 0,
+        last_analyzed: table.last_analyze || table.last_autoanalyze,
+        is_critical: true
+      };
+    });
+
+    // Generate missing data analysis for critical tables
+    const missingCriticalTables = Object.entries(criticalTableHealth)
+      .filter(([_, data]) => data.status === 'empty' || data.estimated_rows === 0)
+      .map(([table, _]) => table);
+
+    // Enhanced summary with detailed formatting
+    const enhancedSummary = {
+      ...summary,
+      formatted_summary: {
+        title: "📊 Critical Tables Summary:",
+        total_tables: `Critical Tables: ${summary.total_tables}`,
+        healthy: `Healthy: ${summary.healthy_tables}`,
+        stale: `Stale: ${summary.stale_tables}`,
+        errors: `Errors: ${summary.error_tables}`,
+        empty: `Empty: ${summary.empty_tables}`,
+        missing: missingCriticalTables.length > 0 ? `Missing: ${missingCriticalTables.join(', ')}` : 'Missing: None',
+        total_records: `Total Records: ${summary.total_records.toLocaleString()}`,
+        missing_data: missingCriticalTables.length > 0 ? `Missing Data: ${missingCriticalTables.length} critical tables need data` : 'All critical data present'
+      },
+      missing_tables: missingCriticalTables,
+      health_percentage: Math.round((summary.healthy_tables / summary.total_tables) * 100),
+      data_coverage: Math.round(((summary.total_tables - summary.empty_tables) / summary.total_tables) * 100)
+    };
+    
+    return {
+      status: summary.healthy_tables === summary.total_tables ? 'healthy' : 'degraded',
+      critical_tables: criticalTableHealth,
+      summary: enhancedSummary,
+      scan_type: 'critical_only',
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('❌ Critical health data failed:', error);
+    return {
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 // Initialize background scanning
