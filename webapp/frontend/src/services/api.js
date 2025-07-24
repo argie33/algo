@@ -850,7 +850,7 @@ export const requestDigitalHuman = async (message, avatar = 'default') => {
 // API Keys management - Using unified API key service
 export const getApiKeys = async () => {
   return apiWrapper.execute('getApiKeys', async () => {
-    const response = await initializeApi().get('/api/api-keys');
+    const response = await initializeApi().get('/api/portfolio/api-keys');
     return response.data;
   }, {
     context: {
@@ -918,7 +918,7 @@ export const updateApiKey = async (apiKeyData) => {
 export const deleteApiKey = async () => {
   return apiWrapper.execute('deleteApiKey', async () => {
     // Unified service deletes all API keys for the authenticated user
-    const response = await initializeApi().delete('/api/api-keys');
+    const response = await initializeApi().delete('/api/portfolio/api-keys');
     return response.data;
   }, {
     context: {
