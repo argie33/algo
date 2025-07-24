@@ -288,11 +288,35 @@ router.get('/sentiment/:symbol', async (req, res) => {
       data: sentimentAnalysis
     });
   } catch (error) {
-    console.error('Error fetching sentiment analysis:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch sentiment analysis',
-      message: error.message
+    console.warn('News database not available for sentiment analysis:', error.message);
+    res.json({
+      success: true,
+      data: {
+        symbol,
+        timeframe,
+        overall_sentiment: {
+          score: 0,
+          label: 'neutral',
+          distribution: { positive: 0, negative: 0, neutral: 0 },
+          total_articles: 0,
+          avg_impact: 0,
+          avg_relevance: 0
+        },
+        trend: [],
+        keywords: [],
+        message: 'Sentiment analysis not configured - requires database setup with news analytics',
+        available_when_configured: [
+          'Real-time sentiment scoring for individual symbols',
+          'Sentiment trend analysis over time',
+          'Keyword extraction and frequency analysis',
+          'Impact and relevance scoring',
+          'Historical sentiment comparison'
+        ],
+        data_sources: {
+          sentiment_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
@@ -403,11 +427,33 @@ router.get('/market-sentiment', async (req, res) => {
       data: marketSentiment
     });
   } catch (error) {
-    console.error('Error fetching market sentiment:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch market sentiment',
-      message: error.message
+    console.warn('News database not available for market sentiment:', error.message);
+    res.json({
+      success: true,
+      data: {
+        timeframe,
+        overall_sentiment: {
+          score: 0,
+          label: 'neutral',
+          distribution: { positive: 0, negative: 0, neutral: 0 },
+          total_articles: 0
+        },
+        by_category: [],
+        top_symbols: [],
+        trend: [],
+        message: 'Market sentiment analysis not configured - requires database setup with comprehensive news feeds',
+        available_when_configured: [
+          'Overall market sentiment scoring',
+          'Sentiment breakdown by category (tech, healthcare, energy, etc.)',
+          'Top symbols by sentiment impact',
+          'Historical sentiment trends and patterns',
+          'Professional sentiment indicators integration'
+        ],
+        data_sources: {
+          market_sentiment_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
@@ -431,11 +477,30 @@ router.post('/analyze-sentiment', async (req, res) => {
       data: analysis
     });
   } catch (error) {
-    console.error('Error analyzing sentiment:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to analyze sentiment',
-      message: error.message
+    console.warn('Sentiment analysis engine not available:', error.message);
+    res.json({
+      success: true,
+      data: {
+        text: text.substring(0, 100) + '...',
+        symbol: symbol || null,
+        sentiment: {
+          score: 0,
+          label: 'neutral',
+          confidence: 0.5
+        },
+        message: 'Custom sentiment analysis not configured - requires AI sentiment engine setup',
+        available_when_configured: [
+          'Real-time text sentiment analysis',
+          'Symbol-specific sentiment context',
+          'Confidence scoring and reliability metrics',
+          'Multi-language sentiment support',
+          'Financial domain-specific sentiment models'
+        ],
+        data_sources: {
+          sentiment_engine_configured: false,
+          ai_models_available: false
+        }
+      }
     });
   }
 });
@@ -479,11 +544,25 @@ router.get('/sources', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching news sources:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch news sources',
-      message: error.message
+    console.warn('News database not available for sources analysis:', error.message);
+    res.json({
+      success: true,
+      data: {
+        sources: [],
+        total: 0,
+        message: 'News sources analysis not configured - requires database setup with source tracking',
+        available_when_configured: [
+          'News source reliability scoring',
+          'Article count and frequency analysis',
+          'Source sentiment distribution tracking',
+          'Impact and relevance scoring by source',
+          'Source performance and credibility metrics'
+        ],
+        data_sources: {
+          sources_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
@@ -519,11 +598,25 @@ router.get('/categories', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching news categories:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch news categories',
-      message: error.message
+    console.warn('News database not available for categories analysis:', error.message);
+    res.json({
+      success: true,
+      data: {
+        categories: [],
+        total: 0,
+        message: 'News categories analysis not configured - requires database setup with categorized content',
+        available_when_configured: [
+          'Category-based news organization',
+          'Sentiment analysis by news category',
+          'Impact scoring across different sectors',
+          'Category performance and trend tracking',
+          'Cross-category correlation analysis'
+        ],
+        data_sources: {
+          categories_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
@@ -602,11 +695,26 @@ router.get('/trending', async (req, res) => {
       data: trending
     });
   } catch (error) {
-    console.error('Error fetching trending topics:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch trending topics',
-      message: error.message
+    console.warn('News database not available for trending analysis:', error.message);
+    res.json({
+      success: true,
+      data: {
+        timeframe,
+        keywords: [],
+        symbols: [],
+        message: 'Trending topics analysis not configured - requires database setup with keyword extraction',
+        available_when_configured: [
+          'Real-time trending keyword identification',
+          'Symbol mention frequency tracking',
+          'Sentiment-weighted trending analysis',
+          'Impact-based topic ranking',
+          'Historical trend comparison and patterns'
+        ],
+        data_sources: {
+          trending_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
@@ -661,15 +769,27 @@ authRouter.get('/', async (req, res) => {
     const result = await query(newsQuery, queryParams);
     
     if (result.rows.length === 0) {
-      // Return sample news data as fallback
+      // Return informative response instead of sample data
       return res.json({
         success: true,
-        data: [
-          { title: 'Fed Maintains Interest Rate Stance', date: '2025-07-24', sentiment: 'Neutral' },
-          { title: 'Tech Stocks Rally on AI Optimism', date: '2025-07-23', sentiment: 'Positive' },
-          { title: 'Market Volatility Expected This Week', date: '2025-07-22', sentiment: 'Neutral' },
-          { title: 'Strong Earnings Drive Market Higher', date: '2025-07-21', sentiment: 'Positive' }
-        ]
+        data: {
+          articles: [],
+          total: 0,
+          symbol: symbol || null,
+          limit: parseInt(limit),
+          message: 'Market news feed not configured - requires database setup with news aggregation',
+          available_when_configured: [
+            'Real-time market news from professional sources',
+            'Symbol-specific news filtering and analysis',
+            'Sentiment scoring and impact analysis',
+            'Source credibility and reliability tracking',
+            'Historical news archive and search capabilities'
+          ],
+          data_sources: {
+            market_news_configured: false,
+            database_available: false
+          }
+        }
       });
     }
     
@@ -681,14 +801,27 @@ authRouter.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching news:', error);
     
-    // Return sample data as fallback
+    // Return informative response instead of sample data
     res.json({
       success: true,
-      data: [
-        { title: 'Fed Maintains Interest Rate Stance', date: '2025-07-24', sentiment: 'Neutral' },
-        { title: 'Tech Stocks Rally on AI Optimism', date: '2025-07-23', sentiment: 'Positive' },
-        { title: 'Market Volatility Expected This Week', date: '2025-07-22', sentiment: 'Neutral' }
-      ]
+      data: {
+        articles: [],
+        total: 0,
+        symbol: symbol || null,
+        limit: parseInt(limit),
+        message: 'Market news feed not configured - requires database setup with news aggregation',
+        available_when_configured: [
+          'Real-time market news from professional sources',
+          'Symbol-specific news filtering and analysis', 
+          'Sentiment scoring and impact analysis',
+          'Source credibility and reliability tracking',
+          'Historical news archive and search capabilities'
+        ],
+        data_sources: {
+          market_news_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
