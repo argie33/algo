@@ -1137,21 +1137,18 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       // Fall through to database or mock data
       console.log(`🔄 [${requestId}] Falling back to database query due to API error`);
     }
-
-    // Database fallback with simple structure for syntax testing
-    if (userId && tableDeps.hasRequiredTables) {
-      console.log('Database fallback would go here');
-    }
-
-    // If not authenticated OR no data found OR database error, return sample portfolio data
-    console.log(`🔄 [${requestId}] No real data available, returning comprehensive sample portfolio data`);
+    
+    // Simplified fallback for syntax fix
+    console.log(`🔄 [${requestId}] Using simplified sample data`);
     
     const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
     const sampleData = getSamplePortfolioData(accountType);
     
-    console.log(`📊 [${requestId}] Returning ${sampleData.data.holdings.length} sample holdings for ${accountType} account`);
-    
-    return res.json({ success: true, holdings: sampleData.data.holdings });
+    return res.json({ 
+      success: true, 
+      holdings: sampleData.data.holdings,
+      summary: sampleData.data.summary 
+    });
 
   } catch (error) {
     console.error('Error in portfolio holdings endpoint:', error);
