@@ -68,6 +68,10 @@ jobs:
     if: needs.setup.outputs.environment == 'dev' || needs.setup.outputs.environment == 'prod'
     outputs:
       services_ready: ${{ steps.validate.outputs.services_ready }}
+      services_stack_name: ${{ steps.validate.outputs.services_stack_name }}
+      redis_endpoint: ${{ steps.validate.outputs.redis_endpoint }}
+      redis_port: ${{ steps.validate.outputs.redis_port }}
+      storage_bucket_name: ${{ steps.validate.outputs.storage_bucket_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -161,7 +165,12 @@ jobs:
           echo "  Redis Port: $REDIS_PORT"
           echo "  Storage Bucket: $STORAGE_BUCKET_NAME"
           
+          # Set outputs for use in other jobs
           echo "services_ready=true" >> $GITHUB_OUTPUT
+          echo "services_stack_name=$STACK_NAME" >> $GITHUB_OUTPUT
+          echo "redis_endpoint=$REDIS_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "redis_port=$REDIS_PORT" >> $GITHUB_OUTPUT
+          echo "storage_bucket_name=$STORAGE_BUCKET_NAME" >> $GITHUB_OUTPUT
 
 ################################################################################
 # 3) Detect changed components                                                 #
@@ -1119,7 +1128,7 @@ jobs:
 ################################################################################
   deploy_infrastructure:
     name: Deploy webapp infrastructure
-    needs: [setup, filter, smoke_tests, unit_tests]
+    needs: [setup, setup-aws-services, filter, smoke_tests, unit_tests]
     if: ${{ always() && (needs.filter.outputs.template == 'true' || needs.filter.outputs.any == 'true') && (needs.smoke_tests.result == 'success' || needs.smoke_tests.result == 'skipped') && (needs.unit_tests.result == 'success' || needs.unit_tests.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
@@ -1324,6 +1333,18 @@ jobs:
             exit 1
           fi
           
+          # Validate services stack parameters
+          echo "🔍 Validating services stack parameters..."
+          echo "  Services Stack Name: '${{ needs.setup-aws-services.outputs.services_stack_name }}'"
+          echo "  Redis Endpoint: '${{ needs.setup-aws-services.outputs.redis_endpoint }}'"
+          echo "  Redis Port: '${{ needs.setup-aws-services.outputs.redis_port }}'"
+          echo "  Storage Bucket: '${{ needs.setup-aws-services.outputs.storage_bucket_name }}'"
+          
+          if [[ -z "${{ needs.setup-aws-services.outputs.services_stack_name }}" ]]; then
+            echo "❌ Services stack name is empty"
+            exit 1
+          fi
+          
           # Deploy with validated parameters and enhanced error handling
           echo "🚀 Starting SAM deployment..."
           if ! sam deploy \
@@ -1334,10 +1355,10 @@ jobs:
               "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
               "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
               "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
-              "ServicesStackName=${{ env.SERVICES_STACK_NAME }}" \
-              "RedisEndpoint=${{ env.REDIS_ENDPOINT }}" \
-              "RedisPort=${{ env.REDIS_PORT }}" \
-              "StorageBucketName=${{ env.STORAGE_BUCKET_NAME }}" \
+              "ServicesStackName=${{ needs.setup-aws-services.outputs.services_stack_name }}" \
+              "RedisEndpoint=${{ needs.setup-aws-services.outputs.redis_endpoint }}" \
+              "RedisPort=${{ needs.setup-aws-services.outputs.redis_port }}" \
+              "StorageBucketName=${{ needs.setup-aws-services.outputs.storage_bucket_name }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset; then
             
