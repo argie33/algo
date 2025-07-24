@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
 const { authenticateToken } = require('../middleware/auth');
 const { query, transaction } = require('../utils/database');
 const TradeAnalyticsService = require('../services/tradeAnalyticsService');
-const apiKeyService = require('../utils/simpleApiKeyService');
+const apiKeyService = require('../utils/apiKeyService');
 const AlpacaService = require('../utils/alpacaService');
 
 // Helper function to get user API key with proper format
