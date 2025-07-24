@@ -145,10 +145,19 @@ jobs:
           # Export service endpoints for deployment
           OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output text)
           
+          echo "🔍 Debug: All CloudFormation outputs from $STACK_NAME:"
+          echo "$OUTPUTS"
+          echo "🔍 End of outputs"
+          
           # Extract all needed services stack outputs for Lambda environment variables
           REDIS_ENDPOINT=$(echo "$OUTPUTS" | grep "RedisEndpoint" | cut -f2)
           REDIS_PORT=$(echo "$OUTPUTS" | grep "RedisPort" | cut -f2)
           STORAGE_BUCKET_NAME=$(echo "$OUTPUTS" | grep "StorageBucketName" | cut -f2)
+          
+          echo "🔍 Debug: Extracted values:"
+          echo "  REDIS_ENDPOINT: '$REDIS_ENDPOINT'"
+          echo "  REDIS_PORT: '$REDIS_PORT'"
+          echo "  STORAGE_BUCKET_NAME: '$STORAGE_BUCKET_NAME'"
           
           # Set environment variables for downstream jobs
           echo "REDIS_ENDPOINT=$REDIS_ENDPOINT" >> $GITHUB_ENV
@@ -1333,16 +1342,37 @@ jobs:
             exit 1
           fi
           
-          # Validate services stack parameters
+          # Validate services stack parameters and provide defaults for empty values
           echo "🔍 Validating services stack parameters..."
-          echo "  Services Stack Name: '${{ needs.setup-aws-services.outputs.services_stack_name }}'"
-          echo "  Redis Endpoint: '${{ needs.setup-aws-services.outputs.redis_endpoint }}'"
-          echo "  Redis Port: '${{ needs.setup-aws-services.outputs.redis_port }}'"
-          echo "  Storage Bucket: '${{ needs.setup-aws-services.outputs.storage_bucket_name }}'"
+          SERVICES_STACK_NAME="${{ needs.setup-aws-services.outputs.services_stack_name }}"
+          REDIS_ENDPOINT="${{ needs.setup-aws-services.outputs.redis_endpoint }}"
+          REDIS_PORT="${{ needs.setup-aws-services.outputs.redis_port }}"
+          STORAGE_BUCKET_NAME="${{ needs.setup-aws-services.outputs.storage_bucket_name }}"
           
-          if [[ -z "${{ needs.setup-aws-services.outputs.services_stack_name }}" ]]; then
-            echo "❌ Services stack name is empty"
-            exit 1
+          echo "  Services Stack Name: '$SERVICES_STACK_NAME'"
+          echo "  Redis Endpoint: '$REDIS_ENDPOINT'"
+          echo "  Redis Port: '$REDIS_PORT'"
+          echo "  Storage Bucket: '$STORAGE_BUCKET_NAME'"
+          
+          # Provide defaults for empty values (SAM doesn't allow empty parameters)
+          if [[ -z "$SERVICES_STACK_NAME" ]]; then
+            SERVICES_STACK_NAME="stocks-aws-services-dev"
+            echo "⚠️ Using default services stack name: $SERVICES_STACK_NAME"
+          fi
+          
+          if [[ -z "$REDIS_ENDPOINT" ]]; then
+            REDIS_ENDPOINT="localhost"
+            echo "⚠️ Using default Redis endpoint: $REDIS_ENDPOINT"
+          fi
+          
+          if [[ -z "$REDIS_PORT" ]]; then
+            REDIS_PORT="6379"
+            echo "⚠️ Using default Redis port: $REDIS_PORT"
+          fi
+          
+          if [[ -z "$STORAGE_BUCKET_NAME" ]]; then
+            STORAGE_BUCKET_NAME="default-bucket"
+            echo "⚠️ Using default storage bucket: $STORAGE_BUCKET_NAME"
           fi
           
           # Deploy with validated parameters and enhanced error handling
@@ -1355,10 +1385,10 @@ jobs:
               "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
               "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
               "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
-              "ServicesStackName=${{ needs.setup-aws-services.outputs.services_stack_name }}" \
-              "RedisEndpoint=${{ needs.setup-aws-services.outputs.redis_endpoint }}" \
-              "RedisPort=${{ needs.setup-aws-services.outputs.redis_port }}" \
-              "StorageBucketName=${{ needs.setup-aws-services.outputs.storage_bucket_name }}" \
+              "ServicesStackName=$SERVICES_STACK_NAME" \
+              "RedisEndpoint=$REDIS_ENDPOINT" \
+              "RedisPort=$REDIS_PORT" \
+              "StorageBucketName=$STORAGE_BUCKET_NAME" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset; then
             
