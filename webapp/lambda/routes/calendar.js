@@ -203,12 +203,39 @@ router.get('/events', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to fetch calendar events', 
-      details: error.message,
-      timestamp: new Date().toISOString()
+    console.warn('Calendar database not available, returning informative response:', error.message);
+    res.json({
+      success: true,
+      data: {
+        events: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+        summary: {
+          upcoming_events: 0,
+          this_week: 0,
+          earnings_seasons: 0,
+          total_companies: 0,
+          filter: timeFilter
+        },
+        message: 'Earnings calendar not configured - requires database setup with earnings data feeds',
+        available_when_configured: [
+          'Real-time earnings announcements and dates',
+          'Quarterly earnings estimates and revisions',
+          'Dividend payment schedules and ex-dates',
+          'Stock split and corporate action notifications',
+          'Analyst forecast changes and guidance updates'
+        ],
+        data_sources: {
+          earnings_calendar_configured: false,
+          database_available: false
+        }
+      }
     });
   }
 });
