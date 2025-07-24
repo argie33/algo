@@ -344,8 +344,7 @@ Resources:
           REDIS_ENDPOINT: !Ref RedisEndpoint
           REDIS_PORT: !Ref RedisPort
           STORAGE_BUCKET_NAME: !Ref StorageBucketName
-          # API Gateway URL (from this stack's own output)
-          API_GATEWAY_URL: !Sub 'https://${EnvironmentSpecificApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'
+          # API Gateway URL will be determined at runtime to avoid circular dependency
       Events:
         ApiProxy:
           Type: Api

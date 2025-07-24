@@ -24,7 +24,7 @@ const getConfiguration = async (req, res) => {
       environment: process.env.ENVIRONMENT || 'dev',
       region: process.env.WEBAPP_AWS_REGION || 'us-east-1',
       
-      // API Gateway configuration (from this stack)
+      // API Gateway configuration (from CloudFormation stack output)
       api: {
         gatewayUrl: process.env.API_GATEWAY_URL,
         region: process.env.WEBAPP_AWS_REGION || 'us-east-1'
