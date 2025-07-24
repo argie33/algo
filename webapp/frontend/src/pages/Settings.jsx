@@ -549,11 +549,35 @@ const Settings = () => {
     try {
       setLoading(true);
       
+      // Generate a proper development token for testing
+      const generateDevToken = () => {
+        const payload = {
+          sub: 'dev-user',
+          email: 'dev@example.com',
+          username: 'dev-user',
+          'custom:role': 'admin',
+          'cognito:groups': ['admin'],
+          given_name: 'Dev',
+          family_name: 'User',
+          email_verified: true,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
+          aud: 'development-client',
+          iss: 'https://cognito-idp.us-east-1.amazonaws.com/development'
+        };
+        
+        // Create a simple JWT-like token for development
+        const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+        const payloadStr = btoa(JSON.stringify(payload));
+        const signature = btoa('dev-signature');
+        return `${header}.${payloadStr}.${signature}`;
+      };
+
       const response = await fetch(`${apiUrl}/api/user/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
+          'Authorization': `Bearer ${user?.tokens?.accessToken || generateDevToken()}`
         },
         body: JSON.stringify({
           currentPassword: result.currentPassword,
