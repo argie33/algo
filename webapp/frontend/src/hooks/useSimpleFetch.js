@@ -5,20 +5,48 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export function useSimpleFetch(url, options = {}) {
+export function useSimpleFetch(urlOrOptions, options = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Handle both React Query style objects and simple URL strings
+  let url, queryFn, actualOptions;
+  
+  if (typeof urlOrOptions === 'string') {
+    // Simple URL string usage
+    url = urlOrOptions;
+    queryFn = async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    };
+    actualOptions = options;
+  } else if (typeof urlOrOptions === 'object' && urlOrOptions !== null) {
+    // React Query style object
+    url = JSON.stringify(urlOrOptions.queryKey || 'unknown');
+    queryFn = urlOrOptions.queryFn;
+    actualOptions = { ...options, ...urlOrOptions };
+  } else {
+    // Invalid input
+    console.error('useSimpleFetch: Invalid first parameter. Expected string URL or options object.');
+    url = null;
+    queryFn = null;
+    actualOptions = options;
+  }
   
   const {
     enabled = true,
     retry = 3,
     staleTime = 30000,
-    refetchOnWindowFocus = false
-  } = options;
+    refetchOnWindowFocus = false,
+    onError
+  } = actualOptions;
 
   const fetchData = useCallback(async () => {
-    if (!enabled || !url) return;
+    if (!enabled || !queryFn) return;
     
     setLoading(true);
     setError(null);
@@ -26,19 +54,25 @@ export function useSimpleFetch(url, options = {}) {
     let attempt = 0;
     while (attempt <= retry) {
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const result = await response.json();
+        const result = await queryFn();
         setData(result);
         setError(null);
         break;
       } catch (err) {
         attempt++;
         if (attempt > retry) {
-          setError(err.message || 'Fetch failed');
+          const errorMessage = err.message || 'Fetch failed';
+          setError(errorMessage);
           setData(null);
+          
+          // Call onError callback if provided
+          if (onError) {
+            try {
+              onError(err);
+            } catch (callbackError) {
+              console.error('Error in onError callback:', callbackError);
+            }
+          }
         } else {
           // Wait before retry
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
@@ -46,7 +80,7 @@ export function useSimpleFetch(url, options = {}) {
       }
     }
     setLoading(false);
-  }, [url, enabled, retry]);
+  }, [queryFn, enabled, retry, onError]);
 
   useEffect(() => {
     fetchData();
