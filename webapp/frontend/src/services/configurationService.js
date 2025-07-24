@@ -78,15 +78,24 @@ class ConfigurationService {
       };
     }
 
-    // Try to fetch from API endpoint
+    // Try to fetch from API endpoint with emergency fallback
     try {
       console.log('🔍 Fetching CloudFormation config from API...');
       const apiUrl = this.getApiBaseUrl();
-      const response = await fetch(`${apiUrl}/api/config/cloudformation?stackName=stocks-webapp-dev`);
+      
+      // First try the main CloudFormation endpoint
+      let response = await fetch(`${apiUrl}/api/config/cloudformation?stackName=stocks-webapp-dev`);
+      
+      // If main endpoint fails, try emergency endpoint
+      if (!response.ok && response.status === 503) {
+        console.log('🔄 Main CloudFormation endpoint failed, trying emergency endpoint...');
+        response = await fetch(`${apiUrl}/api/health/config/cloudformation?stackName=stocks-webapp-dev`);
+      }
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ CloudFormation config fetched from API');
+        const source = data.source === 'emergency_fallback' ? 'emergency_api' : 'api';
+        console.log(`✅ CloudFormation config fetched from ${source}`);
         
         return {
           api: {
@@ -100,10 +109,11 @@ class ConfigurationService {
           aws: {
             region: data.cognito?.region || 'us-east-1'
           },
-          source: 'api'
+          source: source,
+          emergency: data.source === 'emergency_fallback'
         };
       } else {
-        console.warn('⚠️ Failed to fetch CloudFormation config from API:', response.status);
+        console.warn('⚠️ Failed to fetch CloudFormation config from both main and emergency API:', response.status);
       }
     } catch (fetchError) {
       console.warn('⚠️ Error fetching CloudFormation config from API:', fetchError.message);

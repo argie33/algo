@@ -76,6 +76,67 @@ router.get('/circuit-breaker-status', async (req, res) => {
   }
 });
 
+// Emergency CloudFormation config endpoint - temporary workaround for cloudformation route loading issue
+router.get('/config/cloudformation', async (req, res) => {
+  try {
+    console.log('🔄 Emergency CloudFormation config requested');
+    
+    // Provide basic fallback configuration 
+    const fallbackConfig = {
+      success: true,
+      stackName: 'stocks-webapp-dev',
+      region: 'us-east-1',
+      stackStatus: 'EMERGENCY_FALLBACK',
+      
+      // Hardcoded configuration from known working values
+      api: {
+        gatewayUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
+        gatewayId: '2m14opj30h',
+        stageName: 'dev'
+      },
+      
+      cognito: {
+        userPoolId: null, // Not configured yet
+        clientId: null,   // Not configured yet
+        domain: null,
+        region: 'us-east-1'
+      },
+      
+      frontend: {
+        bucketName: 'stocks-webapp-frontend',
+        websiteUrl: 'https://d1zb7knau41vl9.cloudfront.net'
+      },
+      
+      environment: {
+        name: 'dev',
+        stackName: 'stocks-webapp-dev'
+      },
+      
+      outputs: {
+        ApiGatewayUrl: 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev',
+        ApiGatewayId: '2m14opj30h',
+        ApiGatewayStageName: 'dev'
+      },
+      
+      fetchedAt: new Date().toISOString(),
+      source: 'emergency_fallback',
+      note: 'Emergency endpoint - CloudFormation route temporarily unavailable'
+    };
+    
+    res.json(fallbackConfig);
+    
+  } catch (error) {
+    console.error('❌ Failed to provide emergency CloudFormation config:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to provide emergency CloudFormation config',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+      note: 'Emergency CloudFormation config error'
+    });
+  }
+});
+
 // Emergency update-status endpoint - temporary workaround for health route loading issue
 router.post('/update-status', async (req, res) => {
   try {
