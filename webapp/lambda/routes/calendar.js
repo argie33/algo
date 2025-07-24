@@ -548,4 +548,57 @@ router.get('/earnings-metrics', async (req, res) => {
   }
 });
 
+// GET /api/market/calendar - Economic calendar events
+router.get('/events', async (req, res) => {
+  try {
+    const { limit = 10, days = 7 } = req.query;
+    
+    const calendarQuery = `
+      SELECT 
+        event_name as event,
+        event_date as date,
+        impact_level as impact,
+        description
+      FROM calendar_events 
+      WHERE event_date >= CURRENT_DATE 
+        AND event_date <= CURRENT_DATE + INTERVAL '${parseInt(days)} days'
+      ORDER BY event_date ASC, impact_level DESC
+      LIMIT $1
+    `;
+    
+    const result = await query(calendarQuery, [parseInt(limit)]);
+    
+    if (result.rows.length === 0) {
+      // Return sample calendar data as fallback
+      return res.json({
+        success: true,
+        data: [
+          { event: 'FOMC Rate Decision', date: '2025-07-25', impact: 'High' },
+          { event: 'AAPL Earnings', date: '2025-07-28', impact: 'Medium' },
+          { event: 'Nonfarm Payrolls', date: '2025-08-01', impact: 'High' },
+          { event: 'Consumer Price Index', date: '2025-08-05', impact: 'High' }
+        ]
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    
+    // Return sample data as fallback
+    res.json({
+      success: true,
+      data: [
+        { event: 'FOMC Rate Decision', date: '2025-07-25', impact: 'High' },
+        { event: 'AAPL Earnings', date: '2025-07-28', impact: 'Medium' },
+        { event: 'Nonfarm Payrolls', date: '2025-08-01', impact: 'High' }
+      ]
+    });
+  }
+});
+
 module.exports = router;

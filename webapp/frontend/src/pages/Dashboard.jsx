@@ -144,7 +144,7 @@ function useLiveActivity() {
 
 // Live calendar data hook
 function useLiveCalendar() {
-  return useSimpleFetch(`${API_BASE}/api/market/calendar`, {
+  return useSimpleFetch(`${API_BASE}/api/calendar/events`, {
     fallback: [],
     errorMessage: 'Failed to load economic calendar'
   });
@@ -154,7 +154,7 @@ function useLiveCalendar() {
 
 // Live news data hook
 function useLiveNews() {
-  return useSimpleFetch(`${API_BASE}/api/market/news?limit=5`, {
+  return useSimpleFetch(`${API_BASE}/api/news?limit=5`, {
     fallback: [],
     errorMessage: 'Failed to load market news'
   });
