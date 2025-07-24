@@ -2,13 +2,15 @@ const express = require('express');
 const { success, error } = require('../utils/responseFormatter');
 
 // Import dependencies with error handling
-let jwt, apiKeyService, alpacaService, validationMiddleware;
+let jwt, apiKeyService, alpacaService, validationMiddleware, hftService;
 try {
   jwt = require('aws-jwt-verify');
   apiKeyService = require('../utils/simpleApiKeyService');
   alpacaService = require('../utils/alpacaService');
   const validation = require('../middleware/validation');
   validationMiddleware = validation.createValidationMiddleware;
+  const HFTService = require('../services/hftService');
+  hftService = new HFTService();
 } catch (loadError) {
   console.warn('Some websocket dependencies not available:', loadError.message);
 }
@@ -95,6 +97,51 @@ router.get('/stream', (req, res) => {
  * Connection status endpoint
  * Provides information about active connections and alternatives
  */
+/**
+ * Market data processing endpoint for HFT integration
+ * Forwards market data to HFT engine for real-time analysis
+ */
+router.post('/market-data', async (req, res) => {
+  try {
+    const { symbol, data } = req.body;
+    
+    if (!symbol || !data) {
+      return res.status(400).json(createErrorResponse(
+        'Missing required fields: symbol and data',
+        { received: { symbol: !!symbol, data: !!data } }
+      ));
+    }
+
+    console.log(`📊 Processing market data for HFT: ${symbol}`);
+    
+    // Forward to HFT service if available
+    if (hftService && typeof hftService.processMarketData === 'function') {
+      await hftService.processMarketData({ symbol, data });
+      
+      res.success({
+        message: 'Market data processed for HFT analysis',
+        symbol: symbol,
+        timestamp: Date.now(),
+        hftEnabled: true
+      });
+    } else {
+      res.success({
+        message: 'Market data logged (HFT service not available)',
+        symbol: symbol,
+        timestamp: Date.now(),
+        hftEnabled: false
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error processing market data for HFT:', error);
+    res.status(500).json(createErrorResponse(
+      'Failed to process market data',
+      { error: error.message }
+    ));
+  }
+});
+
 router.get('/status', (req, res) => {
   res.success({
     service: 'WebSocket Alternative Service',

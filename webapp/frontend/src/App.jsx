@@ -93,6 +93,7 @@ import VolatilitySurface from './pages/options/VolatilitySurface'
 import GreeksMonitor from './pages/options/GreeksMonitor'
 import CryptoMarketOverview from './pages/CryptoMarketOverview'
 import LiveData from './pages/LiveData'
+import HFTTrading from './pages/HFTTrading'
 import SystemHealthMonitor from './components/SystemHealthMonitor'
 
 const drawerWidth = 240
@@ -148,6 +149,7 @@ const menuItems = [
   // Tools Section
   { text: 'Backtester', icon: <PlayArrow />, path: '/backtest', category: 'tools', premium: true },
   { text: 'Live Data Manager', icon: <TrendingUpIcon />, path: '/live-data', category: 'tools' },
+  { text: 'HFT Trading', icon: <ShowChartIcon />, path: '/hft-trading', category: 'tools', premium: true },
   { text: 'AI Assistant', icon: <PsychologyIcon />, path: '/tools/ai', category: 'tools', premium: true },
   { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/service-health', category: 'tools' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings', category: 'tools' },
@@ -508,6 +510,7 @@ function App() {
             
             {/* Live Data Routes */}
             <Route path="/live-data" element={<LiveData />} />
+            <Route path="/hft-trading" element={<HFTTrading />} />
             
             {/* Cryptocurrency Routes */}
             <Route path="/crypto" element={<CryptoMarketOverview />} />

@@ -457,6 +457,7 @@ const routes = [
   { path: './routes/websocket', name: 'WebSocket', mount: '/api/websocket' },
   { path: './routes/liveData', name: 'Live Data', mount: '/api/live-data' },
   { path: './routes/realTimeData', name: 'Real-Time Data', mount: '/api/realtime' },
+  { path: './routes/hftTrading', name: 'HFT Trading', mount: '/api/hft' },
   { path: './routes/admin', name: 'Admin', mount: '/api/admin' },
   { path: './routes/ai-assistant', name: 'AI Assistant', mount: '/api/ai-assistant' },
   
