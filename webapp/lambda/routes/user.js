@@ -41,33 +41,46 @@ const settingsRouter = require('./settings');
 
 // Helper function to proxy request to settings endpoint
 const proxyToSettings = (settingsPath) => {
-  return (req, res, next) => {
-    // Create a new request object with the settings path
-    const settingsReq = {
-      ...req,
-      url: settingsPath,
-      originalUrl: req.originalUrl.replace('/api/user', '/api/settings'),
-      baseUrl: '/api/settings'
-    };
-    
-    // Find the matching route handler from settings
-    const layer = settingsRouter.stack.find(layer => {
-      if (!layer.route) return false;
-      const routePath = layer.route.path;
-      const method = req.method.toLowerCase();
-      return routePath === settingsPath && layer.route.methods[method];
-    });
-    
-    if (layer && layer.route) {
-      // Execute the settings route handler
-      const handler = layer.route.stack[0].handle;
-      handler(settingsReq, res, next);
-    } else {
-      res.status(404).json({
-        success: false,
-        error: `Handler not found for ${settingsPath}`
+  return async (req, res, next) => {
+    try {
+      console.log(`🔄 Proxying ${req.method} ${req.originalUrl} to settings${settingsPath}`);
+      
+      // Create a new request object with the settings path
+      const settingsReq = {
+        ...req,
+        url: settingsPath,
+        originalUrl: req.originalUrl.replace('/api/user', '/api/settings'),
+        baseUrl: '/api/settings'
+      };
+      
+      // Find the matching route handler from settings
+      const layer = settingsRouter.stack.find(layer => {
+        if (!layer.route) return false;
+        const routePath = layer.route.path;
+        const method = req.method.toLowerCase();
+        return routePath === settingsPath && layer.route.methods[method];
       });
-    }
+      
+        if (layer && layer.route) {
+          // Execute the settings route handler
+          const handler = layer.route.stack[0].handle;
+          await handler(settingsReq, res, next);
+        } else {
+          console.error(`❌ Handler not found for ${settingsPath}`);
+          res.status(404).json({
+            success: false,
+            error: `Handler not found for ${settingsPath}`
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Proxy error for ${settingsPath}:`, error);
+        res.status(500).json({
+          success: false,
+          error: 'Internal proxy error',
+          message: error.message
+        });
+      }
+    };
   };
 };
 

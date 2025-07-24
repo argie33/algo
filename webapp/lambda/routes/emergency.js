@@ -252,4 +252,109 @@ function generateCircuitBreakerRecommendations(status) {
   return recommendations;
 }
 
+// Emergency lightweight stocks endpoint - minimal data for data cache service
+router.get('/stocks', async (req, res) => {
+  try {
+    console.log('🔄 Emergency stocks endpoint requested');
+    
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    
+    const databaseManager = require('../utils/databaseConnectionManager');
+    
+    // Ultra-lightweight query - only stock_symbols table, essential fields only
+    let stocksQuery = `
+      SELECT 
+        symbol,
+        security_name as name,
+        exchange,
+        market_category,
+        financial_status
+      FROM stock_symbols 
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    // Add search filter if provided
+    if (search) {
+      stocksQuery += ` AND (symbol ILIKE $1 OR security_name ILIKE $1)`;
+      params.push(`%${search}%`);
+      stocksQuery += ` ORDER BY symbol LIMIT $2`;
+      params.push(limit);
+    } else {
+      stocksQuery += ` ORDER BY symbol LIMIT $1`;
+      params.push(limit);
+    }
+    
+    console.log('🔍 Executing lightweight stocks query:', stocksQuery);
+    
+    let result;
+    try {
+      result = await databaseManager.query(stocksQuery, params);
+      console.log(`✅ Emergency stocks query successful: ${result.rows.length} stocks found`);
+      
+      // Transform to expected format
+      const stocks = result.rows.map(row => ({
+        symbol: row.symbol,
+        name: row.name,
+        exchange: row.exchange,
+        market_category: row.market_category,
+        financial_status: row.financial_status,
+        // Minimal mock data for cache compatibility
+        current_price: null,
+        previous_close: null,
+        market_cap: null,
+        sector: 'Unknown',
+        industry: 'Unknown'
+      }));
+      
+      res.json({
+        success: true,
+        data: stocks,
+        total: stocks.length,
+        page: 1,
+        limit: limit,
+        source: 'emergency_stocks',
+        note: 'Emergency endpoint - minimal stock data only',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (dbError) {
+      console.error('❌ Emergency stocks query failed:', dbError.message);
+      
+      // Return mock data if database fails
+      const mockStocks = [
+        { symbol: 'AAPL', name: 'Apple Inc', exchange: 'NASDAQ', market_category: 'Q', financial_status: 'N', current_price: null, previous_close: null, market_cap: null, sector: 'Technology', industry: 'Consumer Electronics' },
+        { symbol: 'GOOGL', name: 'Alphabet Inc', exchange: 'NASDAQ', market_category: 'Q', financial_status: 'N', current_price: null, previous_close: null, market_cap: null, sector: 'Technology', industry: 'Internet Services' },
+        { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', market_category: 'Q', financial_status: 'N', current_price: null, previous_close: null, market_cap: null, sector: 'Technology', industry: 'Software' },
+        { symbol: 'AMZN', name: 'Amazon.com Inc', exchange: 'NASDAQ', market_category: 'Q', financial_status: 'N', current_price: null, previous_close: null, market_cap: null, sector: 'Consumer Cyclical', industry: 'Internet Retail' },
+        { symbol: 'TSLA', name: 'Tesla Inc', exchange: 'NASDAQ', market_category: 'Q', financial_status: 'N', current_price: null, previous_close: null, market_cap: null, sector: 'Consumer Cyclical', industry: 'Auto Manufacturers' }
+      ].slice(0, limit);
+      
+      res.json({
+        success: true,
+        data: mockStocks,
+        total: mockStocks.length,
+        page: 1,
+        limit: limit,
+        source: 'emergency_mock',
+        note: 'Emergency mock data - database unavailable',
+        error: dbError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Emergency stocks endpoint failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Emergency stocks endpoint failed',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+      note: 'Emergency stocks endpoint error'
+    });
+  }
+});
+
 module.exports = router;

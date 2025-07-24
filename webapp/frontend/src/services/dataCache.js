@@ -186,7 +186,7 @@ class DataCacheService {
             fetchFunction: async () => {
               try {
                 const { getApiUrl } = await import('../config/environment');
-                const fullUrl = getApiUrl(endpoint.endpoint);
+                let fullUrl = getApiUrl(endpoint.endpoint);
                 
                 console.log(`[DataCache] Fetching ${fullUrl}`);
                 
@@ -201,7 +201,23 @@ class DataCacheService {
                   headers['Authorization'] = `Bearer ${token}`;
                 }
                 
-                const response = await fetch(fullUrl, { headers });
+                let response = await fetch(fullUrl, { headers, timeout: 15000 });
+                
+                // If main endpoint times out or returns 504, try emergency endpoint
+                if (!response.ok && (response.status === 504 || response.status === 503)) {
+                  console.log(`[DataCache] Main endpoint failed (${response.status}), trying emergency endpoint`);
+                  
+                  // Convert to emergency endpoint
+                  const emergencyEndpoint = endpoint.endpoint.replace('/api/stocks', '/api/health/stocks');
+                  const emergencyUrl = getApiUrl(emergencyEndpoint);
+                  
+                  console.log(`[DataCache] Fetching emergency endpoint: ${emergencyUrl}`);
+                  response = await fetch(emergencyUrl, { headers, timeout: 10000 });
+                }
+                
+                if (!response.ok && !response.headers.get('content-type')?.includes('json')) {
+                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
                 if (response.status === 500 || response.status === 404) {
                   console.warn(`${response.status} error for ${endpoint.endpoint}, using mock data`);

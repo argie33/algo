@@ -88,7 +88,7 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const Settings = () => {
-  const { user, isAuthenticated, isLoading, logout, checkAuthState, retryCount, maxRetries } = useAuth();
+  const { user, tokens, isAuthenticated, isLoading, logout, checkAuthState, retryCount, maxRetries } = useAuth();
   const navigate = useNavigate();
   const { apiUrl } = getApiConfig();
   
@@ -134,6 +134,24 @@ const Settings = () => {
     chartStyle: 'candlestick',
     layout: 'standard'
   });
+
+  // Helper function to get authentication headers
+  const getAuthHeaders = () => {
+    const token = tokens?.accessToken || 
+                 localStorage.getItem('accessToken') || 
+                 localStorage.getItem('authToken') || 
+                 localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+  };
 
   // Authentication guard - disabled
   // useEffect(() => {
@@ -181,9 +199,7 @@ const Settings = () => {
       // Load notification preferences
       try {
         const notifResponse = await fetch(`${apiUrl}/api/user/notifications`, {
-          headers: {
-            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-          }
+          headers: getAuthHeaders()
         });
         if (notifResponse.ok) {
           const notifData = await notifResponse.json();
@@ -196,9 +212,7 @@ const Settings = () => {
       // Load theme preferences
       try {
         const themeResponse = await fetch(`${apiUrl}/api/user/theme`, {
-          headers: {
-            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-          }
+          headers: getAuthHeaders()
         });
         if (themeResponse.ok) {
           const themeData = await themeResponse.json();
@@ -229,9 +243,7 @@ const Settings = () => {
   const loadApiKeys = async () => {
     try {
       const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
       
       if (response.ok) {
@@ -262,10 +274,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/user/profile`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(profileData)
       });
 
@@ -297,10 +306,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newApiKey)
       });
 
@@ -325,9 +331,7 @@ const Settings = () => {
     try {
       const response = await fetch(`${apiUrl}/api/portfolio/api-keys/${brokerName}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -348,9 +352,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/portfolio/test-connection/${brokerName}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -384,9 +386,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/portfolio/import/${brokerName}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -421,10 +421,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/user/notifications`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(notifications)
       });
 
@@ -448,10 +445,7 @@ const Settings = () => {
       
       const response = await fetch(`${apiUrl}/api/user/theme`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(themeSettings)
       });
 
@@ -575,10 +569,7 @@ const Settings = () => {
 
       const response = await fetch(`${apiUrl}/api/user/change-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.tokens?.accessToken || generateDevToken()}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           currentPassword: result.currentPassword,
           newPassword: result.newPassword
@@ -606,9 +597,7 @@ const Settings = () => {
       const action = user?.twoFactorEnabled ? 'disable' : 'enable';
       const response = await fetch(`${apiUrl}/api/user/two-factor/${action}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -643,9 +632,7 @@ const Settings = () => {
       setLoading(true);
       
       const response = await fetch(`${apiUrl}/api/user/recovery-codes`, {
-        headers: {
-          'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -684,9 +671,7 @@ const Settings = () => {
             
             const response = await fetch(`${apiUrl}/api/user/delete-account`, {
               method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-              }
+              headers: getAuthHeaders()
             });
 
             if (response.ok) {
@@ -715,9 +700,7 @@ const Settings = () => {
         
         const response = await fetch(`${apiUrl}/api/user/revoke-sessions`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${user?.tokens?.accessToken || 'dev-token'}`
-          }
+          headers: getAuthHeaders()
         });
 
         if (response.ok) {
