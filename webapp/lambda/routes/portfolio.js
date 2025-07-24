@@ -802,92 +802,13 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
 
     console.log(`📊 [${requestId}] Account type requested: ${accountType}`);
     
-    // Check table dependencies first
-    const tableDeps = await checkPortfolioTableDependencies();
+    // Get fresh data directly from Alpaca API for real-time portfolio holdings
+    console.log(`📡 [${requestId}] Fetching real-time portfolio data from Alpaca API`);
+    const isSandbox = accountType === 'paper';
+    const credentialsStart = Date.now();
     
-    // Try to get real data from database first, filtered by account type
+    let credentials;
     try {
-      console.log(`🔍 [HOLDINGS] Looking for stored portfolio data, account type: ${accountType}`);
-      // Security: Don't log user IDs in portfolio operations
-      
-      if (!tableDeps.hasRequiredTables) {
-        console.warn('⚠️ [HOLDINGS] Required portfolio tables missing, skipping database query:', tableDeps.missingRequired);
-        throw new Error('Database tables not available');
-      }
-      
-      // Get user's API keys filtered by account type (sandbox for paper, live for live)
-      const isSandbox = accountType === 'paper';
-      const limit = req.query.limit || 100;
-      const offset = req.query.offset || 0;
-      
-      // Get total count for pagination metadata
-      const totalCount = await safeQuery(`
-        SELECT COUNT(*) as total
-        FROM portfolio_holdings ph
-        JOIN user_api_keys uak ON ph.api_key_id = uak.id
-        WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
-      `, [userId, isSandbox], ['portfolio_holdings', 'user_api_keys']);
-      
-      const storedHoldings = await safeQuery(`
-        SELECT ph.symbol, ph.quantity, ph.avg_cost, ph.current_price, 
-               ph.market_value, ph.unrealized_pl, ph.unrealized_plpc, 
-               ph.side, ph.account_type, ph.broker, ph.updated_at,
-               uak.provider, uak.is_sandbox
-        FROM portfolio_holdings ph
-        JOIN user_api_keys uak ON ph.api_key_id = uak.id
-        WHERE ph.user_id = $1 AND uak.is_sandbox = $2 AND uak.is_active = true
-        ORDER BY ph.market_value DESC
-        LIMIT $3 OFFSET $4
-      `, [userId, isSandbox, limit, offset], ['portfolio_holdings', 'user_api_keys']);
-      
-      if (storedHoldings.rows.length > 0) {
-        console.log(`✅ [HOLDINGS] Found ${storedHoldings.rows.length} stored holdings for ${accountType} account`);
-        
-        const holdings = storedHoldings.rows;
-        const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
-        const totalGainLoss = holdings.reduce((sum, h) => sum + parseFloat(h.unrealized_pl || 0), 0);
-
-        const formattedHoldings = holdings.map(h => ({
-          symbol: h.symbol,
-          company: h.symbol + ' Inc.', // Would need company lookup
-          shares: parseFloat(h.quantity || 0),
-          avgCost: parseFloat(h.avg_cost || 0),
-          currentPrice: parseFloat(h.current_price || 0),
-          marketValue: parseFloat(h.market_value || 0),
-          gainLoss: parseFloat(h.unrealized_pl || 0),
-          gainLossPercent: parseFloat(h.unrealized_plpc || 0),
-          sector: 'Technology', // Would need sector lookup
-          allocation: totalValue > 0 ? (parseFloat(h.market_value || 0) / totalValue) * 100 : 0,
-          lastUpdated: h.updated_at
-        }));
-
-        const total = parseInt(totalCount.rows[0]?.total || 0);
-        
-        return res.success({
-          holdings: formattedHoldings,
-          summary: {
-            totalValue: totalValue,
-            totalGainLoss: totalGainLoss,
-            totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-            numPositions: holdings.length,
-            accountType: accountType,
-            dataSource: 'database'
-          },
-          pagination: {
-            total: total,
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            hasMore: (parseInt(offset) + parseInt(limit)) < total
-          }
-        }, { requestId });
-      }
-      
-      // If no stored data, try to get fresh data from broker API with comprehensive error handling
-      console.log(`📡 [${requestId}] No stored data found, attempting to fetch fresh data from broker API`);
-      const credentialsStart = Date.now();
-      
-      let credentials;
-      try {
         credentials = await getUserApiKey(userId, 'alpaca');
         const credentialsDuration = Date.now() - credentialsStart;
         
@@ -922,7 +843,7 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           hasSecret: !!credentials.apiSecret
         });
         
-      } catch (credentialsError) {
+    } catch (credentialsError) {
         const credentialsDuration = Date.now() - credentialsStart;
         console.error(`❌ [${requestId}] Failed to retrieve API credentials after ${credentialsDuration}ms:`, {
           error: credentialsError.message,
@@ -936,167 +857,144 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           requestId,
           errorDurationMs: credentialsDuration
         });
+    }
+      
+    console.log(`🔑 [HOLDINGS] Found credentials: account_type=${credentials.isSandbox ? 'sandbox' : 'live'}, requested=${isSandbox ? 'sandbox' : 'live'}`);
+      
+    if (credentials.isSandbox === isSandbox) {
+      console.log(`🔑 [${requestId}] Using API key: alpaca (${credentials.isSandbox ? 'sandbox' : 'live'})`);
+      
+      // Initialize Alpaca service with comprehensive error handling
+      console.log(`🏭 [${requestId}] Initializing Alpaca service`);
+      const serviceInitStart = Date.now();
+      let alpaca;
+      
+      try {
+        alpaca = new AlpacaService(
+          credentials.apiKey,
+          credentials.apiSecret,
+          credentials.isSandbox
+        );
+        const serviceInitDuration = Date.now() - serviceInitStart;
+        
+        console.log(`✅ [${requestId}] Alpaca service initialized in ${serviceInitDuration}ms`, {
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          hasApiKey: !!credentials.apiKey,
+          hasSecret: !!credentials.apiSecret
+        });
+        
+      } catch (serviceError) {
+        const serviceInitDuration = Date.now() - serviceInitStart;
+        console.error(`❌ [${requestId}] Alpaca service initialization FAILED after ${serviceInitDuration}ms:`, {
+          error: serviceError.message,
+          errorStack: serviceError.stack,
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          impact: 'Cannot access live portfolio data from broker',
+          recommendation: 'Check API key validity and Alpaca service status'
+        });
+        
+        return res.serverError('Failed to initialize trading service', {
+          requestId,
+          message: 'Unable to connect to your broker. Please verify your API credentials or try again later.',
+          errorCode: 'TRADING_SERVICE_INIT_ERROR',
+          details: process.env.NODE_ENV === 'development' ? serviceError.message : 'Service initialization failed',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          actions: [
+            'Verify your API credentials are correct',
+            'Check if your API keys have sufficient permissions',
+            'Try switching between Paper Trading and Live Trading modes',
+            'Contact broker support if the issue persists'
+          ],
+          errorDurationMs: serviceInitDuration
+        });
       }
       
-      console.log(`🔑 [HOLDINGS] Found credentials: account_type=${credentials.isSandbox ? 'sandbox' : 'live'}, requested=${isSandbox ? 'sandbox' : 'live'}`);
+      // Fetch positions with comprehensive error handling
+      console.log(`📊 [${requestId}] Fetching portfolio positions from Alpaca API`);
+      const positionsStart = Date.now();
+      let positions;
       
-      if (credentials.isSandbox === isSandbox) {
-        console.log(`🔑 [${requestId}] Using API key: alpaca (${credentials.isSandbox ? 'sandbox' : 'live'})`);
+      try {
+        positions = await Promise.race([
+          alpaca.getPositions(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Positions fetch timeout after 15 seconds')), 15000)
+          )
+        ]);
         
-        // Initialize Alpaca service with comprehensive error handling
-        console.log(`🏭 [${requestId}] Initializing Alpaca service`);
-        const serviceInitStart = Date.now();
-        let alpaca;
+        const positionsDuration = Date.now() - positionsStart;
+        console.log(`✅ [${requestId}] Portfolio positions fetched in ${positionsDuration}ms`, {
+          positionCount: positions?.length || 0,
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          dataSource: 'alpaca_api'
+        });
         
-        try {
-          alpaca = new AlpacaService(
-            credentials.apiKey,
-            credentials.apiSecret,
-            credentials.isSandbox
-          );
-          const serviceInitDuration = Date.now() - serviceInitStart;
-          
-          console.log(`✅ [${requestId}] Alpaca service initialized in ${serviceInitDuration}ms`, {
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            hasApiKey: !!credentials.apiKey,
-            hasSecret: !!credentials.apiSecret
-          });
-          
-        } catch (serviceError) {
-          const serviceInitDuration = Date.now() - serviceInitStart;
-          console.error(`❌ [${requestId}] Alpaca service initialization FAILED after ${serviceInitDuration}ms:`, {
-            error: serviceError.message,
-            errorStack: serviceError.stack,
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            impact: 'Cannot access live portfolio data from broker',
-            recommendation: 'Check API key validity and Alpaca service status'
-          });
-          
-          return res.serverError('Failed to initialize trading service', {
-            requestId,
-            message: 'Unable to connect to your broker. Please verify your API credentials or try again later.',
-            errorCode: 'TRADING_SERVICE_INIT_ERROR',
-            details: process.env.NODE_ENV === 'development' ? serviceError.message : 'Service initialization failed',
-            provider: 'alpaca',
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            actions: [
-              'Verify your API credentials are correct',
-              'Check if your API keys have sufficient permissions',
-              'Try switching between Paper Trading and Live Trading modes',
-              'Contact broker support if the issue persists'
-            ],
-            errorDurationMs: serviceInitDuration
-          });
-        }
+      } catch (positionsError) {
+        const positionsDuration = Date.now() - positionsStart;
+        console.error(`❌ [${requestId}] Failed to fetch positions after ${positionsDuration}ms:`, {
+          error: positionsError.message,
+          errorStack: positionsError.stack,
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          errorCode: positionsError.code,
+          statusCode: positionsError.status,
+          impact: 'Live portfolio data unavailable',
+          recommendation: 'Check API key permissions and Alpaca service status'
+        });
         
-        // Fetch positions with comprehensive error handling
-        console.log(`📊 [${requestId}] Fetching portfolio positions from Alpaca API`);
-        const positionsStart = Date.now();
-        let positions;
-        
-        try {
-          positions = await Promise.race([
-            alpaca.getPositions(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Positions fetch timeout after 15 seconds')), 15000)
-            )
-          ]);
-          
-          const positionsDuration = Date.now() - positionsStart;
-          console.log(`✅ [${requestId}] Portfolio positions fetched in ${positionsDuration}ms`, {
-            positionCount: positions?.length || 0,
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            dataSource: 'alpaca_api'
-          });
-          
-        } catch (positionsError) {
-          const positionsDuration = Date.now() - positionsStart;
-          console.error(`❌ [${requestId}] Failed to fetch positions after ${positionsDuration}ms:`, {
-            error: positionsError.message,
-            errorStack: positionsError.stack,
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            errorCode: positionsError.code,
-            statusCode: positionsError.status,
-            impact: 'Live portfolio data unavailable',
-            recommendation: 'Check API key permissions and Alpaca service status'
-          });
-          
-          // Check for specific API errors
-          if (positionsError.message?.includes('timeout')) {
-            return res.status(504).json({
-              success: false,
-              error: 'Broker API timeout',
-              message: 'The broker API is taking too long to respond. Please try again.',
-              error_code: 'BROKER_API_TIMEOUT',
-              provider: 'alpaca',
-              environment: credentials.isSandbox ? 'sandbox' : 'live',
-              actions: [
-                'Try refreshing the page',
-                'Check your internet connection',
-                'Try again in a few minutes',
-                'Contact support if the issue persists'
-              ],
-              request_info: {
-                request_id: requestId,
-                timeout_duration_ms: positionsDuration,
-                timestamp: new Date().toISOString()
-              }
-            });
-          }
-          
-          if (positionsError.status === 401 || positionsError.message?.includes('unauthorized')) {
-            return res.unauthorized('Invalid API credentials', {
-              requestId,
-              message: 'Your API credentials appear to be invalid or expired. Please update them in Settings.',
-              errorCode: 'BROKER_API_UNAUTHORIZED',
-              provider: 'alpaca',
-              environment: credentials.isSandbox ? 'sandbox' : 'live',
-              actions: [
-                'Go to Settings > API Keys',
-                'Update your Alpaca API credentials',
-                'Ensure you are using the correct environment (Paper vs Live)',
-                'Verify your API keys have trading permissions'
-              ],
-              errorDurationMs: positionsDuration
-            });
-          }
-          
-          if (positionsError.status === 403 || positionsError.message?.includes('forbidden')) {
-            return res.status(403).json({
-              success: false,
-              error: 'Insufficient API permissions',
-              message: 'Your API credentials do not have permission to access portfolio data.',
-              error_code: 'BROKER_API_FORBIDDEN',
-              provider: 'alpaca',
-              environment: credentials.isSandbox ? 'sandbox' : 'live',
-              actions: [
-                'Check your API key permissions in your broker account',
-                'Ensure your API keys have portfolio read access',
-                'Contact your broker to verify account permissions',
-                'Try regenerating your API keys'
-              ],
-              request_info: {
-                request_id: requestId,
-                error_duration_ms: positionsDuration,
-                timestamp: new Date().toISOString()
-              }
-            });
-          }
-          
-          // Generic API error
-          return res.status(502).json({
+        // Check for specific API errors
+        if (positionsError.message?.includes('timeout')) {
+          return res.status(504).json({
             success: false,
-            error: 'Broker API error',
-            message: 'Unable to retrieve portfolio data from your broker. Please try again later.',
-            error_code: 'BROKER_API_ERROR',
-            details: process.env.NODE_ENV === 'development' ? positionsError.message : 'External service error',
+            error: 'Broker API timeout',
+            message: 'The broker API is taking too long to respond. Please try again.',
+            error_code: 'BROKER_API_TIMEOUT',
             provider: 'alpaca',
             environment: credentials.isSandbox ? 'sandbox' : 'live',
             actions: [
               'Try refreshing the page',
-              'Check broker service status',
-              'Verify your API credentials',
+              'Check your internet connection',
+              'Try again in a few minutes',
               'Contact support if the issue persists'
+            ],
+            request_info: {
+              request_id: requestId,
+              timeout_duration_ms: positionsDuration,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+        
+        if (positionsError.status === 401 || positionsError.message?.includes('unauthorized')) {
+          return res.unauthorized('Invalid API credentials', {
+            requestId,
+            message: 'Your API credentials appear to be invalid or expired. Please update them in Settings.',
+            errorCode: 'BROKER_API_UNAUTHORIZED',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            actions: [
+              'Go to Settings > API Keys',
+              'Update your Alpaca API credentials',
+              'Ensure you are using the correct environment (Paper vs Live)',
+              'Verify your API keys have trading permissions'
+            ],
+            errorDurationMs: positionsDuration
+          });
+        }
+        
+        if (positionsError.status === 403 || positionsError.message?.includes('forbidden')) {
+          return res.status(403).json({
+            success: false,
+            error: 'Insufficient API permissions',
+            message: 'Your API credentials do not have permission to access portfolio data.',
+            error_code: 'BROKER_API_FORBIDDEN',
+            provider: 'alpaca',
+            environment: credentials.isSandbox ? 'sandbox' : 'live',
+            actions: [
+              'Check your API key permissions in your broker account',
+              'Ensure your API keys have portfolio read access',
+              'Contact your broker to verify account permissions',
+              'Try regenerating your API keys'
             ],
             request_info: {
               request_id: requestId,
@@ -1106,84 +1004,107 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
           });
         }
         
-        // Process positions data with validation
-        if (positions && positions.length > 0) {
-          console.log(`📈 [${requestId}] Processing ${positions.length} portfolio positions`);
-          const totalValue = positions.reduce((sum, p) => sum + p.marketValue, 0);
-          const totalGainLoss = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
+        // Generic API error
+        return res.status(502).json({
+          success: false,
+          error: 'Broker API error',
+          message: 'Unable to retrieve portfolio data from your broker. Please try again later.',
+          error_code: 'BROKER_API_ERROR',
+          details: process.env.NODE_ENV === 'development' ? positionsError.message : 'External service error',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          actions: [
+            'Try refreshing the page',
+            'Check broker service status',
+            'Verify your API credentials',
+            'Contact support if the issue persists'
+          ],
+          request_info: {
+            request_id: requestId,
+            error_duration_ms: positionsDuration,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Process positions data with validation
+      if (positions && positions.length > 0) {
+        console.log(`📈 [${requestId}] Processing ${positions.length} portfolio positions`);
+        const totalValue = positions.reduce((sum, p) => sum + p.marketValue, 0);
+        const totalGainLoss = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
 
-          const formattedHoldings = positions.map(p => ({
-            symbol: p.symbol,
-            company: p.symbol + ' Inc.', // Would need company lookup
-            shares: p.quantity,
-            avgCost: p.averageEntryPrice,
-            currentPrice: p.currentPrice,
-            marketValue: p.marketValue,
-            gainLoss: p.unrealizedPL,
-            gainLossPercent: p.unrealizedPLPercent,
-            sector: 'Technology', // Would need sector lookup
-            allocation: totalValue > 0 ? (p.marketValue / totalValue) * 100 : 0
-          }));
+        const formattedHoldings = positions.map(p => ({
+          symbol: p.symbol,
+          company: p.symbol + ' Inc.', // Would need company lookup
+          shares: p.quantity,
+          avgCost: p.averageEntryPrice,
+          currentPrice: p.currentPrice,
+          marketValue: p.marketValue,
+          gainLoss: p.unrealizedPL,
+          gainLossPercent: p.unrealizedPLPercent,
+          sector: 'Technology', // Would need sector lookup
+          allocation: totalValue > 0 ? (p.marketValue / totalValue) * 100 : 0
+        }));
 
-          const totalDuration = Date.now() - requestStart;
-          console.log(`✅ [${requestId}] Portfolio holdings successfully retrieved and processed in ${totalDuration}ms`, {
-            positionCount: positions.length,
-            totalValue,
-            totalGainLoss,
-            dataSource: 'alpaca_api',
-            environment: credentials.isSandbox ? 'sandbox' : 'live'
-          });
-          
-          return res.success({
-            holdings: formattedHoldings,
-            summary: {
-              totalValue: totalValue,
-              totalGainLoss: totalGainLoss,
-              totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-              numPositions: positions.length,
-              accountType: credentials.isSandbox ? 'paper' : 'live'
-            },
-            metadata: {
-              dataSource: 'alpaca_api',
-              provider: 'alpaca',
-              environment: credentials.isSandbox ? 'sandbox' : 'live',
-              requestId,
-              totalDurationMs: totalDuration
-            }
-          });
-        } else {
-          const totalDuration = Date.now() - requestStart;
-          console.log(`📊 [${requestId}] No positions found in portfolio after ${totalDuration}ms`, {
-            environment: credentials.isSandbox ? 'sandbox' : 'live',
-            dataSource: 'alpaca_api',
-            positionCount: 0
-          });
-          
-          // Return empty portfolio with proper structure
-          return res.json({
-            success: true,
-            data: {
-              holdings: [],
-              summary: {
-                totalValue: 0,
-                totalGainLoss: 0,
-                totalGainLossPercent: 0,
-                numPositions: 0,
-                accountType: credentials.isSandbox ? 'paper' : 'live'
-              }
-            },
-            message: 'No positions found in your portfolio',
-            timestamp: new Date().toISOString(),
+        const totalDuration = Date.now() - requestStart;
+        console.log(`✅ [${requestId}] Portfolio holdings successfully retrieved and processed in ${totalDuration}ms`, {
+          positionCount: positions.length,
+          totalValue,
+          totalGainLoss,
+          dataSource: 'alpaca_api',
+          environment: credentials.isSandbox ? 'sandbox' : 'live'
+        });
+        
+        return res.success({
+          holdings: formattedHoldings,
+          summary: {
+            totalValue: totalValue,
+            totalGainLoss: totalGainLoss,
+            totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
+            numPositions: positions.length,
+            accountType: credentials.isSandbox ? 'paper' : 'live'
+          },
+          metadata: {
             dataSource: 'alpaca_api',
             provider: 'alpaca',
             environment: credentials.isSandbox ? 'sandbox' : 'live',
-            request_info: {
-              request_id: requestId,
-              total_duration_ms: totalDuration
-            }
-          });
-        }
+            requestId,
+            totalDurationMs: totalDuration
+          }
+        });
       } else {
+        const totalDuration = Date.now() - requestStart;
+        console.log(`📊 [${requestId}] No positions found in portfolio after ${totalDuration}ms`, {
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          dataSource: 'alpaca_api',
+          positionCount: 0
+        });
+        
+        // Return empty portfolio with proper structure
+        return res.json({
+          success: true,
+          data: {
+            holdings: [],
+            summary: {
+              totalValue: 0,
+              totalGainLoss: 0,
+              totalGainLossPercent: 0,
+              numPositions: 0,
+              accountType: credentials.isSandbox ? 'paper' : 'live'
+            }
+          },
+          message: 'No positions found in your portfolio',
+          timestamp: new Date().toISOString(),
+          dataSource: 'alpaca_api',
+          provider: 'alpaca',
+          environment: credentials.isSandbox ? 'sandbox' : 'live',
+          request_info: {
+            request_id: requestId,
+            total_duration_ms: totalDuration
+          }
+        });
+      }
+    } else {
         console.warn(`⚠️ [${requestId}] Account type mismatch`, {
           requestedType: isSandbox ? 'sandbox' : 'live',
           availableType: credentials.isSandbox ? 'sandbox' : 'live',
