@@ -77,8 +77,19 @@ class SimpleApiKeyService {
       const encodedUserId = this.encodeUserId(userId);
       const parameterName = `${this.parameterPrefix}/${encodedUserId}/${provider.toLowerCase()}`;
       
+      // Check if parameter already exists to handle Tags vs Overwrite AWS constraint
+      let parameterExists = false;
+      try {
+        await this.ssm.send(new GetParameterCommand({ Name: parameterName }));
+        parameterExists = true;
+      } catch (error) {
+        // Parameter doesn't exist, which is fine for new keys
+        parameterExists = false;
+      }
+
       // Store as SecureString with KMS encryption
-      const command = new PutParameterCommand({
+      // AWS constraint: Tags and Overwrite cannot be used together
+      const baseCommand = {
         Name: parameterName,
         Value: JSON.stringify({
           keyId,
@@ -88,18 +99,30 @@ class SimpleApiKeyService {
           version: '1.0'
         }),
         Type: 'SecureString',
-        Overwrite: true,
-        Description: `API keys for ${provider} - user ${userId}`,
-        Tags: [
-          { Key: 'Environment', Value: process.env.NODE_ENV || 'dev' },
-          { Key: 'Service', Value: 'financial-platform' },
-          { Key: 'DataType', Value: 'api-credentials' },
-          { Key: 'User', Value: userId },
-          { Key: 'Provider', Value: provider.toLowerCase() }
-        ]
-      });
+        Description: `API keys for ${provider} - user ${userId}`
+      };
 
-      await this.ssm.send(command);
+      if (parameterExists) {
+        // For existing parameters, use Overwrite but no Tags
+        const command = new PutParameterCommand({
+          ...baseCommand,
+          Overwrite: true
+        });
+        await this.ssm.send(command);
+      } else {
+        // For new parameters, use Tags but no Overwrite
+        const command = new PutParameterCommand({
+          ...baseCommand,
+          Tags: [
+            { Key: 'Environment', Value: process.env.NODE_ENV || 'dev' },
+            { Key: 'Service', Value: 'financial-platform' },
+            { Key: 'DataType', Value: 'api-credentials' },
+            { Key: 'User', Value: userId },
+            { Key: 'Provider', Value: provider.toLowerCase() }
+          ]
+        });
+        await this.ssm.send(command);
+      }
       console.log(`✅ API key stored successfully for ${provider}`);
       return true;
 
