@@ -2,7 +2,7 @@
 """
 Stock Symbols Enhanced Loader Script
 
-This script loads stock symbols with enhanced metadata including: # Deploy trigger: Load symbols for empty database
+This script loads stock symbols with enhanced metadata including: # Trigger 2025-07-24: Load symbols for webapp stock explorer
 - Company name and basic info
 - Sector and industry classification  
 - Market cap tier categorization
