@@ -691,9 +691,6 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub;
     if (!userId) {
-      throw new Error('User authentication required');
-    }
-    if (!userId) {
       return res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -743,11 +740,8 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
                   credentials.isSandbox
                 );
                 
-                const activities = await alpaca.getActivities({
-                  activityType: 'FILL',
-                  date: startDate.toISOString().split('T')[0],
-                  until: endDate.toISOString().split('T')[0]
-                });
+                // Get recent activities (Alpaca API doesn't support date range filtering)
+                const activities = await alpaca.getActivities('FILL', 100);
                 
                 liveTradeData = activities;
                 console.log(`📈 Retrieved ${activities.length} live trade activities from Alpaca`);
@@ -978,7 +972,9 @@ router.get('/analytics/overview', authenticateToken, async (req, res) => {
       stack: error.stack,
       userId: req.user?.sub || req.user?.userId || 'unknown',
       timeframe: req.query.timeframe || '3M',
-      requestId: req.requestId || 'unknown'
+      requestId: req.requestId || 'unknown',
+      errorName: error.name,
+      errorCode: error.code
     });
     
     // Return detailed error structure with proper HTTP status
