@@ -242,7 +242,7 @@ const Settings = () => {
 
   const loadApiKeys = async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/portfolio/api/api-keys`, {
+      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
         headers: getAuthHeaders()
       });
       
@@ -304,7 +304,7 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/portfolio/api/api-keys`, {
+      const response = await fetch(`${apiUrl}/api/portfolio/api-keys`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(newApiKey)
