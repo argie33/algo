@@ -449,6 +449,7 @@ console.log('📦 Loading routes...');
 const routes = [
   // Essential Infrastructure Routes
   { path: './routes/health', name: 'Health', mount: '/api/health' },
+  { path: './routes/health', name: 'Health Direct', mount: '/health' },
   { path: './routes/emergency', name: 'Emergency Recovery', mount: '/api/emergency' },
   { path: './routes/emergency-circuit-breaker', name: 'Emergency Circuit Breaker', mount: '/api/emergency-circuit-breaker' },
   { path: './routes/cloudformation', name: 'CloudFormation Config', mount: '/api/config/cloudformation' },
