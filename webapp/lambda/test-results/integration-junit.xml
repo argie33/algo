@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="10" failures="10" errors="0" time="2.244">
-  <testsuite name="API Key Functionality Integration Tests" errors="0" failures="10" skipped="0" timestamp="2025-07-24T00:00:35" time="2.223" tests="10">
-    <testcase classname="API Key Functionality Integration Tests" name="GET /api/settings/api-keys - should return empty list initially" time="0.05">
+<testsuites name="jest tests" tests="9" failures="7" errors="0" time="2.039">
+  <testsuite name="Frontend-Backend API Communication" errors="0" failures="7" skipped="0" timestamp="2025-07-24T00:05:21" time="2.017" tests="9">
+    <testcase classname="Frontend-Backend API Communication" name="Settings API key endpoints should be accessible" time="0.029">
       <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:57:8)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:37:8)
     at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
@@ -25,12 +25,13 @@
     at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
     at Object.onceWrapper (node:events:631:28)
     at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
     at emitCloseNT (node:net:2215:8)
     at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys - should save API key successfully" time="0.022">
+    <testcase classname="Frontend-Backend API Communication" name="Portfolio API key endpoints should be accessible" time="0.006">
       <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:74:8)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:47:8)
     at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
@@ -52,12 +53,13 @@
     at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
     at Object.onceWrapper (node:events:631:28)
     at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
     at emitCloseNT (node:net:2215:8)
     at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="GET /api/settings/api-keys - should return saved API key" time="0.01">
+    <testcase classname="Frontend-Backend API Communication" name="Settings route should return correct response format" time="0.003">
       <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:85:8)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:57:8)
     at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
@@ -79,12 +81,13 @@
     at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
     at Object.onceWrapper (node:events:631:28)
     at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
     at emitCloseNT (node:net:2215:8)
     at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys/:provider/validate - should validate saved API key" time="0.007">
+    <testcase classname="Frontend-Backend API Communication" name="Portfolio route should return correct response format" time="0.002">
       <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:100:8)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:68:8)
     at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
@@ -106,12 +109,73 @@
     at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
     at Object.onceWrapper (node:events:631:28)
     at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
     at emitCloseNT (node:net:2215:8)
     at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys - should reject invalid provider" time="0.006">
+    <testcase classname="Frontend-Backend API Communication" name="API endpoints should handle authentication correctly" time="0.002">
+    </testcase>
+    <testcase classname="Frontend-Backend API Communication" name="Settings health endpoint should work" time="0.003">
+    </testcase>
+    <testcase classname="Frontend-Backend API Communication" name="Portfolio health endpoint should work" time="0.002">
+      <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:99:8)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+----
+    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
+    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
+    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
+    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
+    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
+    at emitCloseNT (node:net:2215:8)
+    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
+    </testcase>
+    <testcase classname="Frontend-Backend API Communication" name="API key validation endpoints should be accessible" time="0.002">
+      <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:109:8)
+    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
+----
+    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
+    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
+    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
+    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
+    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
+    at emitCloseNT (node:net:2215:8)
+    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
+    </testcase>
+    <testcase classname="Frontend-Backend API Communication" name="Error responses should have consistent format" time="0.008">
       <failure>Error: expected 400 &quot;Bad Request&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:117:8)
+    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/frontend-backend-api-communication.test.js:125:8)
     at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
@@ -133,141 +197,7 @@
     at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
     at Object.onceWrapper (node:events:631:28)
     at Server.emit (node:events:517:28)
-    at emitCloseNT (node:net:2215:8)
-    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
-    </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys - should reject short API key" time="0.006">
-      <failure>Error: expected 400 &quot;Bad Request&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:131:8)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
-----
-    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
-    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
-    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
-    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
-    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
-    at Object.onceWrapper (node:events:631:28)
-    at Server.emit (node:events:517:28)
-    at emitCloseNT (node:net:2215:8)
-    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
-    </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys - should reject missing required fields" time="0.005">
-      <failure>Error: expected 400 &quot;Bad Request&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:144:8)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
-----
-    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
-    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
-    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
-    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
-    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
-    at Object.onceWrapper (node:events:631:28)
-    at Server.emit (node:events:517:28)
-    at emitCloseNT (node:net:2215:8)
-    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
-    </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="DELETE /api/settings/api-keys/:provider - should delete API key" time="0.008">
-      <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:153:8)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
-----
-    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
-    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
-    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
-    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
-    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
-    at Object.onceWrapper (node:events:631:28)
-    at Server.emit (node:events:517:28)
-    at emitCloseNT (node:net:2215:8)
-    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
-    </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="GET /api/settings/api-keys - should return empty list after deletion" time="0.007">
-      <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:162:8)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
-----
-    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
-    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
-    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
-    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
-    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
-    at Object.onceWrapper (node:events:631:28)
-    at Server.emit (node:events:517:28)
-    at emitCloseNT (node:net:2215:8)
-    at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
-    </testcase>
-    <testcase classname="API Key Functionality Integration Tests" name="POST /api/settings/api-keys/:provider/validate - should return false for non-existent key" time="0.006">
-      <failure>Error: expected 200 &quot;OK&quot;, got 401 &quot;Unauthorized&quot;
-    at Object.expect (/home/stocks/algo/webapp/lambda/tests/integration/api-key-functionality.test.js:172:8)
-    at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
-    at processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
-    at run (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-runner/build/runTest.js:444:34)
-----
-    at Test._assertStatus (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:252:14)
-    at /home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:308:13
-    at Test._assertFunction (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:285:13)
-    at Test.assert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:164:23)
-    at Server.localAssert (/home/stocks/algo/webapp/lambda/node_modules/supertest/lib/test.js:120:14)
-    at Object.onceWrapper (node:events:631:28)
-    at Server.emit (node:events:517:28)
+    at Server.emit (node:domain:489:12)
     at emitCloseNT (node:net:2215:8)
     at processTicksAndRejections (node:internal/process/task_queues:81:21)</failure>
     </testcase>
