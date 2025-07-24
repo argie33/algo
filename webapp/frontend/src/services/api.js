@@ -607,8 +607,14 @@ export const getAvailableAccounts = async () => {
     successMessage: 'Available accounts loaded successfully',
     errorMessage: 'Failed to load available accounts',
     handleErrors: {
-      404: 'Account management API not available - please check your configuration',
-      500: 'Account management service temporarily unavailable'
+      404: (error) => {
+        console.warn('Account management API not available - please check your configuration');
+        return { accounts: [] }; // Return empty accounts array
+      },
+      500: (error) => {
+        console.error('Account management service temporarily unavailable');
+        throw new Error('Account management service temporarily unavailable');
+      }
     }
   });
 };

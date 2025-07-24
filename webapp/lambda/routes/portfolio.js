@@ -139,4 +139,76 @@ router.get('/api-keys', async (req, res) => {
   }
 });
 
+// Accounts endpoint - provides available trading accounts
+router.get('/accounts', async (req, res) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+
+    console.log('Available accounts request for user:', userId);
+    
+    // Return available account types
+    res.json({
+      success: true,
+      accounts: [
+        {
+          id: 'paper',
+          name: 'Paper Trading',
+          type: 'paper',
+          provider: 'alpaca',
+          isActive: true,
+          balance: 100000
+        },
+        {
+          id: 'live',
+          name: 'Live Trading',
+          type: 'live', 
+          provider: 'alpaca',
+          isActive: false,
+          balance: 0
+        }
+      ]
+    });
+    
+  } catch (error) {
+    console.error('Error in accounts endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch accounts' 
+    });
+  }
+});
+
+// Account info endpoint - specific account details
+router.get('/account', async (req, res) => {
+  try {
+    const accountType = req.query.accountType || 'paper';
+    const userId = req.user?.sub;
+    
+    if (!userId) {
+      throw new Error('User authentication required');
+    }
+    
+    console.log('Account info request for user:', userId, 'type:', accountType);
+
+    // Return account information
+    res.json({
+      success: true,
+      data: {
+        accountType: accountType,
+        balance: accountType === 'paper' ? 100000 : 0,
+        buyingPower: accountType === 'paper' ? 100000 : 0,
+        isActive: accountType === 'paper',
+        provider: 'alpaca'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in account info endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch account info' });
+  }
+});
+
 module.exports = router;
