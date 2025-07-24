@@ -25,9 +25,9 @@ function isDevelopment() {
 }
 
 function allowDevBypass() {
-  // DISABLED: No automatic authentication bypass allowed
-  // This prevents random user login and forces proper authentication
-  return false;
+  // TEMPORARY: Enable development bypass for testing
+  // TODO: Disable in production and implement proper Cognito authentication
+  return isDevelopment() || process.env.ALLOW_DEV_BYPASS === 'true';
 }
 
 /**

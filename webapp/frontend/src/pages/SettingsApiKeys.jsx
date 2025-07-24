@@ -175,12 +175,37 @@ const SettingsApiKeys = () => {
 
   const handleAddApiKey = async () => {
     try {
+      console.log('🔍 Form data before validation:', formData);
+      console.log('🔍 Provider value:', formData.provider, 'type:', typeof formData.provider);
+      console.log('🔍 API Key value:', formData.apiKey, 'type:', typeof formData.apiKey);
+      
       if (!formData.provider || !formData.apiKey) {
+        console.error('❌ Validation failed - missing required fields:', {
+          provider: formData.provider,
+          apiKey: formData.apiKey
+        });
         setError('Please fill in all required fields');
         return;
       }
 
-      await addApiKey(formData);
+      // Transform frontend form data to backend API format
+      // Capture values to prevent race conditions
+      const providerValue = formData.provider;
+      const apiKeyValue = formData.apiKey;
+      const secretValue = formData.apiSecret;
+      
+      const apiKeyData = {
+        name: providerValue,
+        key: apiKeyValue,
+        secret: secretValue,
+        isSandbox: formData.isSandbox,
+        description: formData.description
+      };
+
+      console.log('🔍 Transformed API key data:', apiKeyData);
+      console.log('🔍 Captured values:', { providerValue, apiKeyValue, secretValue });
+      
+      await addApiKey(apiKeyData);
       setAddDialogOpen(false);
       setFormData({
         provider: '',

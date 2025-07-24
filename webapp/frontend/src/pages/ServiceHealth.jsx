@@ -314,7 +314,8 @@ function ServiceHealth() {
       // Triggering comprehensive database health update
       
       // Call the backend to update health status
-      const response = await api.post('/api/health-full/update-status', {}, {
+      // Using emergency endpoint as fallback since health-full route is temporarily unavailable
+      const response = await api.post('/api/health/update-status', {}, {
         timeout: 60000 // 1 minute timeout for comprehensive analysis
       });
       

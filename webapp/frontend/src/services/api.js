@@ -869,7 +869,17 @@ export const getApiKeys = async () => {
 
 export const addApiKey = async (apiKeyData) => {
   return apiWrapper.execute('addApiKey', async () => {
+    console.log('🔍 addApiKey received data:', apiKeyData);
+    console.log('🔍 apiKeyData.name:', apiKeyData?.name);
+    console.log('🔍 apiKeyData.key:', apiKeyData?.key);
+    
     if (!apiKeyData || !apiKeyData.name || !apiKeyData.key) {
+      console.error('❌ Validation failed:', {
+        hasApiKeyData: !!apiKeyData,
+        hasName: !!apiKeyData?.name,
+        hasKey: !!apiKeyData?.key,
+        actualData: apiKeyData
+      });
       throw new Error('API key data must include name and key');
     }
     
