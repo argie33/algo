@@ -1327,32 +1327,31 @@ router.get('/holdings', createValidationMiddleware(portfolioValidationSchemas.ho
       }
     }
 
-    // If not authenticated OR no data found OR database error, return structured empty data
-    console.log('Returning structured empty portfolio data');
+    // If not authenticated OR no data found OR database error, return sample portfolio data
+    console.log(`🔄 [${requestId}] No real data available, returning comprehensive sample portfolio data`);
     
-    const emptyHoldings = [];
-
-    const totalValue = 0;
-    const totalGainLoss = 0;
-
+    const { getSamplePortfolioData } = require('../utils/sample-portfolio-store');
+    const sampleData = getSamplePortfolioData(accountType);
+    
+    console.log(`📊 [${requestId}] Returning ${sampleData.data.holdings.length} sample holdings for ${accountType} account`);
+    
     return res.success({
-      holdings: emptyHoldings,
+      holdings: sampleData.data.holdings,
       summary: {
-        totalValue: totalValue,
-        totalGainLoss: totalGainLoss,
-        totalGainLossPercent: totalValue > totalGainLoss ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0,
-        numPositions: 0,
+        ...sampleData.data.summary,
         accountType: accountType
       },
       metadata: {
         databaseStatus: {
           tablesAvailable: tableDeps ? tableDeps.hasRequiredTables : false,
           missingTables: tableDeps ? tableDeps.missingRequired : PORTFOLIO_TABLES.required,
-          status: 'No portfolio data available - connect your broker to import holdings'
+          status: 'Using sample data - connect your broker API keys to see real holdings'
         },
-        dataSource: 'empty'
+        total_matching_holdings: sampleData.data.holdings.length,
+        development_mode: true,
+        data_source: 'sample_portfolio_store'
       }
-    });
+    }, { requestId });
 
   } catch (error) {
     console.error('Error in portfolio holdings endpoint:', error);
@@ -1459,23 +1458,18 @@ router.get('/account', async (req, res) => {
       }
     });
     
+    // Return sample account data instead of empty data
+    console.log('🔄 No real account data available, returning sample account data');
+    
+    const { getSampleAccountInfo } = require('../utils/sample-portfolio-store');
+    const sampleAccountData = getSampleAccountInfo(accountType);
+    
     return res.success({
-      account: {
-        accountId: null,
-        accountType: accountType,
-        balance: 0,
-        availableBalance: 0,
-        totalValue: 0,
-        dayChange: 0,
-        dayChangePercent: 0,
-        buyingPower: 0,
-        maintenance: 0,
-        currency: 'USD',
-        lastUpdated: new Date().toISOString()
-      },
+      ...sampleAccountData.data,
       metadata: {
-        message: 'No account data available - configure your broker API keys',
-        dataSource: 'empty'
+        message: 'Using sample data - configure your broker API keys to see real account information',
+        development_mode: true,
+        data_source: 'sample_portfolio_store'
       }
     });
 
@@ -1630,32 +1624,17 @@ router.get('/analytics', async (req, res) => {
     
     // Check if database is available
     if (req.dbError) {
-      console.log('📋 Database unavailable, returning mock analytics...');
+      console.log('📋 Database unavailable, returning comprehensive sample analytics...');
+      
+      const { getSampleAnalyticsData } = require('../utils/sample-portfolio-store');
+      const sampleAnalytics = getSampleAnalyticsData();
+      
       return res.success({
-        performance: {
-          totalReturn: 15.3,
-          totalReturnPercent: 15.3,
-          annualizedReturn: 12.1,
-          volatility: 18.7,
-          sharpeRatio: 1.2,
-          maxDrawdown: -8.4,
-          winRate: 65.2,
-          numTrades: 0,
-          avgWin: 0,
-          avgLoss: 0,
-          profitFactor: 0
-        },
+        ...sampleAnalytics.data,
         timeframe: timeframe,
-        dataPoints: [],
-        benchmarkComparison: {
-          portfolioReturn: 15.3,
-          spyReturn: 12.8,
-          alpha: 2.5,
-          beta: 1.1,
-          rSquared: 0.85
-        },
         metadata: {
-          dataSource: 'mock'
+          ...sampleAnalytics.data.metadata,
+          message: 'Using sample analytics - connect your broker API to see real performance data'
         }
       });
     }
