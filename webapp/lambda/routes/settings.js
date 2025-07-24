@@ -518,18 +518,23 @@ router.post('/api-keys', async (req, res) => {
   }
   
   const userId = req.user?.sub;
-  const { provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
+  const { name, key, secret, provider, apiKey, apiSecret, isSandbox = true, description } = req.body;
+  
+  // Support both old and new API formats
+  const finalProvider = name || provider;
+  const finalApiKey = key || apiKey;
+  const finalSecret = secret || apiSecret;
   
   console.log(`🔐 [${requestId}] User ID:`, userId);
   console.log(`🔐 [${requestId}] User object:`, JSON.stringify(req.user, null, 2));
   console.log(`🔐 [${requestId}] Request body:`, JSON.stringify({ 
-    provider, 
+    finalProvider, 
     isSandbox, 
     description, 
-    hasApiKey: !!apiKey, 
-    hasSecret: !!apiSecret,
-    apiKeyLength: apiKey?.length,
-    secretLength: apiSecret?.length
+    hasApiKey: !!finalApiKey, 
+    hasSecret: !!finalSecret,
+    apiKeyLength: finalApiKey?.length,
+    secretLength: finalSecret?.length
   }, null, 2));
 
   // Check if user is properly authenticated
@@ -542,8 +547,8 @@ router.post('/api-keys', async (req, res) => {
     });
   }
 
-  if (!provider || !apiKey) {
-    console.error(`❌ [${requestId}] Missing required fields: provider=${!!provider}, apiKey=${!!apiKey} after ${Date.now() - startTime}ms`);
+  if (!finalProvider || !finalApiKey) {
+    console.error(`❌ [${requestId}] Missing required fields: provider=${!!finalProvider}, apiKey=${!!finalApiKey} after ${Date.now() - startTime}ms`);
     return res.status(400).json({
       success: false,
       error: 'Provider and API key are required'
@@ -551,9 +556,9 @@ router.post('/api-keys', async (req, res) => {
   }
 
   // Validate API key format based on provider
-  const formatValidation = validateApiKeyFormat(provider, apiKey, apiSecret);
+  const formatValidation = validateApiKeyFormat(finalProvider, finalApiKey, finalSecret);
   if (!formatValidation.valid) {
-    console.error(`❌ [${requestId}] Invalid API key format for ${provider}: ${formatValidation.error}`);
+    console.error(`❌ [${requestId}] Invalid API key format for ${finalProvider}: ${formatValidation.error}`);
     return res.status(400).json({
       success: false,
       error: formatValidation.error,
@@ -566,13 +571,13 @@ router.post('/api-keys', async (req, res) => {
     
     // Store API key using simple Parameter Store service
     const storeStart = Date.now();
-    await apiKeyService.storeApiKey(userId, provider, apiKey, apiSecret);
+    await apiKeyService.storeApiKey(userId, finalProvider, finalApiKey, finalSecret);
     console.log(`✅ [${requestId}] API key stored successfully after ${Date.now() - storeStart}ms`);
     
     // Trigger portfolio data refresh for this user's portfolio symbols
     console.log(`🔄 [${requestId}] Triggering portfolio data refresh after ${Date.now() - startTime}ms...`);
     try {
-      const refreshResult = await portfolioDataRefreshService.triggerPortfolioDataRefresh(userId, provider);
+      const refreshResult = await portfolioDataRefreshService.triggerPortfolioDataRefresh(userId, finalProvider);
       console.log(`✅ [${requestId}] Portfolio data refresh result:`, refreshResult.status);
     } catch (refreshError) {
       console.warn(`⚠️ [${requestId}] Portfolio data refresh failed (non-critical):`, refreshError.message);
@@ -585,8 +590,8 @@ router.post('/api-keys', async (req, res) => {
       success: true,
       message: 'API key added successfully',
       apiKey: {
-        provider,
-        description: description || `${provider} API key`,
+        provider: finalProvider,
+        description: description || `${finalProvider} API key`,
         isSandbox,
         createdAt: new Date().toISOString()
       }

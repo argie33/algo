@@ -10,19 +10,21 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// Load routes
+// Mock the auth middleware before loading routes
+jest.mock('../../middleware/auth', () => ({
+  authenticateToken: (req, res, next) => {
+    req.user = {
+      sub: 'test-user-123',
+      email: 'test@example.com',
+      username: 'testuser'
+    };
+    next();
+  }
+}));
+
+// Load routes after mocking auth
 const settingsRoute = require('../../routes/settings');
 const portfolioRoute = require('../../routes/portfolio');
-
-// Mock authentication for testing
-app.use((req, res, next) => {
-  req.user = {
-    sub: 'test-user-123',
-    email: 'test@example.com',
-    username: 'testuser'
-  };
-  next();
-});
 
 // Mount routes
 app.use('/api/settings', settingsRoute);
@@ -118,13 +120,31 @@ describe('Frontend-Backend API Communication', () => {
     const response = await request(app)
       .post('/api/settings/api-keys')
       .send({
-        provider: 'invalid-provider',
-        apiKey: 'test-key',
-        apiSecret: 'test-secret'
+        name: 'invalid-provider',
+        key: 'test-key',
+        secret: 'test-secret'
       })
       .expect(400);
 
     expect(response.body.success).toBe(false);
     expect(response.body.error).toBeTruthy();
+  });
+
+  test('Add API key with new format should work', async () => {
+    // Test the new API format (name/key instead of provider/apiKey)
+    const response = await request(app)
+      .post('/api/settings/api-keys')
+      .send({
+        name: 'alpaca',
+        key: 'PKTEST123456789012345678901234567890',
+        secret: 'test-secret-key-1234567890123456789012345678901234567890',
+        isSandbox: true,
+        description: 'Test API key'
+      })
+      .expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.message).toBe('API key added successfully');
+    expect(response.body.apiKey.provider).toBe('alpaca');
   });
 });

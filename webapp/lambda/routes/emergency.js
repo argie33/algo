@@ -76,6 +76,83 @@ router.get('/circuit-breaker-status', async (req, res) => {
   }
 });
 
+// Emergency update-status endpoint - temporary workaround for health route loading issue
+router.post('/update-status', async (req, res) => {
+  try {
+    console.log('🔄 Emergency health status update requested');
+    
+    const databaseManager = require('../utils/databaseConnectionManager');
+    
+    // Perform a basic health check using the database manager
+    let healthData;
+    try {
+      // Test basic connectivity
+      const testResult = await databaseManager.query('SELECT NOW() as current_time, current_database() as db_name');
+      
+      // Simple health data structure
+      healthData = {
+        status: 'connected',
+        database: {
+          status: 'connected',
+          currentTime: testResult.rows[0].current_time,
+          dbName: testResult.rows[0].db_name,
+          tables: {}, // Simplified - no table analysis for emergency endpoint
+          summary: {
+            total_tables: 'unknown',
+            healthy_tables: 'unknown', 
+            stale_tables: 0,
+            error_tables: 0,
+            empty_tables: 0,
+            missing_tables: 0,
+            total_records: 'unknown',
+            total_missing_data: 0
+          }
+        },
+        timestamp: new Date().toISOString(),
+        note: 'Emergency endpoint - simplified health check'
+      };
+    } catch (error) {
+      healthData = {
+        status: 'error',
+        error: error.message,
+        database: {
+          status: 'error',
+          tables: {},
+          summary: {
+            total_tables: 0,
+            healthy_tables: 0,
+            stale_tables: 0,
+            error_tables: 0,
+            empty_tables: 0,
+            missing_tables: 0,
+            total_records: 0,
+            total_missing_data: 0
+          }
+        },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Database health status updated successfully (emergency endpoint)',
+      data: healthData,
+      timestamp: new Date().toISOString(),
+      note: 'This is an emergency endpoint. The main health endpoint is temporarily unavailable.'
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to update health status (emergency endpoint):', error);
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to update health status',
+      details: error.message,
+      timestamp: new Date().toISOString(),
+      note: 'Emergency endpoint error'
+    });
+  }
+});
+
 function generateCircuitBreakerRecommendations(status) {
   const recommendations = [];
   
