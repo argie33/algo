@@ -416,8 +416,15 @@ router.get('/overview', async (req, res) => {
   console.log('Market overview endpoint called');
   
   try {
-    // Test database connection first
-    await query('SELECT 1');
+    // Add CORS headers explicitly for this endpoint
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://d1zb7knau41vl9.cloudfront.net');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Test database connection first with timeout
+    const connectionTest = await Promise.race([
+      query('SELECT 1'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+    ]);
     
     // Initialize response structure
     const marketOverview = {
@@ -583,12 +590,18 @@ router.get('/overview', async (req, res) => {
     const dataAvailable = Object.values(marketOverview.data_sources).filter(source => source === 'database').length;
     marketOverview.market_status = dataAvailable > 0 ? 'open' : 'data_unavailable';
 
-    return res.success(marketOverview);
+    return res.json({
+      success: true,
+      data: marketOverview,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Database connection failed in market overview:', error.message);
-    return res.error('Database connection failed', {
-      error: error.message,
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection failed',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }

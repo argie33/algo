@@ -235,10 +235,24 @@ router.get('/signals/:timeframe', async (req, res) => {
       [tableName]
     );
     if (!tableExistsResult.rows[0].exists) {
-      console.error(`[TRADING] Table does not exist: ${tableName}`);
-      return res.status(500).json({ 
-        error: `Table ${tableName} does not exist in the database.`,
-        details: `Expected table ${tableName} for trading signals. Please check your database schema.`
+      console.warn(`[TRADING] Table does not exist: ${tableName}, returning empty signals`);
+      return res.json({ 
+        success: true,
+        data: [],
+        message: `Trading signals for ${timeframe} timeframe are not available at this time`,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        },
+        metadata: {
+          timeframe: timeframe,
+          tableExists: false,
+          dataSource: 'none'
+        }
       });
     }
 
