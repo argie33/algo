@@ -1163,11 +1163,12 @@ function ServiceHealth() {
                     </Box>
                   )}
 
-                  {/* All Tables (shown when full scan is available) */}
-                  {safeDbHealth.database?.all_tables && Object.keys(safeDbHealth.database.all_tables).length > 0 && (
+                  {/* Legacy tables data support - check both structures */}
+                  {((safeDbHealth.database?.tables && Object.keys(safeDbHealth.database.tables).length > 0) || 
+                    (safeDbHealth.database?.all_tables && Object.keys(safeDbHealth.database.all_tables).length > 0)) && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" gutterBottom>
-                        📋 All Tables ({Object.keys(safeDbHealth.database.all_tables).length} total tables):
+                        📋 All Tables ({Object.keys(safeDbHealth.database.tables || safeDbHealth.database.all_tables || {}).length} total tables):
                       </Typography>
                       <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
                         <Table size="small" stickyHeader>
@@ -1180,12 +1181,12 @@ function ServiceHealth() {
                               <TableCell>Critical</TableCell>
                               <TableCell>Last Updated</TableCell>
                               <TableCell>Missing Data</TableCell>
-                              <TableCell>Last Checked</TableCell>
-                              <TableCell>Error</TableCell>
+                              <TableCell>Last Vacuum</TableCell>
+                              <TableCell>Size/Error</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {Object.entries(safeDbHealth.database.all_tables)
+                            {Object.entries(safeDbHealth.database.tables || safeDbHealth.database.all_tables || {})
                               .sort(([a], [b]) => a.localeCompare(b))
                               .map(([tableName, tableData]) => (
                               <TableRow key={tableName} sx={{ 
@@ -1198,38 +1199,70 @@ function ServiceHealth() {
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  <Chip
-                                    label={tableData.category || 'other'}
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{ 
-                                      fontSize: '0.7rem',
-                                      height: 20,
-                                      backgroundColor: 
-                                        tableData.category === 'symbols' ? '#e3f2fd' :
-                                        tableData.category === 'prices' ? '#f3e5f5' :
-                                        tableData.category === 'portfolio' ? '#e8f5e8' :
-                                        tableData.category === 'system' ? '#fff3e0' :
-                                        '#f5f5f5'
-                                    }}
-                                  />
+                                  {typeof tableData === 'string' ? (
+                                    <Chip label="Error" size="small" color="error" sx={{ fontSize: '0.7rem', height: 20 }} />
+                                  ) : (
+                                    <Chip
+                                      label={tableData.category || tableData.table_category || 'other'}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ 
+                                        fontSize: '0.7rem',
+                                        height: 20,
+                                        backgroundColor: 
+                                          (tableData.category || tableData.table_category) === 'symbols' ? '#e3f2fd' :
+                                          (tableData.category || tableData.table_category) === 'prices' ? '#f3e5f5' :
+                                          (tableData.category || tableData.table_category) === 'portfolio' ? '#e8f5e8' :
+                                          (tableData.category || tableData.table_category) === 'system' ? '#fff3e0' :
+                                          (tableData.category || tableData.table_category) === 'technicals' ? '#e8f5e8' :
+                                          (tableData.category || tableData.table_category) === 'financials' ? '#fff3e0' :
+                                          (tableData.category || tableData.table_category) === 'company' ? '#e0f2f1' :
+                                          (tableData.category || tableData.table_category) === 'earnings' ? '#fce4ec' :
+                                          (tableData.category || tableData.table_category) === 'sentiment' ? '#f1f8e9' :
+                                          (tableData.category || tableData.table_category) === 'trading' ? '#e8eaf6' :
+                                          (tableData.category || tableData.table_category) === 'scoring' ? '#f3e5f5' :
+                                          '#f5f5f5'
+                                      }}
+                                    />
+                                  )}
                                 </TableCell>
                                 <TableCell align="right">
                                   <Typography variant="body2" fontWeight={600}>
-                                    {formatNumber(tableData.estimated_rows)}
+                                    {typeof tableData === 'string' ? 'Error' : formatNumber(tableData.record_count || tableData.estimated_rows || 0)}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  <Chip
-                                    icon={getStatusIcon(tableData?.status)}
-                                    label={tableData?.status || 'Unknown'}
-                                    color={getStatusColor(tableData?.status)}
-                                    size="small"
-                                    sx={{ minWidth: 80 }}
-                                  />
+                                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                    {typeof tableData === 'string' ? (
+                                      <Chip
+                                        icon={getStatusIcon('error')}
+                                        label="Error"
+                                        color="error"
+                                        size="small"
+                                        sx={{ minWidth: 80 }}
+                                      />
+                                    ) : (
+                                      <>
+                                        <Chip
+                                          icon={getStatusIcon(tableData?.status)}
+                                          label={tableData?.status || 'Unknown'}
+                                          color={getStatusColor(tableData?.status)}
+                                          size="small"
+                                          sx={{ minWidth: 80 }}
+                                        />
+                                        {tableData.is_stale && (
+                                          <Chip
+                                            label="Stale"
+                                            color="warning"
+                                            size="small"
+                                          />
+                                        )}
+                                      </>
+                                    )}
+                                  </Box>
                                 </TableCell>
                                 <TableCell>
-                                  {tableData.is_critical && (
+                                  {(tableData.is_critical || tableData.critical_table) && (
                                     <Chip
                                       label="Critical"
                                       color="error"
@@ -1239,14 +1272,28 @@ function ServiceHealth() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <Typography variant="body2">
-                                    {tableData.last_analyzed ? new Date(tableData.last_analyzed).toLocaleDateString() : 'Never'}
-                                  </Typography>
+                                  <Box>
+                                    <Typography variant="body2">
+                                      {tableData.last_updated ? new Date(tableData.last_updated).toLocaleDateString() : 
+                                       tableData.last_analyzed ? new Date(tableData.last_analyzed).toLocaleDateString() : 'Never'}
+                                    </Typography>
+                                    {tableData.last_updated && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {formatTimeAgo ? formatTimeAgo(tableData.last_updated) : ''}
+                                      </Typography>
+                                    )}
+                                  </Box>
                                 </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Activity: {formatNumber(tableData.total_activity || 0)}
-                                  </Typography>
+                                <TableCell align="right">
+                                  {tableData.missing_data_count > 0 ? (
+                                    <Typography variant="body2" color="warning.main" fontWeight={600}>
+                                      {formatNumber(tableData.missing_data_count)}
+                                    </Typography>
+                                  ) : (
+                                    <Typography variant="body2" color="text.secondary">
+                                      Activity: {formatNumber(tableData.total_activity || 0)}
+                                    </Typography>
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <Typography variant="body2">
@@ -1254,8 +1301,33 @@ function ServiceHealth() {
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  {/* No specific error field in new structure */}
-                                  -
+                                  {typeof tableData === 'string' ? (
+                                    <Tooltip title={tableData}>
+                                      <Typography variant="body2" color="error" sx={{ 
+                                        maxWidth: 200, 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis',
+                                        cursor: 'help'
+                                      }}>
+                                        {tableData.length > 30 ? `${tableData.substring(0, 30)}...` : tableData}
+                                      </Typography>
+                                    </Tooltip>
+                                  ) : tableData.error ? (
+                                    <Tooltip title={tableData.error}>
+                                      <Typography variant="body2" color="error" sx={{ 
+                                        maxWidth: 200, 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis',
+                                        cursor: 'help'
+                                      }}>
+                                        {tableData.error.length > 30 ? `${tableData.error.substring(0, 30)}...` : tableData.error}
+                                      </Typography>
+                                    </Tooltip>
+                                  ) : tableData.table_size ? (
+                                    <Typography variant="body2" color="text.secondary">
+                                      {tableData.table_size}
+                                    </Typography>
+                                  ) : '-'}
                                 </TableCell>
                               </TableRow>
                             ))}

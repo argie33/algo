@@ -20,12 +20,21 @@ const CRITICAL_TABLES = [
   'portfolio_holdings', 'user_api_keys', 'health_status'
 ];
 
-// Table categorization for business logic
+// Comprehensive table categorization matching original system
 const TABLE_CATEGORIES = {
-  symbols: ['symbols', 'stock_symbols', 'etf_symbols'],
-  prices: ['price_daily', 'price_weekly', 'latest_prices'],
-  portfolio: ['portfolio_holdings', 'position_history'],
-  system: ['health_status', 'last_updated', 'user_api_keys']
+  symbols: ['symbols', 'stock_symbols', 'etf_symbols', 'stock_symbols_enhanced'],
+  prices: ['price_daily', 'price_weekly', 'price_monthly', 'latest_prices', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly'],
+  technicals: ['technical_data_daily', 'technical_data_weekly', 'technical_data_monthly'],
+  financials: ['annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow', 'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow', 'ttm_income_statement', 'ttm_cash_flow'],
+  company: ['company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team'],
+  earnings: ['earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics'],
+  sentiment: ['fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade'],
+  trading: ['portfolio_holdings', 'portfolio_performance', 'trading_alerts', 'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly'],
+  scoring: ['quality_metrics', 'value_metrics', 'growth_metrics', 'stock_scores', 'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness', 'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis', 'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis', 'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime'],
+  news: ['stock_news'],
+  system: ['health_status', 'last_updated', 'user_api_keys'],
+  test: ['earnings', 'prices', 'stocks'],
+  other: ['stocks']
 };
 
 /**
@@ -308,7 +317,7 @@ async function getConnectionHealth() {
 }
 
 async function getCriticalHealth() {
-  // Critical tables batch query
+  // Enhanced critical tables query with complete information
   const criticalQuery = `
     SELECT 
       t.table_name,
@@ -317,6 +326,10 @@ async function getCriticalHealth() {
       s.last_vacuum,
       s.last_analyze,
       s.last_autoanalyze,
+      s.last_autovacuum,
+      pg_size_pretty(pg_total_relation_size(c.oid)) as table_size,
+      pg_total_relation_size(c.oid) as size_bytes,
+      (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count,
       CASE 
         WHEN s.n_live_tup = 0 THEN 'empty'
         WHEN s.last_analyze < NOW() - INTERVAL '7 days' OR s.last_autoanalyze < NOW() - INTERVAL '7 days' THEN 'stale'
@@ -329,6 +342,7 @@ async function getCriticalHealth() {
       END as last_analyzed
     FROM information_schema.tables t
     LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name
+    LEFT JOIN pg_class c ON c.relname = t.table_name
     WHERE t.table_schema = 'public' 
       AND t.table_name = ANY($1)
     ORDER BY total_activity DESC
@@ -339,7 +353,7 @@ async function getCriticalHealth() {
     new Promise((_, reject) => setTimeout(() => reject(new Error('Critical health timeout')), 8000))
   ]);
   
-  // Process critical table results
+  // Process critical table results with detailed information
   const criticalTableHealth = {};
   let summary = {
     total_tables: result.rows.length,
@@ -347,10 +361,13 @@ async function getCriticalHealth() {
     stale_tables: 0,
     empty_tables: 0,
     error_tables: 0,
-    total_records: 0
+    missing_tables: 0,
+    total_records: 0,
+    total_missing_data: 0
   };
   
-  result.rows.forEach(table => {
+  // Add missing data calculation for each table
+  for (const table of result.rows) {
     const rows = parseInt(table.estimated_rows) || 0;
     summary.total_records += rows;
     
@@ -359,21 +376,82 @@ async function getCriticalHealth() {
     else if (table.status === 'empty') summary.empty_tables++;
     else summary.error_tables++;
     
+    // Try to get detailed timestamp information
+    let lastUpdated = null;
+    let missingDataCount = 0;
+    try {
+      const timestampColumns = ['fetched_at', 'updated_at', 'created_at', 'date', 'period_end'];
+      for (const col of timestampColumns) {
+        try {
+          const colCheck = await query(`
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = $1 AND column_name = $2
+          `, [table.table_name, col]);
+          
+          if (colCheck.rowCount > 0) {
+            const tsResult = await query(`SELECT MAX(${col}) as last_update FROM ${table.table_name}`);
+            if (tsResult.rows[0].last_update) {
+              lastUpdated = tsResult.rows[0].last_update;
+              break;
+            }
+          }
+        } catch (tsError) {
+          // Continue to next column
+        }
+      }
+      
+      // Calculate missing data (simplified - could be enhanced)
+      if (rows > 0) {
+        const nullCheck = await query(`
+          SELECT COUNT(*) as total_nulls FROM (
+            SELECT * FROM ${table.table_name} 
+            WHERE COALESCE(updated_at, created_at, fetched_at) IS NULL 
+            LIMIT 1000
+          ) t
+        `);
+        missingDataCount = parseInt(nullCheck.rows[0]?.total_nulls) || 0;
+      }
+    } catch (detailError) {
+      // Use basic information if detailed query fails
+    }
+    
+    summary.total_missing_data += missingDataCount;
+    
     criticalTableHealth[table.table_name] = {
       status: table.status,
+      record_count: rows,
       estimated_rows: rows,
       total_activity: parseInt(table.total_activity) || 0,
       last_analyzed: table.last_analyzed,
+      last_updated: lastUpdated,
+      last_vacuum: table.last_vacuum || table.last_autovacuum,
+      table_size: table.table_size,
+      size_bytes: parseInt(table.size_bytes) || 0,
+      column_count: parseInt(table.column_count) || 0,
+      missing_data_count: missingDataCount,
+      is_stale: table.status === 'stale',
+      table_category: getCategoryForTable(table.table_name),
+      critical_table: true,
       category: getCategoryForTable(table.table_name),
       is_critical: true
     };
-  });
+  }
+  
+  // Check for missing critical tables
+  const foundTables = result.rows.map(r => r.table_name);
+  const missingTables = CRITICAL_TABLES.filter(t => !foundTables.includes(t));
+  summary.missing_tables = missingTables.length;
   
   return {
     status: summary.healthy_tables > 0 ? 'operational' : 'degraded',
+    database: {
+      status: 'connected',
+      tables: criticalTableHealth,
+      summary: summary
+    },
     critical_tables: criticalTableHealth,
     summary,
-    missing_critical_tables: CRITICAL_TABLES.filter(t => !criticalTableHealth[t]),
+    missing_critical_tables: missingTables,
     timestamp: new Date().toISOString(),
     cached: false
   };
@@ -387,7 +465,7 @@ async function backgroundFullHealthScan() {
     console.log('🔄 Starting background full health scan...');
     const startTime = Date.now();
     
-    // Get all tables in one query
+    // Get all tables with comprehensive information
     const allTablesQuery = `
       SELECT 
         t.table_name,
@@ -397,6 +475,9 @@ async function backgroundFullHealthScan() {
         s.last_analyze,
         s.last_autoanalyze,
         s.last_autovacuum,
+        pg_size_pretty(pg_total_relation_size(c.oid)) as table_size,
+        pg_total_relation_size(c.oid) as size_bytes,
+        (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count,
         CASE 
           WHEN s.n_live_tup = 0 THEN 'empty'
           WHEN s.last_analyze < NOW() - INTERVAL '7 days' OR s.last_autoanalyze < NOW() - INTERVAL '7 days' THEN 'stale'
@@ -405,6 +486,7 @@ async function backgroundFullHealthScan() {
         END as status
       FROM information_schema.tables t
       LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name
+      LEFT JOIN pg_class c ON c.relname = t.table_name
       WHERE t.table_schema = 'public' 
         AND t.table_type = 'BASE TABLE'
       ORDER BY total_activity DESC
@@ -412,7 +494,7 @@ async function backgroundFullHealthScan() {
     
     const result = await query(allTablesQuery, [], 30000); // 30 second timeout for background
     
-    // Process all table results
+    // Process all table results with detailed information
     const allTableHealth = {};
     let summary = {
       total_tables: result.rows.length,
@@ -420,40 +502,108 @@ async function backgroundFullHealthScan() {
       stale_tables: 0,
       empty_tables: 0,
       error_tables: 0,
+      missing_tables: 0,
       total_records: 0,
+      total_missing_data: 0,
       categories: {}
     };
     
-    result.rows.forEach(table => {
-      const rows = parseInt(table.estimated_rows) || 0;
-      summary.total_records += rows;
+    // Process each table in batches to avoid overwhelming the database
+    const batchSize = 5;
+    for (let i = 0; i < result.rows.length; i += batchSize) {
+      const batch = result.rows.slice(i, i + batchSize);
       
-      if (table.status === 'healthy') summary.healthy_tables++;
-      else if (table.status === 'stale') summary.stale_tables++;
-      else if (table.status === 'empty') summary.empty_tables++;
-      else summary.error_tables++;
-      
-      const category = getCategoryForTable(table.table_name);
-      if (!summary.categories[category]) {
-        summary.categories[category] = { tables: 0, healthy: 0, total_rows: 0 };
+      for (const table of batch) {
+        const rows = parseInt(table.estimated_rows) || 0;
+        summary.total_records += rows;
+        
+        if (table.status === 'healthy') summary.healthy_tables++;
+        else if (table.status === 'stale') summary.stale_tables++;
+        else if (table.status === 'empty') summary.empty_tables++;
+        else summary.error_tables++;
+        
+        const category = getCategoryForTable(table.table_name);
+        if (!summary.categories[category]) {
+          summary.categories[category] = { tables: 0, healthy: 0, total_rows: 0 };
+        }
+        summary.categories[category].tables++;
+        summary.categories[category].total_rows += rows;
+        if (table.status === 'healthy') summary.categories[category].healthy++;
+        
+        // Get detailed information for each table
+        let lastUpdated = null;
+        let missingDataCount = 0;
+        let errorMsg = null;
+        
+        try {
+          // Try to get last updated timestamp
+          const timestampColumns = ['fetched_at', 'updated_at', 'created_at', 'date', 'period_end'];
+          for (const col of timestampColumns) {
+            try {
+              const colCheck = await query(`
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = $1 AND column_name = $2
+              `, [table.table_name, col]);
+              
+              if (colCheck.rowCount > 0) {
+                const tsResult = await query(`SELECT MAX(${col}) as last_update FROM ${table.table_name}`);
+                if (tsResult.rows[0].last_update) {
+                  lastUpdated = tsResult.rows[0].last_update;
+                  break;
+                }
+              }
+            } catch (tsError) {
+              // Continue to next column
+            }
+          }
+          
+          // Calculate missing data (simplified check)
+          if (rows > 0) {
+            const nullCheck = await query(`
+              SELECT COUNT(*) as total_nulls FROM (
+                SELECT * FROM ${table.table_name} 
+                WHERE COALESCE(updated_at, created_at, fetched_at) IS NULL 
+                LIMIT 1000
+              ) t
+            `);
+            missingDataCount = parseInt(nullCheck.rows[0]?.total_nulls) || 0;
+          }
+          
+        } catch (detailError) {
+          errorMsg = detailError.message;
+        }
+        
+        summary.total_missing_data += missingDataCount;
+        
+        allTableHealth[table.table_name] = {
+          status: table.status,
+          record_count: rows,
+          estimated_rows: rows,
+          total_activity: parseInt(table.total_activity) || 0,
+          last_analyzed: table.last_analyzed || table.last_autoanalyze,
+          last_updated: lastUpdated,
+          last_vacuum: table.last_vacuum || table.last_autovacuum,
+          table_size: table.table_size,
+          size_bytes: parseInt(table.size_bytes) || 0,
+          column_count: parseInt(table.column_count) || 0,
+          missing_data_count: missingDataCount,
+          is_stale: table.status === 'stale',
+          table_category: category,
+          critical_table: CRITICAL_TABLES.includes(table.table_name),
+          category,
+          is_critical: CRITICAL_TABLES.includes(table.table_name),
+          error: errorMsg
+        };
       }
-      summary.categories[category].tables++;
-      summary.categories[category].total_rows += rows;
-      if (table.status === 'healthy') summary.categories[category].healthy++;
-      
-      allTableHealth[table.table_name] = {
-        status: table.status,
-        estimated_rows: rows,
-        total_activity: parseInt(table.total_activity) || 0,
-        last_analyzed: table.last_analyzed || table.last_autoanalyze,
-        last_vacuum: table.last_vacuum || table.last_autovacuum,
-        category,
-        is_critical: CRITICAL_TABLES.includes(table.table_name)
-      };
-    });
+    }
     
     const fullHealth = {
       status: summary.healthy_tables > summary.total_tables * 0.8 ? 'healthy' : 'degraded',
+      database: {
+        status: 'connected',
+        tables: allTableHealth,
+        summary: summary
+      },
       all_tables: allTableHealth,
       summary,
       scan_duration: Date.now() - startTime,
