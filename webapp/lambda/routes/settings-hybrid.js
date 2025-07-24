@@ -9,7 +9,7 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 
 // Import both legacy and enhanced services
-const legacyApiKeyService = require('../utils/simpleApiKeyService');
+const legacyApiKeyService = require('../utils/apiKeyService');
 const apiKeyService = require('../utils/apiKeyService');
 const migrationUtility = require('../utils/apiKeyMigrationUtility');
 

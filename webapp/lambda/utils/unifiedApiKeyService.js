@@ -4,7 +4,7 @@
  * Single source of truth with graceful error handling
  */
 
-const simpleApiKeyService = require('./simpleApiKeyService');
+const apiKeyService = require('./apiKeyService');
 const unifiedApiKeyDatabaseService = require('./unifiedApiKeyDatabaseService');
 
 class UnifiedApiKeyService {
@@ -44,7 +44,7 @@ class UnifiedApiKeyService {
       this.cacheMisses++;
       
       // Primary: Try Parameter Store first
-      let apiKeyData = await simpleApiKeyService.getApiKey(userId, 'alpaca');
+      let apiKeyData = await apiKeyService.getApiKey(userId, 'alpaca');
       
       // Fallback: Try database if Parameter Store fails
       if (!apiKeyData) {
@@ -61,7 +61,7 @@ class UnifiedApiKeyService {
               await unifiedApiKeyDatabaseService.markApiKeyAsMigrated(userId, 'alpaca');
               
               // Retry Parameter Store after migration
-              apiKeyData = await simpleApiKeyService.getApiKey(userId, 'alpaca');
+              apiKeyData = await apiKeyService.getApiKey(userId, 'alpaca');
               console.log(`✅ Auto-migrated API key for user ${userId}`);
             } catch (migrationError) {
               console.error(`❌ Auto-migration failed for user ${userId}:`, migrationError);
@@ -104,7 +104,7 @@ class UnifiedApiKeyService {
       }
 
       // Store in Parameter Store (primary)
-      const success = await simpleApiKeyService.storeApiKey(userId, 'alpaca', apiKey, secretKey);
+      const success = await apiKeyService.storeApiKey(userId, 'alpaca', apiKey, secretKey);
       
       if (success) {
         // Update database tracking record
@@ -140,7 +140,7 @@ class UnifiedApiKeyService {
       
       // Remove from Parameter Store (primary)
       try {
-        parameterStoreSuccess = await simpleApiKeyService.deleteApiKey(userId, 'alpaca');
+        parameterStoreSuccess = await apiKeyService.deleteApiKey(userId, 'alpaca');
       } catch (paramError) {
         console.warn(`⚠️ Parameter Store removal failed for user ${userId}:`, paramError.message);
       }
@@ -307,8 +307,8 @@ class UnifiedApiKeyService {
    */
   async healthCheck() {
     try {
-      const isEnabled = simpleApiKeyService.isEnabled;
-      const backendHealth = await simpleApiKeyService.healthCheck();
+      const isEnabled = apiKeyService.isEnabled;
+      const backendHealth = await apiKeyService.healthCheck();
       const databaseHealth = await unifiedApiKeyDatabaseService.healthCheck();
       const migrationStats = await unifiedApiKeyDatabaseService.getMigrationStats();
       

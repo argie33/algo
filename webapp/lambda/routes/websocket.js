@@ -5,7 +5,7 @@ const { success, error } = require('../utils/responseFormatter');
 let jwt, apiKeyService, alpacaService, validationMiddleware, hftService;
 try {
   jwt = require('aws-jwt-verify');
-  apiKeyService = require('../utils/simpleApiKeyService');
+  apiKeyService = require('../utils/apiKeyService');
   alpacaService = require('../utils/alpacaService');
   const validation = require('../middleware/validation');
   validationMiddleware = validation.createValidationMiddleware;

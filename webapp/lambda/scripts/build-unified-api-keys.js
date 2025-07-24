@@ -87,7 +87,7 @@ async function main() {
   
   // Check dependencies
   log('\n📋 Checking Dependencies:', 'blue');
-  allChecks &= checkFileExists('utils/simpleApiKeyService.js', 'Simple API Key Service');
+  allChecks &= checkFileExists('utils/apiKeyService.js', 'Simple API Key Service');
   allChecks &= checkFileExists('utils/databaseConnectionManager.js', 'Database Manager');
   allChecks &= checkFileExists('middleware/auth.js', 'Authentication Middleware');
   

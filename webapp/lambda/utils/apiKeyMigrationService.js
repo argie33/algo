@@ -69,7 +69,7 @@ class ApiKeyMigrationService {
     
     try {
       // Check Parameter Store for existing keys (settings system)
-      const simpleApiKeyService = require('./simpleApiKeyService');
+      const apiKeyService = require('./apiKeyService');
       
       // This would require iterating through Parameter Store keys
       // For now, we'll rely on the database discovery

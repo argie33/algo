@@ -155,7 +155,7 @@ function checkCloudFormationTemplate() {
 
 function checkApiKeyService() {
   try {
-    const servicePath = path.join(__dirname, 'utils', 'simpleApiKeyService.js');
+    const servicePath = path.join(__dirname, 'utils', 'apiKeyService.js');
     const content = fs.readFileSync(servicePath, 'utf8');
     
     // Check core methods
@@ -440,7 +440,7 @@ function checkSecurityMeasures() {
 function checkErrorHandling() {
   try {
     // Check API key service error handling
-    const apiKeyPath = path.join(__dirname, 'utils', 'simpleApiKeyService.js');
+    const apiKeyPath = path.join(__dirname, 'utils', 'apiKeyService.js');
     const content = fs.readFileSync(apiKeyPath, 'utf8');
     
     if (content.includes('try {') && content.includes('catch') && content.includes('throw new Error')) {

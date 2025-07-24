@@ -85,7 +85,7 @@ class ApiKeyPerformanceOptimizer {
    * Optimized Parameter Store batch fetching
    */
   async batchFetchFromParameterStore(userIds) {
-    const simpleApiKeyService = require('./simpleApiKeyService');
+    const apiKeyService = require('./apiKeyService');
     const results = {};
     
     // Process in smaller chunks to avoid AWS limits
@@ -97,7 +97,7 @@ class ApiKeyPerformanceOptimizer {
       
       await Promise.all(chunk.map(async (userId) => {
         try {
-          const apiKeyData = await simpleApiKeyService.getApiKey(userId, 'alpaca');
+          const apiKeyData = await apiKeyService.getApiKey(userId, 'alpaca');
           chunkResults[userId] = apiKeyData;
         } catch (error) {
           console.error(`Error fetching API key for user ${userId}:`, error);

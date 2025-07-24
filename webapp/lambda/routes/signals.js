@@ -6,7 +6,7 @@ const SignalProcessor = require('../utils/signalProcessor');
 const AdvancedSignalProcessor = require('../utils/advancedSignalProcessor');
 const AITradingSignalsEngine = require('../utils/aiTradingSignalsEngine');
 const AlpacaService = require('../utils/alpacaService');
-const apiKeyService = require('../utils/simpleApiKeyService');
+const apiKeyService = require('../utils/apiKeyService');
 const logger = require('../utils/logger');
 const { responseFormatter } = require('../utils/responseFormatter');
 

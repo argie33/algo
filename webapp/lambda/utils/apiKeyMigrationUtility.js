@@ -5,7 +5,7 @@
  * Long-term solution component for eliminating database dependencies
  */
 
-const simpleApiKeyService = require('./simpleApiKeyService');
+const apiKeyService = require('./apiKeyService');
 const enhancedApiKeyService = require('./enhancedApiKeyService');
 const { query } = require('./database');
 

@@ -1,11 +1,11 @@
 /**
  * Settings API Keys Route
- * Connects the existing SettingsApiKeys UI with the new simpleApiKeyService
+ * Connects the existing SettingsApiKeys UI with the new apiKeyService
  */
 
 const express = require('express');
 const router = express.Router();
-const simpleApiKeyService = require('../utils/simpleApiKeyService');
+const apiKeyService = require('../utils/apiKeyService');
 
 /**
  * Get all API keys for a user
@@ -18,7 +18,7 @@ router.get('/:userId', async (req, res) => {
     console.log(`🔍 Fetching API keys for user: ${userId}`);
     
     // Get list of API keys from Parameter Store
-    const apiKeys = await simpleApiKeyService.listApiKeys(userId);
+    const apiKeys = await apiKeyService.listApiKeys(userId);
     
     // Transform to match frontend expectations
     const transformedKeys = apiKeys.map(key => ({
@@ -75,7 +75,7 @@ router.post('/:userId/:provider', async (req, res) => {
     }
 
     // Store the API key
-    const result = await simpleApiKeyService.storeApiKey(
+    const result = await apiKeyService.storeApiKey(
       userId,
       provider.toLowerCase(),
       key,
@@ -118,7 +118,7 @@ router.post('/:userId/:provider/test', async (req, res) => {
     console.log(`🧪 Testing API key connection for user: ${userId}, provider: ${provider}`);
     
     // Retrieve the API key
-    const apiKey = await simpleApiKeyService.getApiKey(userId, provider);
+    const apiKey = await apiKeyService.getApiKey(userId, provider);
     
     if (!apiKey) {
       return res.status(404).json({
@@ -175,7 +175,7 @@ router.delete('/:userId/:provider', async (req, res) => {
     
     console.log(`🗑️ Deleting API key for user: ${userId}, provider: ${provider}`);
     
-    const result = await simpleApiKeyService.deleteApiKey(userId, provider);
+    const result = await apiKeyService.deleteApiKey(userId, provider);
     
     if (result) {
       res.json({
@@ -202,7 +202,7 @@ router.delete('/:userId/:provider', async (req, res) => {
  */
 router.get('/health', async (req, res) => {
   try {
-    const healthCheck = await simpleApiKeyService.healthCheck();
+    const healthCheck = await apiKeyService.healthCheck();
     res.json(healthCheck);
   } catch (error) {
     res.status(500).json({

@@ -152,10 +152,10 @@ function validateCloudFormationPermissions() {
 
 function validateApiKeyService() {
   try {
-    const servicePath = path.join(__dirname, 'utils', 'simpleApiKeyService.js');
+    const servicePath = path.join(__dirname, 'utils', 'apiKeyService.js');
     
     if (!fs.existsSync(servicePath)) {
-      throw new Error('simpleApiKeyService.js not found');
+      throw new Error('apiKeyService.js not found');
     }
     
     const serviceContent = fs.readFileSync(servicePath, 'utf8');
@@ -490,7 +490,7 @@ function validateSecurityAndErrorHandling() {
     }
     
     // Check API key service for proper error handling
-    const apiKeyPath = path.join(__dirname, 'utils', 'simpleApiKeyService.js');
+    const apiKeyPath = path.join(__dirname, 'utils', 'apiKeyService.js');
     const apiKeyContent = fs.readFileSync(apiKeyPath, 'utf8');
     
     if (apiKeyContent.includes('try {') && apiKeyContent.includes('catch') && apiKeyContent.includes('throw new Error')) {
