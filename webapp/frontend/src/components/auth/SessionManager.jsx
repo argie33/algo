@@ -91,6 +91,7 @@ function SessionManager({ children }) {
   const [showIdleWarning, setShowIdleWarning] = useState(false);
   const [activityTracker, setActivityTracker] = useState(null);
   const [sessionExtended, setSessionExtended] = useState(false);
+  const [sessionPersistent, setSessionPersistent] = useState(true); // Session persistence enabled by default
 
   // Initialize session tracking
   useEffect(() => {
