@@ -1,14 +1,34 @@
 // Direct database check script
 const { Client } = require('pg');
+require('dotenv').config();
 
 async function checkDatabase() {
-  const client = new Client({
-    host: 'localhost',
-    port: 5432,
-    database: 'stocks',
-    user: 'postgres',
-    password: 'postgres'
-  });
+  // Try AWS RDS configuration first (matching .env)
+  let clientConfig;
+  
+  if (process.env.USE_AWS_SECRETS === 'true') {
+    console.log('🔐 Attempting AWS RDS connection...');
+    // We'll need to get the secret, but for now try the RDS endpoint directly
+    clientConfig = {
+      host: 'stocks-db-dev.ch7hvtpgibhf.us-east-1.rds.amazonaws.com',
+      port: 5432,
+      database: 'stocks',
+      user: 'stocks_admin', // typical RDS setup
+      password: process.env.DB_PASSWORD || 'password', // fallback
+      ssl: { rejectUnauthorized: false }
+    };
+  } else {
+    console.log('🏠 Attempting local database connection...');
+    clientConfig = {
+      host: 'localhost',
+      port: 5432,
+      database: 'stocks',
+      user: 'postgres',
+      password: 'postgres'
+    };
+  }
+  
+  const client = new Client(clientConfig);
 
   try {
     await client.connect();
