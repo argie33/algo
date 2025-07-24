@@ -90,7 +90,7 @@ export const ApiKeyProvider = ({ children }) => {
       console.log('🔑 Loading API keys from backend...');
       
       // Try to get API keys from backend first
-      const response = await api.get('/api/settings/api-keys');
+      const response = await api.get('/api/settings/api/api-keys');
       
       if (response.data?.success && Array.isArray(response.data.data)) {
         // Convert array response to object format
@@ -230,7 +230,7 @@ export const ApiKeyProvider = ({ children }) => {
         secretKey: secretKey || undefined
       };
 
-      const response = await api.post('/api/settings/api-keys', payload);
+      const response = await api.post('/api/settings/api/api-keys', payload);
       
       if (response.data?.success) {
         console.log(`✅ Successfully saved ${provider} API key to backend`);
@@ -324,7 +324,7 @@ export const ApiKeyProvider = ({ children }) => {
       setError(null);
       
       // Remove from backend
-      await api.delete(`/api/settings/api-keys/${provider}`);
+      await api.delete(`/api/settings/api/api-keys/${provider}`);
       
       // Update local state
       setApiKeys(prev => {
@@ -367,7 +367,7 @@ export const ApiKeyProvider = ({ children }) => {
   const getHealthData = async () => {
     try {
       console.log('🔍 Fetching API key health data from backend...');
-      const response = await api.get('/api/settings/api-keys/health');
+      const response = await api.get('/api/settings/api/api-keys/health');
       
       if (response.data?.success) {
         return response.data.data;
@@ -404,7 +404,7 @@ export const ApiKeyProvider = ({ children }) => {
   const getAnalytics = async (provider, timeframe = '24h') => {
     try {
       console.log(`📊 Fetching analytics for ${provider || 'all'} (${timeframe})`);
-      const response = await api.get('/api/settings/api-keys/analytics', {
+      const response = await api.get('/api/settings/api/api-keys/analytics', {
         params: { provider, timeframe }
       });
       
@@ -441,7 +441,7 @@ export const ApiKeyProvider = ({ children }) => {
   const getProviderStatus = async (provider) => {
     try {
       console.log(`🔍 Fetching status for ${provider}`);
-      const response = await api.get(`/api/settings/api-keys/status/${provider}`);
+      const response = await api.get(`/api/settings/api/api-keys/status/${provider}`);
       
       if (response.data?.success) {
         return response.data.data.status;

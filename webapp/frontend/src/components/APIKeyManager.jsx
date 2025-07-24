@@ -109,7 +109,7 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/settings/api-keys/${userId}`);
+      const response = await fetch(`/api/settings/api/api-keys/${userId}`);
       if (response.ok) {
         const data = await response.json();
         setApiKeys(data.apiKeys || {});
@@ -128,7 +128,7 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
   const saveAPIKey = async (provider, keyData) => {
     setSaving(prev => ({ ...prev, [provider]: true }));
     try {
-      const response = await fetch(`/api/settings/api-keys/${userId}/${provider}`, {
+      const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(keyData)
@@ -163,7 +163,7 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
 
     setSaving(prev => ({ ...prev, [provider]: true }));
     try {
-      const response = await fetch(`/api/settings/api-keys/${userId}/${provider}`, {
+      const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}`, {
         method: 'DELETE'
       });
 
@@ -199,7 +199,7 @@ const APIKeyManager = ({ userId, onAPIKeysChange }) => {
   const testConnection = async (provider) => {
     setTesting(prev => ({ ...prev, [provider]: true }));
     try {
-      const response = await fetch(`/api/settings/api-keys/${userId}/${provider}/test`, {
+      const response = await fetch(`/api/settings/api/api-keys/${userId}/${provider}/test`, {
         method: 'POST'
       });
 

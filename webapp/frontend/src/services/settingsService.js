@@ -16,7 +16,7 @@ class SettingsService {
   async getApiKeys() {
     try {
       console.log('📡 Fetching API keys from backend...');
-      const response = await api.get(`${this.baseUrl}/api-keys`);
+      const response = await api.get(`${this.baseUrl}/api/api-keys`);
       
       if (response.data.success) {
         console.log('✅ Successfully fetched API keys:', response.data.data.length, 'keys');
@@ -52,7 +52,7 @@ class SettingsService {
         description: apiKeyData.description || `${apiKeyData.provider} API key`
       };
 
-      const response = await api.post(`${this.baseUrl}/api-keys`, payload);
+      const response = await api.post(`${this.baseUrl}/api/api-keys`, payload);
       
       if (response.data.success) {
         console.log('✅ Successfully added API key:', response.data.data.id);
@@ -73,7 +73,7 @@ class SettingsService {
     try {
       console.log('📡 Updating API key:', keyId);
       
-      const response = await api.put(`${this.baseUrl}/api-keys/${keyId}`, updates);
+      const response = await api.put(`${this.baseUrl}/api/api-keys/${keyId}`, updates);
       
       if (response.data.success) {
         console.log('✅ Successfully updated API key:', keyId);
@@ -94,7 +94,7 @@ class SettingsService {
     try {
       console.log('📡 Deleting API key:', keyId);
       
-      const response = await api.delete(`${this.baseUrl}/api-keys/${keyId}`);
+      const response = await api.delete(`${this.baseUrl}/api/api-keys/${keyId}`);
       
       if (response.data.success) {
         console.log('✅ Successfully deleted API key:', keyId);
@@ -115,7 +115,7 @@ class SettingsService {
     try {
       console.log('📡 Validating API key:', keyId, 'for provider:', provider);
       
-      const response = await api.post(`${this.baseUrl}/api-keys/${keyId}/validate`, {
+      const response = await api.post(`${this.baseUrl}/api/api-keys/${keyId}/validate`, {
         provider
       });
       
@@ -139,8 +139,8 @@ class SettingsService {
       console.log('📡 Getting validation status for provider:', provider || 'all');
       
       const url = provider 
-        ? `${this.baseUrl}/api-keys/validation-status?provider=${provider}`
-        : `${this.baseUrl}/api-keys/validation-status`;
+        ? `${this.baseUrl}/api/api-keys/validation-status?provider=${provider}`
+        : `${this.baseUrl}/api/api-keys/validation-status`;
       
       const response = await api.get(url);
       
@@ -163,7 +163,7 @@ class SettingsService {
     try {
       console.log('📡 Validating all API keys...');
       
-      const response = await api.post(`${this.baseUrl}/api-keys/validate-all`);
+      const response = await api.post(`${this.baseUrl}/api/api-keys/validate-all`);
       
       if (response.data.success) {
         console.log('✅ Validated all API keys:', response.data.data.validationResults);
@@ -184,7 +184,7 @@ class SettingsService {
     try {
       console.log('📡 Getting credentials for provider:', provider);
       
-      const response = await api.get(`${this.baseUrl}/api-keys/${provider}/credentials`);
+      const response = await api.get(`${this.baseUrl}/api/api-keys/${provider}/credentials`);
       
       if (response.data.success) {
         console.log('✅ Got credentials for provider:', provider);
