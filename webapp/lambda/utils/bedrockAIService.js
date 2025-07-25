@@ -231,45 +231,109 @@ Please provide a helpful, accurate, and actionable response. Include 2-4 relevan
   }
 
   /**
-   * Generate fallback response when Bedrock is unavailable
+   * Create detailed error with actionable resolution steps
    */
-  generateFallbackResponse(userMessage, context) {
-    console.log('🔄 Using fallback response generation');
+  createDetailedError(error, userMessage, context) {
+    const errorCode = error.name || error.code || 'UNKNOWN_ERROR';
+    const errorMessage = error.message || 'Unknown error occurred';
     
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('portfolio') && context.portfolioContext) {
-      const portfolio = context.portfolioContext;
-      return {
-        content: `Based on your portfolio analysis:
-
-• Total Portfolio Value: $${portfolio.totalValue?.toFixed(2) || 'N/A'}
-• Total Gain/Loss: ${portfolio.totalGainLoss >= 0 ? '+' : ''}$${portfolio.totalGainLoss?.toFixed(2) || 'N/A'} (${portfolio.gainLossPercent?.toFixed(2) || 'N/A'}%)
-• Number of Holdings: ${portfolio.holdings?.length || 0}
-
-Your portfolio shows ${portfolio.gainLossPercent > 0 ? 'positive' : 'negative'} performance. Consider reviewing your asset allocation and rebalancing if needed.
-
-Note: This is a basic analysis. For detailed insights, please try again when our advanced AI features are available.`,
-        suggestions: ['Analyze sector allocation', 'Review risk metrics', 'Suggest rebalancing', 'Compare to benchmarks'],
-        context: {
-          dataSource: 'fallback',
-          hasPortfolioData: true
-        }
-      };
-    }
-
-    return {
-      content: `I understand you're asking about: "${userMessage}"
-
-I'm currently experiencing technical difficulties with my advanced AI capabilities. However, I can still help you with basic investment questions and portfolio analysis.
-
-For complex market analysis and detailed investment strategies, please try again in a few moments when my full capabilities are restored.`,
-      suggestions: ['Portfolio overview', 'Market basics', 'Investment principles', 'Try again'],
-      context: {
-        dataSource: 'fallback',
-        isError: true
-      }
+    let detailedError = {
+      name: 'BedrockAIServiceError',
+      code: errorCode,
+      message: '',
+      details: {},
+      actionableSteps: []
     };
+
+    // Handle specific error types
+    switch (errorCode) {
+      case 'AccessDeniedException':
+        detailedError.message = 'AWS Bedrock access denied - IAM permissions required';
+        detailedError.details = {
+          requiredPermissions: ['bedrock:InvokeModel'],
+          resourceArn: 'arn:aws:bedrock:*:*:foundation-model/anthropic.claude-3-haiku-20240307-v1:0',
+          currentUser: error.message.match(/User: (arn:aws:iam::[^\\s]+)/)?.[1] || 'Unknown',
+          region: process.env.AWS_REGION || 'us-east-1'
+        };
+        detailedError.actionableSteps = [
+          '1. Contact your AWS administrator to add bedrock:InvokeModel permission',
+          '2. Ensure Claude 3 Haiku model access is enabled in AWS Bedrock console',
+          '3. Verify AWS credentials have the correct permissions',
+          '4. Check that the model is available in your AWS region'
+        ];
+        break;
+        
+      case 'ModelNotFoundError':
+      case 'ValidationException':
+        detailedError.message = 'AWS Bedrock model configuration error';
+        detailedError.details = {
+          requestedModel: this.modelConfig.modelId,
+          availableRegions: ['us-east-1', 'us-west-2'],
+          modelStatus: 'Check AWS Bedrock console for model availability'
+        };
+        detailedError.actionableSteps = [
+          '1. Verify Claude 3 Haiku model is enabled in AWS Bedrock console',
+          '2. Check model availability in your AWS region',
+          '3. Ensure model access has been requested and approved',
+          '4. Try switching to us-east-1 region if using a different region'
+        ];
+        break;
+        
+      case 'ThrottlingException':
+        detailedError.message = 'AWS Bedrock rate limit exceeded';
+        detailedError.details = {
+          retryAfter: '60 seconds',
+          currentRequests: this.costTracking.requestCount,
+          suggestion: 'Implement request queuing or increase rate limits'
+        };
+        detailedError.actionableSteps = [
+          '1. Wait 60 seconds before retrying',
+          '2. Contact AWS support to increase Bedrock rate limits',
+          '3. Implement request queuing in your application',
+          '4. Consider caching responses to reduce API calls'
+        ];
+        break;
+        
+      case 'ServiceUnavailableException':
+        detailedError.message = 'AWS Bedrock service temporarily unavailable';
+        detailedError.details = {
+          serviceStatus: 'Check AWS Status page',
+          retryAfter: '5 minutes',
+          region: process.env.AWS_REGION || 'us-east-1'
+        };
+        detailedError.actionableSteps = [
+          '1. Check AWS Status page for Bedrock service issues',
+          '2. Wait 5 minutes and retry',
+          '3. Try switching to a different AWS region',
+          '4. Monitor AWS service status for updates'
+        ];
+        break;
+        
+      default:
+        detailedError.message = `AWS Bedrock error: ${errorMessage}`;
+        detailedError.details = {
+          originalError: errorMessage,
+          errorCode: errorCode,
+          timestamp: new Date().toISOString()
+        };
+        detailedError.actionableSteps = [
+          '1. Check AWS credentials and permissions',
+          '2. Verify network connectivity to AWS',
+          '3. Check AWS CloudTrail logs for detailed error information',
+          '4. Contact AWS support if the issue persists'
+        ];
+    }
+    
+    // Add context information
+    detailedError.context = {
+      userMessage: userMessage.substring(0, 100),
+      hasPortfolioContext: !!context.portfolioContext,
+      region: process.env.AWS_REGION || 'us-east-1',
+      modelId: this.modelConfig.modelId,
+      timestamp: new Date().toISOString()
+    };
+    
+    return detailedError;
   }
 
   /**

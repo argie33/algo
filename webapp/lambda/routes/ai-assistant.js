@@ -84,93 +84,34 @@ const getPortfolioContext = async (userId) => {
 
 // Helper function to generate AI response using AWS Bedrock
 const generateAIResponse = async (userMessage, userId, context = {}) => {
-  try {
-    console.log('🤖 Processing AI request for user:', userId);
-    
-    // Get portfolio context if needed
-    let portfolioContext = null;
-    const message = userMessage.toLowerCase();
-    if (message.includes('portfolio') || message.includes('holdings') || message.includes('performance')) {
-      portfolioContext = await getPortfolioContext(userId);
-    }
-
-    // Get recent conversation history for context
-    const recentMessages = (await getUserHistory(userId)).slice(-5);
-    
-    // Build enhanced context for AI
-    const enhancedContext = {
-      ...context,
-      portfolioContext,
-      recentMessages,
-      userId,
-      timestamp: new Date().toISOString()
-    };
-
-    // Use Bedrock AI service for intelligent response
-    const aiResponse = await bedrockAIService.generateResponse(userMessage, enhancedContext);
-    
-    console.log('✅ AI response generated successfully');
-    return aiResponse;
-
-  } catch (error) {
-    console.error('❌ Error in generateAIResponse:', error);
-    
-    // Fallback to basic response if Bedrock fails
-    return generateBasicFallbackResponse(userMessage, userId);
-  }
-};
-
-// Fallback response generator for when Bedrock is unavailable
-const generateBasicFallbackResponse = async (userMessage, userId) => {
-  console.log('🔄 Using basic fallback response');
+  console.log('🤖 Processing AI request for user:', userId);
   
-  const message = userMessage.toLowerCase();
+  // Get portfolio context if needed
   let portfolioContext = null;
+  const message = userMessage.toLowerCase();
+  if (message.includes('portfolio') || message.includes('holdings') || message.includes('performance')) {
+    portfolioContext = await getPortfolioContext(userId);
+  }
+
+  // Get recent conversation history for context
+  const recentMessages = (await getUserHistory(userId)).slice(-5);
   
-  // Get portfolio context for fallback
-  if (message.includes('portfolio') || message.includes('holdings')) {
-    try {
-      portfolioContext = await getPortfolioContext(userId);
-    } catch (error) {
-      console.log('Portfolio context unavailable for fallback');
-    }
-  }
-
-  if (message.includes('portfolio') && portfolioContext) {
-    return {
-      content: `Based on your portfolio analysis:
-    
-• Total Portfolio Value: $${portfolioContext.totalValue.toFixed(2)}
-• Total Gain/Loss: ${portfolioContext.totalGainLoss >= 0 ? '+' : ''}$${portfolioContext.totalGainLoss.toFixed(2)} (${portfolioContext.gainLossPercent.toFixed(2)}%)
-• Number of Holdings: ${portfolioContext.holdings.length}
-
-Your top holdings by value:
-${portfolioContext.holdings.slice(0, 3).map((holding, index) => 
-  `${index + 1}. ${holding.symbol}: $${parseFloat(holding.market_value).toFixed(2)}`
-).join('\n')}
-
-Note: I'm currently running in basic mode. For detailed analysis and insights, please try again when my advanced AI features are available.`,
-      suggestions: ['Try advanced analysis', 'Portfolio overview', 'Market basics', 'Investment principles'],
-      context: {
-        hasPortfolioData: true,
-        dataSource: 'basic_fallback'
-      }
-    };
-  }
-
-  return {
-    content: `I understand you're asking about: "${userMessage}"
-
-I'm currently running in basic mode due to temporary technical limitations. I can still help with simple portfolio overviews and basic investment information.
-
-For comprehensive market analysis, detailed investment strategies, and personalized recommendations, please try again in a few moments when my full AI capabilities are restored.`,
-    suggestions: ['Portfolio overview', 'Basic market info', 'Investment basics', 'Try again later'],
-    context: {
-      dataSource: 'basic_fallback',
-      isLimitedMode: true
-    }
+  // Build enhanced context for AI
+  const enhancedContext = {
+    ...context,
+    portfolioContext,
+    recentMessages,
+    userId,
+    timestamp: new Date().toISOString()
   };
+
+  // Use Bedrock AI service for intelligent response - let errors bubble up
+  const aiResponse = await bedrockAIService.generateResponse(userMessage, enhancedContext);
+  
+  console.log('✅ AI response generated successfully');
+  return aiResponse;
 };
+
 
 // Send message to AI assistant
 router.post('/chat', async (req, res) => {
@@ -216,9 +157,27 @@ router.post('/chat', async (req, res) => {
     });
   } catch (error) {
     console.error('Error processing AI chat:', error);
+    
+    // Handle BedrockAIServiceError with detailed information
+    if (error.name === 'BedrockAIServiceError') {
+      return res.status(503).json({
+        success: false,
+        error: error.message,
+        errorCode: error.code,
+        details: error.details,
+        actionableSteps: error.actionableSteps,
+        context: error.context
+      });
+    }
+    
+    // Handle other errors generically
     res.status(500).json({
       success: false,
-      error: 'Failed to process message'
+      error: 'Failed to process message',
+      details: {
+        errorType: error.name || 'UnknownError',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });
@@ -307,12 +266,28 @@ router.get('/health', async (req, res) => {
     });
   } catch (error) {
     console.error('Error checking AI service health:', error);
+    
+    // Handle BedrockAIServiceError with detailed information
+    if (error.name === 'BedrockAIServiceError') {
+      return res.json({
+        success: false,
+        health: {
+          status: 'unavailable',
+          service: 'BedrockAIService',
+          error: error.message,
+          details: error.details,
+          actionableSteps: error.actionableSteps
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     res.json({
       success: false,
       health: {
         status: 'unknown',
         error: error.message,
-        fallbackAvailable: true
+        errorType: error.name || 'UnknownError'
       },
       timestamp: new Date().toISOString()
     });
