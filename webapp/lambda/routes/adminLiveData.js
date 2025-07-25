@@ -263,14 +263,47 @@ router.put('/config', async (req, res) => {
  */
 router.get('/health', async (req, res) => {
   try {
-    const healthChecks = {
-      liveDataService: await liveDataManager.healthCheck(),
-      hftService: await hftService.healthCheck().catch(err => ({
+    // Perform all health checks with proper error handling
+    const [liveDataCheck, hftCheck, dbCheck, wsCheck] = await Promise.allSettled([
+      liveDataManager.healthCheck().catch(err => ({
         status: 'error',
-        message: err.message
+        message: err.message,
+        service: 'liveDataManager'
       })),
-      database: await checkDatabaseHealth(),
-      webSocket: await checkWebSocketHealth(),
+      hftService.healthCheck().catch(err => ({
+        status: 'error', 
+        message: err.message,
+        service: 'hftService'
+      })),
+      checkDatabaseHealth().catch(err => ({
+        status: 'error',
+        message: err.message,
+        service: 'database'
+      })),
+      checkWebSocketHealth().catch(err => ({
+        status: 'error',
+        message: err.message,
+        service: 'webSocket'
+      }))
+    ]);
+
+    const healthChecks = {
+      liveDataService: liveDataCheck.status === 'fulfilled' ? liveDataCheck.value : {
+        status: 'error',
+        message: liveDataCheck.reason?.message || 'Health check failed'
+      },
+      hftService: hftCheck.status === 'fulfilled' ? hftCheck.value : {
+        status: 'error',
+        message: hftCheck.reason?.message || 'Health check failed'
+      },
+      database: dbCheck.status === 'fulfilled' ? dbCheck.value : {
+        status: 'error',
+        message: dbCheck.reason?.message || 'Health check failed'
+      },
+      webSocket: wsCheck.status === 'fulfilled' ? wsCheck.value : {
+        status: 'error',
+        message: wsCheck.reason?.message || 'Health check failed'
+      },
       timestamp: new Date().toISOString()
     };
 

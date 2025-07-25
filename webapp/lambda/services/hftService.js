@@ -962,6 +962,89 @@ class HFTService {
       this.stop();
     }
   }
+
+  /**
+   * Get current status of HFT service
+   */
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      status: this.isRunning ? 'active' : 'stopped',
+      startTime: this.startTime,
+      uptime: this.startTime ? Date.now() - this.startTime : 0,
+      activeStrategies: Array.from(this.strategies.values()).filter(s => s.enabled).length,
+      totalStrategies: this.strategies.size,
+      openPositions: this.positions.size,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * Get detailed metrics
+   */
+  getMetrics() {
+    return {
+      isRunning: this.isRunning,
+      totalTrades: this.totalTrades || 0,
+      totalPnL: this.metrics.totalPnL || 0,
+      dailyPnL: this.metrics.dailyPnL || 0,
+      winRate: this.totalTrades > 0 ? (this.metrics.winCount || 0) / this.totalTrades : 0,
+      openPositions: this.positions.size,
+      enabledStrategies: Array.from(this.strategies.values()).filter(s => s.enabled).length,
+      avgExecutionTime: this.metrics.avgExecutionTime || 0,
+      lastUpdate: Date.now()
+    };
+  }
+
+  /**
+   * Health check for HFT service
+   */
+  async healthCheck() {
+    try {
+      const strategyHealth = Array.from(this.strategies.values()).map(strategy => ({
+        id: strategy.id,
+        enabled: strategy.enabled,
+        performance: strategy.performance || { uptime: 100, errorRate: 0 },
+        errors: strategy.errors || 0
+      }));
+
+      const unhealthyStrategies = strategyHealth.filter(s => 
+        s.errors > 10 || s.performance.uptime < 95
+      );
+
+      // Check if within risk limits
+      const riskStatus = {
+        dailyPnLOk: this.metrics.dailyPnL > -this.riskConfig.maxDailyLoss,
+        drawdownOk: this.metrics.totalPnL > -this.riskConfig.maxDrawdown,
+        positionCountOk: this.positions.size <= this.riskConfig.maxPositions
+      };
+
+      const riskHealthy = Object.values(riskStatus).every(Boolean);
+
+      return {
+        status: unhealthyStrategies.length === 0 && riskHealthy ? 'healthy' : 'degraded',
+        message: `${strategyHealth.length} strategies checked`,
+        isRunning: this.isRunning,
+        uptime: this.startTime ? Date.now() - this.startTime : 0,
+        strategies: strategyHealth,
+        unhealthyStrategies: unhealthyStrategies.length,
+        riskStatus,
+        currentMetrics: {
+          totalPnL: this.metrics.totalPnL,
+          dailyPnL: this.metrics.dailyPnL,
+          openPositions: this.positions.size
+        },
+        timestamp: Date.now()
+      };
+
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
 }
 
 module.exports = HFTService;
