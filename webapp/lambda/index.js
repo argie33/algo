@@ -76,6 +76,8 @@ safeRouteLoader('./routes/market', 'Market', '/api/market');
 safeRouteLoader('./routes/trading', 'Trading', '/api/trading');
 
 // Additional Routes
+safeRouteLoader('./routes/configuration', 'Configuration', '/api/config');
+safeRouteLoader('./routes/trades', 'Trades', '/api/trades');
 safeRouteLoader('./routes/user', 'User Management', '/api/user');
 safeRouteLoader('./routes/settings', 'Settings', '/api/settings');
 safeRouteLoader('./routes/liveData', 'Live Data', '/api/live-data');

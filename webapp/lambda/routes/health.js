@@ -572,6 +572,46 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
+// Service health connection endpoint for frontend
+router.get('/connection', async (req, res) => {
+  try {
+    console.log('Service health connection check requested');
+    
+    // Quick connection test without full database diagnostics
+    const startTime = Date.now();
+    const result = await query('SELECT 1 as test', [], 5000);
+    const responseTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      status: 'connected',
+      connection: {
+        database: 'healthy',
+        responseTime: responseTime,
+        timestamp: new Date().toISOString()
+      },
+      service: 'Financial Dashboard API',
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
+    });
+    
+  } catch (error) {
+    console.error('Service health connection failed:', error);
+    res.status(503).json({
+      success: false,
+      status: 'disconnected',
+      connection: {
+        database: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      },
+      service: 'Financial Dashboard API',
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
+    });
+  }
+});
+
 // Enhanced comprehensive database diagnostics endpoint
 router.get('/database/diagnostics', async (req, res) => {
   console.log('Received request for /health/database/diagnostics');
