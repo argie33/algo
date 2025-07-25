@@ -1,7 +1,46 @@
 const express = require('express');
 const { query, initializeDatabase, getPool, healthCheck } = require('../utils/database');
+const DatabaseCircuitBreaker = require('../utils/databaseCircuitBreaker');
+
+// Create circuit breaker instance for health checks
+const databaseCircuitBreaker = new DatabaseCircuitBreaker();
 
 const router = express.Router();
+
+// Quick health check endpoint - NO database dependency to prevent reload loops
+router.get('/quick', (req, res) => {
+  res.json({
+    status: 'healthy',
+    healthy: true,
+    service: 'Financial Dashboard API',
+    timestamp: new Date().toISOString(),
+    environment: process.env.ENVIRONMENT || 'dev',
+    memory: process.memoryUsage(),
+    uptime: process.uptime(),
+    note: 'Quick health check - no database dependency',
+    api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' }
+  });
+});
+
+// Circuit breaker status endpoint
+router.get('/circuit-breakers', (req, res) => {
+  try {
+    const cbStatus = databaseCircuitBreaker.getStatus();
+    
+    res.json({
+      database: cbStatus,
+      overall: cbStatus.state === 'CLOSED' ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      note: 'Circuit breaker status - use for monitoring degraded services'
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get circuit breaker status',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // Health check endpoint
 router.get('/', async (req, res) => {
@@ -155,10 +194,33 @@ router.get('/', async (req, res) => {
         }
       }
       
-      result = await Promise.race([
-        query('SELECT 1 as ok'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Database health check timeout')), 5000))
-      ]);
+      // Use circuit breaker protection for database health check
+      try {
+        result = await databaseCircuitBreaker.execute(
+          () => query('SELECT 1 as ok'),
+          'health-check'
+        );
+      } catch (error) {
+        if (error.message.includes('Circuit breaker is OPEN')) {
+          console.log('🔴 Circuit breaker is OPEN - returning degraded status');
+          return res.status(503).json({
+            status: 'degraded',
+            healthy: false,
+            service: 'Financial Dashboard API',
+            timestamp: new Date().toISOString(),
+            environment: process.env.ENVIRONMENT || 'dev',
+            database: { 
+              status: 'circuit_breaker_open',
+              note: 'Database circuit breaker is protecting against failures'
+            },
+            circuitBreaker: databaseCircuitBreaker.getStatus(),
+            api: { version: '1.0.0', environment: process.env.ENVIRONMENT || 'dev' },
+            memory: process.memoryUsage(),
+            uptime: process.uptime()
+          });
+        }
+        throw error; // Re-throw non-circuit-breaker errors
+      }
       console.log('✅ DATABASE QUERY: Basic query successful');
       
     } catch (dbError) {
@@ -572,14 +634,38 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
-// Service health connection endpoint for frontend
+// Service health connection endpoint for frontend - WITH CIRCUIT BREAKER PROTECTION
 router.get('/connection', async (req, res) => {
   try {
     console.log('Service health connection check requested');
     
-    // Quick connection test without full database diagnostics
+    // Use circuit breaker protection for database connection test
     const startTime = Date.now();
-    const result = await query('SELECT 1 as test', [], 5000);
+    let result;
+    try {
+      result = await databaseCircuitBreaker.execute(
+        () => query('SELECT 1 as test'),
+        'connection-check'
+      );
+    } catch (error) {
+      if (error.message.includes('Circuit breaker is OPEN')) {
+        console.log('🔴 Circuit breaker is OPEN for connection check');
+        return res.status(503).json({
+          success: false,
+          status: 'circuit_breaker_open',
+          connection: {
+            database: 'circuit_breaker_protecting',
+            note: 'Database circuit breaker is open - service is degraded',
+            timestamp: new Date().toISOString()
+          },
+          circuitBreaker: databaseCircuitBreaker.getStatus(),
+          service: 'Financial Dashboard API',
+          version: '1.0.0',
+          environment: process.env.NODE_ENV || 'development'
+        });
+      }
+      throw error; // Re-throw non-circuit-breaker errors
+    }
     const responseTime = Date.now() - startTime;
     
     res.json({
