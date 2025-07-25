@@ -655,8 +655,8 @@ async function executeValidation(validationType, environment, options) {
   const targetSuccessRate = environmentRates[validationType] || 0.8;
   
   // Add time-based variation for consistency
-  const timeVariation = Math.sin((Date.now() / 86400000) * 2 * Math.PI) * 0.05; // Daily variation ±5%
-  const adjustedSuccessRate = Math.max(0.5, Math.min(0.98, targetSuccessRate + timeVariation));
+  const dailyVariation = Math.sin((Date.now() / 86400000) * 2 * Math.PI) * 0.05; // Daily variation ±5%
+  const adjustedSuccessRate = Math.max(0.5, Math.min(0.98, targetSuccessRate + dailyVariation));
   
   const success = Math.sin(startTime / 10000) > (1 - adjustedSuccessRate * 2); // Deterministic but varied
   const duration = Date.now() - startTime;
@@ -773,8 +773,8 @@ async function executeValidation(validationType, environment, options) {
 
     default:
       const baseScore = success ? 85 : 45;
-      const timeVariation = Math.sin((hourOfDay / 24) * 2 * Math.PI) * 10; // Daily score variation
-      const score = Math.round(Math.max(0, Math.min(100, baseScore + timeVariation)));
+      const hourlyVariation = Math.sin((hourOfDay / 24) * 2 * Math.PI) * 10; // Daily score variation
+      const score = Math.round(Math.max(0, Math.min(100, baseScore + hourlyVariation)));
       
       result.results = {
         status: success ? 'passed' : 'failed',

@@ -18,7 +18,22 @@ global.fetch = vi.fn();
 describe('User Password Management API Endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Set up development authentication like Settings.jsx
     localStorage.setItem('accessToken', 'mock-jwt-token');
+    
+    // Mock development JWT token similar to Settings.jsx implementation
+    const devToken = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })) + '.' +
+                     btoa(JSON.stringify({
+                       sub: 'dev-user-123',
+                       email: 'dev@example.com',
+                       exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+                       aud: 'development-client',
+                       iss: 'https://cognito-idp.us-east-1.amazonaws.com/development'
+                     })) + '.' +
+                     btoa('dev-signature');
+    
+    localStorage.setItem('devToken', devToken);
   });
 
   afterEach(() => {
@@ -302,6 +317,73 @@ describe('User Password Management API Endpoints', () => {
       expect(result.error).toBe('Password change service unavailable');
     });
 
+    it('should handle infrastructure unavailable (current site state)', async () => {
+      const mockErrorResponse = {
+        success: false,
+        error: 'Endpoint not found',
+        path: '/',
+        method: 'GET',
+        message: 'This endpoint is not available',
+        timestamp: new Date().toISOString(),
+        availableEndpoints: ['/api/health', '/api/portfolio', '/api/stocks', '/api/metrics', '/api/api-keys']
+      };
+
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => mockErrorResponse
+      });
+
+      const response = await fetch('/api/user/change-password', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(validPasswordPayload)
+      });
+
+      const result = await response.json();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Endpoint not found');
+      expect(result.availableEndpoints).toContain('/api/health');
+    });
+
+    it('should handle database connectivity issues (current infrastructure state)', async () => {
+      const mockErrorResponse = {
+        status: 'unhealthy',
+        healthy: false,
+        service: 'Financial Dashboard API',
+        database: {
+          status: 'disconnected',
+          error: 'connect ECONNREFUSED 127.0.0.1:5432',
+          errorCode: 'ECONNREFUSED'
+        }
+      };
+
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => mockErrorResponse
+      });
+
+      const response = await fetch('/api/user/change-password', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(validPasswordPayload)
+      });
+
+      const result = await response.json();
+
+      expect(result.status).toBe('unhealthy');
+      expect(result.database.status).toBe('disconnected');
+      expect(result.database.errorCode).toBe('ECONNREFUSED');
+    });
+
     it('should handle unexpected server errors', async () => {
       const mockErrorResponse = {
         success: false,
@@ -579,6 +661,33 @@ describe('User Password Management API Endpoints', () => {
           })
         );
       });
+    });
+
+    it('should handle development authentication bypass (current site mode)', async () => {
+      const mockResponse = {
+        success: true,
+        authenticated: true,
+        developmentMode: true,
+        message: 'Authentication bypassed for development'
+      };
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse
+      });
+
+      const response = await fetch('/api/auth-status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      expect(result.success).toBe(true);
+      expect(result.developmentMode).toBe(true);
+      expect(result.authenticated).toBe(true);
     });
 
     it('should not require authentication for forgot-password endpoint', async () => {

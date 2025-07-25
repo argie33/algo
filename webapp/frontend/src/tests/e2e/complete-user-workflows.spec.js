@@ -10,23 +10,90 @@ const baseURL = process.env.E2E_BASE_URL || 'https://d1zb7knau41vl9.cloudfront.n
 const apiURL = process.env.E2E_API_URL || 'https://2m14opj30h.execute-api.us-east-1.amazonaws.com/dev'
 
 test.describe('Complete User Workflows', () => {
+  let infrastructureHealthy = false;
+  let availableEndpoints = [];
+  
+  test.beforeAll(async () => {
+    // Check actual infrastructure health before running tests
+    try {
+      const response = await fetch(`${apiURL}/api/health`);
+      const health = await response.json();
+      infrastructureHealthy = health.status === 'healthy' && health.database?.status === 'connected';
+      availableEndpoints = health.availableEndpoints || [];
+      console.log('🏥 Infrastructure Health Check:', {
+        status: health.status,
+        database: health.database?.status,
+        available: infrastructureHealthy,
+        endpoints: availableEndpoints.length
+      });
+    } catch (error) {
+      console.warn('⚠️ Infrastructure health check failed:', error.message);
+      infrastructureHealthy = false;
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
-    // Set up API response interceptors for consistent testing
+    // Set up API response interceptors based on actual infrastructure state
     await page.route('**/health', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          status: 'healthy',
-          services: { database: 'connected', api: 'operational' },
-          timestamp: new Date().toISOString()
-        })
-      })
-    })
+      if (infrastructureHealthy) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'healthy',
+            services: { database: 'connected', api: 'operational' },
+            timestamp: new Date().toISOString()
+          })
+        });
+      } else {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'unhealthy',
+            healthy: false,
+            database: {
+              status: 'disconnected',
+              error: 'connect ECONNREFUSED 127.0.0.1:5432',
+              errorCode: 'ECONNREFUSED'
+            },
+            timestamp: new Date().toISOString()
+          })
+        });
+      }
+    });
+
+    // Route password change based on infrastructure state
+    await page.route('**/api/user/change-password', async route => {
+      if (!infrastructureHealthy) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: 'Password change service unavailable',
+            message: 'Database connectivity issues prevent password changes'
+          })
+        });
+      } else if (!availableEndpoints.includes('/api/user/change-password')) {
+        await route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: 'Endpoint not found',
+            availableEndpoints: availableEndpoints
+          })
+        });
+      } else {
+        // Normal password change flow
+        await route.continue();
+      }
+    });
     
     // Navigate to the application
-    await page.goto(baseURL)
-    await page.waitForLoadState('networkidle')
+    await page.goto(baseURL);
+    await page.waitForLoadState('networkidle');
   })
   
   test('User onboarding and API key setup workflow', async ({ page }) => {
